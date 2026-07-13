@@ -1,0 +1,10 @@
+.sb-show-main.sb-main-fullscreen {
+  padding: var(--studio-space-8);
+  background: var(--studio-color-canvas);
+}
+
+@media (width <= 30rem) {
+  .sb-show-main.sb-main-fullscreen {
+    padding: var(--studio-space-4);
+  }
+}

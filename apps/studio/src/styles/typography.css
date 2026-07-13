@@ -1,0 +1,12 @@
+body {
+  color: var(--studio-color-ink);
+  background: var(--studio-color-canvas);
+  font: var(--studio-type-body);
+  font-synthesis: none;
+  text-rendering: optimizelegibility;
+}
+
+::selection {
+  color: var(--studio-color-ink);
+  background: color-mix(in srgb, var(--studio-color-vision) 28%, transparent);
+}

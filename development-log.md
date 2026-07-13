@@ -13,3 +13,10 @@
 - Added strict TypeScript, ESLint layer rules, CSS `!important` rejection, unit, build, and Playwright gates.
 - Added the minimal accessible Studio shell; visual tokens remain provisional and replaceable.
 - Task 1 is complete; current phase: ready for Task 2 design primitives.
+
+## 2026-07-13 — Design primitives
+
+- Added provisional, replaceable design tokens for color, typography, spacing, focus, contrast, and motion.
+- Added accessible SemanticMark and Card primitives with explicit non-color labels and named regions.
+- Added Storybook, axe checks, and reviewed desktop/mobile visual baselines.
+- Task 2 is complete; current phase: ready for Task 3 content kernel.

@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     projects: [
       'apps/*/vite.config.ts',
+      'packages/*/vite.config.ts',
       {
         test: {
           name: 'tooling',
