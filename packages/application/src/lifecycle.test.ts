@@ -61,12 +61,18 @@ describe('service lifecycle and reconciliation', () => {
     expect(timers.tasks).toHaveLength(0);
   });
 
-  it('skips a note removed between list and read while rebuilding the remaining vault', async () => {
+  it('skips a note confirmed removed between list and read while rebuilding the remaining vault', async () => {
     const backing = createInMemoryVault();
     await backing.writeTextAtomic('Notes/a.md', serializeNote(note({ id: 'a' })));
     await backing.writeTextAtomic('Notes/b.md', serializeNote(note({ id: 'b' })));
-    const read = vi.fn(backing.readText.bind(backing));
-    read.mockRejectedValueOnce(new VaultUnavailableError('moved'));
+    const originalRead = backing.readText.bind(backing);
+    const read = vi.fn(async (path: string) => {
+      if (path === 'Notes/a.md') {
+        await backing.remove(path);
+        throw new VaultUnavailableError('moved');
+      }
+      return originalRead(path);
+    });
     const racing: VaultPort = {
       list: backing.list.bind(backing),
       readText: read,
@@ -83,6 +89,19 @@ describe('service lifecycle and reconciliation', () => {
 
     await expect(service.rebuildIndex()).resolves.toBeUndefined();
     expect(index.entries.size).toBe(1);
+  });
+
+  it('aborts rebuild on a transient unavailable read when the path still exists', async () => {
+    const vault = createInMemoryVault();
+    await vault.writeTextAtomic('Notes/a.md', serializeNote(note()));
+    const index = new RecordingIndex();
+    index.entries.set('preserved', { note: note({ id: 'preserved' }), path: 'Old.md', hash: 'old' });
+    vi.spyOn(vault, 'readText').mockRejectedValueOnce(new VaultUnavailableError('backend offline'));
+    const service = createStudioService({ vault, index, timers: new ManualTimers() });
+
+    await expect(service.rebuildIndex()).rejects.toThrow('backend offline');
+    expect(service.indexState()).toBe('stale');
+    expect(index.entries.has('preserved')).toBe(true);
   });
 
   it('does not hide unexpected adapter failures during a scan', async () => {
@@ -191,5 +210,63 @@ describe('service lifecycle and reconciliation', () => {
     expect(service.indexState()).toBe('ready');
     expect(index.entries.has('b')).toBe(true);
     await service.dispose();
+  });
+
+  it('reconciles moves across the internal namespace in both directions', async () => {
+    const vault = createInMemoryVault();
+    const index = new RecordingIndex();
+    const timers = new ManualTimers();
+    const service = createStudioService({ vault, index, timers });
+    await service.start();
+    await vault.writeTextAtomic('Notes/a.md', serializeNote(note({ id: 'a' })));
+    await timers.runNext();
+    expect(index.entries.has('a')).toBe(true);
+
+    await vault.move('Notes/a.md', '.studio/hidden/a.md');
+    expect(timers.tasks).toHaveLength(1);
+    await timers.runNext();
+    expect(index.entries.has('a')).toBe(false);
+
+    await vault.move('.studio/hidden/a.md', 'Notes/restored.md');
+    expect(timers.tasks).toHaveLength(1);
+    await timers.runNext();
+    expect((await index.getById('a'))?.path).toBe('Notes/restored.md');
+    await service.dispose();
+  });
+
+  it('shares concurrent start registration and closes a watcher returned after dispose', async () => {
+    const backing = createInMemoryVault();
+    let resolveWatch!: (stop: () => void) => void;
+    const pendingWatch = new Promise<() => void>((resolve) => { resolveWatch = resolve; });
+    const firstStop = vi.fn();
+    const secondStop = vi.fn();
+    const watch = vi.fn()
+      .mockReturnValueOnce(pendingWatch)
+      .mockResolvedValueOnce(secondStop);
+    const vault: VaultPort = {
+      list: backing.list.bind(backing),
+      readText: backing.readText.bind(backing),
+      writeTextAtomic: backing.writeTextAtomic.bind(backing),
+      readBinary: backing.readBinary.bind(backing),
+      writeBinaryAtomic: backing.writeBinaryAtomic.bind(backing),
+      move: backing.move.bind(backing),
+      remove: backing.remove.bind(backing),
+      exists: backing.exists.bind(backing),
+      watch,
+    };
+    const service = createStudioService({ vault, index: new RecordingIndex(), timers: new ManualTimers() });
+
+    const firstStart = service.start();
+    const secondStart = service.start();
+    expect(watch).toHaveBeenCalledTimes(1);
+    const disposing = service.dispose();
+    resolveWatch(firstStop);
+    await Promise.all([firstStart, secondStart, disposing]);
+    expect(firstStop).toHaveBeenCalledOnce();
+
+    await service.start();
+    expect(watch).toHaveBeenCalledTimes(2);
+    await service.dispose();
+    expect(secondStop).toHaveBeenCalledOnce();
   });
 });
