@@ -91,4 +91,4 @@
 - Added vault-derived Foyer, room, Life Landscape, Current Season, Reflection, and Celebration projections with deterministic fallback sorting, archive/exclusion filtering, corrupt-note isolation, and canonical-ID de-duplication.
 - Added a dedicated `.studio/views/*.json` repository for disposable per-view ordering without weakening the reserved `.studio-*` storage-control namespace.
 - Added a browser-safe portable storage-contract export so application code does not pull Node-only adapters into the production PWA bundle.
-- Verified 21 application tests at 100% statement/branch/function/line coverage, 395 workspace tests, lint, workspace typecheck, and the production build. Task 8 is complete and ready for independent review.
+- Verified 23 application tests at 100% statement/branch/function/line coverage, 397 workspace tests, lint, workspace typecheck, and the production build. Task 8 is complete and ready for independent review.
