@@ -177,6 +177,38 @@ describe('local revision snapshots', () => {
     await expect(vault.exists(`${roots[1]}/manifest.json`)).resolves.toBe(true);
   });
 
+  it('rejects oversized snapshot metadata before reading snapshot bytes', async () => {
+    const vault = createInMemoryVault();
+    const root = '.studio/backups/2026-07-13/2026-07-13T08-00-00-000Z--oversized';
+    const copyPath = `${root}/files/Notes/a.md`;
+    const copy = await vault.writeTextAtomic(copyPath, 'a');
+    await seedSnapshot(vault, root, {
+      version: 1,
+      id: 'oversized',
+      reason: 'migration',
+      createdAt: '2026-07-13T08:00:00.000Z',
+      state: 'complete',
+      files: [{ originalPath: 'Notes/a.md', snapshotPath: copyPath, hash: copy.hash }],
+    }, {});
+    const list = vault.list.bind(vault);
+    vault.list = async (prefix) => (await list(prefix)).map((entry) =>
+      entry.path === copyPath ? { ...entry, size: 2 } : entry);
+    const read = vault.readBinary.bind(vault);
+    let snapshotReadCount = 0;
+    vault.readBinary = async (path) => {
+      if (path === copyPath) snapshotReadCount += 1;
+      return read(path);
+    };
+
+    await createRevisionStore(vault, {
+      clock: () => new Date('2026-07-14T00:00:00.000Z'),
+      limits: { maxFileBytes: 1 },
+    }).prune();
+
+    expect(snapshotReadCount).toBe(0);
+    await expect(vault.exists(`${root}/manifest.json`)).resolves.toBe(true);
+  });
+
   it('uses the manifest path as a deterministic tie-break for equal timestamps', async () => {
     const vault = createInMemoryVault();
     const createdAt = '2026-07-13T12:00:00.000Z';
