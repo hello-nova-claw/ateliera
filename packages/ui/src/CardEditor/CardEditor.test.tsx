@@ -154,3 +154,55 @@ it('warns when browser recovery storage is unavailable', () => {
     'keep this editor open',
   );
 });
+
+it('focuses a newly appearing conflict summary once without stealing focus again', () => {
+  const props = {
+    note,
+    onChange: vi.fn(),
+    onFlush: vi.fn(),
+    onKeepMine: vi.fn(),
+    onKeepOther: vi.fn(),
+    onManualMerge: vi.fn(),
+  };
+  const { rerender } = render(<CardEditor {...props} saveState="dirty" />);
+
+  rerender(
+    <CardEditor
+      {...props}
+      conflict={{ local: { ...note, body: 'Mine' }, remote: note }}
+      saveState="conflict"
+    />,
+  );
+  const summary = screen.getByRole('alert');
+  expect(summary).toHaveFocus();
+
+  const keepOther = screen.getByRole('button', { name: 'Keep other' });
+  keepOther.focus();
+  rerender(
+    <CardEditor
+      {...props}
+      conflict={{ local: { ...note, body: 'Mine' }, remote: note }}
+      conflictActionState="busy"
+      saveState="conflict"
+    />,
+  );
+  expect(keepOther).toHaveFocus();
+});
+
+it('focuses a newly appearing save error once and leaves later focus alone', () => {
+  const props = { note, onChange: vi.fn(), onFlush: vi.fn(), onRetrySave: vi.fn() };
+  const { rerender } = render(<CardEditor {...props} saveState="dirty" />);
+
+  rerender(
+    <CardEditor {...props} saveError="Disk unavailable" saveState="error" />,
+  );
+  const error = screen.getByRole('alert');
+  expect(error).toHaveFocus();
+
+  const retry = screen.getByRole('button', { name: 'Try saving again' });
+  retry.focus();
+  rerender(
+    <CardEditor {...props} saveError="Disk still unavailable" saveState="error" />,
+  );
+  expect(retry).toHaveFocus();
+});

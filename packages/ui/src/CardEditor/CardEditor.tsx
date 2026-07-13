@@ -3,6 +3,7 @@ import {
   semanticTypes,
   type StudioNote,
 } from '@studio/domain';
+import { useEffect, useRef } from 'react';
 import { MarkdownEditor } from './MarkdownEditor';
 import './CardEditor.css';
 
@@ -77,6 +78,23 @@ export function CardEditor({
   saveError,
   saveState,
 }: CardEditorProps) {
+  const conflictSummary = useRef<HTMLElement>(null);
+  const errorSummary = useRef<HTMLElement>(null);
+  const conflictWasVisible = useRef(false);
+  const errorWasVisible = useRef(false);
+
+  useEffect(() => {
+    const visible = conflict !== undefined;
+    if (visible && !conflictWasVisible.current) conflictSummary.current?.focus();
+    conflictWasVisible.current = visible;
+  }, [conflict]);
+
+  useEffect(() => {
+    const visible = saveError !== undefined;
+    if (visible && !errorWasVisible.current) errorSummary.current?.focus();
+    errorWasVisible.current = visible;
+  }, [saveError]);
+
   return (
     <article className="card-editor" aria-label="Note editor">
       <header className="card-editor__header">
@@ -113,7 +131,12 @@ export function CardEditor({
       )}
 
       {saveError !== undefined && (
-        <section className="card-editor__notice" role="alert">
+        <section
+          className="card-editor__notice"
+          ref={errorSummary}
+          role="alert"
+          tabIndex={-1}
+        >
           <h2>Your changes are still waiting.</h2>
           <p>{saveError}</p>
           <button onClick={onRetrySave} type="button">Try saving again</button>
@@ -175,7 +198,12 @@ export function CardEditor({
       </details>
 
       {conflict !== undefined && (
-        <section className="card-editor__conflict" role="alert">
+        <section
+          className="card-editor__conflict"
+          ref={conflictSummary}
+          role="alert"
+          tabIndex={-1}
+        >
           <h2>Another version exists</h2>
           <p>Nothing has been overwritten. Choose how these words should continue.</p>
           <div className="card-editor__versions">
