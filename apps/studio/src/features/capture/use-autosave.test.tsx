@@ -123,3 +123,31 @@ it('flushes immediately and enters conflict without clearing the local recovery'
   await act(async () => vi.advanceTimersByTimeAsync(2_000));
   expect(result.current.state).toBe('conflict');
 });
+
+it('holds an ordinary save error until a later edit asks to retry', async () => {
+  vi.useFakeTimers();
+  const save = vi
+    .fn<(value: StudioNote, hash: string) => Promise<SavedNote>>()
+    .mockRejectedValueOnce(new Error('storage offline'))
+    .mockImplementationOnce(async (value) => saved(value, 'recovered-hash'));
+  const removeRecovery = vi.fn();
+  const { result } = renderHook(() =>
+    useAutosave({
+      initial: saved(note, 'durable-hash'),
+      save,
+      writeRecovery: vi.fn(),
+      removeRecovery,
+    }),
+  );
+
+  act(() => result.current.update({ ...note, body: 'Still safe' }));
+  await act(async () => vi.advanceTimersByTimeAsync(750));
+  expect(save).toHaveBeenCalledOnce();
+  expect(result.current.state).toBe('error');
+  expect(removeRecovery).not.toHaveBeenCalled();
+
+  act(() => result.current.update({ ...note, body: 'Try after another edit' }));
+  await act(async () => vi.advanceTimersByTimeAsync(750));
+  expect(save).toHaveBeenCalledTimes(2);
+  expect(result.current.state).toBe('saved');
+});
