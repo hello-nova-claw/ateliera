@@ -149,11 +149,11 @@ describe('SQLite IndexPort', () => {
     } finally { inspection.close(); }
   });
 
-  it('omits misleading highlights when diacritic-folded FTS has no exact source offset', async () => {
+  it('maps diacritic-folded FTS matches to accurate source offsets', async () => {
     await upsert(index, note({ title: 'A café ritual', body: 'Peaceful tea.' }), 'cafe.md', 'cafe');
     const [hit] = await index.search('cafe');
     expect(hit?.title).toBe('A café ritual');
-    expect(hit?.highlightRanges).toEqual([]);
+    expect(hit?.highlightRanges.map((range) => hit.snippet.slice(range.start, range.end))).toContain('café');
   });
 
   it('maps length-changing Turkish case folds back to original UTF-16 offsets', async () => {

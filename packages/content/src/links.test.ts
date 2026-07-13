@@ -48,7 +48,7 @@ describe('extractLinks', () => {
   });
 
   it('resolves full, collapsed, and shortcut reference links through definitions', () => {
-    expect(extractLinks('[proof][evidence] and [identity][] and [Evidence]\n\n[evidence]: <../Reflection/Proof (now).md>\n[identity]: studio://note/01REF')).toEqual([
+    expect(extractLinks('[proof][evidence] and [identity][] and [Evidence] plus [missing][absent] and [site][external]\n\n[evidence]: <../Reflection/Proof (now).md>\n[identity]: studio://note/01REF\n[external]: https://example.com')).toEqual([
       { kind: 'path', target: '../Reflection/Proof (now).md', label: 'proof' },
       { kind: 'id', target: '01REF', label: 'identity' },
     ]);
@@ -56,5 +56,9 @@ describe('extractLinks', () => {
 
   it('derives plain text from GFM tables without delimiter syntax', () => {
     expect(markdownToPlainText('| Name | Feeling |\n| --- | --- |\n| Anna | Calm |')).toBe('Name Feeling Anna Calm');
+  });
+
+  it('includes image alt text while omitting empty images and thematic markup', () => {
+    expect(markdownToPlainText('![cover](cover.jpg) ![](quiet.jpg)\n\n---')).toBe('cover');
   });
 });

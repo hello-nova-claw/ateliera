@@ -28,35 +28,61 @@ function rows<T>(value: unknown[]): T[] { return value as T[]; }
 function row<T>(value: unknown): T | undefined { return value as T | undefined; }
 
 function tokens(query: string): string[] {
-  return [...new Set((query.toLocaleLowerCase('en').match(/[\p{L}\p{N}_-]+/gu) ?? []).filter(Boolean))];
+  return [...new Set((query.match(/[\p{L}\p{N}_-]+/gu) ?? []).map((token) => foldForMatch(token)).filter(Boolean))];
 }
 
 function ftsQuery(queryTokens: string[]): string {
   return queryTokens.map((token) => `"${token.replaceAll('"', '""')}"*`).join(' AND ');
 }
 
+function foldForMatch(value: string): string {
+  return value.normalize('NFD').toLocaleLowerCase('en').replace(/\p{M}/gu, '');
+}
+
+function mappedFold(value: string): { folded: string; starts: number[]; ends: number[] } {
+  let folded = '';
+  const starts: number[] = [];
+  const ends: number[] = [];
+  const segments = new Intl.Segmenter('en', { granularity: 'grapheme' }).segment(value);
+  for (const { segment, index } of segments) {
+    const foldedSegment = foldForMatch(segment);
+    folded += foldedSegment;
+    for (let offset = 0; offset < foldedSegment.length; offset += 1) {
+      starts.push(index);
+      ends.push(index + segment.length);
+    }
+  }
+  return { folded, starts, ends };
+}
+
+function rangesFor(source: string, queryTokens: string[]): HighlightRange[] {
+  const mapping = mappedFold(source);
+  return queryTokens.flatMap((token) => {
+    const matches: HighlightRange[] = [];
+    let cursor = 0;
+    while (cursor < mapping.folded.length) {
+      const match = mapping.folded.indexOf(token, cursor);
+      if (match < 0) break;
+      const start = mapping.starts[match];
+      const end = mapping.ends[match + token.length - 1];
+      if (start !== undefined && end !== undefined && foldForMatch(source.slice(start, end)) === token) {
+        matches.push({ start, end });
+      }
+      cursor = match + Math.max(token.length, 1);
+    }
+    return matches;
+  }).sort((left, right) => left.start - right.start || left.end - right.end);
+}
+
 function makeSnippet(note: NoteRow, queryTokens: string[]): { snippet: string; highlightRanges: HighlightRange[] } {
-  const safeTitle = note.title.replace(/<[^>]*>/g, ' ');
-  const source = `${safeTitle}. ${note.body}`.replace(/\s+/g, ' ').trim();
-  const folded = source.toLocaleLowerCase('en');
-  const first = queryTokens.map((token) => folded.indexOf(token)).filter((index) => index >= 0).sort((a, b) => a - b)[0] ?? 0;
+  const source = `${note.title}. ${note.body}`.replace(/\s+/g, ' ').trim();
+  const first = rangesFor(source, queryTokens)[0]?.start ?? 0;
   const start = Math.max(0, first - 60);
   const end = Math.min(source.length, start + 180);
   const prefix = start > 0 ? '…' : '';
   const suffix = end < source.length ? '…' : '';
   const snippet = `${prefix}${source.slice(start, end)}${suffix}`;
-  const snippetFolded = snippet.toLocaleLowerCase('en');
-  const highlightRanges = queryTokens.flatMap((token) => {
-    const matches: HighlightRange[] = [];
-    let cursor = 0;
-    while (cursor < snippetFolded.length) {
-      const match = snippetFolded.indexOf(token, cursor);
-      if (match < 0) break;
-      matches.push({ start: match, end: match + token.length });
-      cursor = match + token.length;
-    }
-    return matches;
-  }).sort((left, right) => left.start - right.start || left.end - right.end);
+  const highlightRanges = rangesFor(snippet, queryTokens);
   return { snippet, highlightRanges };
 }
 
@@ -144,9 +170,9 @@ export class SqliteIndex implements IndexPort {
       const indexedNote = JSON.parse(item.note_json) as StudioNote;
       const sourceText = [indexedNote.source?.title, indexedNote.source?.creator, indexedNote.source?.url].filter(Boolean).join(' ');
       const matchContext = snippet.highlightRanges.length === 0
-        ? indexedNote.tags.find((tag) => queryTokens.some((token) => tag.toLocaleLowerCase('en').includes(token))) !== undefined
+        ? indexedNote.tags.find((tag) => queryTokens.some((token) => foldForMatch(tag).includes(token))) !== undefined
           ? { field: 'tags' as const, text: indexedNote.tags.join(', ') }
-          : queryTokens.some((token) => sourceText.toLocaleLowerCase('en').includes(token))
+          : queryTokens.some((token) => foldForMatch(sourceText).includes(token))
             ? { field: 'source' as const, text: sourceText }
             : undefined
         : undefined;

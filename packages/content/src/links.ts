@@ -1,6 +1,8 @@
-import type { Content, Link, Parent, Root, Text } from 'mdast';
+import type { Content, Definition, Link, LinkReference, Parent, Root, Text } from 'mdast';
 import { fromMarkdown } from 'mdast-util-from-markdown';
+import { gfmFromMarkdown } from 'mdast-util-gfm';
 import { toString } from 'mdast-util-to-string';
+import { gfm } from 'micromark-extension-gfm';
 
 export type ParsedLinkKind = 'wiki' | 'path' | 'id';
 
@@ -35,6 +37,16 @@ function collectLink(link: Link, output: ParsedLink[]): void {
   if (parsed) output.push({ ...parsed, label: toString(link) });
 }
 
+function referenceKey(identifier: string): string {
+  return identifier.normalize('NFC').toLocaleLowerCase('en');
+}
+
+function collectReference(link: LinkReference, definitions: Map<string, Definition>, output: ParsedLink[]): void {
+  const definition = definitions.get(referenceKey(link.identifier))!;
+  const parsed = markdownTarget(definition.url);
+  if (parsed) output.push({ ...parsed, label: toString(link) });
+}
+
 function collectText(text: Text, output: ParsedLink[]): void {
   for (const match of text.value.matchAll(WIKI_LINK)) {
     const target = match[1]!.trim();
@@ -42,16 +54,38 @@ function collectText(text: Text, output: ParsedLink[]): void {
   }
 }
 
-function walk(node: Root | Content, output: ParsedLink[]): void {
+function walk(node: Root | Content, definitions: Map<string, Definition>, output: ParsedLink[]): void {
   if (node.type === 'link') { collectLink(node, output); return; }
+  if (node.type === 'linkReference') { collectReference(node, definitions, output); return; }
   if (node.type === 'text') { collectText(node, output); return; }
   if (node.type === 'code' || node.type === 'inlineCode' || node.type === 'html') return;
-  if ('children' in node) for (const child of (node as Parent).children) walk(child, output);
+  if ('children' in node) for (const child of (node as Parent).children) walk(child, definitions, output);
+}
+
+function parseMarkdown(markdown: string): Root {
+  return fromMarkdown(markdown, { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] });
+}
+
+function definitionsIn(root: Root): Map<string, Definition> {
+  const definitions = new Map<string, Definition>();
+  for (const child of root.children) {
+    if (child.type === 'definition') definitions.set(referenceKey(child.identifier), child);
+  }
+  return definitions;
+}
+
+function plainTextParts(node: Root | Content): string[] {
+  if (node.type === 'html' || node.type === 'definition') return [];
+  if (node.type === 'text' || node.type === 'inlineCode' || node.type === 'code') return [node.value];
+  if (node.type === 'image') return node.alt ? [node.alt] : [];
+  if ('children' in node) return (node as Parent).children.flatMap((child) => plainTextParts(child));
+  return [];
 }
 
 export function extractLinks(markdown: string): ParsedLink[] {
+  const root = parseMarkdown(markdown);
   const located: ParsedLink[] = [];
-  walk(fromMarkdown(markdown), located);
+  walk(root, definitionsIn(root), located);
   const seen = new Set<string>();
   return located.flatMap((link) => {
     const key = `${link.kind}:${link.target.toLocaleLowerCase('en')}`;
@@ -62,5 +96,5 @@ export function extractLinks(markdown: string): ParsedLink[] {
 }
 
 export function markdownToPlainText(markdown: string): string {
-  return toString(fromMarkdown(markdown), { includeHtml: false }).replace(/\s+/g, ' ').trim();
+  return plainTextParts(parseMarkdown(markdown)).join(' ').replace(/\s+/g, ' ').trim();
 }
