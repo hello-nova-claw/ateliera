@@ -26,3 +26,12 @@ test('publishes a native-size Apple touch icon', async ({ page }) => {
   });
   expect(dimensions).toEqual({ width: 180, height: 180 });
 });
+
+test('limits rendered images to local, data, and ephemeral blob sources', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await expect(
+    page.locator('meta[http-equiv="Content-Security-Policy"]'),
+  ).toHaveAttribute('content', "img-src 'self' data: blob:");
+});

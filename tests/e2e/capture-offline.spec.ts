@@ -147,6 +147,11 @@ test('restores focus and keeps private captures out of app-shell caches', async 
   expect(cachedUrls.join('\n')).not.toContain('private');
   expect(cachedUrls.join('\n')).not.toContain('hill');
   expect(
+    cachedUrls.every(
+      (url) => !url.startsWith('blob:') && !url.startsWith('data:'),
+    ),
+  ).toBe(true);
+  expect(
     cachedUrls.every((url) => new URL(url).origin === 'http://127.0.0.1:4173'),
   ).toBe(true);
 });
