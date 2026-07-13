@@ -104,3 +104,14 @@
 - Final race review replaced reusable path/hash suppression with a monotonically increasing per-path write generation and one consumable publication for only the latest operation. Ambiguous watcher events stay stale until their exact write settles, preventing an older hash from hiding an external ABA restoration.
 - All concurrent disposal callers now receive the same terminal promise and wait for the same watcher, save, and index drain before cleanup completes.
 - Verified 57 application tests at 100% statement/branch/function/line coverage, 431 workspace tests, lint, focused and workspace typecheck, and the production build. Task 8 remediation is complete and ready for re-review.
+
+## 2026-07-13 — Responsive shell and visual system
+
+- Applied the accepted design handoff to a responsive, BEM-named Studio shell with a fixed desktop room rail, compact mobile navigation, calm onboarding, keyboard command palette, focus-trapped dialogs, route/provider boundaries, and accessible page-focus transitions.
+- Added the seven approved themes—Chamomile, Fig Leaf, Sunrise, Wisteria, Deep Ocean, Sunset, and Forest—with local preference persistence, a keyboard radio menu, visible status announcements, and light/dark `color-scheme` integration.
+- Preserved the handoff palette as the visual target. Component text that failed WCAG contrast uses the stronger semantic ink token, and theme `line-strong` values are deliberately strengthened where interactive boundaries require 3:1 non-text contrast; these are accessibility corrections rather than palette additions.
+- Self-hosted Newsreader, Hanken Grotesk, and Caveat as reviewed WOFF2 subsets with local licenses and no external font requests.
+- Kept browser onboarding on the IndexedDB/OPFS adapter while native onboarding dynamically loads the Tauri-only folder selector. Cancelling native selection leaves the welcome state intact and does not create a browser vault accidentally.
+- Hardened offline readiness across service-worker update races, retained a visible compact readiness status on mobile, and restored dialog focus to the actual invoking control on both shell variants.
+- Playwright review covered Chamomile at 1440×1000, Fig Leaf at 1024×768, Deep Ocean at 390×844, onboarding, an effective 720 CSS-pixel viewport representing 200% zoom on a 1440-pixel display, and unmistakable keyboard focus in light and dark themes. The corrected compact layout has no horizontal clipping and the dark inherited content remains readable.
+- Verified 440 workspace tests, typecheck, ESLint/stylelint, production build, and all 36 production-server Playwright tests across desktop Chromium, mobile Chromium, and desktop WebKit. Task 9 is complete; room-specific Foyer composition remains Task 12.
