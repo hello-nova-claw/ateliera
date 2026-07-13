@@ -24,21 +24,35 @@ export interface FoyerProjection {
   featured: StudioCardProjection[];
 }
 
+export interface ActiveSeasonProjection {
+  current: StudioCardProjection | null;
+  conflicts: StudioCardProjection[];
+  repair?: {
+    code: 'multiple-active-seasons';
+    noteIds: string[];
+  };
+}
+
 export interface LandscapeProjectionQuery {
   lifeArea: string;
   anchor?: LandscapeAnchor;
 }
 
-function visible(item: LoadedNote): boolean {
+function visible(item: LoadedNote, viewKey: string): boolean {
   return item.note.status !== 'archived' &&
     item.note.status !== 'trashed' &&
     item.note.extraFrontmatter.excluded_from_views !== true &&
-    item.note.extraFrontmatter.excluded !== true;
+    item.note.extraFrontmatter.excluded !== true &&
+    !(
+      item.note.status === 'draft' &&
+      item.note.rooms.includes('inbox') &&
+      viewKey !== 'room:inbox'
+    );
 }
 
 function fallbackCompare(left: LoadedNote, right: LoadedNote): number {
-  return right.note.updated.localeCompare(left.note.updated, 'en') ||
-    right.note.created.localeCompare(left.note.created, 'en') ||
+  return Date.parse(right.note.updated) - Date.parse(left.note.updated) ||
+    Date.parse(right.note.created) - Date.parse(left.note.created) ||
     (left.note.title ?? '').localeCompare(right.note.title ?? '', 'en') ||
     left.note.id.localeCompare(right.note.id, 'en');
 }
@@ -70,7 +84,7 @@ export async function orderedProjection(
   viewKey: string,
   views?: ViewStateRepository,
 ): Promise<StudioCardProjection[]> {
-  const sorted = dedupe(items.filter(visible).sort(fallbackCompare));
+  const sorted = dedupe(items.filter((item) => visible(item, viewKey)).sort(fallbackCompare));
   const manual = views === undefined ? [] : await views.load(viewKey);
   const byId = new Map(sorted.map((item) => [item.note.id, item]));
   const manualItems = manual.flatMap((id) => {
@@ -131,7 +145,7 @@ export async function projectStream(
 
 export async function projectCurrentSeason(
   notes: LoadedNote[],
-): Promise<StudioCardProjection | null> {
+): Promise<ActiveSeasonProjection> {
   const candidates = await orderedProjection(
     notes.filter((item) =>
       item.note.cardType === 'season' &&
@@ -139,14 +153,27 @@ export async function projectCurrentSeason(
       item.note.rooms.includes('current-season')),
     'current-season:active',
   );
-  return candidates[0] ?? null;
+  const current = candidates[0] ?? null;
+  const conflicts = candidates.slice(1);
+  return {
+    current,
+    conflicts,
+    ...(conflicts.length === 0
+      ? {}
+      : {
+          repair: {
+            code: 'multiple-active-seasons' as const,
+            noteIds: candidates.map((candidate) => candidate.noteId),
+          },
+        }),
+  };
 }
 
 export async function projectFoyer(
   notes: LoadedNote[],
   views: ViewStateRepository,
 ): Promise<FoyerProjection> {
-  const [currentSeason, featured] = await Promise.all([
+  const [activeSeason, featuredCandidates] = await Promise.all([
     projectCurrentSeason(notes),
     orderedProjection(
       notes.filter((item) => item.note.display.featured || item.note.rooms.includes('foyer')),
@@ -154,5 +181,10 @@ export async function projectFoyer(
       views,
     ),
   ]);
-  return { currentSeason, featured };
+  return {
+    currentSeason: activeSeason.current,
+    featured: featuredCandidates.filter(
+      (item) => item.noteId !== activeSeason.current?.noteId,
+    ),
+  };
 }
