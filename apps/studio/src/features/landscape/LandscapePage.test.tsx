@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { defaultLifeAreas, landscapeAnchors } from '@studio/domain';
 import type { LandscapeBoardProjection } from '@studio/application';
 import { describe, expect, it, vi } from 'vitest';
+import { useState } from 'react';
 
 import { LandscapePage } from './LandscapePage';
 
@@ -425,5 +426,120 @@ describe('LandscapePage', () => {
       );
     });
     await vi.waitFor(() => expect(onRepairAreas).toHaveBeenCalledOnce());
+  });
+
+  it('explains a newer configuration calmly and exposes no mutating controls', () => {
+    render(
+      <LandscapePage
+        areas={[...defaultLifeAreas.slice(0, 5)]}
+        board={emptyBoard}
+        configUnavailable="unsupported"
+        onAddArea={vi.fn()}
+        onNavigate={vi.fn()}
+        onRemoveArea={vi.fn()}
+        onRenameArea={vi.fn()}
+        onReorderArea={vi.fn()}
+        path="/landscape"
+      />,
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'newer version of The Studio',
+    );
+    expect(screen.queryByText('Manage life areas')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Rename/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Hide/ })).not.toBeInTheDocument();
+  });
+
+  it('restores focus to a surviving menu trigger after link and reorder', async () => {
+    const first = {
+      noteId: 'focus-one',
+      path: 'Life Landscape/home/focus-one.md',
+      hash: 'focus-one-hash',
+      title: 'First focus note',
+      excerpt: '',
+      semanticType: 'vision' as const,
+      cardType: 'vision',
+      status: 'active' as const,
+      updated: '2026-07-13T00:00:00.000Z',
+      lifeAreas: ['home'],
+      anchor: 'vision' as const,
+    };
+    const second = { ...first, noteId: 'focus-two', title: 'Second focus note' };
+    const board: LandscapeBoardProjection = {
+      cells: emptyBoard.cells.map((item) =>
+        item.lifeArea === 'home' && item.anchor === 'vision'
+          ? { ...item, featured: first, cards: [first, second], noteIds: [first.noteId, second.noteId] }
+          : item,
+      ),
+    };
+    render(
+      <LandscapePage
+        areas={[...defaultLifeAreas.slice(0, 5)]}
+        board={board}
+        onMove={vi.fn(async () => ({ hash: 'linked-hash' }))}
+        onNavigate={vi.fn()}
+        onReorder={vi.fn(async () => undefined)}
+        path="/landscape/home"
+      />,
+    );
+    const trigger = screen.getByRole('button', { name: 'Move Second focus note' });
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Move earlier' }));
+    await vi.waitFor(() => expect(trigger).toHaveFocus());
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Also show in Family' }));
+    await vi.waitFor(() => expect(trigger).toHaveFocus());
+  });
+
+  it('moves focus to the reparented card title when its menu trigger is gone', async () => {
+    const card = {
+      noteId: 'reparented-note',
+      path: 'Life Landscape/home/reparented.md',
+      hash: 'reparented-hash',
+      title: 'A reparented note',
+      excerpt: '',
+      semanticType: 'vision' as const,
+      cardType: 'vision',
+      status: 'active' as const,
+      updated: '2026-07-13T00:00:00.000Z',
+      lifeAreas: ['home'],
+      anchor: 'vision' as const,
+    };
+    function Harness() {
+      const [anchor, setAnchor] = useState(card.anchor);
+      const board: LandscapeBoardProjection = {
+        cells: emptyBoard.cells.map((item) =>
+          item.lifeArea === 'home' && item.anchor === anchor
+            ? {
+                ...item,
+                featured: { ...card, anchor },
+                cards: [{ ...card, anchor }],
+                noteIds: [card.noteId],
+              }
+            : item,
+        ),
+      };
+      return (
+        <LandscapePage
+          areas={[...defaultLifeAreas.slice(0, 5)]}
+          board={board}
+          onMove={async (move) => {
+            setAnchor(move.anchor);
+            return { hash: 'moved-hash' };
+          }}
+          onNavigate={vi.fn()}
+          path="/landscape/home"
+        />
+      );
+    }
+    render(<Harness />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move A reparented note' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Move to Practices/ }));
+    const title = await screen.findByRole('button', { name: 'A reparented note' });
+    await vi.waitFor(() => expect(title).toHaveFocus());
   });
 });
