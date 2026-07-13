@@ -161,6 +161,8 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   let recoveryTimer: unknown;
   let reconcileTimer: unknown;
   let stopWatching: (() => void) | undefined;
+  let startPromise: Promise<void> | undefined;
+  let lifecycleGeneration = 0;
 
   function emit(event: StudioEvent): void {
     for (const listener of [...listeners]) {
@@ -197,7 +199,15 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
       try {
         file = await dependencies.vault.readText(entry.path);
       } catch (error) {
-        if (error instanceof VaultUnavailableError) continue;
+        if (error instanceof VaultUnavailableError) {
+          let stillExists: boolean;
+          try {
+            stillExists = await dependencies.vault.exists(entry.path);
+          } catch {
+            throw error;
+          }
+          if (!stillExists) continue;
+        }
         throw error;
       }
       const parsed = parseNote(file.text);
@@ -342,24 +352,45 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   const service: StudioService = {
     views,
 
-    async start() {
-      if (stopWatching !== undefined) return;
-      stopWatching = await dependencies.vault.watch((event) => {
-        if (!isInternalPath(event.path)) {
+    start() {
+      if (stopWatching !== undefined) return Promise.resolve();
+      if (startPromise !== undefined) return startPromise;
+      const generation = lifecycleGeneration;
+      const pending = dependencies.vault.watch((event) => {
+        if (generation !== lifecycleGeneration) return;
+        const touchesUserContent =
+          !isInternalPath(event.path) ||
+          (event.kind === 'moved' && !isInternalPath(event.previousPath));
+        if (touchesUserContent) {
           externalGeneration += 1;
           state = 'stale';
           scheduleReconciliation();
         }
+      }).then((stop) => {
+        if (generation !== lifecycleGeneration) {
+          stop();
+          return;
+        }
+        stopWatching = stop;
       });
+      startPromise = pending;
+      void pending.then(
+        () => { if (startPromise === pending) startPromise = undefined; },
+        () => { if (startPromise === pending) startPromise = undefined; },
+      );
+      return pending;
     },
 
     async dispose() {
+      lifecycleGeneration += 1;
+      const pendingStart = startPromise;
       stopWatching?.();
       stopWatching = undefined;
       if (reconcileTimer !== undefined) timers.clearTimeout(reconcileTimer);
       reconcileTimer = undefined;
       cancelRecovery();
       listeners.clear();
+      await pendingStart?.catch(() => undefined);
     },
 
     subscribe(listener) {

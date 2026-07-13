@@ -102,6 +102,13 @@ describe('service lifecycle and reconciliation', () => {
     await expect(service.rebuildIndex()).rejects.toThrow('backend offline');
     expect(service.indexState()).toBe('stale');
     expect(index.entries.has('preserved')).toBe(true);
+
+    const uncertain = createInMemoryVault();
+    await uncertain.writeTextAtomic('Notes/a.md', serializeNote(note()));
+    vi.spyOn(uncertain, 'readText').mockRejectedValueOnce(new VaultUnavailableError('read outage'));
+    vi.spyOn(uncertain, 'exists').mockRejectedValueOnce(new VaultUnavailableError('existence unknown'));
+    const uncertainService = createStudioService({ vault: uncertain, index: new RecordingIndex(), timers: new ManualTimers() });
+    await expect(uncertainService.rebuildIndex()).rejects.toThrow('read outage');
   });
 
   it('does not hide unexpected adapter failures during a scan', async () => {
@@ -240,9 +247,16 @@ describe('service lifecycle and reconciliation', () => {
     const pendingWatch = new Promise<() => void>((resolve) => { resolveWatch = resolve; });
     const firstStop = vi.fn();
     const secondStop = vi.fn();
-    const watch = vi.fn()
-      .mockReturnValueOnce(pendingWatch)
-      .mockResolvedValueOnce(secondStop);
+    let pendingListener: Parameters<VaultPort['watch']>[0] | undefined;
+    let registrations = 0;
+    const watch = vi.fn((listener: Parameters<VaultPort['watch']>[0]) => {
+      registrations += 1;
+      if (registrations === 1) {
+        pendingListener = listener;
+        return pendingWatch;
+      }
+      return Promise.resolve(secondStop);
+    });
     const vault: VaultPort = {
       list: backing.list.bind(backing),
       readText: backing.readText.bind(backing),
@@ -254,12 +268,15 @@ describe('service lifecycle and reconciliation', () => {
       exists: backing.exists.bind(backing),
       watch,
     };
-    const service = createStudioService({ vault, index: new RecordingIndex(), timers: new ManualTimers() });
+    const timers = new ManualTimers();
+    const service = createStudioService({ vault, index: new RecordingIndex(), timers });
 
     const firstStart = service.start();
     const secondStart = service.start();
     expect(watch).toHaveBeenCalledTimes(1);
     const disposing = service.dispose();
+    pendingListener?.({ kind: 'created', path: 'Notes/late.md', hash: 'late' });
+    expect(timers.tasks).toEqual([]);
     resolveWatch(firstStop);
     await Promise.all([firstStart, secondStart, disposing]);
     expect(firstStop).toHaveBeenCalledOnce();
