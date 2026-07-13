@@ -20,3 +20,10 @@
 - Added accessible SemanticMark and Card primitives with explicit non-color labels and named regions.
 - Added Storybook, axe checks, and reviewed desktop/mobile visual baselines.
 - Task 2 is complete; current phase: ready for Task 3 content kernel.
+
+## 2026-07-13 — Markdown content kernel
+
+- Added the version 1 note domain schema and explicit YAML snake_case to domain camelCase mapping.
+- Added recoverable Markdown parsing, deterministic serialization, unknown-key preservation, stable note IDs, and portable filename suggestions.
+- Added representative vault fixtures plus enum, malformed metadata, fidelity, and property-based coverage.
+- Task 3 is complete; current phase: ready for Task 4 migrations and links.
