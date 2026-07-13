@@ -157,14 +157,14 @@ test('moves, links, and undoes one canonical note', async ({
   await addHomeVision(page);
 
   if (testInfo.project.name === 'desktop-chromium') {
+    const identityDrop = page
+      .getByRole('region', { name: 'Identity, values & feelings' })
+      .locator('.life-landscape__section-drop');
+    await identityDrop.scrollIntoViewIfNeeded();
     const handle = await page
       .getByRole('button', { name: 'Drag A calm home' })
       .boundingBox();
-    const identity = await page
-      .getByRole('region', { name: 'Identity, values & feelings' })
-      .locator('.life-landscape__section-drop')
-      .boundingBox();
-    if (!handle || !identity)
+    if (!handle)
       throw new Error('Landscape drag targets were not rendered.');
     await page.mouse.move(
       handle.x + handle.width / 2,
@@ -172,10 +172,21 @@ test('moves, links, and undoes one canonical note', async ({
     );
     await page.mouse.down();
     await page.mouse.move(
+      handle.x + handle.width / 2 + 16,
+      handle.y + handle.height / 2,
+      { steps: 3 },
+    );
+    await expect(
+      page.getByRole('status', { name: 'Drag preview for A calm home' }),
+    ).toBeVisible();
+    const identity = await identityDrop.boundingBox();
+    if (!identity) throw new Error('Landscape destination was not rendered.');
+    await page.mouse.move(
       identity.x + identity.width / 2,
       identity.y + identity.height / 2,
       { steps: 8 },
     );
+    await expect(identityDrop).toHaveClass(/--drop-preview/);
     await page.mouse.up();
     await expect(
       page
