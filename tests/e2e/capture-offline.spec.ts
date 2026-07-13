@@ -60,6 +60,7 @@ test('falls back to IndexedDB when OPFS is unavailable', async ({ page }) => {
     .getByRole('textbox', { name: 'What would you like remembered?' })
     .fill('The garden');
   await page.getByRole('button', { name: 'Remember' }).click();
+  await expect(page.getByText('The garden')).toBeVisible();
   await page.reload();
 
   await expect(page.getByText('The garden')).toBeVisible();
