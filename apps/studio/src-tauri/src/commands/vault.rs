@@ -1178,11 +1178,7 @@ pub fn vault_move<R: Runtime>(
     to: String,
     expected_hash: Option<String>,
 ) -> Result<(), VaultError> {
-    selected_vault(&window, &state, &vault_token)?.move_path(
-        &from,
-        &to,
-        expected_hash.as_deref(),
-    )
+    selected_vault(&window, &state, &vault_token)?.move_path(&from, &to, expected_hash.as_deref())
 }
 
 #[tauri::command]
