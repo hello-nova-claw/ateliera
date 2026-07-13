@@ -84,6 +84,16 @@ describe('SQLite IndexPort', () => {
     expect(await index.getById(existing.id)).toMatchObject({ path: 'Foyer/existing.md' });
   });
 
+  it('rejects duplicate stable IDs supplied directly to the index rebuild', async () => {
+    const existing = note({ id: 'existing' });
+    await upsert(index, existing, 'existing.md', 'existing');
+    await expect(index.rebuild([
+      { note: note({ id: 'duplicate' }), path: 'A.md', hash: 'a', content: { links: [], searchText: 'a' } },
+      { note: note({ id: 'duplicate' }), path: 'B.md', hash: 'b', content: { links: [], searchText: 'b' } },
+    ])).rejects.toThrow('duplicate');
+    expect(await index.getById(existing.id)).not.toBeNull();
+  });
+
   it('returns identical results after clear and deterministic rebuild', async () => {
     const entry = { note: note({ rooms: ['foyer'], seasons: ['winter'], updated: '2026-07-10T00:00:00.000Z' }), path: 'Foyer/calm.md', hash: 'calm', content: { links: [], searchText: 'A calm and spacious home.' } };
     await index.rebuild([entry]);
@@ -160,6 +170,15 @@ describe('SQLite IndexPort', () => {
       { kind: 'path', target: `../Identity/${decomposed}.md`, label: decomposed },
     ]);
     expect((await index.forwardLinks('source')).map((link) => link.targetId)).toEqual(['target', 'target']);
+  });
+
+  it('reports every NFC-equivalent ambiguous title candidate', async () => {
+    await upsert(index, note({ id: 'composed', title: 'Café' }), 'composed.md', 'composed');
+    await upsert(index, note({ id: 'decomposed', title: 'Café'.normalize('NFD') }), 'decomposed.md', 'decomposed');
+    await upsert(index, note({ id: 'source' }), 'source.md', 'source', [
+      { kind: 'wiki', target: 'Café', label: 'Café' },
+    ]);
+    expect((await index.forwardLinks('source'))[0]?.candidateIds).toEqual(['composed', 'decomposed']);
   });
 
   it('supports card-type filters', async () => {
