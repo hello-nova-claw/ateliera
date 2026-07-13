@@ -17,10 +17,12 @@ export default function SeasonRoom({
       onBegin={season.startWizard}
       onCloseSeason={season.close}
       onCreate={season.create}
+      onCreatePriority={season.createPriority}
       onEdit={season.edit}
       onRepairActive={season.repairActive}
       onSaveStep={season.saveStep}
       record={season.record}
+      priorityCandidates={season.priorityCandidates}
       state={season.state}
       {...(season.wizardStep ? { wizardStep: season.wizardStep } : {})}
     />

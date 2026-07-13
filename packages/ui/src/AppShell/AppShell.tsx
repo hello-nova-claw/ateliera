@@ -52,6 +52,7 @@ export function AppShell({
         target !== moreButton.current
       ) {
         setMoreOpen(false);
+        queueMicrotask(() => moreButton.current?.focus());
       }
     };
     addEventListener('pointerdown', outside);

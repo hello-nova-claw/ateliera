@@ -76,10 +76,27 @@ const record: SeasonRecord = {
   },
 };
 
+const priorityCandidates = state.priorities.map((title, index) => ({
+  noteId: `priority-${index + 1}`,
+  title,
+}));
+
+const canonicalRecord: SeasonRecord = {
+  ...record,
+  state: {
+    ...record.state,
+    priorities: priorityCandidates.map(({ noteId }) => noteId),
+  },
+};
+
 const meta: Meta<typeof SeasonPage> = {
   title: 'Rooms/Current Season',
   component: SeasonPage,
-  args: { record, state: 'ready' },
+  args: {
+    priorityCandidates,
+    record: canonicalRecord,
+    state: 'ready',
+  },
   decorators: [
     (Story) => (
       <div style={{ margin: '0 auto', maxWidth: '1152px' }}>
@@ -95,7 +112,10 @@ export const Active: Story = {};
 export const Empty: Story = { args: { record: null } };
 export const Wizard: Story = {
   args: {
-    record: { ...record, state: { ...state, status: 'draft' } },
+    record: {
+      ...canonicalRecord,
+      state: { ...canonicalRecord.state, status: 'draft' },
+    },
     wizardStep: 'feelings',
   },
 };
@@ -103,17 +123,21 @@ export const Conflict: Story = { args: { conflicts: [record] } };
 export const LongText: Story = {
   args: {
     record: {
-      ...record,
+      ...canonicalRecord,
       state: {
-        ...state,
+        ...canonicalRecord.state,
         title:
           'A season that makes room for tenderness, family reality, ambitious creative thinking, and the unfinished edges of ordinary life',
-        priorities: [
-          'Donaudampfschifffahrtselektrizitätenhauptbetriebswerkbauunterbeamtengesellschaft',
-          ...state.priorities.slice(1),
-        ],
       },
     },
+    priorityCandidates: [
+      {
+        noteId: 'priority-1',
+        title:
+          'Donaudampfschifffahrtselektrizitätenhauptbetriebswerkbauunterbeamtengesellschaft',
+      },
+      ...priorityCandidates.slice(1),
+    ],
   },
 };
 export const Dark: Story = {

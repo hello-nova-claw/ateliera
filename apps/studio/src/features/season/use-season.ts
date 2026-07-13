@@ -12,6 +12,8 @@ import {
 } from '@studio/domain';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import type { SeasonPriorityCandidate } from './SeasonPage';
+
 export interface SeasonView {
   close(reflection: SeasonCloseReflection): Promise<void>;
   conflicts: SavedNote[];
@@ -20,9 +22,11 @@ export interface SeasonView {
     startsOn?: string;
     endsOn?: string;
   }): Promise<void>;
+  createPriority(title: string): Promise<SeasonPriorityCandidate>;
   edit(): void;
   error?: string;
   record: SeasonRecord | null;
+  priorityCandidates: SeasonPriorityCandidate[];
   repairActive(keepNoteId: string): Promise<void>;
   saveStep(
     step: SeasonWizardStep,
@@ -44,6 +48,10 @@ export function useSeason(
   );
   const [record, setRecord] = useState<SeasonRecord | null>(null);
   const [conflicts, setConflicts] = useState<SavedNote[]>([]);
+  const [priorityCandidates, setPriorityCandidates] = useState<
+    SeasonPriorityCandidate[]
+  >([]);
+  const [priorityLifeArea, setPriorityLifeArea] = useState('home');
   const [wizardStep, setWizardStep] = useState<SeasonWizardStep>();
   const [state, setState] = useState<SeasonView['state']>(
     studio ? 'loading' : 'ready',
@@ -51,9 +59,10 @@ export function useSeason(
   const [error, setError] = useState<string>();
 
   useEffect(() => {
-    if (!service) {
+    if (!service || !studio) {
       setRecord(null);
       setConflicts([]);
+      setPriorityCandidates([]);
       setState('ready');
       return undefined;
     }
@@ -61,8 +70,24 @@ export function useSeason(
     setState((currentState) =>
       currentState === 'ready' ? 'ready' : 'loading',
     );
-    void Promise.all([service.recoverWizard(), service.loadCurrent()]).then(
-      ([draft, active]) => {
+    void Promise.all([
+      service.recoverWizard(),
+      service.loadCurrent(),
+      (async () => {
+        const [cards, areas] = await Promise.all([
+          studio.projectRoom('life-landscape'),
+          studio.lifeAreas.load().catch(() => undefined),
+        ]);
+        return {
+          candidates: cards.map(({ noteId, title }) => ({ noteId, title })),
+          lifeArea:
+            areas?.areas.find((area) => !area.hidden)?.id ??
+            areas?.areas[0]?.id ??
+            'home',
+        };
+      })(),
+    ]).then(
+      ([draft, active, priorityContext]) => {
         if (!current) return;
         if (draft) {
           setRecord(draft.record);
@@ -72,6 +97,8 @@ export function useSeason(
           setWizardStep(undefined);
         }
         setConflicts(active.conflicts);
+        setPriorityCandidates(priorityContext.candidates);
+        setPriorityLifeArea(priorityContext.lifeArea);
         setError(undefined);
         setState('ready');
       },
@@ -88,7 +115,30 @@ export function useSeason(
     return () => {
       current = false;
     };
-  }, [revision, service]);
+  }, [revision, service, studio]);
+
+  const createPriority = useCallback(
+    async (title: string): Promise<SeasonPriorityCandidate> => {
+      if (!studio) throw new Error('Open a Studio before creating a priority.');
+      const normalized = title.trim();
+      if (!normalized) throw new Error('Give this priority a name.');
+      const saved = await studio.capture({
+        body: normalized,
+        title: normalized,
+        landscape: { lifeArea: priorityLifeArea, anchor: 'vision' },
+      });
+      const candidate = {
+        noteId: saved.note.id,
+        title: saved.note.title?.trim() || normalized,
+      };
+      setPriorityCandidates((items) => [
+        ...items.filter((item) => item.noteId !== candidate.noteId),
+        candidate,
+      ]);
+      return candidate;
+    },
+    [priorityLifeArea, studio],
+  );
 
   const create = useCallback(
     async (input: { title: string; startsOn?: string; endsOn?: string }) => {
@@ -194,9 +244,11 @@ export function useSeason(
     close,
     conflicts,
     create,
+    createPriority,
     edit: () => setWizardStep('name-dates'),
     ...(error ? { error } : {}),
     record,
+    priorityCandidates,
     repairActive,
     saveStep,
     startWizard: () => setWizardStep('name-dates'),

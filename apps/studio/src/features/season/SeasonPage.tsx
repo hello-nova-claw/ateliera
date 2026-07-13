@@ -10,9 +10,14 @@ import {
   type SeasonWizardStep,
 } from '@studio/domain';
 import { Dialog } from '@studio/ui';
-import { useEffect, useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 
 import './SeasonPage.css';
+
+export interface SeasonPriorityCandidate {
+  noteId: string;
+  title: string;
+}
 
 export interface SeasonPageProps {
   conflicts?: SavedNote[];
@@ -20,6 +25,9 @@ export interface SeasonPageProps {
   onActivate?: () => Promise<void> | void;
   onBegin?: () => void;
   onCloseSeason?: (reflection: SeasonCloseReflection) => Promise<void> | void;
+  onCreatePriority?: (
+    title: string,
+  ) => Promise<SeasonPriorityCandidate> | SeasonPriorityCandidate;
   onCreate?: (input: {
     title: string;
     startsOn?: string;
@@ -33,6 +41,7 @@ export interface SeasonPageProps {
     options?: { priorityOverride?: boolean },
   ) => Promise<void> | void;
   record: SeasonRecord | null;
+  priorityCandidates?: SeasonPriorityCandidate[];
   state: 'ready' | 'loading' | 'saving' | 'error';
   wizardStep?: SeasonWizardStep;
 }
@@ -62,14 +71,18 @@ function SeasonWizard({
   busy,
   onActivate,
   onCreate,
+  onCreatePriority,
   onSave,
+  priorityCandidates,
   record,
   step,
 }: {
   busy: boolean;
   onActivate?: SeasonPageProps['onActivate'];
   onCreate?: SeasonPageProps['onCreate'];
+  onCreatePriority?: SeasonPageProps['onCreatePriority'];
   onSave?: SeasonPageProps['onSaveStep'];
+  priorityCandidates: SeasonPriorityCandidate[];
   record: SeasonRecord | null;
   step: SeasonWizardStep;
 }) {
@@ -84,6 +97,10 @@ function SeasonWizard({
   );
   const [feelings, setFeelings] = useState(current?.feelings.join('\n') ?? '');
   const [priorities, setPriorities] = useState(current?.priorities ?? []);
+  const [availablePriorities, setAvailablePriorities] =
+    useState(priorityCandidates);
+  const [newPriority, setNewPriority] = useState('');
+  const [creatingPriority, setCreatingPriority] = useState(false);
   const [overridePriority, setOverridePriority] = useState(false);
   const [statement, setStatement] = useState(current?.statement ?? '');
   const [decisions30, setDecisions30] = useState(
@@ -115,16 +132,40 @@ function SeasonWizard({
   const [notNow, setNotNow] = useState(current?.notNow.join('\n') ?? '');
   const headingId = useId();
   const priorityChoices = [
-    ...new Set([
-      ...(current?.priorities ?? []),
-      'Home',
-      'Studio',
-      'Family',
-      'Rest',
-    ]),
+    ...availablePriorities,
+    ...(current?.priorities ?? [])
+      .filter(
+        (noteId) =>
+          !availablePriorities.some((candidate) => candidate.noteId === noteId),
+      )
+      .map((noteId) => ({ noteId, title: noteId })),
   ];
 
   useEffect(() => setError(''), [step]);
+
+  async function createPriority(): Promise<void> {
+    const title = newPriority.trim();
+    if (!title || !onCreatePriority || creatingPriority) return;
+    setCreatingPriority(true);
+    setError('');
+    try {
+      const created = await onCreatePriority(title);
+      setAvailablePriorities((items) => [
+        ...items.filter((item) => item.noteId !== created.noteId),
+        created,
+      ]);
+      setPriorities((items) => [...new Set([...items, created.noteId])]);
+      setNewPriority('');
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : 'This Landscape priority could not be created.',
+      );
+    } finally {
+      setCreatingPriority(false);
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -298,21 +339,50 @@ function SeasonWizard({
           <fieldset>
             <legend>What deserves the clearest attention?</legend>
             {priorityChoices.map((choice) => (
-              <label className="season-wizard__check" key={choice}>
+              <label className="season-wizard__check" key={choice.noteId}>
                 <input
-                  checked={priorities.includes(choice)}
+                  checked={priorities.includes(choice.noteId)}
                   onChange={(event) =>
                     setPriorities((items) =>
                       event.target.checked
-                        ? [...items, choice]
-                        : items.filter((item) => item !== choice),
+                        ? [...items, choice.noteId]
+                        : items.filter((item) => item !== choice.noteId),
                     )
                   }
                   type="checkbox"
                 />{' '}
-                {choice}
+                {choice.title}
               </label>
             ))}
+            {priorityChoices.length === 0 && (
+              <p className="season-wizard__quiet">
+                Create a Landscape priority here, or return after adding one to
+                your Life Landscape.
+              </p>
+            )}
+            {onCreatePriority && (
+              <div className="season-wizard__create-priority">
+                <label>
+                  New Landscape priority
+                  <input
+                    disabled={creatingPriority}
+                    onChange={(event) => setNewPriority(event.target.value)}
+                    value={newPriority}
+                  />
+                </label>
+                <button
+                  aria-busy={creatingPriority}
+                  className="season-text-button"
+                  disabled={creatingPriority || newPriority.trim() === ''}
+                  onClick={() => void createPriority()}
+                  type="button"
+                >
+                  {creatingPriority
+                    ? 'Creating priority…'
+                    : 'Create Landscape priority'}
+                </button>
+              </div>
+            )}
             {priorities.length > 3 && (
               <div className="season-wizard__limit">
                 <p>A season usually holds three priorities.</p>
@@ -446,9 +516,11 @@ export function SeasonPage({
   onBegin,
   onCloseSeason,
   onCreate,
+  onCreatePriority,
   onEdit,
   onRepairActive,
   onSaveStep,
+  priorityCandidates = [],
   record,
   state,
   wizardStep,
@@ -461,6 +533,15 @@ export function SeasonPage({
     Record<string, SeasonDisposition | ''>
   >({});
   const [closeError, setCloseError] = useState('');
+  const [closeBusy, setCloseBusy] = useState(false);
+  const closeBusyRef = useRef(false);
+  const closeErrorRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (!closeError) return undefined;
+    const frame = requestAnimationFrame(() => closeErrorRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [closeError]);
 
   if (wizardStep !== undefined) {
     return (
@@ -468,7 +549,9 @@ export function SeasonPage({
         busy={state === 'saving'}
         onActivate={onActivate}
         onCreate={onCreate}
+        onCreatePriority={onCreatePriority}
         onSave={onSaveStep}
+        priorityCandidates={priorityCandidates}
         record={record}
         step={wizardStep}
       />
@@ -492,6 +575,9 @@ export function SeasonPage({
       </section>
     );
   const season = record.state;
+  const priorityTitle = (noteId: string) =>
+    priorityCandidates.find((candidate) => candidate.noteId === noteId)
+      ?.title ?? noteId;
   return (
     <>
       <article className="season-page">
@@ -546,12 +632,12 @@ export function SeasonPage({
           <div className="season-page__priorities">
             {season.priorities.slice(0, 3).map((priority, index) => (
               <article
-                aria-label={`Priority ${index + 1}: ${priority}`}
+                aria-label={`Priority ${index + 1}: ${priorityTitle(priority)}`}
                 className="season-priority"
                 key={priority}
               >
                 <span aria-hidden="true">♡</span>
-                <h3>{priority}</h3>
+                <h3>{priorityTitle(priority)}</h3>
               </article>
             ))}
           </div>
@@ -633,12 +719,38 @@ export function SeasonPage({
       <Dialog
         isOpen={closeOpen}
         label="Close this season"
-        onClose={() => setCloseOpen(false)}
+        onClose={() => {
+          if (!closeBusyRef.current) setCloseOpen(false);
+        }}
       >
         <form
           className="season-close"
           onSubmit={(event) => {
             event.preventDefault();
+            if (closeBusyRef.current) return;
+            const trimmed = {
+              celebration: celebration.trim(),
+              learning: learning.trim(),
+              identity: identity.trim(),
+            };
+            const missing = [
+              [
+                trimmed.celebration,
+                'Add what you celebrate before closing this season.',
+              ],
+              [
+                trimmed.learning,
+                'Add what you learned before closing this season.',
+              ],
+              [
+                trimmed.identity,
+                'Add who you became before closing this season.',
+              ],
+            ].find(([value]) => !value);
+            if (missing) {
+              setCloseError(missing[1]!);
+              return;
+            }
             const unresolved = season.priorities.filter(
               (noteId) => !dispositions[noteId],
             );
@@ -650,17 +762,29 @@ export function SeasonPage({
             }
             const settled = season.priorities.map((noteId) => ({
               noteId,
-              title: noteId,
+              title: priorityTitle(noteId),
               disposition: dispositions[noteId] as SeasonDisposition,
             }));
+            closeBusyRef.current = true;
+            setCloseBusy(true);
+            setCloseError('');
             void Promise.resolve(
-              onCloseSeason?.({
-                celebration,
-                learning,
-                identity,
-                dispositions: settled,
-              }),
-            ).then(() => setCloseOpen(false));
+              onCloseSeason?.({ ...trimmed, dispositions: settled }),
+            )
+              .then(
+                () => setCloseOpen(false),
+                (reason: unknown) => {
+                  setCloseError(
+                    reason instanceof Error
+                      ? reason.message
+                      : 'This season could not be closed.',
+                  );
+                },
+              )
+              .finally(() => {
+                closeBusyRef.current = false;
+                setCloseBusy(false);
+              });
           }}
         >
           <p className="season-page__eyebrow">A letter from this season</p>
@@ -668,6 +792,7 @@ export function SeasonPage({
           <label>
             What do you celebrate?
             <textarea
+              disabled={closeBusy}
               onChange={(event) => setCelebration(event.target.value)}
               rows={4}
               value={celebration}
@@ -676,6 +801,7 @@ export function SeasonPage({
           <label>
             What did you learn?
             <textarea
+              disabled={closeBusy}
               onChange={(event) => setLearning(event.target.value)}
               rows={4}
               value={learning}
@@ -684,6 +810,7 @@ export function SeasonPage({
           <label>
             Who did you become?
             <textarea
+              disabled={closeBusy}
               onChange={(event) => setIdentity(event.target.value)}
               rows={4}
               value={identity}
@@ -694,8 +821,9 @@ export function SeasonPage({
               <legend>Where should each thread rest?</legend>
               {season.priorities.map((noteId) => (
                 <label key={noteId}>
-                  {noteId}
+                  {priorityTitle(noteId)}
                   <select
+                    disabled={closeBusy}
                     onChange={(event) => {
                       setDispositions((current) => ({
                         ...current,
@@ -721,7 +849,12 @@ export function SeasonPage({
             </fieldset>
           )}
           {closeError && (
-            <p className="season-wizard__error" role="alert">
+            <p
+              className="season-wizard__error"
+              ref={closeErrorRef}
+              role="alert"
+              tabIndex={-1}
+            >
               {closeError}
             </p>
           )}
@@ -732,13 +865,19 @@ export function SeasonPage({
           <div className="season-close__actions">
             <button
               className="season-text-button"
+              disabled={closeBusy}
               onClick={() => setCloseOpen(false)}
               type="button"
             >
               Keep it open
             </button>
-            <button className="season-button" type="submit">
-              Archive season and letter
+            <button
+              aria-busy={closeBusy}
+              className="season-button"
+              disabled={closeBusy}
+              type="submit"
+            >
+              {closeBusy ? 'Closing season…' : 'Archive season and letter'}
             </button>
           </div>
         </form>

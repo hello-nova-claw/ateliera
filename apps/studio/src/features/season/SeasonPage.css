@@ -32,6 +32,7 @@
   margin: 0;
   color: var(--studio-color-ink-strong);
   font: var(--studio-type-room-title);
+  overflow-wrap: anywhere;
   text-wrap: balance;
 }
 
@@ -64,6 +65,7 @@
 }
 
 .season-priority {
+  min-inline-size: 0;
   min-block-size: 10rem;
   padding: var(--studio-space-6);
   border: 1px solid var(--studio-color-line);
@@ -79,6 +81,7 @@
 .season-priority h3 {
   margin-block: var(--studio-space-5) 0;
   font: var(--studio-type-card-title);
+  overflow-wrap: anywhere;
 }
 
 .season-page__feelings {
@@ -140,6 +143,13 @@
   color: var(--studio-color-ink-muted);
   font: var(--studio-type-eyebrow);
   text-transform: uppercase;
+}
+
+.season-page__decision,
+.season-page__support-grid > section,
+.season-wizard__columns > label {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
 }
 
 .season-page__not-now {
@@ -266,6 +276,18 @@
   padding: var(--studio-space-4);
   border-radius: var(--studio-radius-card);
   background: var(--studio-stock-reflection);
+}
+
+.season-wizard__quiet {
+  color: var(--studio-color-ink-muted);
+}
+
+.season-wizard__create-priority {
+  display: grid;
+  gap: var(--studio-space-3);
+  margin-block-start: var(--studio-space-5);
+  padding-block-start: var(--studio-space-5);
+  border-block-start: 1px solid var(--studio-color-line);
 }
 
 .season-wizard__confirm {
