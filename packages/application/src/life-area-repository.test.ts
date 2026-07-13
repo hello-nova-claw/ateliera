@@ -147,6 +147,7 @@ describe('life area repository', () => {
   it('falls back and repairs oversized and structurally invalid config', async () => {
     for (const text of [
       ' '.repeat(65_537),
+      '{"version":0,"areas":[]}',
       '{"version":1,"areas":[{"id":"home"}]}',
     ]) {
       const vault = createInMemoryVault();
