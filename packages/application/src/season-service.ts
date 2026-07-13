@@ -500,13 +500,15 @@ export function createSeasonService(
         ReturnType<StudioService['seasonTransactions']['readActive']>
       >;
       operationId?: string;
+      allowActiveSwitch?: boolean;
     } = {},
   ) {
     const observed =
       options.observed ?? (await studio.seasonTransactions.readActive());
     if (
       observed.value.activeNoteId !== null &&
-      observed.value.activeNoteId !== target.note.id
+      observed.value.activeNoteId !== target.note.id &&
+      !options.allowActiveSwitch
     ) {
       throw new Error('Another active season needs attention first.');
     }
@@ -588,11 +590,27 @@ export function createSeasonService(
         throw new Error(
           'That season is no longer active. Refresh before repairing.',
         );
+      const checkpoint = await studio.seasonTransactions.readActive();
+      if (
+        checkpoint.value.activeNoteId !== null &&
+        !candidates.some(
+          (candidate) =>
+            candidate.note.id === checkpoint.value.activeNoteId &&
+            candidate.path === checkpoint.value.activePath,
+        )
+      ) {
+        throw new Error(
+          'The active-season checkpoint no longer identifies an active candidate. Repair it before choosing a season.',
+        );
+      }
       await studio.snapshot(
         'conflict-resolution',
         candidates.map((candidate) => candidate.path),
       );
-      await reserveActiveOperation('repairing', keep);
+      await reserveActiveOperation('repairing', keep, {
+        observed: checkpoint,
+        allowActiveSwitch: true,
+      });
       return (await resumeActiveOperation())!;
     },
 
