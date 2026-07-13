@@ -121,3 +121,15 @@ it('degrades safely when session storage is unavailable', () => {
   expect(recovery.write(record)).toBe(false);
   expect(recovery.remove(record.studioId, record.path)).toBe(false);
 });
+
+it('ignores cleanup failure after finding a malformed recovery record', () => {
+  const recovery = createDraftRecoveryStore({
+    getItem: () => '{broken',
+    setItem: () => undefined,
+    removeItem: () => {
+      throw new DOMException('blocked', 'SecurityError');
+    },
+  });
+
+  expect(recovery.read(record.studioId, record.path)).toBeNull();
+});

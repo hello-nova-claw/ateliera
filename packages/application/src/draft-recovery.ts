@@ -1,5 +1,6 @@
 export interface DraftRecoveryRecord {
-  key: string;
+  studioId: string;
+  path: string;
   title?: string;
   body: string;
   expectedHash: string;
@@ -18,23 +19,24 @@ export type DraftRecoveryResult =
   | { kind: 'stale'; draft: DraftRecoveryRecord };
 
 export interface DraftRecoveryStore {
-  read(key: string): DraftRecoveryRecord | null;
-  readForDurable(key: string, durableHash: string): DraftRecoveryResult;
-  remove(key: string): void;
-  write(record: DraftRecoveryRecord): void;
+  read(studioId: string, path: string): DraftRecoveryRecord | null;
+  readForDurable(studioId: string, path: string, durableHash: string): DraftRecoveryResult;
+  remove(studioId: string, path: string): boolean;
+  write(record: DraftRecoveryRecord): boolean;
 }
 
 const PREFIX = 'studio:draft-recovery:';
 
-function storageKey(key: string): string {
-  return `${PREFIX}${encodeURIComponent(key)}`;
+function storageKey(studioId: string, path: string): string {
+  return `${PREFIX}${encodeURIComponent(studioId)}:${encodeURIComponent(path)}`;
 }
 
-function isRecord(value: unknown, key: string): value is DraftRecoveryRecord {
+function isRecord(value: unknown, studioId: string, path: string): value is DraftRecoveryRecord {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as Record<string, unknown>;
   return (
-    candidate.key === key &&
+    candidate.studioId === studioId &&
+    candidate.path === path &&
     typeof candidate.body === 'string' &&
     typeof candidate.expectedHash === 'string' &&
     typeof candidate.updatedAt === 'string' &&
@@ -47,34 +49,56 @@ export function createDraftRecoveryStore(
   storage: DraftRecoveryStorage,
 ): DraftRecoveryStore {
   return {
-    read(key) {
-      const namespacedKey = storageKey(key);
-      const value = storage.getItem(namespacedKey);
+    read(studioId, path) {
+      const namespacedKey = storageKey(studioId, path);
+      let value: string | null;
+      try {
+        value = storage.getItem(namespacedKey);
+      } catch {
+        return null;
+      }
       if (value === null) return null;
       try {
         const parsed: unknown = JSON.parse(value);
-        if (isRecord(parsed, key)) return parsed;
+        if (isRecord(parsed, studioId, path)) return parsed;
       } catch {
         // A partial browser write is not recoverable and must not block editing.
       }
-      storage.removeItem(namespacedKey);
+      try {
+        storage.removeItem(namespacedKey);
+      } catch {
+        // Storage may be disabled. Editing must remain available.
+      }
       return null;
     },
 
-    readForDurable(key, durableHash) {
-      const draft = this.read(key);
+    readForDurable(studioId, path, durableHash) {
+      const draft = this.read(studioId, path);
       if (draft === null) return { kind: 'none' };
       return draft.expectedHash === durableHash
         ? { kind: 'recoverable', draft }
         : { kind: 'stale', draft };
     },
 
-    remove(key) {
-      storage.removeItem(storageKey(key));
+    remove(studioId, path) {
+      try {
+        storage.removeItem(storageKey(studioId, path));
+        return true;
+      } catch {
+        return false;
+      }
     },
 
     write(record) {
-      storage.setItem(storageKey(record.key), JSON.stringify(record));
+      try {
+        storage.setItem(
+          storageKey(record.studioId, record.path),
+          JSON.stringify(record),
+        );
+        return true;
+      } catch {
+        return false;
+      }
     },
   };
 }
