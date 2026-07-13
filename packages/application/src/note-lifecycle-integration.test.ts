@@ -107,4 +107,88 @@ describe('StudioService note lifecycle', () => {
     await expect(service.trash('n1')).resolves.toMatchObject({ id: 'n1' });
     expect(await vault.exists('Notes/n1.md')).toBe(false);
   });
+
+  it('serializes a concurrent save before lifecycle work observes the durable index', async () => {
+    const vault = createInMemoryVault();
+    const index = new RecordingIndex();
+    const getById = vi.spyOn(index, 'getById');
+    const service = createStudioService({ vault, index });
+    const write = vault.writeTextAtomic.bind(vault);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let started = false;
+    vault.writeTextAtomic = async (path, text, condition) => {
+      if (path === 'Notes/n1.md') {
+        started = true;
+        await gate;
+      }
+      return write(path, text, condition);
+    };
+
+    const saving = service.save({ note: note(), path: 'Notes/n1.md', expectedMissing: true });
+    await vi.waitFor(() => expect(started).toBe(true));
+    const trashing = service.trash('n1');
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(getById).not.toHaveBeenCalled();
+    release();
+
+    await expect(saving).resolves.toMatchObject({ note: { id: 'n1' } });
+    await expect(trashing).resolves.toMatchObject({ id: 'n1' });
+    await expect(vault.exists('Notes/n1.md')).resolves.toBe(false);
+  });
+
+  it('drains accepted lifecycle and snapshot mutations before disposal completes', async () => {
+    const vault = createInMemoryVault();
+    const index = new RecordingIndex();
+    let releaseMove!: () => void;
+    const moveGate = new Promise<void>((resolve) => { releaseMove = resolve; });
+    let moveStarted = false;
+    const move = vault.move.bind(vault);
+    vault.move = async (from, to, condition) => {
+      if (from === 'Notes/n1.md') {
+        moveStarted = true;
+        await moveGate;
+      }
+      return move(from, to, condition);
+    };
+    const create = vi.fn(async () => ({
+      manifestPath: '.studio/backups/injected/manifest.json',
+      manifest: {
+        version: 1 as const,
+        id: 'injected',
+        reason: 'conflict-resolution' as const,
+        createdAt: '2026-07-13T00:00:00.000Z',
+        state: 'complete' as const,
+        files: [],
+      },
+    }));
+    const service = createStudioService({
+      vault,
+      index,
+      revisions: { create, prune: vi.fn() },
+    });
+    await service.save({ note: note(), path: 'Notes/n1.md', expectedMissing: true });
+
+    const trashing = service.trash('n1');
+    await vi.waitFor(() => expect(moveStarted).toBe(true));
+    const snapshot = service.snapshot('conflict-resolution', []);
+    let disposed = false;
+    const disposal = service.dispose().then(() => { disposed = true; });
+    const disposalState = await Promise.race([
+      disposal.then(() => 'disposed' as const),
+      new Promise<'pending'>((resolve) => setTimeout(() => resolve('pending'), 10)),
+    ]);
+    expect(disposalState).toBe('pending');
+    expect(disposed).toBe(false);
+    expect(create).not.toHaveBeenCalled();
+    releaseMove();
+
+    await expect(trashing).resolves.toMatchObject({ id: 'n1' });
+    await expect(snapshot).resolves.toMatchObject({ manifestPath: expect.any(String) });
+    await disposal;
+    expect(create).toHaveBeenCalledOnce();
+    await expect(service.save({ note: note(), path: 'Notes/late.md' })).rejects.toThrow('disposed');
+    expect(() => service.snapshot('conflict-resolution', [])).toThrow('disposed');
+  });
 });
