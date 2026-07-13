@@ -17,6 +17,19 @@ interface StudioVaultTestHarness {
     hash?: string;
     previousPath?: string;
   }>;
+  seedLifecycleNote(id: string, noteId: string, path: string, attachments: string[]): Promise<void>;
+  archive(id: string, noteId: string): Promise<{ status: string }>;
+  unarchive(id: string, noteId: string): Promise<{ status: string }>;
+  trash(id: string, noteId: string): Promise<{
+    trashPath: string;
+    attachments: Array<{ path: string; available: boolean }>;
+  }>;
+  restore(id: string, noteId: string): Promise<{
+    path: string;
+    relocated: boolean;
+    missingAttachments: string[];
+  }>;
+  reconcileTrash(id: string): Promise<string[]>;
 }
 
 interface Window {
