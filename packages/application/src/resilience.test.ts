@@ -81,8 +81,9 @@ describe('index recovery and loading', () => {
     });
     await service.save({ note: note({ id: 'a' }), path: 'Notes/a.md', expectedMissing: true });
     vi.spyOn(vault, 'list').mockRejectedValueOnce(new VaultUnavailableError());
-    await expect(scheduled[0]?.()).rejects.toBeInstanceOf(VaultUnavailableError);
+    await expect(scheduled[0]?.()).resolves.toBeUndefined();
     expect(service.indexState()).toBe('stale');
+    expect(scheduled).toHaveLength(2);
 
     await service.save({ note: note({ id: 'b' }), path: 'Notes/b.md', expectedMissing: true });
     expect(scheduled).toHaveLength(2);

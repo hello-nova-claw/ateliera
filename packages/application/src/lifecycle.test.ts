@@ -8,11 +8,11 @@ import { RecordingIndex, note } from './test-helpers';
 
 class ManualTimers {
   readonly tasks: Array<{ callback: () => void | Promise<void>; delay: number }> = [];
-  set = (callback: () => void | Promise<void>, delay: number) => {
+  setTimeout = (callback: () => void | Promise<void>, delay: number) => {
     this.tasks.push({ callback, delay });
     return callback;
   };
-  clear = (token: unknown) => {
+  clearTimeout = (token: unknown) => {
     const index = this.tasks.findIndex((task) => task.callback === token);
     if (index >= 0) this.tasks.splice(index, 1);
   };
@@ -39,8 +39,24 @@ describe('service lifecycle and reconciliation', () => {
     expect((await index.getById('a'))?.path).toBe('Notes/a.md');
     expect((await index.getById('b'))?.path).toBe('Notes/b.md');
 
+    const a = await vault.readText('Notes/a.md');
+    await vault.writeTextAtomic('Notes/a.md', serializeNote(note({ id: 'a', body: 'changed' })), { expectedHash: a.hash });
+    expect(timers.tasks).toHaveLength(1);
+    await timers.runNext();
+    await vault.move('Notes/a.md', 'Notes/moved.md');
+    expect(timers.tasks).toHaveLength(1);
+    await timers.runNext();
+    const moved = await vault.readText('Notes/moved.md');
+    await vault.remove('Notes/moved.md', { expectedHash: moved.hash });
+    expect(timers.tasks).toHaveLength(1);
+    await timers.runNext();
+    expect(await index.getById('a')).toBeNull();
+
+    await vault.writeTextAtomic('Notes/pending.md', serializeNote(note({ id: 'pending' })));
+    expect(timers.tasks).toHaveLength(1);
     await service.dispose();
     await service.dispose();
+    expect(timers.tasks).toHaveLength(0);
     await vault.writeTextAtomic('Notes/c.md', serializeNote(note({ id: 'c' })));
     expect(timers.tasks).toHaveLength(0);
   });
@@ -69,6 +85,15 @@ describe('service lifecycle and reconciliation', () => {
     expect(index.entries.size).toBe(1);
   });
 
+  it('does not hide unexpected adapter failures during a scan', async () => {
+    const vault = createInMemoryVault();
+    await vault.writeTextAtomic('Notes/a.md', serializeNote(note()));
+    vi.spyOn(vault, 'readText').mockRejectedValueOnce(new TypeError('adapter invariant'));
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    await expect(service.rebuildIndex()).rejects.toThrow('adapter invariant');
+    expect(service.indexState()).toBe('stale');
+  });
+
   it('retries failed stale recovery with bounded backoff without another edit', async () => {
     const index = new RecordingIndex();
     index.failUpsert = true;
@@ -87,5 +112,55 @@ describe('service lifecycle and reconciliation', () => {
     expect(service.indexState()).toBe('ready');
     expect(rebuild).toHaveBeenCalledTimes(2);
     expect(timers.tasks).toEqual([]);
+  });
+
+  it('bounds persistent recovery failures and retries watcher rebuild failure', async () => {
+    const vault = createInMemoryVault();
+    const timers = new ManualTimers();
+    const index = new RecordingIndex();
+    index.failUpsert = true;
+    vi.spyOn(index, 'rebuild').mockRejectedValue(new Error('offline'));
+    const service = createStudioService({ vault, index, timers });
+    await service.save({ note: note(), path: 'Notes/n.md', expectedMissing: true });
+    for (let attempt = 0; attempt < 4; attempt += 1) await timers.runNext();
+    expect(timers.tasks).toEqual([]);
+    expect(service.indexState()).toBe('stale');
+
+    const watcherIndex = new RecordingIndex();
+    vi.spyOn(watcherIndex, 'rebuild').mockRejectedValueOnce(new Error('transient'));
+    const watcherTimers = new ManualTimers();
+    const watcherVault = createInMemoryVault();
+    const watcher = createStudioService({ vault: watcherVault, index: watcherIndex, timers: watcherTimers });
+    await watcher.start();
+    await watcherVault.writeTextAtomic('Notes/external.md', serializeNote(note({ id: 'external' })));
+    await watcherTimers.runNext();
+    expect(watcherTimers.tasks.map((task) => task.delay)).toEqual([100]);
+    await watcherTimers.runNext();
+    expect(watcher.indexState()).toBe('ready');
+    await watcher.dispose();
+  });
+
+  it('uses and cancels the default recovery timer safely', async () => {
+    vi.useFakeTimers();
+    try {
+      const index = new RecordingIndex();
+      index.failUpsert = true;
+      const service = createStudioService({ vault: createInMemoryVault(), index });
+      await service.save({ note: note(), path: 'Notes/n.md', expectedMissing: true });
+      index.failUpsert = false;
+      await service.rebuildIndex();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(service.indexState()).toBe('ready');
+
+      const retryIndex = new RecordingIndex();
+      retryIndex.failUpsert = true;
+      const retrying = createStudioService({ vault: createInMemoryVault(), index: retryIndex });
+      await retrying.save({ note: note({ id: 'retry' }), path: 'Notes/retry.md', expectedMissing: true });
+      retryIndex.failUpsert = false;
+      await vi.advanceTimersByTimeAsync(100);
+      expect(retrying.indexState()).toBe('ready');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -8,10 +8,14 @@ import {
 } from '@studio/content';
 import type { ParseError, StudioNote } from '@studio/domain';
 import type { IndexEntry, IndexPort } from '@studio/index';
-import { VaultConflictError } from '@studio/storage/portable';
-import type { VaultPort } from '@studio/storage/portable';
+import {
+  VaultConflictError,
+  VaultUnavailableError,
+} from '@studio/storage/portable';
+import type { VaultChange, VaultPort } from '@studio/storage/portable';
 
 import {
+  type ActiveSeasonProjection,
   type FoyerProjection,
   type LandscapeProjectionQuery,
   type LoadedNote,
@@ -29,6 +33,13 @@ export type StudioEvent =
   | { kind: 'note-saved'; noteId: string; path: string }
   | { kind: 'index-stale' }
   | { kind: 'index-rebuilt' };
+
+export type StudioEventListener = (event: StudioEvent) => void;
+
+export interface StudioTimers {
+  setTimeout(callback: () => void | Promise<void>, delayMs: number): unknown;
+  clearTimeout(token: unknown): void;
+}
 
 export interface StudioRepairItem {
   path: string;
@@ -59,12 +70,18 @@ export interface StudioServiceDependencies {
   index: IndexPort;
   clock?: () => Date;
   generateId?: () => string;
-  publish?: (event: StudioEvent) => void;
+  publish?: StudioEventListener;
+  reportListenerError?: (error: unknown, event: StudioEvent) => void;
+  /** Compatibility hook; production recovery uses the safe timer-backed default. */
   scheduleIndexRebuild?: (rebuild: () => Promise<void>) => void;
+  timers?: StudioTimers;
 }
 
 export interface StudioService {
   readonly views: ViewStateRepository;
+  start(): Promise<void>;
+  dispose(): Promise<void>;
+  subscribe(listener: StudioEventListener): () => void;
   capture(input: CaptureNoteInput): Promise<SavedNote>;
   load(path: string): Promise<SavedNote>;
   save(input: SaveNoteInput): Promise<SavedNote>;
@@ -73,7 +90,7 @@ export interface StudioService {
   indexState(): 'ready' | 'stale' | 'rebuilding';
   projectRoom(room: string): Promise<StudioCardProjection[]>;
   projectLandscape(query: LandscapeProjectionQuery): Promise<StudioCardProjection[]>;
-  projectCurrentSeason(): Promise<StudioCardProjection | null>;
+  projectCurrentSeason(): Promise<ActiveSeasonProjection>;
   projectStream(type: 'reflection' | 'celebration'): Promise<StudioCardProjection[]>;
   projectFoyer(): Promise<FoyerProjection>;
 }
@@ -89,6 +106,19 @@ export class StudioSaveConflictError extends Error {
     super('This note changed elsewhere. Both versions have been preserved for review.', options);
   }
 }
+
+const RECOVERY_DELAYS = [100, 500, 2_000, 5_000] as const;
+const CAPTURE_ATTEMPTS = 8;
+const RECONCILE_DELAY = 50;
+
+const defaultTimers: StudioTimers = {
+  setTimeout(callback, delayMs) {
+    return globalThis.setTimeout(() => { void callback(); }, delayMs);
+  },
+  clearTimeout(token) {
+    globalThis.clearTimeout(token as ReturnType<typeof globalThis.setTimeout>);
+  },
+};
 
 function indexedContent(note: StudioNote) {
   return {
@@ -107,26 +137,67 @@ function iso(clock: () => Date): string {
   return clock().toISOString();
 }
 
+function isInternalPath(path: string): boolean {
+  return path.toLocaleLowerCase('en').startsWith('.studio/');
+}
+
 export function createStudioService(dependencies: StudioServiceDependencies): StudioService {
   const clock = dependencies.clock ?? (() => new Date());
   const generateId = dependencies.generateId ?? (() => createNoteId(clock().valueOf()));
-  const publish = dependencies.publish ?? (() => undefined);
+  const timers = dependencies.timers ?? defaultTimers;
   const views = createViewStateRepository(dependencies.vault);
+  const listeners = new Set<StudioEventListener>();
+  if (dependencies.publish !== undefined) listeners.add(dependencies.publish);
+
   let state: 'ready' | 'stale' | 'rebuilding' = 'ready';
-  let rebuildScheduled = false;
+  let durableGeneration = 0;
+  let indexedGeneration = 0;
+  let rebuildRequired = false;
+  let mutationTail: Promise<void> = Promise.resolve();
+  let recoveryAttempt = 0;
+  let recoveryScheduled = false;
+  let recoveryTimer: unknown;
+  let reconcileTimer: unknown;
+  let stopWatching: (() => void) | undefined;
+
+  function emit(event: StudioEvent): void {
+    for (const listener of [...listeners]) {
+      try {
+        listener(event);
+      } catch (error) {
+        try {
+          dependencies.reportListenerError?.(error, event);
+        } catch {
+          // Diagnostics are observational and can never enter the data path.
+        }
+      }
+    }
+  }
+
+  function enqueueIndexMutation<T>(mutation: () => Promise<T>): Promise<T> {
+    const result = mutationTail.then(mutation);
+    mutationTail = result.then(() => undefined, () => undefined);
+    return result;
+  }
 
   async function scan(): Promise<{ notes: LoadedNote[]; repairs: StudioRepairItem[] }> {
     const entries = (await dependencies.vault.list())
       .filter((entry) =>
         entry.kind === 'file' &&
-        entry.path.toLowerCase().endsWith('.md') &&
-        !entry.path.startsWith('.studio/'))
+        entry.path.toLocaleLowerCase('en').endsWith('.md') &&
+        !isInternalPath(entry.path))
       .sort((left, right) => left.path.localeCompare(right.path, 'en'));
     const notes: LoadedNote[] = [];
     const repairs: StudioRepairItem[] = [];
     const ids = new Set<string>();
     for (const entry of entries) {
-      const file = await dependencies.vault.readText(entry.path);
+      let file: Awaited<ReturnType<VaultPort['readText']>>;
+      try {
+        file = await dependencies.vault.readText(entry.path);
+      } catch (error) {
+        if (error instanceof VaultUnavailableError) continue;
+        throw error;
+      }
       const parsed = parseNote(file.text);
       if (!parsed.ok) {
         repairs.push({ path: entry.path, errors: parsed.errors, rawBody: parsed.rawBody });
@@ -144,32 +215,75 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     return { notes, repairs };
   }
 
-  async function rebuildIndex(): Promise<void> {
-    state = 'rebuilding';
-    try {
-      const { notes } = await scan();
-      const entries: IndexEntry[] = notes.map((item) => ({
-        ...item,
-        content: indexedContent(item.note),
-      }));
-      await dependencies.index.rebuild(entries);
-      state = 'ready';
-      publish({ kind: 'index-rebuilt' });
-    } catch (error) {
-      state = 'stale';
-      throw error;
-    } finally {
-      rebuildScheduled = false;
+  function cancelRecovery(): void {
+    if (recoveryTimer !== undefined) timers.clearTimeout(recoveryTimer);
+    recoveryTimer = undefined;
+    recoveryScheduled = false;
+  }
+
+  function scheduleRecovery(): void {
+    if (recoveryScheduled || recoveryAttempt >= RECOVERY_DELAYS.length) return;
+    recoveryScheduled = true;
+    const run = async () => {
+      recoveryScheduled = false;
+      recoveryTimer = undefined;
+      try {
+        await rebuildIndex();
+        recoveryAttempt = 0;
+      } catch {
+        recoveryAttempt += 1;
+        scheduleRecovery();
+      }
+    };
+    if (dependencies.scheduleIndexRebuild !== undefined) {
+      dependencies.scheduleIndexRebuild(run);
+    } else {
+      recoveryTimer = timers.setTimeout(run, RECOVERY_DELAYS[recoveryAttempt]!);
     }
   }
 
   function markIndexStale(): void {
     state = 'stale';
-    publish({ kind: 'index-stale' });
-    if (dependencies.scheduleIndexRebuild !== undefined && !rebuildScheduled) {
-      rebuildScheduled = true;
-      dependencies.scheduleIndexRebuild(rebuildIndex);
-    }
+    rebuildRequired = true;
+    emit({ kind: 'index-stale' });
+    scheduleRecovery();
+  }
+
+  function rebuildIndex(): Promise<void> {
+    return enqueueIndexMutation(async () => {
+      const targetGeneration = durableGeneration;
+      state = 'rebuilding';
+      try {
+        const { notes } = await scan();
+        const entries: IndexEntry[] = notes.map((item) => ({
+          ...item,
+          content: indexedContent(item.note),
+        }));
+        await dependencies.index.rebuild(entries);
+        indexedGeneration = targetGeneration;
+        rebuildRequired = false;
+        recoveryAttempt = 0;
+        cancelRecovery();
+        state = indexedGeneration === durableGeneration ? 'ready' : 'stale';
+        emit({ kind: 'index-rebuilt' });
+      } catch (error) {
+        state = 'stale';
+        rebuildRequired = true;
+        throw error;
+      }
+    });
+  }
+
+  function scheduleReconciliation(_event: VaultChange): void {
+    if (reconcileTimer !== undefined) return;
+    reconcileTimer = timers.setTimeout(async () => {
+      reconcileTimer = undefined;
+      try {
+        await rebuildIndex();
+      } catch {
+        scheduleRecovery();
+      }
+    }, RECONCILE_DELAY);
   }
 
   async function save(input: SaveNoteInput): Promise<SavedNote> {
@@ -192,51 +306,90 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
       throw new StudioSaveConflictError(savedNote, durableText, { cause: error });
     }
 
-    try {
-      await dependencies.index.upsert(
-        savedNote,
-        input.path,
-        written.hash,
-        indexedContent(savedNote),
-      );
-    } catch {
-      markIndexStale();
-    }
-    publish({ kind: 'note-saved', noteId: savedNote.id, path: input.path });
+    durableGeneration += 1;
+    const generation = durableGeneration;
+    state = 'stale';
+    await enqueueIndexMutation(async () => {
+      try {
+        await dependencies.index.upsert(
+          savedNote,
+          input.path,
+          written.hash,
+          indexedContent(savedNote),
+        );
+        indexedGeneration = Math.max(indexedGeneration, generation);
+        if (!rebuildRequired && indexedGeneration === durableGeneration) state = 'ready';
+      } catch {
+        markIndexStale();
+      }
+    });
+    emit({ kind: 'note-saved', noteId: savedNote.id, path: input.path });
     return { note: savedNote, path: input.path, hash: written.hash };
   }
 
   const service: StudioService = {
     views,
 
+    async start() {
+      if (stopWatching !== undefined) return;
+      stopWatching = await dependencies.vault.watch((event) => {
+        if (!isInternalPath(event.path)) scheduleReconciliation(event);
+      });
+    },
+
+    async dispose() {
+      stopWatching?.();
+      stopWatching = undefined;
+      if (reconcileTimer !== undefined) timers.clearTimeout(reconcileTimer);
+      reconcileTimer = undefined;
+      cancelRecovery();
+      listeners.clear();
+    },
+
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
+
     async capture(input) {
       const body = input.body.trim();
       if (body === '') throw new Error('Write something to remember first.');
-      const now = iso(clock);
-      const note: StudioNote = {
-        schemaVersion: 1,
-        id: generateId(),
-        ...(input.title?.trim() ? { title: input.title.trim() } : {}),
-        body,
-        cardType: 'capture',
-        semanticType: 'reflection',
-        status: 'draft',
-        rooms: ['inbox'],
-        lifeAreas: [],
-        seasons: [],
-        tags: [],
-        created: now,
-        updated: now,
-        attachments: [],
-        display: { featured: false },
-        privacy: { sensitivity: 'private', aiAccess: 'ask' },
-        extraFrontmatter: {},
-        lineEnding: '\n',
-      };
-      return save({
-        note,
-        path: `Inbox/${suggestFilename(note)}`,
-        expectedMissing: true,
+      const created = iso(clock);
+      let lastConflict: StudioSaveConflictError | undefined;
+      for (let attempt = 0; attempt < CAPTURE_ATTEMPTS; attempt += 1) {
+        const note: StudioNote = {
+          schemaVersion: 1,
+          id: generateId(),
+          ...(input.title?.trim() ? { title: input.title.trim() } : {}),
+          body,
+          cardType: 'capture',
+          semanticType: 'reflection',
+          status: 'draft',
+          rooms: ['inbox'],
+          lifeAreas: [],
+          seasons: [],
+          tags: [],
+          created,
+          updated: created,
+          attachments: [],
+          display: { featured: false },
+          privacy: { sensitivity: 'private', aiAccess: 'ask' },
+          extraFrontmatter: {},
+          lineEnding: '\n',
+        };
+        try {
+          return await save({
+            note,
+            path: `Inbox/${suggestFilename(note)}`,
+            expectedMissing: true,
+          });
+        } catch (error) {
+          if (!(error instanceof StudioSaveConflictError)) throw error;
+          lastConflict = error;
+        }
+      }
+      throw new Error('A unique capture path could not be reserved. Please try again.', {
+        cause: lastConflict,
       });
     },
 
