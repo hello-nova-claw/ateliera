@@ -1,9 +1,14 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import type { FoyerProjection, StudioCardProjection } from '@studio/application';
+import type {
+  FoyerProjection,
+  StudioCardProjection,
+} from '@studio/application';
 import { vi } from 'vitest';
 import { FoyerPage } from './FoyerPage';
 
-function card(overrides: Partial<StudioCardProjection> = {}): StudioCardProjection {
+function card(
+  overrides: Partial<StudioCardProjection> = {},
+): StudioCardProjection {
   return {
     noteId: 'note',
     path: 'Foyer/note.md',
@@ -34,47 +39,145 @@ it('invites only three starting choices in an empty Foyer', () => {
 
   expect(screen.getAllByRole('button')).toHaveLength(3);
   expect(screen.getByText('What are you currently becoming?')).toBeVisible();
-  fireEvent.click(screen.getByRole('button', { name: 'Add a becoming sentence' }));
-  expect(onCreate).toHaveBeenCalledWith('becoming', expect.any(HTMLButtonElement));
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Add a becoming sentence' }),
+  );
+  expect(onCreate).toHaveBeenCalledWith(
+    'becoming',
+    expect.any(HTMLButtonElement),
+  );
 });
 
 it('composes populated editorial slots without turning cards into giant buttons', () => {
   const onOpen = vi.fn();
   const model: FoyerProjection = {
-    currentSeason: card({ noteId: 'season', cardType: 'season', title: 'A spacious winter' }),
+    currentSeason: card({
+      noteId: 'season',
+      cardType: 'season',
+      title: 'A spacious winter',
+    }),
     featured: [],
-    becoming: card({ noteId: 'becoming', cardType: 'identity', title: 'A woman who creates from calm' }),
-    feelings: [card({ noteId: 'feeling', cardType: 'feeling', title: 'Spacious', semanticType: 'vision' })],
-    principles: [card({ noteId: 'principle', cardType: 'principle', title: 'Structure and surprise' })],
-    priorities: [
-      card({ noteId: 'one', cardType: 'priority', title: 'Create before consuming' }),
-      card({ noteId: 'two', cardType: 'priority', title: 'Make home easier' }),
-      card({ noteId: 'three', cardType: 'priority', title: 'Rest without earning it' }),
-      card({ noteId: 'four', cardType: 'priority', title: 'This must not appear' }),
+    becoming: card({
+      noteId: 'becoming',
+      cardType: 'identity',
+      title: 'A woman who creates from calm',
+    }),
+    feelings: [
+      card({
+        noteId: 'feeling',
+        cardType: 'feeling',
+        title: 'Spacious',
+        semanticType: 'vision',
+      }),
     ],
-    returning: card({ noteId: 'return', cardType: 'reflection', semanticType: 'celebration', title: 'You returned gently' }),
-    image: { noteId: 'image', path: 'Foyer/image.md', source: '/morning.jpg', alt: 'Morning light', caption: 'Morning light in the kitchen' },
+    principles: [
+      card({
+        noteId: 'principle',
+        cardType: 'principle',
+        title: 'Structure and surprise',
+      }),
+    ],
+    priorities: [
+      card({
+        noteId: 'one',
+        cardType: 'priority',
+        title: 'Create before consuming',
+      }),
+      card({ noteId: 'two', cardType: 'priority', title: 'Make home easier' }),
+      card({
+        noteId: 'three',
+        cardType: 'priority',
+        title: 'Rest without earning it',
+      }),
+      card({
+        noteId: 'four',
+        cardType: 'priority',
+        title: 'This must not appear',
+      }),
+    ],
+    returning: card({
+      noteId: 'return',
+      cardType: 'reflection',
+      semanticType: 'celebration',
+      title: 'You returned gently',
+    }),
+    image: {
+      noteId: 'image',
+      path: 'Foyer/image.md',
+      source: '/morning.jpg',
+      alt: 'Morning light',
+      caption: 'Morning light in the kitchen',
+    },
   };
   render(<FoyerPage model={model} onOpen={onOpen} />);
 
   expect(screen.getByRole('heading', { name: 'The Studio' })).toBeVisible();
   expect(screen.getAllByRole('article').length).toBeGreaterThanOrEqual(4);
   expect(screen.queryByText('This must not appear')).not.toBeInTheDocument();
-  expect(screen.getByRole('list', { name: 'The Studio meanings' }).children).toHaveLength(6);
+  expect(
+    screen.getByRole('list', { name: 'The Studio meanings' }).children,
+  ).toHaveLength(6);
   fireEvent.click(screen.getByRole('button', { name: 'Edit becoming' }));
-  expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ noteId: 'becoming' }), expect.any(HTMLButtonElement));
+  expect(onOpen).toHaveBeenCalledWith(
+    expect.objectContaining({ noteId: 'becoming' }),
+    expect.any(HTMLButtonElement),
+  );
 });
 
 it('collapses a missing optional image into a calm repair note', () => {
-  render(<FoyerPage model={{ ...empty, image: { noteId: 'image', path: 'Foyer/image.md', source: '/missing.jpg', alt: 'A hillside' } }} />);
+  render(
+    <FoyerPage
+      model={{
+        ...empty,
+        image: {
+          noteId: 'image',
+          path: 'Foyer/image.md',
+          source: '/missing.jpg',
+          alt: 'A hillside',
+        },
+      }}
+    />,
+  );
   fireEvent.error(screen.getByRole('img', { name: 'A hillside' }));
   expect(screen.getByText('This image is not available here.')).toBeVisible();
+});
+
+it('does not contact an external image host and offers recoverable removal', () => {
+  const onRemoveImage = vi.fn();
+  render(
+    <FoyerPage
+      model={{
+        ...empty,
+        image: {
+          noteId: 'image',
+          path: 'Foyer/image.md',
+          source: 'https://tracker.example/image.jpg',
+          alt: 'A hillside',
+        },
+      }}
+      onRemoveImage={onRemoveImage}
+    />,
+  );
+  expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Remove this image' }));
+  expect(onRemoveImage).toHaveBeenCalledWith(
+    'image',
+    expect.any(HTMLButtonElement),
+  );
 });
 
 it('announces loading and recoverable errors without replacing the fixed structure', () => {
   const view = render(<FoyerPage model={empty} state="loading" />);
   expect(screen.getByRole('status')).toHaveTextContent('Gathering the Foyer');
-  view.rerender(<FoyerPage error="The index needs a quiet rebuild." model={empty} state="error" />);
-  expect(screen.getByRole('alert')).toHaveTextContent('The index needs a quiet rebuild.');
+  view.rerender(
+    <FoyerPage
+      error="The index needs a quiet rebuild."
+      model={empty}
+      state="error"
+    />,
+  );
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'The index needs a quiet rebuild.',
+  );
   expect(screen.getByRole('heading', { name: 'The Studio' })).toBeVisible();
 });

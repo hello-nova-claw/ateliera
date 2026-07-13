@@ -126,13 +126,15 @@ function StudioApplication({
   studioId,
   studioService,
 }: AppProps) {
-  const navigationGuard = useRef<((next: StudioPath) => boolean) | undefined>(undefined);
+  const navigationGuard = useRef<((next: StudioPath) => boolean) | undefined>(
+    undefined,
+  );
   const injectedStudioId = useRef(studioId ?? `session:${crypto.randomUUID()}`);
   const [service, setService] = useState<CaptureService | StudioService | null>(
     () => studioService ?? captureService ?? null,
   );
-  const [activeStudioId, setActiveStudioId] = useState(() =>
-    studioId ?? injectedStudioId.current,
+  const [activeStudioId, setActiveStudioId] = useState(
+    () => studioId ?? injectedStudioId.current,
   );
   const { navigate, path, title } = useStudioRouter(
     (next) => navigationGuard.current?.(next) ?? false,
@@ -175,7 +177,9 @@ function StudioApplication({
   const capturePaths = useRef(new Map<string, string>());
   const activeLifecycleService = useRef<StudioService | undefined>(undefined);
   const pendingNavigation = useRef<StudioPath | undefined>(undefined);
-  const pendingCapturePlacement = useRef<CapturePlacement | undefined>(undefined);
+  const pendingCapturePlacement = useRef<CapturePlacement | undefined>(
+    undefined,
+  );
 
   navigationGuard.current = (next) => {
     if (editor === undefined) return false;
@@ -390,7 +394,8 @@ function StudioApplication({
   }
 
   async function captureThought(input: QuickCaptureInput): Promise<SavedNote> {
-    if (service === null) throw new Error('Choose a Studio before remembering a thought.');
+    if (service === null)
+      throw new Error('Choose a Studio before remembering a thought.');
     if (isStudioService(service)) {
       return service.capture({
         body: input.body,
@@ -413,7 +418,10 @@ function StudioApplication({
     queueMicrotask(() => captureButton.current?.focus());
   }
 
-  function beginFoyerCapture(slot: FoyerSlot, trigger: HTMLButtonElement): void {
+  function beginFoyerCapture(
+    slot: FoyerSlot,
+    trigger: HTMLButtonElement,
+  ): void {
     const placements: Record<FoyerSlot, CapturePlacement> = {
       becoming: 'foyer-becoming',
       feeling: 'foyer-feeling',
@@ -424,16 +432,46 @@ function StudioApplication({
     setCaptureOpen(true);
   }
 
-  function openProjectedCard(card: { path: string }, trigger: HTMLButtonElement): void {
+  function openProjectedCard(
+    card: { path: string },
+    trigger: HTMLButtonElement,
+  ): void {
     if (!isStudioService(service)) return;
     editorTrigger.current = trigger;
     setToast('');
-    void service.load(card.path).then((saved) => {
-      setEditorCloseRequest(0);
-      setEditor(saved);
-    }).catch((reason: unknown) => {
-      setError(reason instanceof Error ? reason.message : 'This note could not be opened.');
-    });
+    void service
+      .load(card.path)
+      .then((saved) => {
+        setEditorCloseRequest(0);
+        setEditor(saved);
+      })
+      .catch((reason: unknown) => {
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : 'This note could not be opened.',
+        );
+      });
+  }
+
+  function removeFoyerImage(noteId: string): void {
+    if (!isStudioService(service)) return;
+    void service
+      .trash(noteId)
+      .then(() => {
+        setProjectionRevision((revision) => revision + 1);
+        setToast('Moved to Trash.');
+        requestAnimationFrame(() =>
+          document.querySelector<HTMLElement>('#studio-main')?.focus(),
+        );
+      })
+      .catch((reason: unknown) => {
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : 'This image could not be moved to Trash.',
+        );
+      });
   }
 
   function closeEditor(): void {
@@ -592,18 +630,26 @@ function StudioApplication({
           captures={captures}
           onCreateFoyer={beginFoyerCapture}
           onOpenCard={openProjectedCard}
+          onRemoveFoyerImage={removeFoyerImage}
           onOpenCapture={(id, trigger) => {
             if (!isStudioService(service)) return;
             const notePath = capturePaths.current.get(id);
             if (notePath === undefined) return;
             editorTrigger.current = trigger;
             setToast('');
-            void service.load(notePath).then((saved) => {
-              setEditorCloseRequest(0);
-              setEditor(saved);
-            }).catch((reason: unknown) => {
-              setError(reason instanceof Error ? reason.message : 'This note could not be opened.');
-            });
+            void service
+              .load(notePath)
+              .then((saved) => {
+                setEditorCloseRequest(0);
+                setEditor(saved);
+              })
+              .catch((reason: unknown) => {
+                setError(
+                  reason instanceof Error
+                    ? reason.message
+                    : 'This note could not be opened.',
+                );
+              });
           }}
           path={path}
           projectionRevision={projectionRevision}

@@ -1,4 +1,8 @@
-import type { CaptureEntry, StudioCardProjection, StudioService } from '@studio/application';
+import type {
+  CaptureEntry,
+  StudioCardProjection,
+  StudioService,
+} from '@studio/application';
 import type { FoyerSlot } from '../features/foyer/FoyerPage';
 import { lazy, Suspense, type LazyExoticComponent } from 'react';
 import type { StudioPath } from './router';
@@ -8,6 +12,7 @@ interface RoomProps {
   onOpenCapture?: (id: string, trigger: HTMLButtonElement) => void;
   onCreateFoyer?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
   onOpenCard?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
+  onRemoveFoyerImage?: (noteId: string, trigger: HTMLButtonElement) => void;
   projectionRevision?: number;
   service?: StudioService;
 }
@@ -35,6 +40,7 @@ export function RoomRoute({
   onOpenCapture,
   onCreateFoyer,
   onOpenCard,
+  onRemoveFoyerImage,
   path,
   projectionRevision,
   service,
@@ -44,6 +50,7 @@ export function RoomRoute({
   onOpenCapture?: (id: string, trigger: HTMLButtonElement) => void;
   onCreateFoyer?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
   onOpenCard?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
+  onRemoveFoyerImage?: (noteId: string, trigger: HTMLButtonElement) => void;
   path: StudioPath;
   projectionRevision?: number;
   service?: StudioService;
@@ -66,6 +73,7 @@ export function RoomRoute({
         captures={captures}
         {...(onCreateFoyer === undefined ? {} : { onCreateFoyer })}
         {...(onOpenCard === undefined ? {} : { onOpenCard })}
+        {...(onRemoveFoyerImage === undefined ? {} : { onRemoveFoyerImage })}
         {...(onOpenCapture === undefined ? {} : { onOpenCapture })}
         {...(projectionRevision === undefined ? {} : { projectionRevision })}
         {...(service === undefined ? {} : { service })}
