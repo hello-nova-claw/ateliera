@@ -57,32 +57,39 @@ async function prepareOfflineShell(): Promise<boolean> {
       ),
     );
   }
-  const cacheNames = (await caches.keys()).filter((key) =>
-    key.startsWith('studio-app-shell-'),
-  );
-  if (cacheNames.length === 0) return false;
-  const urls = [
-    '/',
-    '/manifest.webmanifest',
-    '/apple-touch-icon.png',
-    '/studio-icon.svg',
-    '/studio-maskable.svg',
-    ...performance
-      .getEntriesByType('resource')
-      .map((entry) => new URL(entry.name))
-      .filter(
-        (url) =>
-          url.origin === location.origin &&
-          /\.(?:css|js|woff2?)(?:$|\?)/.test(url.pathname),
-      )
-      .map((url) => `${url.pathname}${url.search}`),
+  const manifestUrl = '/studio-precache-manifest.json';
+  let response: Response | undefined;
+  try {
+    response = await fetch(`${manifestUrl}?ready=${Date.now()}`, {
+      cache: 'no-store',
+    });
+  } catch {
+    response = await caches.match(manifestUrl);
+  }
+  if (response === undefined || !response.ok) return false;
+  const manifest = (await response.json()) as {
+    version?: unknown;
+    entries?: unknown;
+  };
+  if (
+    typeof manifest.version !== 'string' ||
+    !Array.isArray(manifest.entries) ||
+    !manifest.entries.every(
+      (entry) =>
+        typeof entry === 'object' &&
+        entry !== null &&
+        typeof (entry as { url?: unknown }).url === 'string' &&
+        typeof (entry as { revision?: unknown }).revision === 'string',
+    )
+  )
+    return false;
+  const cache = await caches.open(`studio-app-shell-${manifest.version}`);
+  const expected = [
+    ...manifest.entries.map((entry) => (entry as { url: string }).url),
+    manifestUrl,
   ];
-  await Promise.all(
-    cacheNames.map(async (cacheName) =>
-      (await caches.open(cacheName)).addAll([...new Set(urls)]),
-    ),
-  );
-  return true;
+  const cached = await Promise.all(expected.map((url) => cache.match(url)));
+  return cached.every((item) => item !== undefined);
 }
 
 export interface AppProps {
