@@ -1,4 +1,10 @@
-import { createDraftRecoveryStore, type SavedNote, type StudioService } from '@studio/application';
+import {
+  StudioSaveConflictError,
+  createDraftRecoveryStore,
+  type SavedNote,
+  type StudioService,
+} from '@studio/application';
+import { serializeNote } from '@studio/content';
 import type { StudioNote } from '@studio/domain';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { NoteEditorSession } from './NoteEditorSession';
@@ -199,4 +205,72 @@ it('keeps the editor open after a failed close flush and offers a retry', async 
   expect(await screen.findByText(/could not be saved.*Retry before closing/i)).toBeVisible();
   expect(screen.getByRole('button', { name: 'Try saving again' })).toBeEnabled();
   expect(onClose).not.toHaveBeenCalled();
+});
+
+it('begins a live manual merge with both versions preserved in recovery', async () => {
+  const attempted = { ...note, title: 'Local title' };
+  const remote = { ...note, title: 'Remote title', body: 'Remote words' };
+  const service = mockService({
+    load: vi.fn(async () => ({ ...initial, note: remote, hash: 'remote-hash' })),
+    save: vi.fn().mockRejectedValueOnce(
+      new StudioSaveConflictError(attempted, serializeNote(remote)),
+    ),
+  });
+  render(
+    <NoteEditorSession
+      initial={initial}
+      onClose={vi.fn()}
+      requestClose={0}
+      service={service}
+      studioId="studio-a"
+    />,
+  );
+  fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Local title' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+  await screen.findByRole('button', { name: 'Merge manually' });
+
+  fireEvent.click(screen.getByRole('button', { name: 'Merge manually' }));
+
+  await waitFor(() => {
+    expect(screen.getByLabelText('Markdown body')).toHaveTextContent('Durable words');
+    expect(screen.getByLabelText('Markdown body')).toHaveTextContent('Remote words');
+  });
+  expect(createDraftRecoveryStore(sessionStorage).read('studio-a', initial.path)).toMatchObject({
+    expectedHash: 'remote-hash',
+    body: expect.stringContaining('Remote words'),
+  });
+});
+
+it('keeps both live conflict versions available when manual merge loading fails', async () => {
+  const attempted = { ...note, title: 'Local title' };
+  const remote = { ...note, title: 'Remote title', body: 'Remote words' };
+  const service = mockService({
+    load: vi.fn().mockRejectedValue(new Error('Remote read failed')),
+    save: vi.fn().mockRejectedValueOnce(
+      new StudioSaveConflictError(attempted, serializeNote(remote)),
+    ),
+  });
+  render(
+    <NoteEditorSession
+      initial={initial}
+      onClose={vi.fn()}
+      requestClose={0}
+      service={service}
+      studioId="studio-a"
+    />,
+  );
+  fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Local title' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+  await screen.findByRole('button', { name: 'Merge manually' });
+
+  fireEvent.click(screen.getByRole('button', { name: 'Merge manually' }));
+
+  expect(await screen.findByText(/Remote read failed.*still preserved/i)).toBeVisible();
+  expect(screen.getByRole('region', { name: 'Your version' })).toHaveTextContent(
+    'Local title',
+  );
+  expect(screen.getByRole('region', { name: 'Other version' })).toHaveTextContent(
+    'Remote title',
+  );
+  expect(createDraftRecoveryStore(sessionStorage).read('studio-a', initial.path)).not.toBeNull();
 });
