@@ -174,13 +174,19 @@ function SeasonWizard({
     try {
       if (step === 'name-dates') {
         if (!title.trim()) throw new Error('Give this season a name.');
-        const dates = {
-          title: title.trim(),
-          ...(startsOn ? { startsOn } : {}),
-          ...(endsOn ? { endsOn } : {}),
-        };
-        if (record) await onSave?.('name-dates', dates);
-        else await onCreate?.(dates);
+        if (record) {
+          await onSave?.('name-dates', {
+            title: title.trim(),
+            startsOn: startsOn || null,
+            endsOn: endsOn || null,
+          });
+        } else {
+          await onCreate?.({
+            title: title.trim(),
+            ...(startsOn ? { startsOn } : {}),
+            ...(endsOn ? { endsOn } : {}),
+          });
+        }
         return;
       }
       if (
