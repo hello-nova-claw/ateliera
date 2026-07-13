@@ -1,0 +1,60 @@
+.studio-dialog {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--studio-space-4);
+  background: rgb(25 24 22 / 42%);
+  backdrop-filter: blur(3px);
+}
+
+.studio-dialog__panel {
+  inline-size: min(36rem, 100%);
+  max-block-size: calc(100dvh - var(--studio-space-8));
+  overflow: auto;
+  border: 1px solid var(--studio-color-line);
+  border-radius: var(--studio-radius-card);
+  color: var(--studio-color-ink);
+  background: var(--studio-color-surface);
+  box-shadow: var(--studio-shadow-card);
+}
+
+.studio-dialog__panel--inspector {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  inline-size: min(var(--studio-inspector-width), 92vw);
+  max-block-size: 100dvh;
+  border-block: 0;
+  border-inline-end: 0;
+  border-radius: var(--studio-radius-card) 0 0 var(--studio-radius-card);
+}
+
+@media (width <= 47.99rem) {
+  .studio-dialog {
+    align-items: end;
+    padding: 0;
+  }
+
+  .studio-dialog__panel,
+  .studio-dialog__panel--inspector {
+    position: static;
+    inline-size: 100%;
+    max-block-size: 100dvh;
+    min-block-size: min(100dvh, 36rem);
+    border-inline: 0;
+    border-block-end: 0;
+    border-radius: var(--studio-radius-card) var(--studio-radius-card) 0 0;
+  }
+}
+
+@media (forced-colors: active) {
+  .studio-dialog {
+    background: Canvas;
+  }
+
+  .studio-dialog__panel {
+    border: 2px solid CanvasText;
+  }
+}

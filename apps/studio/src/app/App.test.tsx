@@ -11,8 +11,8 @@ import { App } from './App';
 
 const selectTauriVault = vi.fn();
 
-vi.mock('@studio/storage', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@studio/storage')>()),
+vi.mock('@studio/storage/tauri', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@studio/storage/tauri')>()),
   selectTauriVault,
 }));
 
@@ -103,5 +103,7 @@ it('asks the native shell to select a vault before opening the Studio', async ()
   fireEvent.click(screen.getByRole('button', { name: 'Open this Studio' }));
 
   await waitFor(() => expect(selectTauriVault).toHaveBeenCalledOnce());
-  expect(screen.getByRole('heading', { name: 'Make this space yours.' })).toBeVisible();
+  expect(
+    screen.getByRole('heading', { name: 'Make this space yours.' }),
+  ).toBeVisible();
 });

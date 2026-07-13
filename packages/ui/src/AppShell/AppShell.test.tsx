@@ -14,7 +14,9 @@ it('provides named navigation, main content, and a one-tap capture action', () =
     </AppShell>,
   );
 
-  expect(screen.getByRole('navigation', { name: 'Studio rooms' })).toBeVisible();
+  expect(
+    screen.getByRole('navigation', { name: 'Studio rooms' }),
+  ).toBeVisible();
   expect(screen.getByRole('main')).toHaveAccessibleName('Foyer');
   fireEvent.click(screen.getAllByRole('button', { name: 'Capture' })[0]!);
   expect(onCapture).toHaveBeenCalledOnce();

@@ -1,32 +1,12 @@
-/* Finalized Claude design work replaces token values, not token names or component contracts. */
 :root {
-  color-scheme: light;
-
-  --studio-color-canvas: #f7f5f0;
-  --studio-color-surface: #fffdfa;
-  --studio-color-ink: #292a28;
-  --studio-color-ink-muted: #62645f;
-  --studio-color-line: #dedbd3;
-  --studio-color-line-strong: #9a9891;
-  --studio-color-shadow: rgb(43 42 38 / 8%);
-  --studio-color-focus: #574174;
-  --studio-color-foundation: #767773;
-  --studio-color-vision: #a77908;
-  --studio-color-growth: #53765c;
-  --studio-color-reflection: #547994;
-  --studio-color-celebration: #a95c24;
-  --studio-color-uncharted: #745f95;
-  --studio-font-display: "Iowan Old Style", "Baskerville", "Georgia", serif;
-  --studio-font-interface: "Avenir Next", "Inter", -apple-system, "BlinkMacSystemFont", "Segoe UI", sans-serif;
-  --studio-font-mono: "SFMono-Regular", "Consolas", monospace;
-  --studio-type-room-title: 400 clamp(2.25rem, 5vw, 4.5rem) / 1.05 var(--studio-font-display);
-  --studio-type-page-subtitle: 400 clamp(1.125rem, 2vw, 1.375rem) / 1.55 var(--studio-font-interface);
-  --studio-type-section-heading: 600 0.75rem / 1.4 var(--studio-font-interface);
-  --studio-type-card-title: 500 1.125rem / 1.35 var(--studio-font-interface);
+  --studio-type-room-title: 400 clamp(2.25rem, 5vw, 4.5rem) / 1.04
+    var(--studio-font-display);
+  --studio-type-page-subtitle: 400 clamp(1.125rem, 2vw, 1.375rem) / 1.55
+    var(--studio-font-interface);
   --studio-type-body: 400 1rem / 1.65 var(--studio-font-interface);
+  --studio-type-control: 500 0.9rem / 1.2 var(--studio-font-interface);
   --studio-type-label: 600 0.875rem / 1.4 var(--studio-font-interface);
-  --studio-letter-spacing-tight: -0.012em;
-  --studio-letter-spacing-wide: 0.08em;
+  --studio-type-eyebrow: 600 0.6875rem / 1.2 var(--studio-font-interface);
   --studio-space-1: 0.25rem;
   --studio-space-2: 0.5rem;
   --studio-space-3: 0.75rem;
@@ -34,31 +14,329 @@
   --studio-space-5: 1.25rem;
   --studio-space-6: 1.5rem;
   --studio-space-8: 2rem;
+  --studio-space-10: 2.5rem;
   --studio-space-12: 3rem;
   --studio-space-16: 4rem;
+  --studio-space-20: 5rem;
   --studio-space-24: 6rem;
+  --studio-radius-note: 4px 4px 12px 12px;
   --studio-radius-card: 1.125rem;
+  --studio-radius-sheet: 0.875rem;
   --studio-radius-control: 0.75rem;
-  --studio-shadow-card: 0 8px 28px var(--studio-color-shadow);
+  --studio-shadow-note: 0 3px 9px rgb(43 42 38 / 6%);
+  --studio-shadow-card: 0 8px 28px rgb(43 42 38 / 8%);
+  --studio-shadow-drag: 0 18px 40px rgb(43 42 38 / 18%);
+  --studio-content-max: 73.75rem;
+  --studio-content-narrow: 47.5rem;
+  --studio-reading-measure: 70ch;
+  --studio-nav-width: 15.5rem;
+  --studio-topbar-height: 3.75rem;
+  --studio-inspector-width: 27.5rem;
+  --studio-touch-target: 2.75rem;
   --studio-focus-width: 3px;
   --studio-focus-offset: 3px;
-  --studio-motion-duration: 180ms;
+  --studio-motion-fast: 150ms;
+  --studio-motion-base: 180ms;
+  --studio-motion-room: 220ms;
+  --studio-motion-theme: 350ms;
   --studio-motion-reduced-duration: 0s;
-  --studio-motion-easing: ease-out;
-  --studio-touch-target: 2.75rem;
-  --studio-content-max: 90rem;
-  --studio-reading-max: 45rem;
-  --studio-breakpoint-mobile: 30rem;
-  --studio-breakpoint-tablet: 48rem;
-  --studio-breakpoint-desktop: 64rem;
+  --studio-ease-standard: ease;
+}
+
+.studio-app {
+  --studio-color-canvas: #f7f5f0;
+  --studio-color-frame: #eae6dd;
+  --studio-color-rail: #f2eee6;
+  --studio-color-surface: #fffdfa;
+  --studio-color-sunken: #f6f3ec;
+  --studio-color-ink: #292a28;
+  --studio-color-ink-strong: #26271f;
+  --studio-color-ink-1: #3a3b34;
+  --studio-color-ink-muted: #54564f;
+  --studio-color-ink-soft: #6f716c;
+  --studio-color-ink-faint: #8a8c86;
+  --studio-color-line: #e2ddd2;
+  --studio-color-line-strong: #c9c2b3;
+  --studio-color-topbar: rgb(247 245 240 / 86%);
+  --studio-color-script: #b09a70;
+  --studio-color-script-ink: #7a642f;
+  --studio-color-link: #6e91ad;
+  --studio-color-focus: #5b3d84;
+  --studio-color-accent-soft: #f4ecd8;
+  --studio-color-accent-soft-hover: #efe4c9;
+  --studio-color-accent-line: #d8c9a6;
+  --studio-color-foundation: #8c8d89;
+  --studio-color-vision: #d5ab42;
+  --studio-color-growth: #6f9478;
+  --studio-color-reflection: #6e91ad;
+  --studio-color-celebration: #d2874f;
+  --studio-color-uncharted: #8976a7;
+  --studio-stock-foundation: #ebe6da;
+  --studio-stock-foundation-edge: #d8d3c1;
+  --studio-stock-vision: #f6e8bd;
+  --studio-stock-vision-edge: #e6d497;
+  --studio-stock-growth: #dae9d0;
+  --studio-stock-growth-edge: #c3dab6;
+  --studio-stock-reflection: #d7e5ef;
+  --studio-stock-reflection-edge: #bed5e6;
+  --studio-stock-celebration: #f6dcc4;
+  --studio-stock-celebration-edge: #ecc8a6;
+  --studio-stock-uncharted: #e4dbf0;
+  --studio-stock-uncharted-edge: #d2c3e8;
+}
+
+.studio-app[data-theme='fig-leaf'] {
+  --studio-color-frame: #dde5cf;
+  --studio-color-rail: #e9efdf;
+  --studio-color-surface: #fbfdf7;
+  --studio-color-canvas:
+    radial-gradient(120% 90% at 20% 0%, #f1f4e8, transparent 60%),
+    linear-gradient(165deg, #eef2e6, #e7eede 55%, #dfe8d3);
+  --studio-color-sunken: #eef2e6;
+  --studio-color-line: #dce4d1;
+  --studio-color-line-strong: #a9b59a;
+  --studio-color-ink: #2a2d26;
+  --studio-color-ink-strong: #222519;
+  --studio-color-ink-1: #353a2d;
+  --studio-color-ink-muted: #54564f;
+  --studio-color-ink-soft: #6f716c;
+  --studio-color-ink-faint: #777a72;
+  --studio-color-topbar: rgb(238 242 230 / 85%);
+  --studio-color-foundation: #87897f;
+  --studio-color-vision: #c6a94a;
+  --studio-color-growth: #5f8f6a;
+  --studio-color-reflection: #5f8aa0;
+  --studio-color-celebration: #cf8a54;
+  --studio-color-uncharted: #8478a4;
+  --studio-color-link: #4f7691;
+  --studio-color-script: #7f8a5f;
+  --studio-color-script-ink: #5f6a30;
+  --studio-stock-foundation: #ecefe4;
+  --studio-stock-foundation-edge: #dbe0cf;
+  --studio-stock-vision: #f2ecc9;
+  --studio-stock-vision-edge: #e4d9a8;
+  --studio-stock-growth: #dfe9d3;
+  --studio-stock-growth-edge: #c9d9ba;
+  --studio-stock-reflection: #dde8ea;
+  --studio-stock-reflection-edge: #c6d8da;
+  --studio-stock-celebration: #f2e3d0;
+  --studio-stock-celebration-edge: #e6cdb0;
+  --studio-stock-uncharted: #e6e0ee;
+  --studio-stock-uncharted-edge: #d3c9e2;
+}
+
+.studio-app[data-theme='sunrise'] {
+  --studio-color-frame: #f0dccc;
+  --studio-color-rail: #f7e6d6;
+  --studio-color-surface: #fffdf9;
+  --studio-color-canvas:
+    radial-gradient(120% 95% at 18% 0%, #fdeee0, transparent 55%),
+    linear-gradient(168deg, #fbecdc, #f8e2d2 45%, #f4dcd6 80%, #efd6cf);
+  --studio-color-sunken: #f9eee1;
+  --studio-color-line: #efdccb;
+  --studio-color-line-strong: #c7a98d;
+  --studio-color-ink: #2e2822;
+  --studio-color-ink-strong: #261f18;
+  --studio-color-ink-1: #3d352c;
+  --studio-color-topbar: rgb(251 236 220 / 85%);
+  --studio-color-foundation: #8f8a83;
+  --studio-color-vision: #d5a742;
+  --studio-color-growth: #6f9478;
+  --studio-color-reflection: #6f8fb0;
+  --studio-color-celebration: #d67f4f;
+  --studio-color-uncharted: #9079ab;
+  --studio-color-script: #b98a5f;
+  --studio-color-script-ink: #8a5f30;
+  --studio-color-accent-soft: #f8ead2;
+  --studio-color-accent-soft-hover: #f2ddc0;
+  --studio-color-accent-line: #d2ad76;
+  --studio-stock-foundation: #efe9df;
+  --studio-stock-foundation-edge: #e0d7c6;
+  --studio-stock-vision: #f9e9bf;
+  --studio-stock-vision-edge: #eed79a;
+  --studio-stock-growth: #e2ebda;
+  --studio-stock-growth-edge: #cddcc0;
+  --studio-stock-reflection: #e0e8ef;
+  --studio-stock-reflection-edge: #ccd9e6;
+  --studio-stock-celebration: #f9ddc6;
+  --studio-stock-celebration-edge: #f0c6a6;
+  --studio-stock-uncharted: #ecdff0;
+  --studio-stock-uncharted-edge: #dcc9e6;
+}
+
+.studio-app[data-theme='wisteria'] {
+  --studio-color-frame: #e3d9ec;
+  --studio-color-rail: #ece5f3;
+  --studio-color-surface: #fdfbff;
+  --studio-color-canvas:
+    radial-gradient(120% 90% at 22% 0%, #f1ecf7, transparent 55%),
+    linear-gradient(168deg, #efe9f6, #eae4f2 50%, #efe6ee 85%, #f2e6ea);
+  --studio-color-sunken: #efe9f5;
+  --studio-color-line: #e4dcee;
+  --studio-color-line-strong: #ad9cc9;
+  --studio-color-ink: #2b2830;
+  --studio-color-ink-strong: #231f2a;
+  --studio-color-ink-1: #38333f;
+  --studio-color-topbar: rgb(239 233 246 / 85%);
+  --studio-color-foundation: #89858f;
+  --studio-color-vision: #c6a24f;
+  --studio-color-growth: #679277;
+  --studio-color-reflection: #6987ad;
+  --studio-color-celebration: #cd825a;
+  --studio-color-uncharted: #8a6fb0;
+  --studio-color-script: #9a7fb0;
+  --studio-color-script-ink: #6a4f8a;
+  --studio-stock-foundation: #ece9ef;
+  --studio-stock-foundation-edge: #dcd6e4;
+  --studio-stock-vision: #f2ebcf;
+  --studio-stock-vision-edge: #e5daae;
+  --studio-stock-growth: #e0ebe1;
+  --studio-stock-growth-edge: #cadccb;
+  --studio-stock-reflection: #e1e8f1;
+  --studio-stock-reflection-edge: #ccd8e8;
+  --studio-stock-celebration: #f3e2da;
+  --studio-stock-celebration-edge: #e8cdc0;
+  --studio-stock-uncharted: #eadff3;
+  --studio-stock-uncharted-edge: #d8c6ea;
+}
+
+.studio-app[data-theme='deep-ocean'] {
+  --studio-color-frame: #0e1720;
+  --studio-color-rail: #132534;
+  --studio-color-surface: #183446;
+  --studio-color-canvas:
+    radial-gradient(120% 90% at 25% 0%, #1c3040, transparent 55%),
+    linear-gradient(168deg, #16293a, #122232 55%, #0f1b28);
+  --studio-color-sunken: #1e3c50;
+  --studio-color-line: #365669;
+  --studio-color-line-strong: #5d8294;
+  --studio-color-ink: #e2edf2;
+  --studio-color-ink-strong: #eef6f9;
+  --studio-color-ink-1: #d2e2ea;
+  --studio-color-ink-muted: #a6bcc7;
+  --studio-color-ink-soft: #86a0ad;
+  --studio-color-ink-faint: #6d8794;
+  --studio-color-topbar: rgb(18 34 50 / 80%);
+  --studio-color-foundation: #9fb0b3;
+  --studio-color-vision: #e6c56a;
+  --studio-color-growth: #79c0a0;
+  --studio-color-reflection: #7fc2dc;
+  --studio-color-celebration: #e8a06b;
+  --studio-color-uncharted: #b39ad6;
+  --studio-color-link: #7fc2dc;
+  --studio-color-script: #8fc7cf;
+  --studio-color-script-ink: #e6c56a;
+  --studio-color-focus: #f0d477;
+  --studio-color-accent-soft: #123246;
+  --studio-color-accent-soft-hover: #17405a;
+  --studio-color-accent-line: #4b829d;
+  --studio-stock-foundation: #1e3646;
+  --studio-stock-foundation-edge: #2c4a5c;
+  --studio-stock-vision: #333820;
+  --studio-stock-vision-edge: #4a4e2b;
+  --studio-stock-growth: #183a35;
+  --studio-stock-growth-edge: #265049;
+  --studio-stock-reflection: #173a4c;
+  --studio-stock-reflection-edge: #265264;
+  --studio-stock-celebration: #3a2f24;
+  --studio-stock-celebration-edge: #4e3f2e;
+  --studio-stock-uncharted: #2b2f45;
+  --studio-stock-uncharted-edge: #3b3f5b;
+}
+
+.studio-app[data-theme='sunset'] {
+  --studio-color-frame: #1a1220;
+  --studio-color-rail: #281c30;
+  --studio-color-surface: #2f2338;
+  --studio-color-canvas:
+    radial-gradient(120% 95% at 78% 4%, #5a3350, transparent 52%),
+    linear-gradient(168deg, #3a2436, #2b1f34 55%, #201a2c);
+  --studio-color-sunken: #382a42;
+  --studio-color-line: #55405f;
+  --studio-color-line-strong: #7c6588;
+  --studio-color-ink: #f1e6ec;
+  --studio-color-ink-strong: #f8eff2;
+  --studio-color-ink-1: #e5d8e0;
+  --studio-color-ink-muted: #c0b0bd;
+  --studio-color-ink-soft: #9f8f9d;
+  --studio-color-ink-faint: #82727f;
+  --studio-color-topbar: rgb(43 31 52 / 80%);
+  --studio-color-foundation: #aaa1a6;
+  --studio-color-vision: #eec06a;
+  --studio-color-growth: #89b98f;
+  --studio-color-reflection: #9aa6db;
+  --studio-color-celebration: #ec9463;
+  --studio-color-uncharted: #c294c9;
+  --studio-color-link: #e6a08f;
+  --studio-color-script: #e2a6b0;
+  --studio-color-script-ink: #eec06a;
+  --studio-color-focus: #f1ca78;
+  --studio-color-accent-soft: #3a2a1c;
+  --studio-color-accent-soft-hover: #472f22;
+  --studio-color-accent-line: #80604a;
+  --studio-stock-foundation: #332a3a;
+  --studio-stock-foundation-edge: #443850;
+  --studio-stock-vision: #3a2f1e;
+  --studio-stock-vision-edge: #50402a;
+  --studio-stock-growth: #26342c;
+  --studio-stock-growth-edge: #374a3b;
+  --studio-stock-reflection: #2b2f45;
+  --studio-stock-reflection-edge: #3d4160;
+  --studio-stock-celebration: #3d2a26;
+  --studio-stock-celebration-edge: #543a30;
+  --studio-stock-uncharted: #382a42;
+  --studio-stock-uncharted-edge: #4c3959;
+}
+
+.studio-app[data-theme='forest'] {
+  --studio-color-frame: #0f150f;
+  --studio-color-rail: #182418;
+  --studio-color-surface: #1c2a1b;
+  --studio-color-canvas:
+    radial-gradient(120% 90% at 22% 0%, #233524, transparent 55%),
+    linear-gradient(168deg, #1a271a, #152014 58%, #111a11);
+  --studio-color-sunken: #233324;
+  --studio-color-line: #3d503c;
+  --studio-color-line-strong: #5f775d;
+  --studio-color-ink: #e7eede;
+  --studio-color-ink-strong: #f0f5e8;
+  --studio-color-ink-1: #d8e3cd;
+  --studio-color-ink-muted: #aebca4;
+  --studio-color-ink-soft: #8ba083;
+  --studio-color-ink-faint: #728a6b;
+  --studio-color-topbar: rgb(21 32 20 / 80%);
+  --studio-color-foundation: #a4ac9c;
+  --studio-color-vision: #dcc169;
+  --studio-color-growth: #84c07f;
+  --studio-color-reflection: #84b6cc;
+  --studio-color-celebration: #e0a06a;
+  --studio-color-uncharted: #af9dce;
+  --studio-color-link: #84b6cc;
+  --studio-color-script: #b6c98a;
+  --studio-color-script-ink: #dcc169;
+  --studio-color-focus: #e7cb72;
+  --studio-color-accent-soft: #293618;
+  --studio-color-accent-soft-hover: #33421f;
+  --studio-color-accent-line: #687943;
+  --studio-stock-foundation: #2a352a;
+  --studio-stock-foundation-edge: #3a473a;
+  --studio-stock-vision: #333820;
+  --studio-stock-vision-edge: #484e2b;
+  --studio-stock-growth: #22371f;
+  --studio-stock-growth-edge: #324b2d;
+  --studio-stock-reflection: #213a3f;
+  --studio-stock-reflection-edge: #315056;
+  --studio-stock-celebration: #37301f;
+  --studio-stock-celebration-edge: #4c412b;
+  --studio-stock-uncharted: #2d2f3f;
+  --studio-stock-uncharted-edge: #3f4155;
 }
 
 @media (prefers-contrast: more) {
-  :root {
-    --studio-color-ink-muted: #41423f;
-    --studio-color-line: #777872;
-    --studio-color-line-strong: #292a28;
-    --studio-color-focus: #321653;
+  .studio-app {
+    --studio-color-line: currentcolor;
+    --studio-color-line-strong: currentcolor;
     --studio-shadow-card: none;
+    --studio-shadow-note: none;
   }
 }

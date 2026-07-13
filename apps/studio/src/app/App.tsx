@@ -3,62 +3,56 @@ import {
   type CaptureEntry,
   type CaptureService,
 } from '@studio/application';
-import { createBrowserVault } from '@studio/storage/browser';
 import {
+  AppShell,
+  CommandPalette,
+  Dialog,
+  type StudioCommand,
+} from '@studio/ui';
+import {
+  createBrowserVault,
   ensureBrowserPersistence,
   type BrowserPersistenceStatus,
 } from '@studio/storage/browser';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { StudioProviders } from './providers';
+import { useTheme } from './theme-context';
+import { useStudioRouter } from './router';
+import { themes, type ThemeId } from './themes';
 import './app.css';
+
+function isNativeShell(): boolean {
+  return '__TAURI_INTERNALS__' in window;
+}
 
 async function prepareOfflineShell(): Promise<boolean> {
   if (!('serviceWorker' in navigator)) return false;
-  if (
-    navigator.serviceWorker.controller !== null &&
-    (await caches.match('/')) !== undefined
-  ) {
-    return true;
-  }
-  const registration = await navigator.serviceWorker.register('/service-worker.js', {
-    type: 'module',
-    scope: '/',
-  });
+  const registration = await navigator.serviceWorker.register(
+    '/service-worker.js',
+    { type: 'module', scope: '/' },
+  );
   const worker =
     registration.active ?? registration.waiting ?? registration.installing;
   if (worker !== null && worker.state !== 'activated') {
-    await new Promise<void>((resolve, reject) => {
-      const timer = window.setTimeout(
-        () => reject(new Error('Offline preparation timed out.')),
-        10_000,
-      );
+    await new Promise<void>((resolve) =>
       worker.addEventListener('statechange', () => {
-        if (worker.state === 'activated') {
-          window.clearTimeout(timer);
-          resolve();
-        }
-        if (worker.state === 'redundant') {
-          window.clearTimeout(timer);
-          reject(new Error('The offline shell could not be installed.'));
-        }
-      });
-    });
+        if (worker.state === 'activated') resolve();
+      }),
+    );
   }
   if (navigator.serviceWorker.controller === null) {
-    await new Promise<void>((resolve, reject) => {
-      const timer = window.setTimeout(
-        () => reject(new Error('Offline control timed out.')),
-        10_000,
-      );
+    await new Promise<void>((resolve) =>
       navigator.serviceWorker.addEventListener(
         'controllerchange',
-        () => {
-          window.clearTimeout(timer);
-          resolve();
-        },
+        () => resolve(),
         { once: true },
-      );
-    });
+      ),
+    );
   }
+  const cacheNames = (await caches.keys()).filter((key) =>
+    key.startsWith('studio-app-shell-'),
+  );
+  if (cacheNames.length === 0) return false;
   const urls = [
     '/',
     '/manifest.webmanifest',
@@ -71,20 +65,15 @@ async function prepareOfflineShell(): Promise<boolean> {
       .filter(
         (url) =>
           url.origin === location.origin &&
-          (/\.(?:css|js|mjs|ts|tsx|woff2?)(?:$|\?)/.test(url.pathname) ||
-            url.pathname.startsWith('/@vite/') ||
-            url.pathname === '/@react-refresh'),
+          /\.(?:css|js|woff2?)(?:$|\?)/.test(url.pathname),
       )
       .map((url) => `${url.pathname}${url.search}`),
   ];
-  const cacheName = (await caches.keys()).find((key) =>
-    key.startsWith('studio-app-shell-'),
+  await Promise.all(
+    cacheNames.map(async (cacheName) =>
+      (await caches.open(cacheName)).addAll([...new Set(urls)]),
+    ),
   );
-  if (cacheName === undefined) {
-    throw new Error('The offline shell cache is unavailable.');
-  }
-  const cache = await caches.open(cacheName);
-  await cache.addAll([...new Set(urls)]);
   return true;
 }
 
@@ -93,140 +82,367 @@ export interface AppProps {
   requestPersistence?: () => Promise<BrowserPersistenceStatus>;
 }
 
-export function App({
+export function App(props: AppProps = {}) {
+  return (
+    <StudioProviders>
+      <StudioApplication {...props} />
+    </StudioProviders>
+  );
+}
+
+function StudioApplication({
   captureService,
   requestPersistence = ensureBrowserPersistence,
-}: AppProps = {}) {
-  const service = useMemo(
-    () => captureService ?? createCaptureService(createBrowserVault('the-studio')),
-    [captureService],
+}: AppProps) {
+  const [service, setService] = useState<CaptureService | null>(
+    () =>
+      captureService ??
+      (isNativeShell()
+        ? null
+        : createCaptureService(createBrowserVault('the-studio'))),
   );
+  const { navigate, path, title } = useStudioRouter();
+  const { announce: themeAnnouncement, setTheme, theme } = useTheme();
   const [captures, setCaptures] = useState<CaptureEntry[]>([]);
-  const [isCapturing, setIsCapturing] = useState(false);
+  const [opened, setOpened] = useState(
+    () =>
+      typeof localStorage.getItem === 'function' &&
+      localStorage.getItem('studio:opened') === 'true',
+  );
+  const [captureOpen, setCaptureOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
+  const [name, setName] = useState('The Studio');
   const [text, setText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [offlineReady, setOfflineReady] = useState(false);
-  const [offlineUnavailable, setOfflineUnavailable] = useState(false);
-  const [persistenceStatus, setPersistenceStatus] =
-    useState<BrowserPersistenceStatus>();
+  const [status, setStatus] = useState(() =>
+    'serviceWorker' in navigator && navigator.serviceWorker.controller !== null
+      ? 'Ready offline'
+      : 'Stored locally',
+  );
   const [error, setError] = useState<string>();
+  const searchButton = useRef<HTMLButtonElement>(null);
   const captureButton = useRef<HTMLButtonElement>(null);
-  const shouldRestoreCaptureFocus = useRef(false);
+  const themeButton = useRef<HTMLButtonElement>(null);
+  const offlineReady = useRef(
+    'serviceWorker' in navigator && navigator.serviceWorker.controller !== null,
+  );
 
   useEffect(() => {
+    if (service === null) return;
     let active = true;
     void service
       .list()
-      .then((saved) => {
-        if (!active) return;
-        setCaptures((current) => {
-          const byId = new Map(saved.map((capture) => [capture.id, capture]));
-          for (const capture of current) byId.set(capture.id, capture);
-          return [...byId.values()];
-        });
-      })
-      .catch((reason: unknown) => {
-        if (active)
-          setError(reason instanceof Error ? reason.message : 'The Studio could not open.');
-      });
+      .then((items) => active && setCaptures(items))
+      .catch(
+        (reason: unknown) =>
+          active &&
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : 'The Studio could not open.',
+          ),
+      );
     void prepareOfflineShell()
       .then((ready) => {
-        if (active) setOfflineReady(ready);
+        if (ready) offlineReady.current = true;
+        if (ready && active) setStatus('Ready offline');
       })
-      .catch(() => {
-        if (active) setOfflineUnavailable(true);
-      });
+      .catch(() => undefined);
     return () => {
       active = false;
     };
   }, [service]);
 
   useEffect(() => {
-    if (!isCapturing && shouldRestoreCaptureFocus.current) {
-      shouldRestoreCaptureFocus.current = false;
-      captureButton.current?.focus();
-    }
-  }, [isCapturing]);
+    document.title = `${title} — The Studio`;
+  }, [title]);
 
-  function closeCapture(): void {
-    shouldRestoreCaptureFocus.current = true;
-    setIsCapturing(false);
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.key.toLowerCase() === 'k' &&
+        !target.matches('input, textarea, [contenteditable="true"]')
+      ) {
+        event.preventDefault();
+        setCommandOpen(true);
+      }
+    };
+    addEventListener('keydown', handler);
+    return () => removeEventListener('keydown', handler);
+  }, []);
+
+  function go(next: string): void {
+    navigate(next);
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>('#studio-main')?.focus(),
+    );
+  }
+
+  function finishOnboarding(): void {
+    if (typeof localStorage.setItem === 'function')
+      localStorage.setItem('studio:opened', 'true');
+    setOpened(true);
+    go('/foyer');
+  }
+
+  async function selectNativeService(): Promise<boolean> {
+    if (captureService !== undefined || !isNativeShell()) return true;
+    const { selectTauriVault } = await import('@studio/storage/tauri');
+    const vault = await selectTauriVault();
+    if (vault === null) return false;
+    setService(createCaptureService(vault));
+    return true;
+  }
+
+  async function openStudio(): Promise<void> {
+    setError(undefined);
+    try {
+      if (await selectNativeService()) finishOnboarding();
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : 'The Studio could not open this folder.',
+      );
+    }
   }
 
   async function remember(): Promise<void> {
+    if (service === null) {
+      setError('Choose a Studio folder before remembering a thought.');
+      return;
+    }
     setIsSaving(true);
     setError(undefined);
-    const persistence = requestPersistence();
     try {
-      const capture = await service.capture(text);
-      setCaptures((current) => [...current, capture]);
+      const saved = await service.capture(text);
+      setCaptures((current) => [...current, saved]);
       setText('');
       closeCapture();
-      setPersistenceStatus(await persistence);
-      requestAnimationFrame(() => captureButton.current?.focus());
+      const persistence = await requestPersistence();
+      setStatus(
+        offlineReady.current
+          ? 'Ready offline'
+          : persistence === 'persistent'
+            ? 'Stored locally with persistent browser storage.'
+            : 'Stored locally; this browser may clear it if space is needed.',
+      );
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'This thought could not be saved.');
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : 'This thought could not be saved.',
+      );
     } finally {
       setIsSaving(false);
     }
   }
 
-  return (
-    <main aria-label="The Studio" className="studio-shell">
-      <header className="studio-shell__header">
-        <div>
-          <p className="studio-shell__eyebrow">A quiet place to remember</p>
-          <h1 className="studio-shell__title">The Studio</h1>
+  function closeCapture(): void {
+    setCaptureOpen(false);
+    queueMicrotask(() => captureButton.current?.focus());
+  }
+
+  const commands: StudioCommand[] = [
+    { id: 'foyer', label: 'Open Foyer', onSelect: () => go('/foyer') },
+    {
+      id: 'landscape',
+      label: 'Open Life Landscape',
+      onSelect: () => go('/landscape'),
+    },
+    {
+      id: 'season',
+      label: 'Open Current Season',
+      onSelect: () => go('/season'),
+    },
+    {
+      id: 'uncharted',
+      label: 'Open Uncharted',
+      onSelect: () => go('/uncharted'),
+    },
+    {
+      id: 'reflection',
+      label: 'Open Reflection Garden',
+      onSelect: () => go('/reflection'),
+    },
+    {
+      id: 'capture',
+      label: 'Capture a thought',
+      onSelect: () => setCaptureOpen(true),
+      shortcut: 'C',
+    },
+    { id: 'search', label: 'Search the Studio', onSelect: () => go('/search') },
+    { id: 'settings', label: 'Open Settings', onSelect: () => go('/settings') },
+  ];
+
+  const topbar = (
+    <div className="studio-topbar">
+      <button
+        aria-label="Search"
+        className="studio-topbar__search"
+        onClick={() => setCommandOpen(true)}
+        ref={searchButton}
+        type="button"
+      >
+        <span aria-hidden="true">⌕</span>
+        <span>Search</span>
+        <kbd>⌘K</kbd>
+      </button>
+      <div className="studio-topbar__actions">
+        <span className="studio-topbar__save" role="status">
+          <span aria-hidden="true">●</span>
+          {status}
+        </span>
+        <div className="studio-theme-picker">
+          <button
+            aria-expanded={themeOpen}
+            aria-haspopup="menu"
+            className="studio-topbar__button"
+            onClick={() => setThemeOpen((open) => !open)}
+            ref={themeButton}
+            type="button"
+          >
+            <span
+              aria-hidden="true"
+              className={`studio-theme-picker__chip studio-theme-picker__chip--${theme}`}
+            />{' '}
+            Theme
+          </button>
+          {themeOpen && (
+            <ThemeMenu
+              current={theme}
+              onClose={() => {
+                setThemeOpen(false);
+                requestAnimationFrame(() => themeButton.current?.focus());
+              }}
+              onSelect={(next) => {
+                setTheme(next);
+                setThemeOpen(false);
+                requestAnimationFrame(() => themeButton.current?.focus());
+              }}
+            />
+          )}
         </div>
         <button
-          className="studio-shell__capture-button"
-          onClick={() => setIsCapturing(true)}
+          className="studio-topbar__button studio-topbar__button--quiet"
+          onClick={() => go('/inbox')}
+          type="button"
+        >
+          Inbox
+        </button>
+        <button
+          aria-label="Capture"
+          className="studio-topbar__new"
+          onClick={() => setCaptureOpen(true)}
           ref={captureButton}
           type="button"
         >
-          Capture
+          ＋ New
         </button>
-      </header>
+      </div>
+    </div>
+  );
 
-      {offlineReady && (
-        <p className="studio-shell__offline-status" role="status">
-          Ready offline
+  return (
+    <AppShell
+      activePath={path}
+      onCapture={(trigger) => {
+        captureButton.current = trigger;
+        setCaptureOpen(true);
+      }}
+      onNavigate={go}
+      roomTitle={path === '/foyer' ? 'The Studio' : title}
+      topbar={topbar}
+    >
+      <span aria-live="polite" className="studio-visually-hidden">
+        {title} opened. {themeAnnouncement}
+      </span>
+      <section className="studio-room">
+        <RoomPlaceholder captures={captures} path={path} title={title} />
+        {!opened && (
+          <Onboarding
+            onCreate={() => setCreateOpen(true)}
+            onOpen={() => void openStudio()}
+          />
+        )}
+      </section>
+      {error && (
+        <p className="studio-room__error" role="alert">
+          {error}
         </p>
       )}
-
-      {offlineUnavailable && (
-        <p className="studio-shell__offline-status" role="status">
-          Offline preparation is unavailable for now.
-        </p>
-      )}
-
-      {persistenceStatus !== undefined && (
-        <p className="studio-shell__offline-status" role="status">
-          {persistenceStatus === 'persistent'
-            ? 'Stored locally with persistent browser storage.'
-            : 'Stored locally; this browser may clear it if space is needed.'}
-        </p>
-      )}
-
-      {isCapturing && (
-        <section aria-labelledby="capture-heading" className="studio-shell__capture">
-          <h2 className="studio-shell__capture-title" id="capture-heading">
-            Hold this thought
-          </h2>
-          <label className="studio-shell__label" htmlFor="capture-text">
-            What would you like remembered?
-          </label>
+      <Dialog
+        isOpen={createOpen}
+        label="Create a Studio"
+        onClose={() => setCreateOpen(false)}
+      >
+        <form
+          className="studio-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void (async () => {
+              setError(undefined);
+              try {
+                if (!(await selectNativeService())) return;
+                if (typeof localStorage.setItem === 'function')
+                  localStorage.setItem('studio:name', name);
+                setCreateOpen(false);
+                finishOnboarding();
+              } catch (reason) {
+                setError(
+                  reason instanceof Error
+                    ? reason.message
+                    : 'The Studio could not create this space.',
+                );
+              }
+            })();
+          }}
+        >
+          <p className="studio-form__eyebrow">A place of your own</p>
+          <h2>Create a Studio</h2>
+          <label htmlFor="studio-name">Studio name</label>
+          <input
+            id="studio-name"
+            onChange={(event) => setName(event.target.value)}
+            value={name}
+          />
+          <div className="studio-form__actions">
+            <button
+              className="studio-form__button studio-form__button--secondary"
+              onClick={() => setCreateOpen(false)}
+              type="button"
+            >
+              Not now
+            </button>
+            <button className="studio-form__button" type="submit">
+              Create
+            </button>
+          </div>
+        </form>
+      </Dialog>
+      <Dialog
+        isOpen={captureOpen}
+        label="Hold this thought"
+        onClose={closeCapture}
+      >
+        <section className="studio-form">
+          <p className="studio-form__eyebrow">Quick capture</p>
+          <h2>Hold this thought</h2>
+          <label htmlFor="capture-text">What would you like remembered?</label>
           <textarea
             autoFocus
-            className="studio-shell__textarea"
             id="capture-text"
             onChange={(event) => setText(event.target.value)}
-            rows={5}
+            rows={6}
             value={text}
           />
-          <div className="studio-shell__capture-actions">
+          <div className="studio-form__actions">
             <button
-              className="studio-shell__secondary-button"
+              className="studio-form__button studio-form__button--secondary"
               onClick={closeCapture}
               type="button"
             >
@@ -234,7 +450,7 @@ export function App({
             </button>
             <button
               aria-busy={isSaving}
-              className="studio-shell__remember-button"
+              className="studio-form__button"
               disabled={isSaving}
               onClick={() => void remember()}
               type="button"
@@ -243,30 +459,174 @@ export function App({
             </button>
           </div>
         </section>
-      )}
+      </Dialog>
+      <CommandPalette
+        commands={commands}
+        isOpen={commandOpen}
+        onClose={() => {
+          setCommandOpen(false);
+          requestAnimationFrame(() => searchButton.current?.focus());
+        }}
+      />
+    </AppShell>
+  );
+}
 
-      {error !== undefined && (
-        <p className="studio-shell__error" role="alert">
-          {error}
-        </p>
-      )}
+function Onboarding({
+  onCreate,
+  onOpen,
+}: {
+  onCreate: () => void;
+  onOpen: () => void;
+}) {
+  return (
+    <section className="studio-onboarding" aria-labelledby="onboarding-title">
+      <p className="studio-onboarding__script" aria-hidden="true">
+        begin where you are
+      </p>
+      <h2 id="onboarding-title">Make this space yours.</h2>
+      <p>
+        Your Studio stays on this device. Begin a new one, or return to the
+        local space already waiting here.
+      </p>
+      <div className="studio-onboarding__actions">
+        <button
+          className="studio-onboarding__button"
+          onClick={onCreate}
+          type="button"
+        >
+          Create a Studio
+        </button>
+        <button
+          className="studio-onboarding__button studio-onboarding__button--secondary"
+          onClick={onOpen}
+          type="button"
+        >
+          Open this Studio
+        </button>
+      </div>
+    </section>
+  );
+}
 
-      <section aria-labelledby="remembered-heading" className="studio-shell__remembered">
-        <h2 className="studio-shell__section-title" id="remembered-heading">
-          Remembered
-        </h2>
-        {captures.length === 0 ? (
-          <p className="studio-shell__empty">There is room for whatever arrives.</p>
-        ) : (
-          <ul className="studio-shell__capture-list">
-            {captures.map((capture) => (
-              <li className="studio-shell__capture-card" key={capture.id}>
-                {capture.text}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </main>
+function RoomPlaceholder({
+  captures,
+  path,
+  title,
+}: {
+  captures: CaptureEntry[];
+  path: string;
+  title: string;
+}) {
+  const foyer = path === '/foyer';
+  return (
+    <>
+      <p className="studio-room__eyebrow">
+        {foyer ? 'Welcome home' : 'A room in your Studio'}
+      </p>
+      <h1>{foyer ? 'The Studio' : title}</h1>
+      <p className="studio-room__intro">
+        {foyer
+          ? 'A quiet place to design a life, notice who you are becoming, and keep what you learn.'
+          : 'This room is ready for its focused content in the next stage of the build.'}
+      </p>
+      {foyer && (
+        <section
+          className="studio-room__remembered"
+          aria-labelledby="remembered-heading"
+        >
+          <h2 id="remembered-heading">Remembered</h2>
+          {captures.length === 0 ? (
+            <p>There is room for whatever arrives.</p>
+          ) : (
+            <ul>
+              {captures.map((capture) => (
+                <li key={capture.id}>{capture.text}</li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+    </>
+  );
+}
+
+function ThemeMenu({
+  current,
+  onClose,
+  onSelect,
+}: {
+  current: ThemeId;
+  onClose: () => void;
+  onSelect: (theme: ThemeId) => void;
+}) {
+  const menu = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const outside = (event: PointerEvent) => {
+      if (!menu.current?.contains(event.target as Node)) onClose();
+    };
+    addEventListener('pointerdown', outside);
+    return () => removeEventListener('pointerdown', outside);
+  }, [onClose]);
+  return (
+    <div
+      className="studio-theme-picker__menu"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') onClose();
+      }}
+      ref={menu}
+      role="menu"
+    >
+      <p>Light</p>
+      {themes
+        .filter((item) => item.mode === 'light')
+        .map((item) => (
+          <ThemeChoice
+            current={current}
+            item={item}
+            key={item.id}
+            onSelect={onSelect}
+          />
+        ))}
+      <p>Dark</p>
+      {themes
+        .filter((item) => item.mode === 'dark')
+        .map((item) => (
+          <ThemeChoice
+            current={current}
+            item={item}
+            key={item.id}
+            onSelect={onSelect}
+          />
+        ))}
+    </div>
+  );
+}
+
+function ThemeChoice({
+  current,
+  item,
+  onSelect,
+}: {
+  current: ThemeId;
+  item: (typeof themes)[number];
+  onSelect: (theme: ThemeId) => void;
+}) {
+  return (
+    <button
+      aria-checked={current === item.id}
+      onClick={() => onSelect(item.id)}
+      role="menuitemradio"
+      type="button"
+    >
+      <span
+        aria-hidden="true"
+        className={`studio-theme-picker__swatch studio-theme-picker__swatch--${item.id}`}
+      />
+      <span>
+        {item.name} <small>· {item.mode}</small>
+      </span>
+      {current === item.id && <span aria-hidden="true">✓</span>}
+    </button>
   );
 }

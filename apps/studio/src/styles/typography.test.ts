@@ -2,7 +2,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const typography = readFileSync(resolve(process.cwd(), 'src/styles/typography.css'), 'utf8');
+const typography = readFileSync(
+  resolve(import.meta.dirname, 'typography.css'),
+  'utf8',
+);
 
 describe('Studio typography', () => {
   it('self-hosts exactly the approved family styles and weights', () => {
@@ -18,7 +21,9 @@ describe('Studio typography', () => {
   });
 
   it('uses only bundled WOFF2 sources at runtime', () => {
-    expect(typography).toContain('../assets/fonts/newsreader-normal-latin.woff2');
+    expect(typography).toContain(
+      '../assets/fonts/newsreader-normal-latin.woff2',
+    );
     expect(typography).toContain('../assets/fonts/hanken-grotesk-latin.woff2');
     expect(typography).toContain('../assets/fonts/caveat-latin.woff2');
     expect(typography).not.toMatch(/https?:|fonts\.googleapis|fonts\.gstatic/);

@@ -7,7 +7,11 @@ it('filters commands and performs the selected action', () => {
     <CommandPalette
       commands={[
         { id: 'foyer', label: 'Open Foyer', onSelect: openFoyer },
-        { id: 'capture', label: 'Capture a thought', onSelect: () => undefined },
+        {
+          id: 'capture',
+          label: 'Capture a thought',
+          onSelect: () => undefined,
+        },
       ]}
       isOpen
       onClose={() => undefined}
