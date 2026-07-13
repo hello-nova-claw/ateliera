@@ -3,12 +3,14 @@ import type { CaptureEntry } from '@studio/application';
 export interface RoomPlaceholderProps {
   captures?: CaptureEntry[];
   foyer?: boolean;
+  onOpenCapture?: (id: string) => void;
   title: string;
 }
 
 export function RoomPlaceholder({
   captures = [],
   foyer = false,
+  onOpenCapture,
   title,
 }: RoomPlaceholderProps) {
   return (
@@ -33,7 +35,19 @@ export function RoomPlaceholder({
           ) : (
             <ul>
               {captures.map((capture) => (
-                <li key={capture.id}>{capture.text}</li>
+                <li key={capture.id}>
+                  {onOpenCapture === undefined ? (
+                    capture.text
+                  ) : (
+                    <button
+                      className="studio-room__remembered-button"
+                      onClick={() => onOpenCapture(capture.id)}
+                      type="button"
+                    >
+                      {capture.text}
+                    </button>
+                  )}
+                </li>
               ))}
             </ul>
           )}

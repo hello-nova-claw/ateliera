@@ -4,6 +4,7 @@ import type { StudioPath } from './router';
 
 interface RoomProps {
   captures: CaptureEntry[];
+  onOpenCapture?: (id: string) => void;
 }
 
 type LazyRoom = LazyExoticComponent<(props: RoomProps) => React.JSX.Element>;
@@ -26,10 +27,12 @@ function routeKey(path: StudioPath): keyof typeof roomRoutes {
 
 export function RoomRoute({
   captures,
+  onOpenCapture,
   path,
   title,
 }: {
   captures: CaptureEntry[];
+  onOpenCapture?: (id: string) => void;
   path: StudioPath;
   title: string;
 }) {
@@ -46,7 +49,10 @@ export function RoomRoute({
         </p>
       }
     >
-      <Room captures={captures} />
+      <Room
+        captures={captures}
+        {...(onOpenCapture === undefined ? {} : { onOpenCapture })}
+      />
     </Suspense>
   );
 }

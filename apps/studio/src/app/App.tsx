@@ -1,8 +1,11 @@
 import {
-  createCaptureService,
   type CaptureEntry,
   type CaptureService,
+  type CaptureNoteInput,
+  type SavedNote,
+  type StudioService,
 } from '@studio/application';
+import type { StudioNote } from '@studio/domain';
 import {
   AppShell,
   CommandPalette,
@@ -14,7 +17,7 @@ import {
   ensureBrowserPersistence,
   type BrowserPersistenceStatus,
 } from '@studio/storage/browser';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { StudioProviders } from './providers';
 import {
   activateBrowserStudio,
@@ -25,9 +28,17 @@ import {
 } from './browser-studios';
 import { useTheme } from './theme-context';
 import { RoomRoute } from './RoomRoute';
+import { createAppStudioService } from './studio-service-factory';
 import { useStudioRouter } from './router';
 import { themes, type ThemeId } from './themes';
+import { QuickCapture } from '../features/capture/QuickCapture';
 import './app.css';
+
+const NoteEditorSession = lazy(() =>
+  import('../features/capture/NoteEditorSession').then((module) => ({
+    default: module.NoteEditorSession,
+  })),
+);
 
 function isNativeShell(): boolean {
   return '__TAURI_INTERNALS__' in window;
@@ -95,6 +106,7 @@ async function prepareOfflineShell(): Promise<boolean> {
 export interface AppProps {
   captureService?: CaptureService;
   requestPersistence?: () => Promise<BrowserPersistenceStatus>;
+  studioService?: StudioService;
 }
 
 export function App(props: AppProps = {}) {
@@ -108,9 +120,10 @@ export function App(props: AppProps = {}) {
 function StudioApplication({
   captureService,
   requestPersistence = ensureBrowserPersistence,
+  studioService,
 }: AppProps) {
-  const [service, setService] = useState<CaptureService | null>(
-    () => captureService ?? null,
+  const [service, setService] = useState<CaptureService | StudioService | null>(
+    () => studioService ?? captureService ?? null,
   );
   const { navigate, path, title } = useStudioRouter();
   const { announce: themeAnnouncement, setTheme, theme } = useTheme();
@@ -120,12 +133,13 @@ function StudioApplication({
     () => (isNativeShell() ? [] : readBrowserStudios(localStorage)),
   );
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [editor, setEditor] = useState<SavedNote>();
+  const [editorCloseRequest, setEditorCloseRequest] = useState(0);
   const [commandOpen, setCommandOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
   const [name, setName] = useState('The Studio');
-  const [text, setText] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
+  const [toast, setToast] = useState('');
   const [status, setStatus] = useState(() =>
     captureService === undefined
       ? 'Choose a Studio'
@@ -143,12 +157,18 @@ function StudioApplication({
   const offlineReady = useRef(
     'serviceWorker' in navigator && navigator.serviceWorker.controller !== null,
   );
+  const capturePaths = useRef(new Map<string, string>());
 
   useEffect(() => {
     if (service === null) return;
     let active = true;
-    void service
-      .list()
+    const listing = isStudioService(service)
+      ? service.projectRoom('inbox').then((items) => {
+          for (const item of items) capturePaths.current.set(item.noteId, item.path);
+          return items.map((item) => ({ id: item.noteId, text: item.excerpt }));
+        })
+      : service.list();
+    void listing
       .then((items) => active && setCaptures(items))
       .catch(
         (reason: unknown) =>
@@ -173,6 +193,12 @@ function StudioApplication({
   useEffect(() => {
     document.title = `${title} — The Studio`;
   }, [title]);
+
+  useEffect(() => {
+    if (toast === '') return undefined;
+    const timer = setTimeout(() => setToast(''), 2_500);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -207,7 +233,7 @@ function StudioApplication({
     const { selectTauriVault } = await import('@studio/storage/tauri');
     const vault = await selectTauriVault();
     if (vault === null) return false;
-    setService(createCaptureService(vault));
+    setService(createAppStudioService(vault));
     setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
     return true;
   }
@@ -221,7 +247,7 @@ function StudioApplication({
       }
       if (record === undefined) return;
       activateBrowserStudio(localStorage, record.vaultId);
-      setService(createCaptureService(createBrowserVault(record.vaultId)));
+      setService(createAppStudioService(createBrowserVault(record.vaultId)));
       setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
       finishOnboarding();
     } catch (reason) {
@@ -269,7 +295,7 @@ function StudioApplication({
       registerBrowserStudio(localStorage, record);
       activateBrowserStudio(localStorage, record.vaultId);
       setBrowserStudios(readBrowserStudios(localStorage));
-      setService(createCaptureService(vault));
+      setService(createAppStudioService(vault));
       setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
       localStorage.setItem('studio:name', record.name);
       setCreateOpen(false);
@@ -283,35 +309,11 @@ function StudioApplication({
     }
   }
 
-  async function remember(): Promise<void> {
-    if (service === null) {
-      setError('Choose a Studio folder before remembering a thought.');
-      return;
-    }
-    setIsSaving(true);
-    setError(undefined);
-    try {
-      const saved = await service.capture(text);
-      setCaptures((current) => [...current, saved]);
-      setText('');
-      closeCapture();
-      const persistence = await requestPersistence();
-      setStatus(
-        offlineReady.current
-          ? 'Ready offline'
-          : persistence === 'persistent'
-            ? 'Stored locally with persistent browser storage.'
-            : 'Stored locally; this browser may clear it if space is needed.',
-      );
-    } catch (reason) {
-      setError(
-        reason instanceof Error
-          ? reason.message
-          : 'This thought could not be saved.',
-      );
-    } finally {
-      setIsSaving(false);
-    }
+  async function captureThought(input: CaptureNoteInput): Promise<SavedNote> {
+    if (service === null) throw new Error('Choose a Studio before remembering a thought.');
+    if (isStudioService(service)) return service.capture(input);
+    const captured = await service.capture(input.body);
+    return legacySavedNote(captured);
   }
 
   function closeCapture(): void {
@@ -452,7 +454,23 @@ function StudioApplication({
         {title} opened. {themeAnnouncement}
       </span>
       <section className="studio-room">
-        <RoomRoute captures={captures} path={path} title={title} />
+        <RoomRoute
+          captures={captures}
+          onOpenCapture={(id) => {
+            if (!isStudioService(service)) return;
+            const notePath = capturePaths.current.get(id);
+            if (notePath === undefined) return;
+            setToast('');
+            void service.load(notePath).then((saved) => {
+              setEditorCloseRequest(0);
+              setEditor(saved);
+            }).catch((reason: unknown) => {
+              setError(reason instanceof Error ? reason.message : 'This note could not be opened.');
+            });
+          }}
+          path={path}
+          title={title}
+        />
         {!opened && (
           <Onboarding
             browserStudios={browserStudios}
@@ -467,6 +485,9 @@ function StudioApplication({
           {error}
         </p>
       )}
+      <span aria-live="polite" className="studio-toast" role="status">
+        {toast}
+      </span>
       <Dialog
         isOpen={createOpen}
         label="Create a Studio"
@@ -523,36 +544,47 @@ function StudioApplication({
         label="Hold this thought"
         onClose={closeCapture}
       >
-        <section className="studio-form">
-          <p className="studio-form__eyebrow">Quick capture</p>
-          <h2>Hold this thought</h2>
-          <label htmlFor="capture-text">What would you like remembered?</label>
-          <textarea
-            autoFocus
-            id="capture-text"
-            onChange={(event) => setText(event.target.value)}
-            rows={6}
-            value={text}
-          />
-          <div className="studio-form__actions">
-            <button
-              className="studio-form__button studio-form__button--secondary"
-              onClick={closeCapture}
-              type="button"
-            >
-              Not now
-            </button>
-            <button
-              aria-busy={isSaving}
-              className="studio-form__button"
-              disabled={isSaving}
-              onClick={() => void remember()}
-              type="button"
-            >
-              {isSaving ? 'Remembering…' : 'Remember'}
-            </button>
-          </div>
-        </section>
+        <QuickCapture
+          capture={captureThought}
+          onCancel={closeCapture}
+          onRemembered={(saved) => {
+            capturePaths.current.set(saved.note.id, saved.path);
+            setCaptures((current) => [
+              ...current,
+              { id: saved.note.id, text: saved.note.body },
+            ]);
+            closeCapture();
+            setToast('Remembered.');
+            void requestPersistence()
+              .then((persistence) => {
+                setStatus(
+                  offlineReady.current
+                    ? 'Ready offline'
+                    : persistence === 'persistent'
+                      ? 'Stored locally with persistent browser storage.'
+                      : 'Stored locally; this browser may clear it if space is needed.',
+                );
+              })
+              .catch(() => setStatus('Stored locally'));
+          }}
+        />
+      </Dialog>
+      <Dialog
+        isOpen={editor !== undefined}
+        label="Edit note"
+        onClose={() => setEditorCloseRequest((request) => request + 1)}
+        variant="inspector"
+      >
+        {editor !== undefined && isStudioService(service) && (
+          <Suspense fallback={<p role="status">Opening editor…</p>}>
+            <NoteEditorSession
+              initial={editor}
+              onClose={() => setEditor(undefined)}
+              requestClose={editorCloseRequest}
+              service={service}
+            />
+          </Suspense>
+        )}
       </Dialog>
       <CommandPalette
         commands={commands}
@@ -564,6 +596,35 @@ function StudioApplication({
       />
     </AppShell>
   );
+}
+
+function isStudioService(
+  service: CaptureService | StudioService | null,
+): service is StudioService {
+  return service !== null && 'load' in service && 'save' in service;
+}
+
+function legacySavedNote(captured: CaptureEntry): SavedNote {
+  const created = new Date().toISOString();
+  const note: StudioNote = {
+    schemaVersion: 1,
+    id: captured.id,
+    body: captured.text,
+    cardType: 'capture',
+    semanticType: 'reflection',
+    status: 'draft',
+    rooms: ['inbox'],
+    lifeAreas: [],
+    seasons: [],
+    tags: [],
+    created,
+    updated: created,
+    attachments: [],
+    display: { featured: false },
+    privacy: { sensitivity: 'private', aiAccess: 'ask' },
+    extraFrontmatter: {},
+  };
+  return { note, path: `Inbox/${captured.id}.md`, hash: '' };
 }
 
 function Onboarding({
