@@ -117,7 +117,7 @@ test('changes theme with a keyboard radio menu and remembers it', async ({
 
   await picker.click();
   await expect(forest).toBeFocused();
-  await page.locator('.studio-room__eyebrow').click();
+  await page.mouse.click(10, 600);
   await expect(page.getByRole('menu')).toHaveCount(0);
 
   await picker.click();

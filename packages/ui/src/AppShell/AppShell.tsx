@@ -5,6 +5,7 @@ export interface AppShellProps {
   activePath: string;
   captureEnabled?: boolean;
   children: ReactNode;
+  localStatus?: string;
   onCapture: (trigger: HTMLButtonElement) => void;
   onNavigate: (path: string) => void;
   roomTitle: string;
@@ -28,6 +29,7 @@ export function AppShell({
   activePath,
   captureEnabled = true,
   children,
+  localStatus = 'Stored locally',
   onCapture,
   onNavigate,
   roomTitle,
@@ -78,7 +80,7 @@ export function AppShell({
           )}
         </nav>
         <p className="studio-app-shell__local-note">
-          <span aria-hidden="true">●</span> Stored locally
+          <span aria-hidden="true">●</span> {localStatus}
         </p>
       </aside>
       <div className="studio-app-shell__workspace">

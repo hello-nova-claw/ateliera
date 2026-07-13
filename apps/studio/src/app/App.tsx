@@ -431,6 +431,7 @@ function StudioApplication({
     <AppShell
       activePath={path}
       captureEnabled={opened && service !== null}
+      localStatus={opened ? 'Stored locally' : 'No Studio selected'}
       onCapture={(trigger) => {
         if (!opened || service === null) return;
         captureButton.current = trigger;
