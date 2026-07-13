@@ -1,0 +1,68 @@
+import { describe, expect, it } from 'vitest';
+
+import { createStudioService } from './studio-service';
+import { RecordingIndex, note, seed } from './test-helpers';
+
+describe('room projections', () => {
+  it('projects one canonical note multiple ways without duplication', async () => {
+    const shared = note({
+      id: 'n1',
+      semanticType: 'uncharted',
+      rooms: ['uncharted', 'uncharted'],
+      lifeAreas: ['business', 'business'],
+      landscapeAnchor: 'vision',
+    });
+    const vault = await seed([{ path: 'Uncharted/a.md', note: shared }]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    expect((await service.projectRoom('uncharted')).map((item) => item.noteId)).toEqual(['n1']);
+    expect((await service.projectLandscape({ lifeArea: 'business' })).map((item) => item.noteId)).toEqual(['n1']);
+    expect((await service.projectLandscape({ lifeArea: 'business', anchor: 'vision' })).map((item) => item.noteId)).toEqual(['n1']);
+  });
+
+  it('isolates corrupted notes, duplicate IDs, archived and trashed items', async () => {
+    const vault = await seed([
+      { path: 'A/a.md', note: note({ id: 'same', title: 'Canonical' }) },
+      { path: 'Z/z.md', note: note({ id: 'same', title: 'Duplicate' }) },
+      { path: 'Archive/a.md', note: note({ id: 'archived', status: 'archived' }) },
+      { path: 'Trash/t.md', note: note({ id: 'trashed', status: 'trashed' }) },
+    ]);
+    await vault.writeTextAtomic('Broken/bad.md', '---\ninvalid: [\n---\nDo not lose me');
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    const result = await service.projectRoom('reflection-garden');
+    expect(result.map((item) => item.noteId)).toEqual(['same']);
+    expect(result[0]?.title).toBe('Canonical');
+    expect((await service.repairs()).map((item) => item.path)).toEqual(['Broken/bad.md', 'Z/z.md']);
+  });
+
+  it('uses deterministic fallback sorting and per-view manual order', async () => {
+    const vault = await seed([
+      { path: 'Reflection/a.md', note: note({ id: 'a', title: 'Alpha', updated: '2026-07-12T10:00:00+10:00' }) },
+      { path: 'Reflection/b.md', note: note({ id: 'b', title: 'Beta', updated: '2026-07-13T10:00:00+10:00' }) },
+      { path: 'Reflection/c.md', note: note({ id: 'c', title: 'Charlie', updated: '2026-07-13T10:00:00+10:00' }) },
+    ]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    expect((await service.projectRoom('reflection-garden')).map((item) => item.noteId)).toEqual(['b', 'c', 'a']);
+    await service.views.save('room:reflection-garden', ['a', 'missing', 'c']);
+    expect((await service.projectRoom('reflection-garden')).map((item) => item.noteId)).toEqual(['a', 'c', 'b']);
+  });
+
+  it('returns one active season and separate reflection and celebration streams', async () => {
+    const vault = await seed([
+      { path: 'Season/old.md', note: note({ id: 'old', cardType: 'season', rooms: ['current-season'], updated: '2026-07-12T10:00:00+10:00' }) },
+      { path: 'Season/new.md', note: note({ id: 'new', cardType: 'season', rooms: ['current-season', 'foyer'], updated: '2026-07-13T10:00:00+10:00' }) },
+      { path: 'Reflection/r.md', note: note({ id: 'r', semanticType: 'reflection' }) },
+      { path: 'Celebration/c.md', note: note({ id: 'c', semanticType: 'celebration' }) },
+      { path: 'Foyer/f.md', note: note({ id: 'f', display: { featured: true } }) },
+    ]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    expect((await service.projectCurrentSeason())?.noteId).toBe('new');
+    expect((await service.projectStream('reflection')).map((item) => item.noteId)).toEqual(['r']);
+    expect((await service.projectStream('celebration')).map((item) => item.noteId)).toEqual(['c']);
+    const foyer = await service.projectFoyer();
+    expect(foyer.currentSeason?.noteId).toBe('new');
+    expect(foyer.featured.map((item) => item.noteId)).toEqual(['f', 'new']);
+  });
+});
