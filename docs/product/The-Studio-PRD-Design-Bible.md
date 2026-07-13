@@ -1141,6 +1141,17 @@ Export:
 - Current Season as Markdown/PDF/print view.
 - Room snapshot as static HTML or PDF later.
 
+Browser ZIP portability is deliberately bounded to the safe, interoperable
+ZIP32 subset. One export may contain at most 9,999 user files, each entry may
+contain at most 64 MiB, and both expanded data and the resulting archive must
+remain at or below 512 MiB. The app must report these as typed, actionable
+export-limit errors before allocating or publishing an incomplete archive.
+These are export-transport limits, not vault-capacity limits: a larger browser
+vault remains usable and can be exported in selections until ZIP64 or streamed
+multi-part export is designed and tested. Desktop may later provide a streaming
+export path with larger limits, but must preserve the same manifest and checksum
+contract.
+
 ---
 
 ## 18. Privacy and security
@@ -1231,6 +1242,11 @@ On a reference vault of 10,000 notes and 5 GB attachments:
 - Search first results: under 200ms for keyword queries.
 - Incremental save acknowledgment: under 100ms; durable write under 1 second.
 - Full index rebuild: progress visible, editing remains possible, and completes within a reasonable hardware-dependent window.
+
+The reference vault is a performance and storage target; it does not imply that
+the MVP browser ZIP32 exporter can package the entire reference vault in one
+archive. Full-reference-vault portability requires the later streaming or
+multi-part export path described in Section 17.5.
 
 ### 19.6 Observability
 
