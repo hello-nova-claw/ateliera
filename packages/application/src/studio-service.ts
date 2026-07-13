@@ -19,6 +19,7 @@ import {
   VaultConflictError,
   VaultUnavailableError,
   createRevisionStore,
+  createStudioControlVault,
 } from '@studio/storage/portable';
 import type {
   RevisionReason,
@@ -56,6 +57,11 @@ import {
   createSeasonTransactionStore,
   type SeasonTransactionStore,
 } from './season-transaction-store';
+import {
+  createSeasonCloseTransactionService,
+  type SeasonCloseRequest,
+  type SeasonCloseResult,
+} from './season-close-transaction';
 
 export {
   MAX_COVER_MEDIA_BYTES,
@@ -176,6 +182,7 @@ export interface StudioService {
   restore(id: string): Promise<RestoreNoteResult>;
   reconcileTrash(): Promise<string[]>;
   snapshot(reason: RevisionReason, paths: string[]): Promise<RevisionSnapshot>;
+  closeSeasonTransaction(request: SeasonCloseRequest): Promise<SeasonCloseResult>;
   repairs(): Promise<StudioRepairItem[]>;
   rebuildIndex(): Promise<void>;
   indexState(): 'ready' | 'stale' | 'rebuilding';
@@ -286,6 +293,12 @@ export function createStudioService(
     dependencies.revisions ??
     createRevisionStore(dependencies.vault, { clock });
   const seasonTransactions = createSeasonTransactionStore(dependencies.vault);
+  const seasonCloseTransactions = createSeasonCloseTransactionService({
+    vault: dependencies.vault,
+    control: createStudioControlVault(dependencies.vault),
+    revisions,
+    clock,
+  });
   const noteLifecycle = createNoteLifecycleService({
     vault: dependencies.vault,
     index: dependencies.index,
@@ -952,6 +965,22 @@ export function createStudioService(
     snapshot(reason, paths) {
       assertActive();
       return enqueueDurableMutation(() => revisions.create(reason, paths));
+    },
+    closeSeasonTransaction(request) {
+      assertActive();
+      return enqueueDurableMutation(async () => {
+        try {
+          return await seasonCloseTransactions.close(request);
+        } finally {
+          durableGeneration += 1;
+          markIndexStale();
+          try {
+            await rebuildIndex();
+          } catch {
+            scheduleRecovery();
+          }
+        }
+      });
     },
     async repairs() {
       assertActive();

@@ -15,7 +15,8 @@ import {
   SeasonClosePreflightError,
   type SeasonCloseRequest,
 } from './season-close-transaction';
-import { note } from './test-helpers';
+import { createStudioService } from './studio-service';
+import { note, RecordingIndex } from './test-helpers';
 
 const now = '2026-07-14T00:00:00.000Z';
 
@@ -299,6 +300,59 @@ describe('season close transaction', () => {
       SeasonClosePreflightError,
     );
     expect((await load(vault, 'Current Season/winter.md')).status).toBe('active');
+  });
+
+  it('serializes the complete close transaction with ordinary Studio mutations', async () => {
+    const { vault, revisions, closeRequest } = await setup();
+    let releaseJournal!: () => void;
+    let sawJournal!: () => void;
+    const journalEntered = new Promise<void>((resolve) => {
+      sawJournal = resolve;
+    });
+    const journalReleased = new Promise<void>((resolve) => {
+      releaseJournal = resolve;
+    });
+    let paused = false;
+    const coordinatedVault = new Proxy(vault, {
+      get(target, property, receiver) {
+        if (property !== 'writeTextAtomic') {
+          const value = Reflect.get(target, property, receiver) as unknown;
+          return typeof value === 'function' ? value.bind(target) : value;
+        }
+        return async (
+          path: string,
+          text: string,
+          condition?: Parameters<VaultPort['writeTextAtomic']>[2],
+        ) => {
+          if (!paused && path === '.studio/season/close-journal.json') {
+            paused = true;
+            sawJournal();
+            await journalReleased;
+          }
+          return vault.writeTextAtomic(path, text, condition);
+        };
+      },
+    });
+    const studio = createStudioService({
+      vault: coordinatedVault,
+      index: new RecordingIndex(),
+      revisions,
+      clock: () => new Date(now),
+    });
+    const closing = studio.closeSeasonTransaction(closeRequest);
+    await journalEntered;
+    const sibling = note({ id: 'after-close', title: 'After close' });
+    const saving = studio.save({
+      note: sibling,
+      path: 'Inbox/after-close.md',
+      expectedMissing: true,
+    });
+    await expect(vault.exists('Inbox/after-close.md')).resolves.toBe(false);
+    releaseJournal();
+    await expect(closing).resolves.toMatchObject({
+      season: { note: { status: 'archived' } },
+    });
+    await expect(saving).resolves.toMatchObject({ note: { id: 'after-close' } });
   });
 });
 
