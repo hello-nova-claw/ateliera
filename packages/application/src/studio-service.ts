@@ -685,7 +685,9 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
             cause: new VaultConflictError(),
           });
         }
-        if (loaded.note.display.cover === undefined) return loaded;
+        if (loaded.note.display.cover === undefined) {
+          return { note: loaded.note, path: loaded.path, hash: loaded.hash };
+        }
         return performSave({ note: clearedNote, path, expectedHash });
       });
     },
