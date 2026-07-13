@@ -94,4 +94,17 @@ describe('StudioService note lifecycle', () => {
     await service.dispose();
     expect(() => service.snapshot('conflict-resolution', [])).toThrow('disposed');
   });
+
+  it('keeps durable lifecycle success when a disposable incremental index mutation fails', async () => {
+    const vault = createInMemoryVault();
+    const index = new RecordingIndex();
+    const service = createStudioService({ vault, index });
+    await service.save({ note: note(), path: 'Notes/n1.md', expectedMissing: true });
+    index.failUpsert = true;
+    await expect(service.archive('n1')).resolves.toMatchObject({ note: { status: 'archived' } });
+    index.failUpsert = false;
+    index.remove = vi.fn().mockRejectedValueOnce(new Error('incremental index unavailable'));
+    await expect(service.trash('n1')).resolves.toMatchObject({ id: 'n1' });
+    expect(await vault.exists('Notes/n1.md')).toBe(false);
+  });
 });
