@@ -218,9 +218,7 @@ describe('season service', () => {
     expect((await studio.load('Current Season/first.md')).note.status).toBe(
       'archived',
     );
-    expect(
-      (await studio.seasonTransactions.readActive()).value,
-    ).toMatchObject({
+    expect((await studio.seasonTransactions.readActive()).value).toMatchObject({
       activeNoteId: 'second',
       activePath: 'Current Season/second.md',
       operation: null,
@@ -1166,6 +1164,27 @@ describe('season service', () => {
     await expect(seasons.activateSeason(draft)).rejects.toThrow(
       'Another active season',
     );
+  });
+
+  it('refuses activation when a checkpoint already names another season', async () => {
+    const { studio, seasons } = setup();
+    const draft = await completeWizard(
+      seasons,
+      await seasons.beginSeason({ title: 'Winter' }),
+    );
+    const observed = await studio.seasonTransactions.readActive();
+    await studio.seasonTransactions.compareAndSetActive(observed, {
+      version: 1,
+      revision: observed.value.revision + 1,
+      activeNoteId: 'other-season',
+      activePath: 'Current Season/other-season.md',
+      operation: null,
+    });
+
+    await expect(seasons.activateSeason(draft)).rejects.toThrow(
+      'Another active season needs attention',
+    );
+    expect((await studio.load(draft.path)).note.status).toBe('draft');
   });
 
   it('has one exact winner when two confirmed drafts activate concurrently', async () => {
