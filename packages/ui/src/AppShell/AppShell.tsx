@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import './AppShell.css';
 
 export interface AppShellProps {
@@ -35,6 +35,59 @@ export function AppShell({
   roomTitle,
   topbar,
 }: AppShellProps) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreButton = useRef<HTMLButtonElement>(null);
+  const moreMenu = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!moreOpen) return undefined;
+    moreMenu.current
+      ?.querySelector<HTMLButtonElement>('[role="menuitem"]')
+      ?.focus();
+    const outside = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        !moreMenu.current?.contains(target) &&
+        target !== moreButton.current
+      ) {
+        setMoreOpen(false);
+      }
+    };
+    addEventListener('pointerdown', outside);
+    return () => removeEventListener('pointerdown', outside);
+  }, [moreOpen]);
+
+  function closeMore(restoreFocus = true): void {
+    setMoreOpen(false);
+    if (restoreFocus) moreButton.current?.focus();
+  }
+
+  function chooseMore(path: string): void {
+    closeMore();
+    onNavigate(path);
+  }
+
+  function moreKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    const items = Array.from(
+      moreMenu.current?.querySelectorAll<HTMLButtonElement>(
+        '[role="menuitem"]',
+      ) ?? [],
+    );
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeMore();
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const offset = event.key === 'ArrowDown' ? 1 : -1;
+      items[(current + offset + items.length) % items.length]?.focus();
+    } else if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      items[event.key === 'Home' ? 0 : items.length - 1]?.focus();
+    }
+  }
+
   function studioLink(path: string, label: string, mark: string) {
     const current =
       activePath === path ||
@@ -109,8 +162,45 @@ export function AppShell({
           <span>Capture</span>
         </button>
         {studioLink('/search', 'Search', '⌕')}
-        {studioLink('/settings', 'More', '•••')}
+        <button
+          aria-expanded={moreOpen}
+          aria-haspopup="menu"
+          className="studio-app-shell__nav-link studio-app-shell__more-trigger"
+          onClick={() => setMoreOpen((open) => !open)}
+          ref={moreButton}
+          type="button"
+        >
+          <span aria-hidden="true" className="studio-app-shell__nav-mark">
+            •••
+          </span>
+          <span>More</span>
+        </button>
       </nav>
+      {moreOpen && (
+        <div
+          aria-label="More Studio rooms"
+          className="studio-app-shell__more-menu"
+          onKeyDown={moreKeyDown}
+          ref={moreMenu}
+          role="menu"
+        >
+          {[
+            ...rooms.slice(1),
+            ...utilities.filter(([path]) => path !== '/search'),
+          ].map(([path, label, mark]) => (
+            <button
+              className="studio-app-shell__more-item"
+              key={path}
+              onClick={() => chooseMore(path)}
+              role="menuitem"
+              type="button"
+            >
+              <span aria-hidden="true">{mark}</span>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

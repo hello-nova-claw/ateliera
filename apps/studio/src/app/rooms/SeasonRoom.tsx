@@ -10,16 +10,19 @@ export default function SeasonRoom({
   service?: StudioService;
 }) {
   const season = useSeason(service, projectionRevision);
-  return <SeasonPage
-    conflicts={season.conflicts}
-    {...(season.error ? { error: season.error } : {})}
-    onBegin={season.startWizard}
-    onCloseSeason={season.close}
-    onCreate={season.create}
-    onEdit={season.edit}
-    onSaveStep={season.saveStep}
-    record={season.record}
-    state={season.state}
-    {...(season.wizardStep ? { wizardStep: season.wizardStep } : {})}
-  />;
+  return (
+    <SeasonPage
+      conflicts={season.conflicts}
+      {...(season.error ? { error: season.error } : {})}
+      onBegin={season.startWizard}
+      onCloseSeason={season.close}
+      onCreate={season.create}
+      onEdit={season.edit}
+      onRepairActive={season.repairActive}
+      onSaveStep={season.saveStep}
+      record={season.record}
+      state={season.state}
+      {...(season.wizardStep ? { wizardStep: season.wizardStep } : {})}
+    />
+  );
 }

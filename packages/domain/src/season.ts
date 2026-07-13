@@ -51,7 +51,9 @@ export interface ClosedSeasonState extends SeasonState {
 
 export class PriorityLimitError extends Error {
   constructor() {
-    super('A season holds three priorities. Choose one to replace, or explicitly keep a fourth.');
+    super(
+      'A season holds three priorities. Choose one to replace, or explicitly keep a fourth.',
+    );
     this.name = 'PriorityLimitError';
   }
 }
@@ -79,7 +81,9 @@ export function createSeasonDraft(id: string, now: string): SeasonState {
   };
 }
 
-type SeasonStepAnswers = Partial<Omit<SeasonState, 'id' | 'created' | 'completedSteps'>>;
+type SeasonStepAnswers = Partial<
+  Omit<SeasonState, 'id' | 'created' | 'completedSteps'>
+>;
 
 function validDate(value: string | undefined): boolean {
   return value === undefined || /^\d{4}-\d{2}-\d{2}$/u.test(value);
@@ -123,12 +127,18 @@ export function addSeasonPriority(
   noteId: string,
   options: { override?: boolean } = {},
 ): SeasonState {
-  const priorities = [...new Set([...season.priorities, noteId.trim()])].filter(Boolean);
-  if (priorities.length > 3 && options.override !== true) throw new PriorityLimitError();
+  const priorities = [...new Set([...season.priorities, noteId.trim()])].filter(
+    Boolean,
+  );
+  if (priorities.length > 3 && options.override !== true)
+    throw new PriorityLimitError();
   return { ...season, priorities };
 }
 
-export function activateSeasonState(season: SeasonState, now = season.updated): SeasonState {
+export function activateSeasonState(
+  season: SeasonState,
+  now = season.updated,
+): SeasonState {
   if (season.title.trim() === '') throw new Error('Give this season a name.');
   if (!season.completedSteps.includes('confirm')) {
     throw new Error('Review and confirm this season before beginning.');
@@ -136,7 +146,10 @@ export function activateSeasonState(season: SeasonState, now = season.updated): 
   return { ...season, status: 'active', updated: now };
 }
 
-export function closeSeasonState(season: SeasonState, now = season.updated): ClosedSeasonState {
+export function closeSeasonState(
+  season: SeasonState,
+  now = season.updated,
+): ClosedSeasonState {
   return { ...season, status: 'archived', carryForward: [], updated: now };
 }
 
@@ -144,5 +157,7 @@ export function seasonProgress(season: SeasonState): number {
   const firstIncomplete = seasonWizardSteps.findIndex(
     (step) => !season.completedSteps.includes(step),
   );
-  return firstIncomplete === -1 ? seasonWizardSteps.length - 1 : firstIncomplete;
+  return firstIncomplete === -1
+    ? seasonWizardSteps.length - 1
+    : firstIncomplete;
 }
