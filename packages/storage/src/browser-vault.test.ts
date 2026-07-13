@@ -552,6 +552,90 @@ it('propagates watcher events between instances of the same named vault', async 
   stop();
 });
 
+it('filters reserved control components already present in its backing store', async () => {
+  const store = createTestStore();
+  const file: StoredBrowserFile = {
+    bytes: new TextEncoder().encode('seeded'),
+    hash: 'seeded-hash',
+    modifiedAt: '2026-07-13T00:00:00.000Z',
+  };
+  await store.write('Inbox/visible.md', file);
+  await store.write('.studio-write.lock', file);
+  await store.write('Hidden/.StUdIo-Stage/private.md', file);
+  const vault = createBrowserVault('seeded-reserved', { store });
+
+  await expect(vault.list()).resolves.toEqual([
+    { path: 'Inbox', kind: 'directory' },
+    {
+      path: 'Inbox/visible.md',
+      kind: 'file',
+      size: file.bytes.byteLength,
+      modifiedAt: file.modifiedAt,
+      contentHash: file.hash,
+    },
+  ]);
+});
+
+it('rejects malformed and reserved cross-tab watcher messages', async () => {
+  type MessageListener = (event: MessageEvent<unknown>) => void;
+  class FakeBroadcastChannel {
+    static latest: FakeBroadcastChannel | undefined;
+    readonly listeners = new Set<MessageListener>();
+    constructor(readonly name: string) { FakeBroadcastChannel.latest = this; }
+    addEventListener(type: string, listener: EventListenerOrEventListenerObject) {
+      if (type === 'message') this.listeners.add(listener as MessageListener);
+    }
+    postMessage() {}
+    forge(data: unknown) {
+      for (const listener of this.listeners) listener({ data } as MessageEvent<unknown>);
+    }
+    close() {}
+    removeEventListener() {}
+    dispatchEvent() { return true; }
+  }
+  vi.stubGlobal('window', {});
+  vi.stubGlobal('BroadcastChannel', FakeBroadcastChannel);
+  try {
+    const vault = createBrowserVault('forged-watch', { store: createTestStore() });
+    const listener = vi.fn();
+    await vault.watch(listener);
+    const channel = FakeBroadcastChannel.latest!;
+
+    channel.forge({ kind: 'created', path: 'Inbox/no-hash.md' });
+    channel.forge({ kind: 'created', path: 'Inbox/../escape.md', hash: 'a'.repeat(64) });
+    channel.forge({ kind: 'removed', path: '.studio-write.lock' });
+    channel.forge({
+      kind: 'moved',
+      path: 'Inbox/okay.md',
+      previousPath: 'Hidden/.STUDIO-stage/a.md',
+      hash: 'a'.repeat(64),
+    });
+    channel.forge({
+      kind: 'created',
+      path: 'Inbox/extra.md',
+      hash: 'a'.repeat(64),
+      unexpected: true,
+    });
+    expect(listener).not.toHaveBeenCalled();
+
+    channel.forge({
+      kind: 'moved',
+      path: 'Archive/okay.md',
+      previousPath: 'Inbox/okay.md',
+      hash: 'a'.repeat(64),
+    });
+    expect(listener).toHaveBeenCalledOnce();
+    expect(listener).toHaveBeenCalledWith({
+      kind: 'moved',
+      path: 'Archive/okay.md',
+      previousPath: 'Inbox/okay.md',
+      hash: 'a'.repeat(64),
+    });
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
 describe('persistent browser storage', () => {
   it('does not prompt again when storage is already persistent', async () => {
     const persist = vi.fn(async () => true);
