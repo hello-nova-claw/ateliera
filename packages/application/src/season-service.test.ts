@@ -260,6 +260,52 @@ describe('season service', () => {
     );
   });
 
+  it.each(['activating', 'repairing', 'closing'] as const)(
+    'preserves an in-progress %s operation instead of switching the repair candidate',
+    async (kind) => {
+      const { studio, seasons } = setup();
+      for (const id of ['first', 'second']) {
+        await studio.save({
+          note: note({
+            id,
+            cardType: 'season',
+            status: 'active',
+            rooms: ['current-season'],
+            extraFrontmatter: { season_id: id },
+          }),
+          path: `Current Season/${id}.md`,
+          expectedMissing: true,
+        });
+      }
+      const observed = await studio.seasonTransactions.readActive();
+      await studio.seasonTransactions.compareAndSetActive(observed, {
+        version: 1,
+        revision: observed.value.revision + 1,
+        activeNoteId: 'first',
+        activePath: 'Current Season/first.md',
+        operation: {
+          id: `${kind}-first-1`,
+          kind,
+          targetNoteId: 'first',
+          targetPath: 'Current Season/first.md',
+        },
+      });
+
+      await expect(seasons.repairActiveSeason('second')).rejects.toThrow(
+        'operation must finish before repairing conflicts',
+      );
+      expect(
+        (await studio.seasonTransactions.readActive()).value.operation,
+      ).toMatchObject({ kind, targetNoteId: 'first' });
+      expect((await studio.load('Current Season/first.md')).note.status).toBe(
+        'active',
+      );
+      expect((await studio.load('Current Season/second.md')).note.status).toBe(
+        'active',
+      );
+    },
+  );
+
   it('updates an active season without treating a revision as failure', async () => {
     const { seasons } = setup();
     const begun = await seasons.beginSeason({ title: 'Winter' });
