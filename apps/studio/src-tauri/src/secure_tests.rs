@@ -583,7 +583,7 @@ fn no_clobber_move_preserves_an_external_destination() {
     let vault = registry.vault_for_test("main", &token).unwrap();
 
     assert!(matches!(
-        vault.move_path("from.md", "to.md"),
+        vault.move_path("from.md", "to.md", None),
         Err(crate::commands::vault::VaultError::Conflict)
     ));
     assert_eq!(
@@ -594,6 +594,27 @@ fn no_clobber_move_preserves_an_external_destination() {
         fs::read_to_string(selected.path().join("to.md")).unwrap(),
         "external"
     );
+}
+
+#[test]
+fn conditional_move_preserves_a_changed_source() {
+    let selected = tempfile::tempdir().unwrap();
+    fs::write(selected.path().join("from.md"), "winner").unwrap();
+    let registry = VaultRegistry::default();
+    let token = registry
+        .register_selected_path_for_test("main", selected.path())
+        .unwrap();
+    let vault = registry.vault_for_test("main", &token).unwrap();
+
+    assert!(matches!(
+        vault.move_path("from.md", "to.md", Some("stale")),
+        Err(crate::commands::vault::VaultError::Conflict)
+    ));
+    assert_eq!(
+        fs::read_to_string(selected.path().join("from.md")).unwrap(),
+        "winner"
+    );
+    assert!(!selected.path().join("to.md").exists());
 }
 
 fn collect_until_quiet(

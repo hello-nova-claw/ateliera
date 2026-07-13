@@ -58,6 +58,23 @@ describe('note lifecycle', () => {
     expect(await vault.exists(trashed.trashPath)).toBe(false);
   });
 
+  it('preserves a note changed immediately before the Trash move commits', async () => {
+    const { service, vault } = await setup();
+    const originalMove = vault.move.bind(vault);
+    vault.move = async (from, to, condition) => {
+      if (from === 'Reflection Garden/n1.md') {
+        await vault.writeTextAtomic(from, 'concurrent winner');
+      }
+      return originalMove(from, to, condition);
+    };
+
+    await expect(service.trash('n1')).rejects.toBeInstanceOf(VaultConflictError);
+    await expect(vault.readText('Reflection Garden/n1.md')).resolves.toMatchObject({
+      text: 'concurrent winner',
+    });
+    await expect(vault.exists('.studio/Trash/items/n1/n1.md')).resolves.toBe(false);
+  });
+
   it('uses a deterministic safe suffix when the original path is occupied', async () => {
     const { service, vault } = await setup();
     await service.trash('n1');
@@ -282,18 +299,11 @@ describe('note lifecycle', () => {
     expect(restored.path).toBe('root-note--restored');
   });
 
-  it('refuses to move a note that changed after its Trash journal was prepared', async () => {
+  it('refuses to move a note whose indexed source version is stale', async () => {
     const { service, vault } = await setup();
-    const read = vault.readText.bind(vault);
-    let userReads = 0;
-    vault.readText = async (path) => {
-      const file = await read(path);
-      if (path === 'Reflection Garden/n1.md' && ++userReads === 1) {
-        return { ...file, hash: 'a-stale-index-hash' };
-      }
-      return file;
-    };
-    await expect(service.trash('n1')).rejects.toThrow('changed before');
+    await vault.writeTextAtomic('Reflection Garden/n1.md', 'newer source');
+
+    await expect(service.trash('n1')).rejects.toBeInstanceOf(VaultConflictError);
     expect(await vault.exists('Reflection Garden/n1.md')).toBe(true);
   });
 });

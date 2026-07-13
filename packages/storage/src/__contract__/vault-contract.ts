@@ -225,6 +225,31 @@ export function vaultContract(name: string, createVault: () => Promise<VaultPort
       await expect(vault.exists('Archive/a.md')).resolves.toBe(false);
     });
 
+    it('moves only the expected source version without losing the winner', async () => {
+      const vault = await createVault();
+      const original = await vault.writeTextAtomic('Inbox/a.md', 'one');
+      const winner = await vault.writeTextAtomic('Inbox/a.md', 'two', {
+        expectedHash: original.hash,
+      });
+
+      await expect(
+        vault.move('Inbox/a.md', 'Archive/a.md', { expectedHash: original.hash }),
+      ).rejects.toBeInstanceOf(VaultConflictError);
+
+      await expect(vault.readText('Inbox/a.md')).resolves.toEqual({
+        text: 'two',
+        hash: winner.hash,
+      });
+      await expect(vault.exists('Archive/a.md')).resolves.toBe(false);
+
+      await vault.move('Inbox/a.md', 'Archive/a.md', { expectedHash: winner.hash });
+      await expect(vault.exists('Inbox/a.md')).resolves.toBe(false);
+      await expect(vault.readText('Archive/a.md')).resolves.toEqual({
+        text: 'two',
+        hash: winner.hash,
+      });
+    });
+
     it('uses typed unavailable errors for missing entries', async () => {
       const vault = await createVault();
 
