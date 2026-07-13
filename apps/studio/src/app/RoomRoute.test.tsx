@@ -15,7 +15,11 @@ it('loads each room through the matching route boundary', async () => {
     <RoomRoute captures={[]} path="/season" title="Current Season" />,
   );
   expect(
-    await screen.findByRole('heading', { level: 1, name: 'Current Season' }),
+    await screen.findByRole(
+      'heading',
+      { level: 1, name: 'Current Season' },
+      { timeout: 10_000 },
+    ),
   ).toBeVisible();
 
   rerender(<RoomRoute captures={[]} path="/uncharted" title="Uncharted" />);

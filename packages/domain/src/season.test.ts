@@ -25,7 +25,10 @@ describe('season domain', () => {
     expect(seasonWizardSteps).toHaveLength(9);
     expect(reflected.title).toBe('A spacious winter');
     expect(reflected.skippedPriorReflection).toBe(true);
-    expect(reflected.completedSteps).toEqual(['name-dates', 'prior-reflection']);
+    expect(reflected.completedSteps).toEqual([
+      'name-dates',
+      'prior-reflection',
+    ]);
   });
 
   it('requires an explicit override before adding a fourth priority', () => {
@@ -34,7 +37,9 @@ describe('season domain', () => {
       priorities: ['one', 'two', 'three'],
     };
     expect(() => addSeasonPriority(base, 'four')).toThrow(PriorityLimitError);
-    expect(addSeasonPriority(base, 'four', { override: true }).priorities).toHaveLength(4);
+    expect(
+      addSeasonPriority(base, 'four', { override: true }).priorities,
+    ).toHaveLength(4);
   });
 
   it('never carries notes forward automatically when closing', () => {
@@ -49,8 +54,12 @@ describe('season domain', () => {
 
   it('rejects an end date before the start date', () => {
     const draft = createSeasonDraft('season-1', '2026-07-14T00:00:00.000Z');
-    expect(() => updateSeasonDraft(draft, 'name-dates', {
-      title: 'Winter', startsOn: '2026-09-01', endsOn: '2026-08-01',
-    })).toThrow('End date');
+    expect(() =>
+      updateSeasonDraft(draft, 'name-dates', {
+        title: 'Winter',
+        startsOn: '2026-09-01',
+        endsOn: '2026-08-01',
+      }),
+    ).toThrow('End date');
   });
 });

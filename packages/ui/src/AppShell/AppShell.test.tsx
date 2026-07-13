@@ -42,3 +42,23 @@ it('marks the active room and omits development-only destinations', () => {
   expect(screen.queryByText('States Gallery')).not.toBeInTheDocument();
   expect(screen.queryByText('Mobile Preview')).not.toBeInTheDocument();
 });
+
+it('makes every room reachable from the compact More menu with focus restoration', () => {
+  const onNavigate = vi.fn();
+  render(
+    <AppShell
+      activePath="/foyer"
+      onCapture={() => undefined}
+      onNavigate={onNavigate}
+      roomTitle="Foyer"
+    >
+      <h1>Foyer</h1>
+    </AppShell>,
+  );
+  const more = screen.getByRole('button', { name: 'More' });
+  fireEvent.click(more);
+  expect(screen.getByRole('menu', { name: 'More Studio rooms' })).toBeVisible();
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Current Season' }));
+  expect(onNavigate).toHaveBeenCalledWith('/season');
+  expect(more).toHaveFocus();
+});
