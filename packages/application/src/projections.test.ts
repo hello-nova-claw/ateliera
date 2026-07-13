@@ -60,12 +60,17 @@ describe('room projections', () => {
     ]);
     const service = createStudioService({ vault, index: new RecordingIndex() });
 
-    expect((await service.projectCurrentSeason())?.noteId).toBe('new');
+    const activeSeason = await service.projectCurrentSeason();
+    expect(activeSeason.current?.noteId).toBe('new');
+    expect(activeSeason.repair).toEqual({
+      code: 'multiple-active-seasons',
+      noteIds: ['new', 'old'],
+    });
     expect((await service.projectStream('reflection')).map((item) => item.noteId)).toEqual(['r']);
     expect((await service.projectStream('celebration')).map((item) => item.noteId)).toEqual(['c']);
     const foyer = await service.projectFoyer();
     expect(foyer.currentSeason?.noteId).toBe('new');
-    expect(foyer.featured.map((item) => item.noteId)).toEqual(['f', 'new']);
+    expect(foyer.featured.map((item) => item.noteId)).toEqual(['f']);
   });
 
   it('supports empty, excluded, generic-room, and untitled projections', async () => {
@@ -89,7 +94,7 @@ describe('room projections', () => {
     expect(await service.projectRoom('wisdom-garden')).toEqual([]);
     expect((await service.projectRoom('uncharted')).map((card) => card.noteId)).toEqual(['possibility']);
     expect((await service.projectRoom('reflection-garden')).some((card) => card.noteId === 'win')).toBe(true);
-    expect(await service.projectCurrentSeason()).toBeNull();
+    expect(await service.projectCurrentSeason()).toEqual({ current: null, conflicts: [] });
   });
 
   it('places an otherwise-sorted item after a manually ordered item', async () => {
@@ -110,5 +115,27 @@ describe('room projections', () => {
       { note: shared, path: 'B.md', hash: 'b' },
     ], 'test', createViewStateRepository(vault));
     expect(cards.map((card) => card.noteId)).toEqual(['shared']);
+  });
+
+  it('keeps Inbox drafts out of philosophical rooms until triaged', async () => {
+    const vault = await seed([
+      { path: 'Inbox/draft.md', note: note({ id: 'draft', status: 'draft', rooms: ['inbox'], semanticType: 'reflection', lifeAreas: ['home'], display: { featured: true } }) },
+    ]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    expect((await service.projectRoom('inbox')).map((card) => card.noteId)).toEqual(['draft']);
+    expect(await service.projectRoom('reflection-garden')).toEqual([]);
+    expect(await service.projectLandscape({ lifeArea: 'home' })).toEqual([]);
+    expect(await service.projectStream('reflection')).toEqual([]);
+    expect((await service.projectFoyer()).featured).toEqual([]);
+  });
+
+  it('orders chronology by timestamp epoch and uses deterministic ties', async () => {
+    const vault = await seed([
+      { path: 'Reflection/local.md', note: note({ id: 'local', title: 'Zulu', updated: '2026-07-13T10:00:00+10:00' }) },
+      { path: 'Reflection/utc.md', note: note({ id: 'utc', title: 'Alpha', updated: '2026-07-13T01:00:00Z' }) },
+      { path: 'Reflection/tie.md', note: note({ id: 'tie', title: 'Beta', updated: '2026-07-13T01:00:00+00:00' }) },
+    ]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    expect((await service.projectRoom('reflection-garden')).map((card) => card.noteId)).toEqual(['utc', 'tie', 'local']);
   });
 });
