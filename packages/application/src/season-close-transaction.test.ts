@@ -61,11 +61,11 @@ function request(
       identity: ' More trusting. ',
     },
     dispositions: [
-      { noteId: 'home', disposition: 'celebrate' },
-      { noteId: 'book', disposition: 'archive' },
-      { noteId: 'rest', disposition: 'return-landscape' },
-      { noteId: 'future', disposition: 'invite-forward' },
-      { noteId: 'idea', disposition: 'release' },
+      { noteId: 'home', disposition: 'celebrate', expectedHash: '' },
+      { noteId: 'book', disposition: 'archive', expectedHash: '' },
+      { noteId: 'rest', disposition: 'return-landscape', expectedHash: '' },
+      { noteId: 'future', disposition: 'invite-forward', expectedHash: '' },
+      { noteId: 'idea', disposition: 'release', expectedHash: '' },
     ],
     letter: note({
       id: 'letter-winter',
@@ -92,31 +92,45 @@ async function setup() {
     ['Wisdom/future.md', note({ id: 'future', title: 'A future thread' })],
     ['Ideas/idea.md', note({ id: 'idea', title: 'An idea' })],
   ] as const;
-  for (const [path, value] of priorities) await seed(vault, path, value);
+  const savedPriorities = new Map<string, Awaited<ReturnType<typeof seed>>>();
+  for (const [path, value] of priorities) {
+    savedPriorities.set(value.id, await seed(vault, path, value));
+  }
   const season = await seed(
     vault,
     'Current Season/winter.md',
     seasonNote(priorities.map(([, value]) => value.id)),
   );
+  let snapshot = 0;
   const revisions = createRevisionStore(vault, {
     clock: () => new Date(now),
-    generateId: () => 'snapshot-winter',
+    generateId: () => `snapshot-winter-${(snapshot += 1)}`,
   });
-  return { vault, season, revisions, closeRequest: request(season) };
+  const closeRequest = request(season);
+  closeRequest.dispositions = closeRequest.dispositions.map((item) => ({
+    ...item,
+    expectedHash: savedPriorities.get(item.noteId)!.hash,
+  }));
+  return { vault, season, revisions, closeRequest };
 }
 
 describe('season close transaction', () => {
   it('snapshots every canonical target and applies five distinct durable outcomes before archiving the season last', async () => {
     const { vault, revisions, closeRequest } = await setup();
     const writes: string[] = [];
-    const recordingVault: VaultPort = {
-      ...vault,
-      async writeTextAtomic(path, text, condition) {
-        const result = await vault.writeTextAtomic(path, text, condition);
-        writes.push(path);
-        return result;
+    const recordingVault = new Proxy(vault, {
+      get(target, property, receiver) {
+        if (property !== 'writeTextAtomic') {
+          const value = Reflect.get(target, property, receiver) as unknown;
+          return typeof value === 'function' ? value.bind(target) : value;
+        }
+        return async (path: string, text: string, condition?: Parameters<VaultPort['writeTextAtomic']>[2]) => {
+          const result = await vault.writeTextAtomic(path, text, condition);
+          writes.push(path);
+          return result;
+        };
       },
-    };
+    });
     const service = createSeasonCloseTransactionService({
       vault: recordingVault,
       control: createStudioControlVault(recordingVault),
@@ -127,10 +141,12 @@ describe('season close transaction', () => {
     const result = await service.close(closeRequest);
 
     expect(result.season.note.status).toBe('archived');
-    expect(writes.at(-2)).toBe('Current Season/winter.md');
+    expect(writes.filter((path) => !path.startsWith('.studio/')).at(-1)).toBe(
+      'Current Season/winter.md',
+    );
     expect(writes.at(-1)).toBe('.studio/season/close-journal.json');
     const snapshot = await vault.readText(
-      '.studio/backups/2026-07-14/2026-07-14T00-00-00-000Z--snapshot-winter/manifest.json',
+      '.studio/backups/2026-07-14/2026-07-14T00-00-00-000Z--snapshot-winter-1/manifest.json',
     );
     expect(JSON.parse(snapshot.text).files.map((file: { originalPath: string }) => file.originalPath))
       .toEqual([
