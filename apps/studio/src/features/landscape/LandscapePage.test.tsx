@@ -49,6 +49,8 @@ describe('LandscapePage', () => {
                 cardType: 'vision',
                 status: 'active',
                 updated: '2026-07-13T00:00:00.000Z',
+                lifeAreas: ['home'],
+                anchor: 'vision',
               },
               noteIds: ['home-vision'],
               cards: [],
@@ -66,7 +68,9 @@ describe('LandscapePage', () => {
       />,
     );
     expect(screen.getByRole('heading', { name: 'Home' })).toBeInTheDocument();
-    expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(5);
+    for (const name of ['Vision', 'Identity, values & feelings', 'Decisions', 'Practices', 'Structure & strategy']) {
+      expect(screen.getByRole('heading', { name })).toBeInTheDocument();
+    }
     fireEvent.click(screen.getByRole('button', { name: 'A calm home' }));
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ noteId: 'home-vision' }), expect.any(HTMLButtonElement));
     expect(document.querySelector('.life-landscape__matrix')).not.toBeInTheDocument();
@@ -80,7 +84,7 @@ describe('LandscapePage', () => {
           ? {
               ...cell,
               featured: {
-                noteId: 'home-vision', path: 'Landscape/home.md', title: 'A calm home', excerpt: '', semanticType: 'vision', cardType: 'vision', status: 'active', updated: '2026-07-13T00:00:00.000Z',
+                noteId: 'home-vision', path: 'Landscape/home.md', title: 'A calm home', excerpt: '', semanticType: 'vision', cardType: 'vision', status: 'active', updated: '2026-07-13T00:00:00.000Z', lifeAreas: ['home'], anchor: 'vision',
               },
               noteIds: ['home-vision'], cards: [],
             }
@@ -89,7 +93,7 @@ describe('LandscapePage', () => {
     };
     render(<LandscapePage areas={[...defaultLifeAreas.slice(0, 5)]} board={board} onMove={onMove} onNavigate={vi.fn()} path="/landscape/home" />);
     fireEvent.click(screen.getByRole('button', { name: 'Move A calm home' }));
-    fireEvent.click(screen.getByRole('button', { name: /Move to Practices/ }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Move to Practices/ }));
     expect(onMove).toHaveBeenCalledWith(expect.objectContaining({ anchor: 'practices', lifeAreas: ['home'] }));
     expect(await screen.findByRole('button', { name: 'Undo move' })).toBeInTheDocument();
   });

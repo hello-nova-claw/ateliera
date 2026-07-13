@@ -103,6 +103,8 @@ function studioService(overrides: Partial<StudioService> = {}) {
     indexState: vi.fn(() => 'ready' as const),
     projectRoom: vi.fn(async () => [projection(note.body)]),
     projectLandscape: vi.fn(async () => []),
+    projectLandscapeBoard: vi.fn(async () => ({ cells: [] })),
+    updateLandscapePlacement: vi.fn(),
     projectCurrentSeason: vi.fn(async () => ({ current: null, conflicts: [] })),
     projectStream: vi.fn(async () => []),
     resolveCover: vi.fn(async () => ({ kind: 'none' as const })),

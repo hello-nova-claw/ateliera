@@ -62,6 +62,8 @@ export interface LandscapeProjectionQuery {
 }
 
 export interface LandscapeCardProjection extends StudioCardProjection {
+  lifeAreas: string[];
+  anchor: LandscapeAnchor;
   decisionHorizon?: DecisionHorizon;
 }
 
@@ -210,6 +212,8 @@ export async function projectLandscapeBoard(
           const horizon = byId.get(card.noteId)?.extraFrontmatter.decision_horizon;
           return {
             ...card,
+            lifeAreas: [...(byId.get(card.noteId)?.lifeAreas ?? [])],
+            anchor,
             ...(isDecisionHorizon(horizon) ? { decisionHorizon: horizon } : {}),
           };
         });

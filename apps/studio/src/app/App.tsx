@@ -6,7 +6,7 @@ import {
   type SavedNote,
   type StudioService,
 } from '@studio/application';
-import type { StudioNote } from '@studio/domain';
+import type { LandscapeAnchor, StudioNote } from '@studio/domain';
 import {
   AppShell,
   CommandPalette,
@@ -182,6 +182,9 @@ function StudioApplication({
   const pendingCapturePlacement = useRef<CapturePlacement | undefined>(
     undefined,
   );
+  const pendingLandscapePlacement = useRef<
+    { lifeArea: string; anchor: LandscapeAnchor } | undefined
+  >(undefined);
 
   navigationGuard.current = (next) => {
     if (editor === undefined) return false;
@@ -410,6 +413,9 @@ function StudioApplication({
         ...(pendingCapturePlacement.current === undefined
           ? {}
           : { placement: pendingCapturePlacement.current }),
+        ...(pendingLandscapePlacement.current === undefined
+          ? {}
+          : { landscape: pendingLandscapePlacement.current }),
       });
     }
     const captured = await service.capture(input.body);
@@ -419,6 +425,7 @@ function StudioApplication({
   function closeCapture(): void {
     setCaptureOpen(false);
     pendingCapturePlacement.current = undefined;
+    pendingLandscapePlacement.current = undefined;
     queueMicrotask(() => captureButton.current?.focus());
   }
 
@@ -432,6 +439,16 @@ function StudioApplication({
       principle: 'foyer-principle',
     };
     pendingCapturePlacement.current = placements[slot];
+    captureButton.current = trigger;
+    setCaptureOpen(true);
+  }
+
+  function beginLandscapeCapture(
+    lifeArea: string,
+    anchor: LandscapeAnchor,
+    trigger: HTMLButtonElement,
+  ): void {
+    pendingLandscapePlacement.current = { lifeArea, anchor };
     captureButton.current = trigger;
     setCaptureOpen(true);
   }
@@ -633,6 +650,8 @@ function StudioApplication({
         <RoomRoute
           captures={captures}
           onCreateFoyer={beginFoyerCapture}
+          onCreateLandscape={beginLandscapeCapture}
+          onNavigate={go}
           onOpenCard={openProjectedCard}
           onRemoveFoyerImage={removeFoyerImage}
           onOpenCapture={(id, trigger) => {

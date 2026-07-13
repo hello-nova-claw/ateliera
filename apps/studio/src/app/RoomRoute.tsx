@@ -4,6 +4,7 @@ import type {
   StudioCardProjection,
   StudioService,
 } from '@studio/application';
+import type { LandscapeAnchor } from '@studio/domain';
 import type { FoyerSlot } from '../features/foyer/FoyerPage';
 import { lazy, Suspense, type LazyExoticComponent } from 'react';
 import type { StudioPath } from './router';
@@ -12,6 +13,8 @@ interface RoomProps {
   captures: CaptureEntry[];
   onOpenCapture?: (id: string, trigger: HTMLButtonElement) => void;
   onCreateFoyer?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
+  onCreateLandscape?: (lifeArea: string, anchor: LandscapeAnchor, trigger: HTMLButtonElement) => void;
+  onNavigate?: (path: string) => void;
   onOpenCard?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
   onRemoveFoyerImage?: (
     image: FoyerImageProjection,
@@ -19,6 +22,7 @@ interface RoomProps {
   ) => void;
   projectionRevision?: number;
   service?: StudioService;
+  path?: StudioPath;
 }
 
 type LazyRoom = LazyExoticComponent<(props: RoomProps) => React.JSX.Element>;
@@ -43,6 +47,8 @@ export function RoomRoute({
   captures,
   onOpenCapture,
   onCreateFoyer,
+  onCreateLandscape,
+  onNavigate,
   onOpenCard,
   onRemoveFoyerImage,
   path,
@@ -53,6 +59,8 @@ export function RoomRoute({
   captures: CaptureEntry[];
   onOpenCapture?: (id: string, trigger: HTMLButtonElement) => void;
   onCreateFoyer?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
+  onCreateLandscape?: (lifeArea: string, anchor: LandscapeAnchor, trigger: HTMLButtonElement) => void;
+  onNavigate?: (path: string) => void;
   onOpenCard?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
   onRemoveFoyerImage?: (
     image: FoyerImageProjection,
@@ -79,11 +87,14 @@ export function RoomRoute({
       <Room
         captures={captures}
         {...(onCreateFoyer === undefined ? {} : { onCreateFoyer })}
+        {...(onCreateLandscape === undefined ? {} : { onCreateLandscape })}
+        {...(onNavigate === undefined ? {} : { onNavigate })}
         {...(onOpenCard === undefined ? {} : { onOpenCard })}
         {...(onRemoveFoyerImage === undefined ? {} : { onRemoveFoyerImage })}
         {...(onOpenCapture === undefined ? {} : { onOpenCapture })}
         {...(projectionRevision === undefined ? {} : { projectionRevision })}
         {...(service === undefined ? {} : { service })}
+        path={path}
       />
     </Suspense>
   );

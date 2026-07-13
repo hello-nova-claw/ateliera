@@ -98,6 +98,7 @@ export interface CaptureNoteInput {
   semanticType?: SemanticType;
   title?: string;
   placement?: CapturePlacement;
+  landscape?: { lifeArea: string; anchor: LandscapeAnchor };
 }
 
 export type CapturePlacement =
@@ -641,6 +642,13 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
       const placement = input.placement === undefined
         ? undefined
         : capturePlacements[input.placement];
+      const landscapeSemantic: Record<LandscapeAnchor, SemanticType> = {
+        vision: 'vision',
+        'identity-values-feelings': 'foundations',
+        decisions: 'growth',
+        practices: 'growth',
+        'structure-strategy': 'foundations',
+      };
       let lastConflict: StudioSaveConflictError | undefined;
       for (let attempt = 0; attempt < CAPTURE_ATTEMPTS; attempt += 1) {
         const note: StudioNote = {
@@ -648,11 +656,12 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
           id: generateId(),
           ...(input.title?.trim() ? { title: input.title.trim() } : {}),
           body,
-          cardType: placement?.cardType ?? 'capture',
-          semanticType: placement?.semanticType ?? input.semanticType ?? 'reflection',
-          status: placement === undefined ? 'draft' : 'active',
-          rooms: placement === undefined ? ['inbox'] : [...placement.rooms],
-          lifeAreas: [],
+          cardType: placement?.cardType ?? input.landscape?.anchor ?? 'capture',
+          semanticType: placement?.semanticType ?? input.semanticType ?? (input.landscape ? landscapeSemantic[input.landscape.anchor] : 'reflection'),
+          status: placement === undefined && input.landscape === undefined ? 'draft' : 'active',
+          rooms: placement === undefined ? (input.landscape ? ['life-landscape'] : ['inbox']) : [...placement.rooms],
+          lifeAreas: input.landscape ? [input.landscape.lifeArea] : [],
+          ...(input.landscape ? { landscapeAnchor: input.landscape.anchor } : {}),
           seasons: [],
           tags: [],
           created,

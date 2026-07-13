@@ -66,6 +66,22 @@ describe('room projections', () => {
       unknown_key: { preserved: true },
     });
   });
+
+  it('captures a Landscape note with classification in its only durable write', async () => {
+    const vault = await seed([]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    const saved = await service.capture({
+      body: 'A calm home that supports us',
+      landscape: { lifeArea: 'home', anchor: 'vision' },
+    });
+    expect(saved.note).toMatchObject({
+      status: 'active',
+      rooms: ['life-landscape'],
+      lifeAreas: ['home'],
+      landscapeAnchor: 'vision',
+      semanticType: 'vision',
+    });
+  });
   it('projects one canonical note multiple ways without duplication', async () => {
     const shared = note({
       id: 'n1',
