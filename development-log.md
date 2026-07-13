@@ -79,4 +79,4 @@
 - The UI-safe package root no longer exports the concrete synchronous index. The Node adapter rejects document/UI contexts; production desktop execution belongs in a native/background process and future browser SQLite belongs in a Web Worker. Progress separately reports scanning, indexing, and the commit boundary.
 - Added card-type filtering, safe tag/source match context, punctuation-only empty results, and conservative diacritic highlighting. Typo-tolerant title/tag ranking is explicitly deferred to Task 16 with tests and visible rationale required before the Search UI ships.
 - The reproducible 10,000-note real-FTS benchmark rebuilt in 8.071 seconds and returned warmed filtered results in 3.60 ms on the reference development Mac, below the 200 ms target.
-- Verified all 365 workspace tests, typecheck, lint, and production build. Task 7 remediation is complete and ready for independent re-review.
+- Verified all 367 workspace tests, typecheck, lint, and production build. Task 7 remediation is complete and ready for independent re-review.
