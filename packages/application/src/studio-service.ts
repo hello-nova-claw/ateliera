@@ -51,10 +51,11 @@ import {
   type RestoreNoteResult,
   type TrashedNoteResult,
 } from './note-lifecycle';
+import { resolveCoverMedia, type CoverMediaResult } from './cover-media';
 import {
-  resolveCoverMedia,
-  type CoverMediaResult,
-} from './cover-media';
+  createSeasonTransactionStore,
+  type SeasonTransactionStore,
+} from './season-transaction-store';
 
 export {
   MAX_COVER_MEDIA_BYTES,
@@ -67,7 +68,11 @@ export type StudioEvent =
   | { kind: 'note-archived' | 'note-unarchived'; noteId: string; path: string }
   | { kind: 'note-trashed'; noteId: string }
   | { kind: 'note-restored'; noteId: string; path: string; relocated: boolean }
-  | { kind: 'note-restore-conflict'; noteId: string; conflictingPaths: string[] }
+  | {
+      kind: 'note-restore-conflict';
+      noteId: string;
+      conflictingPaths: string[];
+    }
   | { kind: 'index-stale' }
   | { kind: 'index-rebuilt' };
 
@@ -107,26 +112,36 @@ export interface CaptureNoteInput {
 }
 
 export type CapturePlacement =
-  | 'foyer-becoming'
-  | 'foyer-feeling'
-  | 'foyer-principle';
+  'foyer-becoming' | 'foyer-feeling' | 'foyer-principle';
 
 const capturePlacements = {
   'foyer-becoming': {
-    cardType: 'identity', semanticType: 'foundations', rooms: ['foyer', 'identity-studio'], folder: 'Foyer',
+    cardType: 'identity',
+    semanticType: 'foundations',
+    rooms: ['foyer', 'identity-studio'],
+    folder: 'Foyer',
   },
   'foyer-feeling': {
-    cardType: 'feeling', semanticType: 'vision', rooms: ['foyer', 'identity-studio'], folder: 'Foyer',
+    cardType: 'feeling',
+    semanticType: 'vision',
+    rooms: ['foyer', 'identity-studio'],
+    folder: 'Foyer',
   },
   'foyer-principle': {
-    cardType: 'principle', semanticType: 'foundations', rooms: ['foyer', 'identity-studio'], folder: 'Foyer',
+    cardType: 'principle',
+    semanticType: 'foundations',
+    rooms: ['foyer', 'identity-studio'],
+    folder: 'Foyer',
   },
-} as const satisfies Record<CapturePlacement, {
-  cardType: string;
-  semanticType: SemanticType;
-  rooms: readonly string[];
-  folder: string;
-}>;
+} as const satisfies Record<
+  CapturePlacement,
+  {
+    cardType: string;
+    semanticType: SemanticType;
+    rooms: readonly string[];
+    folder: string;
+  }
+>;
 
 export interface StudioServiceDependencies {
   vault: VaultPort;
@@ -146,6 +161,7 @@ export interface StudioServiceDependencies {
 export interface StudioService {
   readonly views: ViewStateRepository;
   readonly lifeAreas: LifeAreaRepository;
+  readonly seasonTransactions: SeasonTransactionStore;
   start(): Promise<void>;
   dispose(): Promise<void>;
   subscribe(listener: StudioEventListener): () => void;
@@ -164,8 +180,12 @@ export interface StudioService {
   rebuildIndex(): Promise<void>;
   indexState(): 'ready' | 'stale' | 'rebuilding';
   projectRoom(room: string): Promise<StudioCardProjection[]>;
-  projectLandscape(query: LandscapeProjectionQuery): Promise<StudioCardProjection[]>;
-  projectLandscapeBoard(lifeAreas: readonly string[]): Promise<LandscapeBoardProjection>;
+  projectLandscape(
+    query: LandscapeProjectionQuery,
+  ): Promise<StudioCardProjection[]>;
+  projectLandscapeBoard(
+    lifeAreas: readonly string[],
+  ): Promise<LandscapeBoardProjection>;
   updateLandscapePlacement(input: {
     path: string;
     expectedHash: string;
@@ -173,7 +193,9 @@ export interface StudioService {
     anchor: LandscapeAnchor;
   }): Promise<SavedNote>;
   projectCurrentSeason(): Promise<ActiveSeasonProjection>;
-  projectStream(type: 'reflection' | 'celebration'): Promise<StudioCardProjection[]>;
+  projectStream(
+    type: 'reflection' | 'celebration',
+  ): Promise<StudioCardProjection[]>;
   projectFoyer(): Promise<FoyerProjection>;
 }
 
@@ -185,7 +207,10 @@ export class StudioSaveConflictError extends Error {
     readonly durableText: string,
     options?: ErrorOptions,
   ) {
-    super('This note changed elsewhere. Both versions have been preserved for review.', options);
+    super(
+      'This note changed elsewhere. Both versions have been preserved for review.',
+      options,
+    );
   }
 }
 
@@ -196,7 +221,9 @@ const SELF_EVENT_TTL = 5_000;
 
 const defaultTimers: StudioTimers = {
   setTimeout(callback, delayMs) {
-    return globalThis.setTimeout(() => { void callback(); }, delayMs);
+    return globalThis.setTimeout(() => {
+      void callback();
+    }, delayMs);
   },
   clearTimeout(token) {
     globalThis.clearTimeout(token as ReturnType<typeof globalThis.setTimeout>);
@@ -212,7 +239,8 @@ function indexedContent(note: StudioNote) {
 
 function validateAndSerialize(note: StudioNote): string {
   const serialized = serializeNote(note);
-  if (!parseNote(serialized).ok) throw new Error('The note is invalid and was not written.');
+  if (!parseNote(serialized).ok)
+    throw new Error('The note is invalid and was not written.');
   return serialized;
 }
 
@@ -235,20 +263,29 @@ function portableLifeAreaFolder(lifeArea: string): string {
       .replace(/[<>:"/\\|?*]/gu, '-')
       .replace(/-+/gu, '-')
       .replace(/^[ .-]+|[ .-]+$/gu, ''),
-  ).slice(0, 64).join('');
-  return segment === '' || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/iu.test(segment)
+  )
+    .slice(0, 64)
+    .join('');
+  return segment === '' ||
+    /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/iu.test(segment)
     ? 'Area'
     : segment;
 }
 
-export function createStudioService(dependencies: StudioServiceDependencies): StudioService {
+export function createStudioService(
+  dependencies: StudioServiceDependencies,
+): StudioService {
   const clock = dependencies.clock ?? (() => new Date());
-  const generateId = dependencies.generateId ?? (() => createNoteId(clock().valueOf()));
+  const generateId =
+    dependencies.generateId ?? (() => createNoteId(clock().valueOf()));
   const timers = dependencies.timers ?? defaultTimers;
   const views = createViewStateRepository(dependencies.vault);
   const lifeAreas =
     dependencies.lifeAreas ?? createLifeAreaRepository(dependencies.vault);
-  const revisions = dependencies.revisions ?? createRevisionStore(dependencies.vault, { clock });
+  const revisions =
+    dependencies.revisions ??
+    createRevisionStore(dependencies.vault, { clock });
+  const seasonTransactions = createSeasonTransactionStore(dependencies.vault);
   const noteLifecycle = createNoteLifecycleService({
     vault: dependencies.vault,
     index: dependencies.index,
@@ -274,8 +311,14 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   let disposePromise: Promise<void> | undefined;
   let lifecycleGeneration = 0;
   let disposed = false;
-  const pendingWatchEvents: Array<{ event: VaultChange; writeGeneration?: number }> = [];
-  const selfPublications = new Map<string, { hash: string; generation: number; expiresAt: number }>();
+  const pendingWatchEvents: Array<{
+    event: VaultChange;
+    writeGeneration?: number;
+  }> = [];
+  const selfPublications = new Map<
+    string,
+    { hash: string; generation: number; expiresAt: number }
+  >();
   const pathWriteGenerations = new Map<string, number>();
   const activeWriteGenerations = new Map<string, Set<number>>();
 
@@ -300,22 +343,33 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
 
   function enqueueIndexMutation<T>(mutation: () => Promise<T>): Promise<T> {
     const result = indexMutationTail.then(mutation);
-    indexMutationTail = result.then(() => undefined, () => undefined);
+    indexMutationTail = result.then(
+      () => undefined,
+      () => undefined,
+    );
     return result;
   }
 
   function enqueueDurableMutation<T>(mutation: () => Promise<T>): Promise<T> {
     const result = durableMutationTail.then(mutation);
-    durableMutationTail = result.then(() => undefined, () => undefined);
+    durableMutationTail = result.then(
+      () => undefined,
+      () => undefined,
+    );
     return result;
   }
 
-  async function scan(): Promise<{ notes: LoadedNote[]; repairs: StudioRepairItem[] }> {
+  async function scan(): Promise<{
+    notes: LoadedNote[];
+    repairs: StudioRepairItem[];
+  }> {
     const entries = (await dependencies.vault.list())
-      .filter((entry) =>
-        entry.kind === 'file' &&
-        entry.path.toLocaleLowerCase('en').endsWith('.md') &&
-        !isInternalPath(entry.path))
+      .filter(
+        (entry) =>
+          entry.kind === 'file' &&
+          entry.path.toLocaleLowerCase('en').endsWith('.md') &&
+          !isInternalPath(entry.path),
+      )
       .sort((left, right) => left.path.localeCompare(right.path, 'en'));
     const notes: LoadedNote[] = [];
     const repairs: StudioRepairItem[] = [];
@@ -338,11 +392,21 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
       }
       const parsed = parseNote(file.text);
       if (!parsed.ok) {
-        repairs.push({ path: entry.path, errors: parsed.errors, rawBody: parsed.rawBody });
+        repairs.push({
+          path: entry.path,
+          errors: parsed.errors,
+          rawBody: parsed.rawBody,
+        });
       } else if (ids.has(parsed.note.id)) {
         repairs.push({
           path: entry.path,
-          errors: [{ code: 'invalid-frontmatter', message: `Duplicate note id: ${parsed.note.id}`, path: 'id' }],
+          errors: [
+            {
+              code: 'invalid-frontmatter',
+              message: `Duplicate note id: ${parsed.note.id}`,
+              path: 'id',
+            },
+          ],
           rawBody: parsed.note.body,
         });
       } else {
@@ -360,7 +424,12 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   }
 
   function scheduleRecovery(): void {
-    if (disposed || recoveryScheduled || recoveryAttempt >= RECOVERY_DELAYS.length) return;
+    if (
+      disposed ||
+      recoveryScheduled ||
+      recoveryAttempt >= RECOVERY_DELAYS.length
+    )
+      return;
     recoveryScheduled = true;
     const run = async () => {
       recoveryScheduled = false;
@@ -396,7 +465,10 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   }
 
   function rebuildIndex(): Promise<void> {
-    if (disposed) return Promise.reject(new Error('This Studio service has been disposed.'));
+    if (disposed)
+      return Promise.reject(
+        new Error('This Studio service has been disposed.'),
+      );
     return enqueueIndexMutation(async () => {
       const targetGeneration = durableGeneration;
       const targetExternalGeneration = externalGeneration;
@@ -427,11 +499,22 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     });
   }
 
-  function recordSelfPublication(path: string, hash: string, generation: number): void {
-    selfPublications.set(path, { hash, generation, expiresAt: Date.now() + SELF_EVENT_TTL });
+  function recordSelfPublication(
+    path: string,
+    hash: string,
+    generation: number,
+  ): void {
+    selfPublications.set(path, {
+      hash,
+      generation,
+      expiresAt: Date.now() + SELF_EVENT_TTL,
+    });
   }
 
-  function consumeSelfPublication(event: VaultChange, generation?: number): boolean {
+  function consumeSelfPublication(
+    event: VaultChange,
+    generation?: number,
+  ): boolean {
     if (event.kind !== 'created' && event.kind !== 'modified') return false;
     const publication = selfPublications.get(event.path);
     if (publication === undefined) return false;
@@ -443,16 +526,19 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
       publication.hash !== event.hash ||
       publication.generation !== pathWriteGenerations.get(event.path) ||
       (generation !== undefined && publication.generation !== generation)
-    ) return false;
+    )
+      return false;
     selfPublications.delete(event.path);
     return true;
   }
 
   function canReturnToReady(): boolean {
-    return !rebuildRequired &&
+    return (
+      !rebuildRequired &&
       pendingWatchEvents.length === 0 &&
       indexedGeneration === durableGeneration &&
-      reconciledExternalGeneration === externalGeneration;
+      reconciledExternalGeneration === externalGeneration
+    );
   }
 
   function scheduleReconciliation(): void {
@@ -465,12 +551,17 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
       let hasDeferredEvent = false;
       for (const item of pending) {
         if (item.writeGeneration !== undefined) {
-          if (activeWriteGenerations.get(item.event.path)?.has(item.writeGeneration)) {
+          if (
+            activeWriteGenerations
+              .get(item.event.path)
+              ?.has(item.writeGeneration)
+          ) {
             pendingWatchEvents.push(item);
             hasDeferredEvent = true;
             continue;
           }
-          if (consumeSelfPublication(item.event, item.writeGeneration)) continue;
+          if (consumeSelfPublication(item.event, item.writeGeneration))
+            continue;
           externalGeneration += 1;
           state = 'stale';
         }
@@ -500,10 +591,18 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     activeWriteGenerations.set(input.path, active);
     let written: { hash: string };
     try {
-      written = await dependencies.vault.writeTextAtomic(input.path, serialized, {
-        ...(input.expectedHash === undefined ? {} : { expectedHash: input.expectedHash }),
-        ...(input.expectedMissing === undefined ? {} : { expectedMissing: input.expectedMissing }),
-      });
+      written = await dependencies.vault.writeTextAtomic(
+        input.path,
+        serialized,
+        {
+          ...(input.expectedHash === undefined
+            ? {}
+            : { expectedHash: input.expectedHash }),
+          ...(input.expectedMissing === undefined
+            ? {}
+            : { expectedMissing: input.expectedMissing }),
+        },
+      );
     } catch (error) {
       if (!(error instanceof VaultConflictError)) throw error;
       let durableText = '';
@@ -512,7 +611,9 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
       } catch {
         // The attempted note remains attached to the conflict even if the other writer removed it.
       }
-      throw new StudioSaveConflictError(savedNote, durableText, { cause: error });
+      throw new StudioSaveConflictError(savedNote, durableText, {
+        cause: error,
+      });
     } finally {
       active.delete(writeGeneration);
       if (active.size === 0) activeWriteGenerations.delete(input.path);
@@ -541,14 +642,18 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   }
 
   function save(input: SaveNoteInput): Promise<SavedNote> {
-    if (disposed) return Promise.reject(new Error('This Studio service has been disposed.'));
+    if (disposed)
+      return Promise.reject(
+        new Error('This Studio service has been disposed.'),
+      );
     return enqueueDurableMutation(() => performSave(input));
   }
 
   async function readNote(path: string): Promise<SavedNote & { text: string }> {
     const file = await dependencies.vault.readText(path);
     const parsed = parseNote(file.text);
-    if (!parsed.ok) throw new Error(`The note at ${path} needs metadata repair.`);
+    if (!parsed.ok)
+      throw new Error(`The note at ${path} needs metadata repair.`);
     return { note: parsed.note, path, hash: file.hash, text: file.text };
   }
 
@@ -584,48 +689,58 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   const service: StudioService = {
     views,
     lifeAreas,
+    seasonTransactions,
 
     start() {
-      if (disposed) return Promise.reject(new Error('This Studio service has been disposed.'));
+      if (disposed)
+        return Promise.reject(
+          new Error('This Studio service has been disposed.'),
+        );
       if (stopWatching !== undefined) return Promise.resolve();
       if (startPromise !== undefined) return startPromise;
       const generation = lifecycleGeneration;
-      const pending = dependencies.vault.watch((event) => {
-        if (generation !== lifecycleGeneration) return;
-        const touchesUserContent =
-          !isInternalPath(event.path) ||
-          (event.kind === 'moved' && !isInternalPath(event.previousPath));
-        if (touchesUserContent) {
-          const canBeSelfPublished =
-            (event.kind === 'created' || event.kind === 'modified') &&
-            (activeWriteGenerations.get(event.path)?.size ?? 0) > 0;
-          if (!canBeSelfPublished && consumeSelfPublication(event)) return;
-          const writeGeneration = canBeSelfPublished
-            ? pathWriteGenerations.get(event.path)
-            : undefined;
-          if (canBeSelfPublished) {
-            state = 'stale';
-          } else {
-            externalGeneration += 1;
-            state = 'stale';
+      const pending = dependencies.vault
+        .watch((event) => {
+          if (generation !== lifecycleGeneration) return;
+          const touchesUserContent =
+            !isInternalPath(event.path) ||
+            (event.kind === 'moved' && !isInternalPath(event.previousPath));
+          if (touchesUserContent) {
+            const canBeSelfPublished =
+              (event.kind === 'created' || event.kind === 'modified') &&
+              (activeWriteGenerations.get(event.path)?.size ?? 0) > 0;
+            if (!canBeSelfPublished && consumeSelfPublication(event)) return;
+            const writeGeneration = canBeSelfPublished
+              ? pathWriteGenerations.get(event.path)
+              : undefined;
+            if (canBeSelfPublished) {
+              state = 'stale';
+            } else {
+              externalGeneration += 1;
+              state = 'stale';
+            }
+            pendingWatchEvents.push({
+              event,
+              ...(writeGeneration === undefined ? {} : { writeGeneration }),
+            });
+            scheduleReconciliation();
           }
-          pendingWatchEvents.push({
-            event,
-            ...(writeGeneration === undefined ? {} : { writeGeneration }),
-          });
-          scheduleReconciliation();
-        }
-      }).then((stop) => {
-        if (generation !== lifecycleGeneration) {
-          stop();
-          return;
-        }
-        stopWatching = stop;
-      });
+        })
+        .then((stop) => {
+          if (generation !== lifecycleGeneration) {
+            stop();
+            return;
+          }
+          stopWatching = stop;
+        });
       startPromise = pending;
       void pending.then(
-        () => { if (startPromise === pending) startPromise = undefined; },
-        () => { if (startPromise === pending) startPromise = undefined; },
+        () => {
+          if (startPromise === pending) startPromise = undefined;
+        },
+        () => {
+          if (startPromise === pending) startPromise = undefined;
+        },
       );
       return pending;
     },
@@ -659,21 +774,29 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     subscribe(listener) {
       assertActive();
       listeners.add(listener);
-      return () => { listeners.delete(listener); };
+      return () => {
+        listeners.delete(listener);
+      };
     },
 
     async capture(input) {
       assertActive();
       const body = input.body.trim();
       if (body === '') throw new Error('Write something to remember first.');
-      if (input.decisionHorizon !== undefined &&
-        (!isDecisionHorizon(input.decisionHorizon) || input.landscape?.anchor !== 'decisions')) {
-        throw new Error('Decision horizons can only be used with the Decisions anchor.');
+      if (
+        input.decisionHorizon !== undefined &&
+        (!isDecisionHorizon(input.decisionHorizon) ||
+          input.landscape?.anchor !== 'decisions')
+      ) {
+        throw new Error(
+          'Decision horizons can only be used with the Decisions anchor.',
+        );
       }
       const created = iso(clock);
-      const placement = input.placement === undefined
-        ? undefined
-        : capturePlacements[input.placement];
+      const placement =
+        input.placement === undefined
+          ? undefined
+          : capturePlacements[input.placement];
       const landscapeSemantic: Record<LandscapeAnchor, SemanticType> = {
         vision: 'vision',
         'identity-values-feelings': 'foundations',
@@ -689,11 +812,26 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
           ...(input.title?.trim() ? { title: input.title.trim() } : {}),
           body,
           cardType: placement?.cardType ?? input.landscape?.anchor ?? 'capture',
-          semanticType: placement?.semanticType ?? input.semanticType ?? (input.landscape ? landscapeSemantic[input.landscape.anchor] : 'reflection'),
-          status: placement === undefined && input.landscape === undefined ? 'draft' : 'active',
-          rooms: placement === undefined ? (input.landscape ? ['life-landscape'] : ['inbox']) : [...placement.rooms],
+          semanticType:
+            placement?.semanticType ??
+            input.semanticType ??
+            (input.landscape
+              ? landscapeSemantic[input.landscape.anchor]
+              : 'reflection'),
+          status:
+            placement === undefined && input.landscape === undefined
+              ? 'draft'
+              : 'active',
+          rooms:
+            placement === undefined
+              ? input.landscape
+                ? ['life-landscape']
+                : ['inbox']
+              : [...placement.rooms],
           lifeAreas: input.landscape ? [input.landscape.lifeArea] : [],
-          ...(input.landscape ? { landscapeAnchor: input.landscape.anchor } : {}),
+          ...(input.landscape
+            ? { landscapeAnchor: input.landscape.anchor }
+            : {}),
           seasons: [],
           tags: [],
           created,
@@ -701,17 +839,19 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
           attachments: [],
           display: { featured: placement !== undefined },
           privacy: { sensitivity: 'private', aiAccess: 'ask' },
-          extraFrontmatter: input.decisionHorizon === undefined
-            ? {}
-            : { decision_horizon: input.decisionHorizon },
+          extraFrontmatter:
+            input.decisionHorizon === undefined
+              ? {}
+              : { decision_horizon: input.decisionHorizon },
           lineEnding: '\n',
         };
         try {
           return await save({
             note,
-            path: input.landscape === undefined
-              ? `${placement?.folder ?? 'Inbox'}/${suggestFilename(note)}`
-              : `Life Landscape/${portableLifeAreaFolder(input.landscape.lifeArea)}/${suggestFilename(note)}`,
+            path:
+              input.landscape === undefined
+                ? `${placement?.folder ?? 'Inbox'}/${suggestFilename(note)}`
+                : `Life Landscape/${portableLifeAreaFolder(input.landscape.lifeArea)}/${suggestFilename(note)}`,
             expectedMissing: true,
           });
         } catch (error) {
@@ -719,19 +859,32 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
           lastConflict = error;
         }
       }
-      throw new Error('A unique capture path could not be reserved. Please try again.', {
-        cause: lastConflict,
-      });
+      throw new Error(
+        'A unique capture path could not be reserved. Please try again.',
+        {
+          cause: lastConflict,
+        },
+      );
     },
 
-    async load(path) { assertActive(); return loadNote(path); },
+    async load(path) {
+      assertActive();
+      return loadNote(path);
+    },
     async resolveCover(path) {
       assertActive();
       const loaded = await loadNote(path);
-      return resolveCoverMedia(dependencies.vault, path, loaded.note.display.cover);
+      return resolveCoverMedia(
+        dependencies.vault,
+        path,
+        loaded.note.display.cover,
+      );
     },
     clearCover(path, expectedHash) {
-      if (disposed) return Promise.reject(new Error('This Studio service has been disposed.'));
+      if (disposed)
+        return Promise.reject(
+          new Error('This Studio service has been disposed.'),
+        );
       return enqueueDurableMutation(async () => {
         const loaded = await readNote(path);
         const clearedNote: StudioNote = {
@@ -760,7 +913,11 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     unarchive(id) {
       return finishLifecycle(
         () => noteLifecycle.unarchive(id),
-        (result) => ({ kind: 'note-unarchived', noteId: id, path: result.path }),
+        (result) => ({
+          kind: 'note-unarchived',
+          noteId: id,
+          path: result.path,
+        }),
       );
     },
     trash(id) {
@@ -772,18 +929,19 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     restore(id) {
       return finishLifecycle(
         () => noteLifecycle.restore(id),
-        (result) => result.kind === 'restored'
-          ? {
-              kind: 'note-restored',
-              noteId: id,
-              path: result.path,
-              relocated: result.relocated,
-            }
-          : {
-              kind: 'note-restore-conflict',
-              noteId: id,
-              conflictingPaths: result.conflictingPaths,
-            },
+        (result) =>
+          result.kind === 'restored'
+            ? {
+                kind: 'note-restored',
+                noteId: id,
+                path: result.path,
+                relocated: result.relocated,
+              }
+            : {
+                kind: 'note-restore-conflict',
+                noteId: id,
+                conflictingPaths: result.conflictingPaths,
+              },
         (result) => result.kind === 'restored',
       );
     },
@@ -795,12 +953,26 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
       assertActive();
       return enqueueDurableMutation(() => revisions.create(reason, paths));
     },
-    async repairs() { assertActive(); return (await scan()).repairs; },
+    async repairs() {
+      assertActive();
+      return (await scan()).repairs;
+    },
     rebuildIndex,
-    indexState() { return state; },
-    async projectRoom(room) { assertActive(); return projectRoom((await scan()).notes, room, views); },
-    async projectLandscape(query) { assertActive(); return projectLandscape((await scan()).notes, query, views); },
-    async projectLandscapeBoard(lifeAreas) { assertActive(); return projectLandscapeBoard((await scan()).notes, lifeAreas, views); },
+    indexState() {
+      return state;
+    },
+    async projectRoom(room) {
+      assertActive();
+      return projectRoom((await scan()).notes, room, views);
+    },
+    async projectLandscape(query) {
+      assertActive();
+      return projectLandscape((await scan()).notes, query, views);
+    },
+    async projectLandscapeBoard(lifeAreas) {
+      assertActive();
+      return projectLandscapeBoard((await scan()).notes, lifeAreas, views);
+    },
     async updateLandscapePlacement(input) {
       assertActive();
       const loaded = await loadNote(input.path);
@@ -815,9 +987,18 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
         },
       });
     },
-    async projectCurrentSeason() { assertActive(); return projectCurrentSeason((await scan()).notes); },
-    async projectStream(type) { assertActive(); return projectStream((await scan()).notes, type, views); },
-    async projectFoyer() { assertActive(); return projectFoyer((await scan()).notes, views); },
+    async projectCurrentSeason() {
+      assertActive();
+      return projectCurrentSeason((await scan()).notes);
+    },
+    async projectStream(type) {
+      assertActive();
+      return projectStream((await scan()).notes, type, views);
+    },
+    async projectFoyer() {
+      assertActive();
+      return projectFoyer((await scan()).notes, views);
+    },
   };
   return service;
 }

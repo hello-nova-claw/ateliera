@@ -1,4 +1,8 @@
-import { VaultConflictError, createInMemoryVault } from '@studio/storage';
+import {
+  VaultConflictError,
+  createInMemoryVault,
+  createStudioControlVault,
+} from '@studio/storage';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -14,9 +18,7 @@ describe('season transaction store', () => {
     const second = createSeasonTransactionStore(vault);
     const observedByFirst = await first.readActive();
     const observedBySecond = await second.readActive();
-    const checkpoint = (
-      activeNoteId: string,
-    ): SeasonActiveCheckpoint => ({
+    const checkpoint = (activeNoteId: string): SeasonActiveCheckpoint => ({
       ...emptySeasonActiveCheckpoint(),
       revision: 1,
       activeNoteId,
@@ -34,10 +36,14 @@ describe('season transaction store', () => {
       second.compareAndSetActive(observedBySecond, checkpoint('spring')),
     ]);
 
-    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(
+      results.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
     const rejected = results.find((result) => result.status === 'rejected');
     expect(rejected).toMatchObject({ reason: expect.any(VaultConflictError) });
-    expect((await first.readActive()).value.activeNoteId).toMatch(/^(winter|spring)$/u);
+    expect((await first.readActive()).value.activeNoteId).toMatch(
+      /^(winter|spring)$/u,
+    );
   });
 
   it('persists the close journal through the same private season boundary', async () => {
@@ -57,7 +63,7 @@ describe('season transaction store', () => {
 
   it('rejects malformed durable active checkpoints instead of guessing', async () => {
     const vault = createInMemoryVault();
-    await vault.writeTextAtomic(
+    await createStudioControlVault(vault).writeTextAtomic(
       '.studio/season/active.json',
       '{"version":1,"revision":"wrong"}',
     );
