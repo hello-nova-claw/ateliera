@@ -3,6 +3,7 @@ import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
+import { noCrossPackageRelativeImports } from './tooling/eslint/no-cross-package-relative-imports.js';
 
 const workspacePackages = [
   '@studio/application',
@@ -35,6 +36,12 @@ export default tseslint.config(
   {
     files: ['**/*.{js,mjs,ts,tsx}'],
     languageOptions: { globals: { ...globals.browser, ...globals.node } },
+    plugins: {
+      studio: { rules: { 'no-cross-package-relative-imports': noCrossPackageRelativeImports } },
+    },
+    rules: {
+      'studio/no-cross-package-relative-imports': 'error',
+    },
   },
   {
     files: ['apps/studio/**/*.{ts,tsx}'],

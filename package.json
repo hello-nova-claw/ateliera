@@ -10,7 +10,7 @@
     "build": "pnpm -r build",
     "lint": "eslint . && stylelint \"**/*.css\"",
     "test": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "env -u NO_COLOR playwright test",
     "typecheck": "tsc --build"
   },
   "devDependencies": {

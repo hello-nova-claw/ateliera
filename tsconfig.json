@@ -1,6 +1,7 @@
 {
   "files": [],
   "references": [
+    { "path": "./tsconfig.tooling.json" },
     { "path": "./apps/studio" },
     { "path": "./packages/application" },
     { "path": "./packages/content" },
