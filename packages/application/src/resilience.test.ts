@@ -58,6 +58,36 @@ describe('index recovery and loading', () => {
     expect(service.indexState()).toBe('ready');
   });
 
+  it('does not call a stale index ready after one later upsert succeeds', async () => {
+    const vault = createInMemoryVault();
+    const index = new RecordingIndex();
+    index.failUpsert = true;
+    const service = createStudioService({ vault, index });
+    await service.save({ note: note({ id: 'a' }), path: 'Notes/a.md', expectedMissing: true });
+    index.failUpsert = false;
+    await service.save({ note: note({ id: 'b' }), path: 'Notes/b.md', expectedMissing: true });
+    expect(service.indexState()).toBe('stale');
+  });
+
+  it('returns to stale and releases recovery scheduling when a vault scan fails', async () => {
+    const vault = createInMemoryVault();
+    const index = new RecordingIndex();
+    const scheduled: Array<() => Promise<void>> = [];
+    index.failUpsert = true;
+    const service = createStudioService({
+      vault,
+      index,
+      scheduleIndexRebuild: (rebuild) => scheduled.push(rebuild),
+    });
+    await service.save({ note: note({ id: 'a' }), path: 'Notes/a.md', expectedMissing: true });
+    vi.spyOn(vault, 'list').mockRejectedValueOnce(new VaultUnavailableError());
+    await expect(scheduled[0]?.()).rejects.toBeInstanceOf(VaultUnavailableError);
+    expect(service.indexState()).toBe('stale');
+
+    await service.save({ note: note({ id: 'b' }), path: 'Notes/b.md', expectedMissing: true });
+    expect(scheduled).toHaveLength(2);
+  });
+
   it('loads valid notes and rejects corrupt notes without hiding their file', async () => {
     const vault = createInMemoryVault();
     await vault.writeTextAtomic('Notes/good.md', serializeNote(note()));

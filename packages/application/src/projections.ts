@@ -68,10 +68,10 @@ function dedupe(items: LoadedNote[]): LoadedNote[] {
 export async function orderedProjection(
   items: LoadedNote[],
   viewKey: string,
-  views: ViewStateRepository,
+  views?: ViewStateRepository,
 ): Promise<StudioCardProjection[]> {
   const sorted = dedupe(items.filter(visible).sort(fallbackCompare));
-  const manual = await views.load(viewKey);
+  const manual = views === undefined ? [] : await views.load(viewKey);
   const byId = new Map(sorted.map((item) => [item.note.id, item]));
   const manualItems = manual.flatMap((id) => {
     const item = byId.get(id);
@@ -131,7 +131,6 @@ export async function projectStream(
 
 export async function projectCurrentSeason(
   notes: LoadedNote[],
-  views: ViewStateRepository,
 ): Promise<StudioCardProjection | null> {
   const candidates = await orderedProjection(
     notes.filter((item) =>
@@ -139,7 +138,6 @@ export async function projectCurrentSeason(
       item.note.status === 'active' &&
       item.note.rooms.includes('current-season')),
     'current-season:active',
-    views,
   );
   return candidates[0] ?? null;
 }
@@ -149,7 +147,7 @@ export async function projectFoyer(
   views: ViewStateRepository,
 ): Promise<FoyerProjection> {
   const [currentSeason, featured] = await Promise.all([
-    projectCurrentSeason(notes, views),
+    projectCurrentSeason(notes),
     orderedProjection(
       notes.filter((item) => item.note.display.featured || item.note.rooms.includes('foyer')),
       'foyer:featured',

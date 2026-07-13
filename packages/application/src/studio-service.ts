@@ -146,12 +146,12 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
 
   async function rebuildIndex(): Promise<void> {
     state = 'rebuilding';
-    const { notes } = await scan();
-    const entries: IndexEntry[] = notes.map((item) => ({
-      ...item,
-      content: indexedContent(item.note),
-    }));
     try {
+      const { notes } = await scan();
+      const entries: IndexEntry[] = notes.map((item) => ({
+        ...item,
+        content: indexedContent(item.note),
+      }));
       await dependencies.index.rebuild(entries);
       state = 'ready';
       publish({ kind: 'index-rebuilt' });
@@ -199,7 +199,6 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
         written.hash,
         indexedContent(savedNote),
       );
-      state = 'ready';
     } catch {
       markIndexStale();
     }
@@ -254,7 +253,7 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     indexState() { return state; },
     async projectRoom(room) { return projectRoom((await scan()).notes, room, views); },
     async projectLandscape(query) { return projectLandscape((await scan()).notes, query, views); },
-    async projectCurrentSeason() { return projectCurrentSeason((await scan()).notes, views); },
+    async projectCurrentSeason() { return projectCurrentSeason((await scan()).notes); },
     async projectStream(type) { return projectStream((await scan()).notes, type, views); },
     async projectFoyer() { return projectFoyer((await scan()).notes, views); },
   };
