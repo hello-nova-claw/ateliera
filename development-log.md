@@ -55,3 +55,12 @@
 - Added architecture decisions for token-override themes and self-hosted Newsreader, Hanken Grotesk, and Caveat.
 - Retained the original mockup, byte-identical `.dc.html` source, artifact checksums, and security boundary as durable provenance; no compatible prototype runtime is retained or shipped.
 - Updated the product bible and executable plan without changing MVP scope.
+
+## 2026-07-13 — Browser-local PWA vault
+
+- Added a browser `VaultPort` that selects OPFS when supported, records that backend choice per named vault, and uses IndexedDB only as the compatibility backend rather than as a silent runtime-error fallback.
+- Added conditional-write serialization, cross-instance and cross-tab watcher events, persistent-storage requests with calm best-effort messaging, and WebKit-safe IndexedDB transaction completion handling.
+- Added portable ZIP export plus typed, bounded, checksum-verified import previews. Imports require explicit confirmation, stage every file, preserve replacements, and roll back the target after failures; stored and deflate-compressed ZIPs are supported.
+- Added a production PWA manifest, local icons, a single root-scoped service worker, content-derived cache versions, stale-cache cleanup, and an app-shell-only cache boundary that excludes private note content.
+- Added a production-only browser contract harness and Playwright coverage for CAS conflicts, failed-write preservation, moves, removes, backend stability, cross-tab watch events, offline capture reload, IndexedDB fallback, focus restoration, cache privacy, and desktop/mobile presentation.
+- Verified 325 unit/contract tests, typecheck, lint, production build, and 18 production-server Playwright tests across desktop Chromium, mobile Chromium, and desktop WebKit. Task 6 is complete; current phase: ready for Task 7 disposable index and link graph.
