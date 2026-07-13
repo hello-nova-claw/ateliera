@@ -4,8 +4,10 @@ import {
   createInMemoryVault,
   createRevisionStore,
   createStudioControlVault,
+  type RevisionStore,
   type StudioControlVault,
   type VaultPort,
+  VaultConflictError,
 } from '@studio/storage';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -110,6 +112,35 @@ async function setup() {
     expectedHash: savedPriorities.get(item.noteId)!.hash,
   }));
   return { vault, season, revisions, closeRequest };
+}
+
+function replaceAtPath(
+  value: object,
+  path: ReadonlyArray<string | number>,
+  replacement: unknown,
+): void {
+  let cursor = value;
+  for (const segment of path.slice(0, -1)) {
+    cursor = Reflect.get(cursor, segment) as object;
+  }
+  Reflect.set(cursor, path.at(-1)!, replacement);
+}
+
+async function expectUnreadableJournal(value: unknown): Promise<void> {
+  const vault = createInMemoryVault();
+  const control = createStudioControlVault(vault);
+  await control.writeTextAtomic(
+    '.studio/season/close-journal.json',
+    typeof value === 'string' ? value : JSON.stringify(value),
+    { expectedMissing: true },
+  );
+  const service = createSeasonCloseTransactionService({
+    vault,
+    control,
+    revisions: createRevisionStore(vault),
+    clock: () => new Date(now),
+  });
+  await expect(service.resume()).rejects.toThrow('checkpoint is unreadable');
 }
 
 describe('season close transaction', () => {
@@ -232,6 +263,13 @@ describe('season close transaction', () => {
           expectedMissing: true,
         }),
     ],
+    [
+      'corrupt extensionless',
+      async (vault: VaultPort) =>
+        vault.writeTextAtomic('Broken/corrupt', '---\nid: [\n---\n', {
+          expectedMissing: true,
+        }),
+    ],
   ])(
     'rejects an explicit %s canonical preflight without any snapshot or journal',
     async (_, arrange) => {
@@ -275,6 +313,56 @@ describe('season close transaction', () => {
       }),
     ).rejects.toThrow('every priority');
     await expect(
+      service.close({
+        ...closeRequest,
+        priorityIds: [...closeRequest.priorityIds, 'home'],
+        dispositions: [
+          ...closeRequest.dispositions,
+          closeRequest.dispositions[0]!,
+        ],
+      }),
+    ).rejects.toThrow('every priority');
+    await expect(
+      service.close({
+        ...closeRequest,
+        dispositions: closeRequest.dispositions.map((item, index) =>
+          index === 1 ? { ...item, noteId: 'home' } : item,
+        ),
+      }),
+    ).rejects.toThrow('every priority');
+    await expect(
+      service.close({
+        ...closeRequest,
+        dispositions: closeRequest.dispositions.map((item, index) =>
+          index === 1 ? { ...item, noteId: 'outside' } : item,
+        ),
+      }),
+    ).rejects.toThrow('every priority');
+    await expect(
+      service.close({
+        ...closeRequest,
+        season: {
+          ...closeRequest.season,
+          note: { ...closeRequest.season.note, status: 'archived' },
+        },
+      }),
+    ).rejects.toThrow('active season');
+    await expect(
+      service.close({
+        ...closeRequest,
+        closedSeasonNote: { ...closeRequest.closedSeasonNote, id: 'other' },
+      }),
+    ).rejects.toThrow('does not match');
+    await expect(
+      service.close({
+        ...closeRequest,
+        closedSeasonNote: {
+          ...closeRequest.closedSeasonNote,
+          status: 'active',
+        },
+      }),
+    ).rejects.toThrow('does not match');
+    await expect(
       vault.exists('.studio/season/close-journal.json'),
     ).resolves.toBe(false);
   });
@@ -306,6 +394,117 @@ describe('season close transaction', () => {
     });
     await expect(service.resume()).rejects.toThrow('checkpoint is unreadable');
     expect((await load(vault, 'Ideas/idea.md')).status).toBe('active');
+  });
+
+  it('rejects malformed durable journal fields before following any stored path', async () => {
+    const { vault, revisions, closeRequest } = await setup();
+    const service = createSeasonCloseTransactionService({
+      vault,
+      control: createStudioControlVault(vault),
+      revisions,
+      clock: () => new Date(now),
+    });
+    await service.close(closeRequest);
+    const valid = JSON.parse(
+      (await createStudioControlVault(vault).readText(
+        '.studio/season/close-journal.json',
+      )).text,
+    ) as object;
+    const invalidRoots: unknown[] = ['{', null, [], 'journal'];
+    for (const invalid of invalidRoots) await expectUnreadableJournal(invalid);
+
+    const mutations: Array<
+      readonly [
+        string,
+        ReadonlyArray<string | number>,
+        unknown,
+      ]
+    > = [
+      ['version', ['version'], 2],
+      ['transaction id type', ['transactionId'], 1],
+      ['transaction id empty', ['transactionId'], ''],
+      ['stage', ['stage'], 'unknown'],
+      ['timestamp type', ['preparedAt'], 1],
+      ['timestamp invalid', ['preparedAt'], 'not-a-date'],
+      ['timestamp noncanonical', ['preparedAt'], '2026-07-14T00:00:00Z'],
+      ['season record', ['season'], null],
+      ['season note primitive', ['season', 'note'], null],
+      ['season note malformed', ['season', 'note'], {}],
+      ['season path type', ['season', 'path'], 1],
+      ['season path empty', ['season', 'path'], ''],
+      ['season path absolute', ['season', 'path'], '/season.md'],
+      ['season path trailing slash', ['season', 'path'], 'Season/'],
+      ['season path backslash', ['season', 'path'], 'Season\\winter.md'],
+      ['season path nul', ['season', 'path'], 'Season/\0winter.md'],
+      ['season path drive', ['season', 'path'], 'C:season.md'],
+      ['season path empty segment', ['season', 'path'], 'Season//winter.md'],
+      ['season path dot segment', ['season', 'path'], 'Season/./winter.md'],
+      ['season path parent segment', ['season', 'path'], 'Season/../winter.md'],
+      ['season path control segment', ['season', 'path'], 'Season/.studio/x.md'],
+      ['season path reserved segment', ['season', 'path'], 'Season/.Studio-lock/x.md'],
+      ['season hash', ['season', 'hash'], 'bad'],
+      ['closed note primitive', ['closedSeasonNote'], null],
+      ['closed note malformed', ['closedSeasonNote'], {}],
+      ['closed note id', ['closedSeasonNote', 'id'], 'other'],
+      ['closed note status', ['closedSeasonNote', 'status'], 'active'],
+      ['reflection record', ['reflection'], null],
+      ['celebration reflection', ['reflection', 'celebration'], 1],
+      ['learning reflection', ['reflection', 'learning'], 1],
+      ['identity reflection', ['reflection', 'identity'], 1],
+      ['priority ids array', ['priorityIds'], null],
+      ['priority id type', ['priorityIds', 0], 1],
+      ['priority id empty', ['priorityIds', 0], ''],
+      ['priority id duplicate', ['priorityIds', 1], 'home'],
+      ['targets array', ['targets'], null],
+      ['letter record', ['letter'], null],
+      ['letter note primitive', ['letter', 'note'], null],
+      ['letter note malformed', ['letter', 'note'], {}],
+      ['letter path', ['letter', 'path'], '../letter.md'],
+      ['target count', ['targets'], []],
+      ['target record', ['targets', 0], null],
+      ['target note id type', ['targets', 0, 'noteId'], 1],
+      ['target note id empty', ['targets', 0, 'noteId'], ''],
+      ['target path', ['targets', 0, 'path'], '../target.md'],
+      ['target hash', ['targets', 0, 'hash'], 'bad'],
+      ['target note primitive', ['targets', 0, 'note'], null],
+      ['target note malformed', ['targets', 0, 'note'], {}],
+      ['target note mismatch', ['targets', 0, 'note', 'id'], 'other'],
+      ['target disposition', ['targets', 0, 'disposition'], 'defer'],
+      ['target state', ['targets', 0, 'state'], 'unknown'],
+      ['target output path', ['targets', 0, 'outputPath'], '../out.md'],
+      ['target output hash', ['targets', 0, 'outputHash'], 'bad'],
+      ['snapshot record', ['snapshot'], null],
+      ['snapshot manifest record', ['snapshot', 'manifest'], null],
+      ['snapshot path type', ['snapshot', 'manifestPath'], 1],
+      ['snapshot path location', ['snapshot', 'manifestPath'], '.studio/elsewhere/x'],
+      ['letter hash', ['letter', 'hash'], 'bad'],
+      ['archived hash', ['archivedSeasonHash'], 'bad'],
+    ];
+
+    for (const [label, path, replacement] of mutations) {
+      const mutated = structuredClone(valid);
+      replaceAtPath(mutated, path, replacement);
+      await expectUnreadableJournal(mutated).catch((error: unknown) => {
+        throw new Error(`Expected malformed journal case "${label}" to fail`, {
+          cause: error,
+        });
+      });
+    }
+
+    const duplicateTarget = structuredClone(valid);
+    replaceAtPath(duplicateTarget, ['targets', 1, 'noteId'], 'home');
+    replaceAtPath(duplicateTarget, ['targets', 1, 'note', 'id'], 'home');
+    await expectUnreadableJournal(duplicateTarget);
+
+    const unknownTarget = structuredClone(valid);
+    replaceAtPath(unknownTarget, ['targets', 1, 'noteId'], 'outside');
+    replaceAtPath(unknownTarget, ['targets', 1, 'note', 'id'], 'outside');
+    await expectUnreadableJournal(unknownTarget);
+
+    const pendingArchivedTarget = structuredClone(valid);
+    replaceAtPath(pendingArchivedTarget, ['stage'], 'season-archived');
+    replaceAtPath(pendingArchivedTarget, ['targets', 0, 'state'], 'pending');
+    await expectUnreadableJournal(pendingArchivedTarget);
   });
 
   it.each([
@@ -400,6 +599,270 @@ describe('season close transaction', () => {
     );
     expect((await load(vault, 'Current Season/winter.md')).status).toBe(
       'active',
+    );
+  });
+
+  it.each(['content', 'path'] as const)(
+    'stops when the pinned season %s changed before preflight',
+    async (change) => {
+      const { vault, revisions, closeRequest } = await setup();
+      if (change === 'content') {
+        await vault.writeTextAtomic(
+          closeRequest.season.path,
+          serializeNote({ ...closeRequest.season.note, body: 'Changed.' }),
+          { expectedHash: closeRequest.season.hash },
+        );
+      } else {
+        await vault.move(
+          closeRequest.season.path,
+          'Current Season/moved-winter.md',
+          { expectedHash: closeRequest.season.hash },
+        );
+      }
+      const service = createSeasonCloseTransactionService({
+        vault,
+        control: createStudioControlVault(vault),
+        revisions,
+        clock: () => new Date(now),
+      });
+
+      await expect(service.close(closeRequest)).rejects.toThrow(
+        'active season changed',
+      );
+    },
+  );
+
+  it('names a changed untitled priority by id and uses calm fallback artifact titles', async () => {
+    const { vault, revisions, closeRequest } = await setup();
+    for (const [path, id] of [
+      ['Home/home.md', 'home'],
+      ['Wisdom/future.md', 'future'],
+    ] as const) {
+      const current = await vault.readText(path);
+      const parsed = parseNote(current.text);
+      if (!parsed.ok) throw new Error('fixture');
+      const untitled = { ...parsed.note };
+      delete untitled.title;
+      const written = await vault.writeTextAtomic(
+        path,
+        serializeNote(untitled),
+        { expectedHash: current.hash },
+      );
+      closeRequest.dispositions = closeRequest.dispositions.map((item) =>
+        item.noteId === id ? { ...item, expectedHash: written.hash } : item,
+      );
+    }
+    const service = createSeasonCloseTransactionService({
+      vault,
+      control: createStudioControlVault(vault),
+      revisions,
+      clock: () => new Date(now),
+    });
+    const stale = structuredClone(closeRequest);
+    stale.dispositions[0]!.expectedHash = '0'.repeat(64);
+    await expect(service.close(stale)).rejects.toThrow('priority home changed');
+
+    await service.close(closeRequest);
+    expect(
+      (await notesIn(vault, 'Reflection Garden/Season Outcomes'))[0]?.title,
+    ).toBe('Celebrating this season thread');
+    expect(
+      (await notesIn(vault, 'Current Season/Invitations'))[0]?.title,
+    ).toBe('Invitation: season thread');
+  });
+
+  it('accepts a pinned note write that won durably before its conflict was reported', async () => {
+    const { vault, revisions, closeRequest } = await setup();
+    let injected = false;
+    const ambiguousVault = new Proxy(vault, {
+      get(target, property, receiver) {
+        if (property !== 'writeTextAtomic') {
+          const value = Reflect.get(target, property, receiver) as unknown;
+          return typeof value === 'function' ? value.bind(target) : value;
+        }
+        return async (
+          path: string,
+          text: string,
+          condition?: Parameters<VaultPort['writeTextAtomic']>[2],
+        ) => {
+          const written = await vault.writeTextAtomic(path, text, condition);
+          if (!injected && path.startsWith('Reflection Garden/')) {
+            injected = true;
+            throw new VaultConflictError('ambiguous publish');
+          }
+          return written;
+        };
+      },
+    });
+    const service = createSeasonCloseTransactionService({
+      vault: ambiguousVault,
+      control: createStudioControlVault(ambiguousVault),
+      revisions,
+      clock: () => new Date(now),
+    });
+
+    await expect(service.close(closeRequest)).resolves.toMatchObject({
+      season: { note: { status: 'archived' } },
+    });
+  });
+
+  it.each(['ordinary', 'missing-after-conflict', 'different-after-conflict'] as const)(
+    'preserves the journal when a pinned write ends in an %s failure',
+    async (failure) => {
+      const { vault, revisions, closeRequest } = await setup();
+      let injected = false;
+      const failingVault = new Proxy(vault, {
+        get(target, property, receiver) {
+          if (property !== 'writeTextAtomic') {
+            const value = Reflect.get(target, property, receiver) as unknown;
+            return typeof value === 'function' ? value.bind(target) : value;
+          }
+          return async (
+            path: string,
+            text: string,
+            condition?: Parameters<VaultPort['writeTextAtomic']>[2],
+          ) => {
+            if (!injected && path.startsWith('Reflection Garden/')) {
+              injected = true;
+              if (failure === 'ordinary') throw new Error('storage offline');
+              if (failure === 'different-after-conflict') {
+                await vault.writeTextAtomic(path, 'changed elsewhere', condition);
+              }
+              throw new VaultConflictError('pinned write conflict');
+            }
+            return vault.writeTextAtomic(path, text, condition);
+          };
+        },
+      });
+      const service = createSeasonCloseTransactionService({
+        vault: failingVault,
+        control: createStudioControlVault(failingVault),
+        revisions,
+        clock: () => new Date(now),
+      });
+
+      if (failure === 'ordinary') {
+        await expect(service.close(closeRequest)).rejects.toThrow(
+          'storage offline',
+        );
+      } else {
+        await expect(service.close(closeRequest)).rejects.toThrow(
+          'changed during season close',
+        );
+      }
+      expect((await load(vault, closeRequest.season.path)).status).toBe(
+        'active',
+      );
+    },
+  );
+
+  it('blocks a different transaction while a prepared journal remains in progress', async () => {
+    const { vault, revisions, closeRequest } = await setup();
+    const interruptedRevisions: RevisionStore = {
+      ...revisions,
+      async create() {
+        throw new Error('snapshot offline');
+      },
+    };
+    const service = createSeasonCloseTransactionService({
+      vault,
+      control: createStudioControlVault(vault),
+      revisions: interruptedRevisions,
+      clock: () => new Date(now),
+    });
+    await expect(service.close(closeRequest)).rejects.toThrow(
+      'snapshot offline',
+    );
+
+    await expect(
+      service.close({ ...closeRequest, transactionId: 'close-another' }),
+    ).rejects.toThrow('Another season close is already in progress');
+  });
+
+  it('reuses its completed journal and replaces it only for a new valid season', async () => {
+    const { vault, revisions, closeRequest } = await setup();
+    const service = createSeasonCloseTransactionService({
+      vault,
+      control: createStudioControlVault(vault),
+      revisions,
+    });
+    const winter = await service.close(closeRequest);
+    await expect(service.close(closeRequest)).resolves.toEqual(winter);
+
+    const spring = await seed(
+      vault,
+      'Current Season/spring.md',
+      {
+        ...seasonNote([]),
+        id: 'season-spring',
+        title: 'A gentle spring',
+        extraFrontmatter: { season_id: 'season-spring', priorities: [] },
+      },
+    );
+    const springRequest = request(spring);
+    springRequest.transactionId = 'close-spring';
+    springRequest.priorityIds = [];
+    springRequest.dispositions = [];
+    springRequest.letter = {
+      ...springRequest.letter,
+      id: 'letter-spring',
+      seasons: ['season-spring'],
+    };
+
+    await expect(service.close(springRequest)).resolves.toMatchObject({
+      season: { note: { id: 'season-spring', status: 'archived' } },
+    });
+    const journal = JSON.parse(
+      (await createStudioControlVault(vault).readText(
+        '.studio/season/close-journal.json',
+      )).text,
+    ) as { transactionId: string; preparedAt: string };
+    expect(journal.transactionId).toBe('close-spring');
+    expect(new Date(journal.preparedAt).toISOString()).toBe(journal.preparedAt);
+  });
+
+  it('fails closed when snapshot creation violates its required contract', async () => {
+    const { vault, revisions, closeRequest } = await setup();
+    const invalidRevisions: RevisionStore = {
+      ...revisions,
+      create: vi.fn().mockResolvedValue(undefined),
+    } as unknown as RevisionStore;
+    const service = createSeasonCloseTransactionService({
+      vault,
+      control: createStudioControlVault(vault),
+      revisions: invalidRevisions,
+      clock: () => new Date(now),
+    });
+
+    await expect(service.close(closeRequest)).rejects.toThrow('unknown state');
+  });
+
+  it('reports an archived season corrupted before the final result read', async () => {
+    const { vault, revisions, closeRequest } = await setup();
+    const base = createStudioControlVault(vault);
+    const control: StudioControlVault = {
+      ...base,
+      async writeTextAtomic(path, text, condition) {
+        const written = await base.writeTextAtomic(path, text, condition);
+        const journal = JSON.parse(text) as { stage?: string };
+        if (journal.stage === 'completed') {
+          const season = await vault.readText(closeRequest.season.path);
+          await vault.writeTextAtomic(closeRequest.season.path, 'corrupt', {
+            expectedHash: season.hash,
+          });
+        }
+        return written;
+      },
+    };
+    const service = createSeasonCloseTransactionService({
+      vault,
+      control,
+      revisions,
+      clock: () => new Date(now),
+    });
+
+    await expect(service.close(closeRequest)).rejects.toThrow(
+      'archived season needs metadata repair',
     );
   });
 
