@@ -186,7 +186,8 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   let externalGeneration = 0;
   let reconciledExternalGeneration = 0;
   let rebuildRequired = false;
-  let mutationTail: Promise<void> = Promise.resolve();
+  let indexMutationTail: Promise<void> = Promise.resolve();
+  let durableMutationTail: Promise<void> = Promise.resolve();
   let recoveryAttempt = 0;
   let recoveryScheduled = false;
   let recoveryTimer: unknown;
@@ -200,7 +201,6 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   const selfPublications = new Map<string, { hash: string; generation: number; expiresAt: number }>();
   const pathWriteGenerations = new Map<string, number>();
   const activeWriteGenerations = new Map<string, Set<number>>();
-  const pendingSaves = new Set<Promise<SavedNote>>();
 
   function assertActive(): void {
     if (disposed) throw new Error('This Studio service has been disposed.');
@@ -222,8 +222,14 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   }
 
   function enqueueIndexMutation<T>(mutation: () => Promise<T>): Promise<T> {
-    const result = mutationTail.then(mutation);
-    mutationTail = result.then(() => undefined, () => undefined);
+    const result = indexMutationTail.then(mutation);
+    indexMutationTail = result.then(() => undefined, () => undefined);
+    return result;
+  }
+
+  function enqueueDurableMutation<T>(mutation: () => Promise<T>): Promise<T> {
+    const result = durableMutationTail.then(mutation);
+    durableMutationTail = result.then(() => undefined, () => undefined);
     return result;
   }
 
@@ -345,7 +351,6 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   }
 
   function recordSelfPublication(path: string, hash: string, generation: number): void {
-    if (pathWriteGenerations.get(path) !== generation) return;
     selfPublications.set(path, { hash, generation, expiresAt: Date.now() + SELF_EVENT_TTL });
   }
 
@@ -460,13 +465,7 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
 
   function save(input: SaveNoteInput): Promise<SavedNote> {
     if (disposed) return Promise.reject(new Error('This Studio service has been disposed.'));
-    const operation = performSave(input);
-    pendingSaves.add(operation);
-    void operation.then(
-      () => { pendingSaves.delete(operation); },
-      () => { pendingSaves.delete(operation); },
-    );
-    return operation;
+    return enqueueDurableMutation(() => performSave(input));
   }
 
   async function finishLifecycle<T>(
@@ -474,16 +473,18 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     event: (result: T) => StudioEvent,
   ): Promise<T> {
     assertActive();
-    const result = await operation();
-    durableGeneration += 1;
-    markIndexStale();
-    try {
-      await rebuildIndex();
-    } catch {
-      scheduleRecovery();
-    }
-    emit(event(result));
-    return result;
+    return enqueueDurableMutation(async () => {
+      const result = await operation();
+      durableGeneration += 1;
+      markIndexStale();
+      try {
+        await rebuildIndex();
+      } catch {
+        scheduleRecovery();
+      }
+      emit(event(result));
+      return result;
+    });
   }
 
   const service: StudioService = {
@@ -551,8 +552,8 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
       listeners.clear();
       disposePromise = (async () => {
         await pendingStart?.catch(() => undefined);
-        await Promise.allSettled([...pendingSaves]);
-        await mutationTail;
+        await durableMutationTail;
+        await indexMutationTail;
         selfPublications.clear();
         pathWriteGenerations.clear();
         activeWriteGenerations.clear();
@@ -647,8 +648,14 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
         }),
       );
     },
-    reconcileTrash() { assertActive(); return noteLifecycle.reconcile(); },
-    snapshot(reason, paths) { assertActive(); return revisions.create(reason, paths); },
+    reconcileTrash() {
+      assertActive();
+      return enqueueDurableMutation(() => noteLifecycle.reconcile());
+    },
+    snapshot(reason, paths) {
+      assertActive();
+      return enqueueDurableMutation(() => revisions.create(reason, paths));
+    },
     async repairs() { assertActive(); return (await scan()).repairs; },
     rebuildIndex,
     indexState() { return state; },
