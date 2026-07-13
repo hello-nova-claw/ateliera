@@ -320,6 +320,22 @@ describe('note lifecycle', () => {
     await expect(vault.list('.studio/Trash/items')).resolves.toEqual([]);
   });
 
+  it('validates a newly constructed Trash manifest before its first mutation', async () => {
+    const vault = createInMemoryVault();
+    const index = new RecordingIndex();
+    const source = note({ id: 'n1', attachments: ['../Attachments/unsafe.jpg'] });
+    const written = await vault.writeTextAtomic('Notes/n1.md', serializeNote(source));
+    await index.upsert(source, 'Notes/n1.md', written.hash);
+    const service = createNoteLifecycleService({ vault, index, clock: () => NOW });
+
+    await expect(service.trash('n1')).rejects.toMatchObject({
+      name: 'TrashManifestError',
+      message: expect.stringContaining('unsafe'),
+    });
+    await expect(vault.exists('Notes/n1.md')).resolves.toBe(true);
+    await expect(vault.exists('.studio/Trash/manifest.json')).resolves.toBe(false);
+  });
+
   it('reconciles journal states and reports ambiguous transactions for review', async () => {
     const { service, vault } = await setup();
     const deleted = await service.trash('n1');
