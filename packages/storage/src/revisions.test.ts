@@ -143,6 +143,40 @@ describe('local revision snapshots', () => {
     await expect(vault.exists(`${malformedRoot}/manifest.json`)).resolves.toBe(true);
   });
 
+  it('hashes snapshot bytes instead of trusting forged adapter hash metadata', async () => {
+    const vault = createInMemoryVault();
+    const roots = [
+      '.studio/backups/2026-07-13/2026-07-13T08-00-00-000Z--good',
+      '.studio/backups/2026-07-13/2026-07-13T09-00-00-000Z--forged',
+    ];
+    for (const [index, root] of roots.entries()) {
+      const copyPath = `${root}/files/Notes/a.md`;
+      const copy = await vault.writeTextAtomic(copyPath, `declared-${index}`);
+      await seedSnapshot(vault, root, {
+        version: 1,
+        id: index === 0 ? 'good' : 'forged',
+        reason: 'migration',
+        createdAt: `2026-07-13T0${8 + index}:00:00.000Z`,
+        state: 'complete',
+        files: [{ originalPath: 'Notes/a.md', snapshotPath: copyPath, hash: copy.hash }],
+      }, {});
+      if (index === 1) {
+        const changed = await vault.readText(copyPath);
+        await vault.writeTextAtomic(copyPath, 'different bytes', { expectedHash: changed.hash });
+        const list = vault.list.bind(vault);
+        vault.list = async (prefix) => (await list(prefix)).map((entry) =>
+          entry.path === copyPath ? { ...entry, contentHash: copy.hash } : entry);
+      }
+    }
+
+    await createRevisionStore(vault, {
+      clock: () => new Date('2026-07-14T00:00:00.000Z'),
+    }).prune();
+
+    await expect(vault.exists(`${roots[0]}/manifest.json`)).resolves.toBe(true);
+    await expect(vault.exists(`${roots[1]}/manifest.json`)).resolves.toBe(true);
+  });
+
   it('uses the manifest path as a deterministic tie-break for equal timestamps', async () => {
     const vault = createInMemoryVault();
     const createdAt = '2026-07-13T12:00:00.000Z';

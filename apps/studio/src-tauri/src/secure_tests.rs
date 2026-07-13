@@ -10,7 +10,7 @@ use serde_json::json;
 use tauri::{Listener, Manager, test, webview::InvokeRequest};
 
 use crate::{
-    commands::vault::{Vault, VaultRegistry},
+    commands::vault::{ExpectedUserState, Vault, VaultRegistry},
     handle_window_event, studio_builder,
 };
 
@@ -583,7 +583,7 @@ fn no_clobber_move_preserves_an_external_destination() {
     let vault = registry.vault_for_test("main", &token).unwrap();
 
     assert!(matches!(
-        vault.move_path("from.md", "to.md", None),
+        vault.move_path("from.md", "to.md", None, None),
         Err(crate::commands::vault::VaultError::Conflict)
     ));
     assert_eq!(
@@ -607,7 +607,7 @@ fn conditional_move_preserves_a_changed_source() {
     let vault = registry.vault_for_test("main", &token).unwrap();
 
     assert!(matches!(
-        vault.move_path("from.md", "to.md", Some("stale")),
+        vault.move_path("from.md", "to.md", Some("stale"), None),
         Err(crate::commands::vault::VaultError::Conflict)
     ));
     assert_eq!(
@@ -615,6 +615,36 @@ fn conditional_move_preserves_a_changed_source() {
         "winner"
     );
     assert!(!selected.path().join("to.md").exists());
+}
+
+#[test]
+fn guarded_move_rejects_a_concurrent_public_note() {
+    let selected = tempfile::tempdir().unwrap();
+    fs::create_dir_all(selected.path().join(".studio/Trash")).unwrap();
+    fs::write(selected.path().join(".studio/Trash/item.md"), "recoverable").unwrap();
+    fs::write(selected.path().join("observed.md"), "observed").unwrap();
+    fs::write(selected.path().join("concurrent.md"), "concurrent").unwrap();
+    let registry = VaultRegistry::default();
+    let token = registry
+        .register_selected_path_for_test("main", selected.path())
+        .unwrap();
+    let vault = registry.vault_for_test("main", &token).unwrap();
+    let expected = [ExpectedUserState {
+        path: "observed.md".to_owned(),
+        hash: "604cee807f644af47487bf2bbab442b94212ac5119f36f995f78e9e4694dae8c".to_owned(),
+    }];
+
+    assert!(matches!(
+        vault.move_path(
+            ".studio/Trash/item.md",
+            "restored.md",
+            None,
+            Some(&expected),
+        ),
+        Err(crate::commands::vault::VaultError::Conflict)
+    ));
+    assert!(selected.path().join(".studio/Trash/item.md").exists());
+    assert!(!selected.path().join("restored.md").exists());
 }
 
 fn collect_until_quiet(

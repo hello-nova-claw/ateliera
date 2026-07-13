@@ -1,5 +1,5 @@
 import { parseNote, serializeNote } from '@studio/content';
-import { VaultConflictError, createInMemoryVault } from '@studio/storage';
+import { VaultConflictError, VaultUnavailableError, createInMemoryVault } from '@studio/storage';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -321,6 +321,43 @@ describe('note lifecycle', () => {
     });
   });
 
+  it('does not treat an unreadable existing Trash manifest as an empty manifest', async () => {
+    const { service, vault } = await setup();
+    await service.trash('n1');
+    const before = await vault.readText('.studio/Trash/manifest.json');
+    const read = vault.readText.bind(vault);
+    vault.readText = async (path) => {
+      if (path === '.studio/Trash/manifest.json') {
+        throw new VaultUnavailableError('manifest storage offline');
+      }
+      return read(path);
+    };
+
+    await expect(service.reconcile()).rejects.toMatchObject({
+      name: 'LifecycleStorageUnavailableError',
+      paths: ['.studio/Trash/manifest.json'],
+    });
+    vault.readText = read;
+    await expect(vault.readText('.studio/Trash/manifest.json')).resolves.toEqual(before);
+
+    const unknown = await setup();
+    await unknown.service.trash('n1');
+    const unknownRead = unknown.vault.readText.bind(unknown.vault);
+    const unknownExists = unknown.vault.exists.bind(unknown.vault);
+    unknown.vault.readText = async (path) => {
+      if (path === '.studio/Trash/manifest.json') throw new VaultUnavailableError('read offline');
+      return unknownRead(path);
+    };
+    unknown.vault.exists = async (path) => {
+      if (path === '.studio/Trash/manifest.json') throw new VaultUnavailableError('existence offline');
+      return unknownExists(path);
+    };
+    await expect(unknown.service.reconcile()).rejects.toMatchObject({
+      name: 'LifecycleStorageUnavailableError',
+      cause: expect.any(VaultUnavailableError),
+    });
+  });
+
   it('leaves prepared and restoring transactions retryable when content reads or destinations fail', async () => {
     const prepared = await setup();
     const preparedDeleted = await prepared.service.trash('n1');
@@ -566,6 +603,80 @@ describe('note lifecycle', () => {
     await expect(index.getById('n1')).resolves.toMatchObject({ path: 'Elsewhere/existing.md' });
     await expect(index.backlinks('n1')).resolves.toEqual(['source-note']);
     expect(backlinks).toHaveBeenCalledOnce();
+  });
+
+  it('atomically rejects an id introduced after the restore collision scan', async () => {
+    const { service, vault, index } = await setup();
+    const deleted = await service.trash('n1');
+    const second = note({ id: 'n2', title: 'Second Trash entry' });
+    const secondWrite = await vault.writeTextAtomic('Notes/n2.md', serializeNote(second));
+    await index.upsert(second, 'Notes/n2.md', secondWrite.hash);
+    await service.trash('n2');
+    const move = vault.move.bind(vault);
+    let injected = false;
+    vault.move = async (from, to, condition) => {
+      if (!injected && from === deleted.trashPath) {
+        injected = true;
+        await vault.writeTextAtomic(
+          'Elsewhere/concurrent.md',
+          serializeNote(note({ id: 'n1', title: 'Concurrent identity' })),
+        );
+      }
+      return move(from, to, condition);
+    };
+
+    await expect(service.restore('n1')).resolves.toMatchObject({
+      kind: 'identity-conflict',
+      conflictingPaths: ['Elsewhere/concurrent.md'],
+    });
+    await expect(vault.exists(deleted.trashPath)).resolves.toBe(true);
+    await expect(vault.exists('Reflection Garden/n1.md')).resolves.toBe(false);
+    expect(JSON.parse((await vault.readText('.studio/Trash/manifest.json')).text)).toMatchObject({
+      entries: expect.arrayContaining([expect.objectContaining({ id: 'n1', state: 'trashed' })]),
+    });
+  });
+
+  it('resets the restore journal when an id appears before guarded move preparation', async () => {
+    const { service, vault } = await setup();
+    const deleted = await service.trash('n1');
+    const list = vault.list.bind(vault);
+    let scans = 0;
+    vault.list = async (prefix) => {
+      if (prefix === undefined && ++scans === 2) {
+        await vault.writeTextAtomic(
+          'Elsewhere/between-scans.md',
+          serializeNote(note({ id: 'n1', title: 'Between scans' })),
+        );
+      }
+      return list(prefix);
+    };
+
+    await expect(service.restore('n1')).resolves.toMatchObject({
+      kind: 'identity-conflict',
+      conflictingPaths: ['Elsewhere/between-scans.md'],
+    });
+    await expect(vault.exists(deleted.trashPath)).resolves.toBe(true);
+  });
+
+  it('resets the restore journal and retries after an unrelated guarded state conflict', async () => {
+    const { service, vault } = await setup();
+    const deleted = await service.trash('n1');
+    const move = vault.move.bind(vault);
+    vault.move = async (from, to, condition) => {
+      if (from === deleted.trashPath) {
+        await vault.writeTextAtomic(
+          'Elsewhere/unrelated.md',
+          serializeNote(note({ id: 'other', title: 'Unrelated identity' })),
+        );
+      }
+      return move(from, to, condition);
+    };
+
+    await expect(service.restore('n1')).rejects.toBeInstanceOf(VaultConflictError);
+    await expect(vault.exists(deleted.trashPath)).resolves.toBe(true);
+    expect(JSON.parse((await vault.readText('.studio/Trash/manifest.json')).text)).toMatchObject({
+      entries: [expect.objectContaining({ state: 'trashed' })],
+    });
   });
 
   it('keeps restore retryable when another potential note cannot be inspected for id collisions', async () => {

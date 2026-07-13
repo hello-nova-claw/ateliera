@@ -126,15 +126,18 @@ describe('Tauri vault IPC adapter', () => {
       from: 'Notes/a.md',
       to: '.studio/Trash/items/a/a.md',
       expectedHash: undefined,
+      expectedUserState: undefined,
     });
     await control.moveInto('Notes/b.md', '.studio/Trash/items/b/b.md', {
       expectedHash: 'current-hash',
+      expectedUserState: [{ path: 'Notes/a.md', hash: 'note-hash' }],
     });
     expect(invoke).toHaveBeenLastCalledWith('vault_move', {
       vaultToken: token,
       from: 'Notes/b.md',
       to: '.studio/Trash/items/b/b.md',
       expectedHash: 'current-hash',
+      expectedUserState: [{ path: 'Notes/a.md', hash: 'note-hash' }],
     });
   });
 

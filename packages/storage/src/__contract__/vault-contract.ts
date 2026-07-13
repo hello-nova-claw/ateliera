@@ -250,6 +250,21 @@ export function vaultContract(name: string, createVault: () => Promise<VaultPort
       });
     });
 
+    it('rejects a guarded move when the public note state changed', async () => {
+      const vault = await createVault();
+      const observed = await vault.writeTextAtomic('Notes/observed.md', 'observed');
+      const source = await vault.writeTextAtomic('.studio/Trash/item.md', 'recoverable');
+      await vault.writeTextAtomic('Notes/concurrent.md', 'concurrent identity');
+
+      await expect(vault.move('.studio/Trash/item.md', 'Notes/restored.md', {
+        expectedHash: source.hash,
+        expectedUserState: [{ path: 'Notes/observed.md', hash: observed.hash }],
+      })).rejects.toBeInstanceOf(VaultConflictError);
+
+      await expect(vault.exists('.studio/Trash/item.md')).resolves.toBe(true);
+      await expect(vault.exists('Notes/restored.md')).resolves.toBe(false);
+    });
+
     it('uses typed unavailable errors for missing entries', async () => {
       const vault = await createVault();
 
