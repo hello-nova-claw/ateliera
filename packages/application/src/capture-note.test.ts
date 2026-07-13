@@ -70,4 +70,26 @@ describe('capture', () => {
     await service.capture(input);
     expect((await vault.list()).filter((entry) => entry.kind === 'file')).toHaveLength(1);
   });
+
+  it('creates a Foyer slot in one expected-missing write and leaves no partial note on retry', async () => {
+    const vault = createInMemoryVault();
+    const durableWrite = vault.writeTextAtomic.bind(vault);
+    const write = vi.spyOn(vault, 'writeTextAtomic')
+      .mockRejectedValueOnce(new Error('disk unavailable'))
+      .mockImplementation(durableWrite);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    const input = { body: 'A woman who creates from calm', placement: 'foyer-becoming' as const };
+
+    await expect(service.capture(input)).rejects.toThrow('disk unavailable');
+    expect(await vault.list()).toEqual([]);
+    const saved = await service.capture(input);
+
+    expect(saved.path).toMatch(/^Foyer\//);
+    expect(saved.note).toMatchObject({
+      cardType: 'identity', semanticType: 'foundations', status: 'active',
+      rooms: ['foyer', 'identity-studio'], display: { featured: true },
+    });
+    expect(write).toHaveBeenLastCalledWith(saved.path, expect.any(String), { expectedMissing: true });
+    expect((await vault.list()).filter((entry) => entry.kind === 'file')).toHaveLength(1);
+  });
 });
