@@ -9,6 +9,23 @@ import {
 import { RecordingIndex, note } from './test-helpers';
 
 const NOW = new Date('2026-07-13T01:02:03.000Z');
+const ORIGINAL_HASH = '0'.repeat(64);
+
+function trashEntry(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    id: 'n1',
+    originalPath: 'Reflection Garden/n1.md',
+    trashPath: '.studio/Trash/items/n1/n1.md',
+    originalHash: ORIGINAL_HASH,
+    originalStatus: 'active',
+    deletedAt: NOW.toISOString(),
+    attachments: [
+      { path: 'Attachments/present.jpg', availability: 'available' },
+    ],
+    state: 'trashed',
+    ...overrides,
+  };
+}
 
 async function setup() {
   const vault = createInMemoryVault();
@@ -175,6 +192,112 @@ describe('note lifecycle', () => {
       await vault.writeTextAtomic('.studio/Trash/manifest.json', JSON.stringify(value));
       await expect(service.reconcile()).rejects.toBeInstanceOf(Error);
       expect(await vault.exists('Reflection Garden/n1.md')).toBe(true);
+    }
+  });
+
+  it('rejects non-canonical Trash metadata and unsafe paths before mutating the vault', async () => {
+    const invalidEntries: Array<[string, Record<string, unknown>]> = [
+      ['empty id', trashEntry({ id: '', trashPath: '.studio/Trash/items//n1.md' })],
+      ['whitespace id', trashEntry({ id: ' n1', trashPath: '.studio/Trash/items/%20n1/n1.md' })],
+      ['separator id', trashEntry({ id: 'n/1', trashPath: '.studio/Trash/items/n%2F1/n1.md' })],
+      ['control id', trashEntry({ id: 'n\u00001', trashPath: '.studio/Trash/items/n%001/n1.md' })],
+      ['malformed hash', trashEntry({ originalHash: 'not-a-sha-256' })],
+      ['non-canonical hash', trashEntry({ originalHash: 'A'.repeat(64) })],
+      ['malformed date', trashEntry({ deletedAt: 'sometime' })],
+      ['non-canonical date', trashEntry({ deletedAt: '2026-07-13T01:02:03Z' })],
+      ['traversing original path', trashEntry({ originalPath: '../Reflection Garden/n1.md' })],
+      ['reserved original path', trashEntry({ originalPath: '.studio/private.md' })],
+      ['case-folded reserved original path', trashEntry({ originalPath: '.STUDIO/private.md' })],
+      ['reserved user component', trashEntry({ originalPath: 'Notes/.studio-shadow/n1.md' })],
+      ['non-canonical original path', trashEntry({ originalPath: 'Reflection Garden//n1.md' })],
+      ['mismatched Trash id', trashEntry({ trashPath: '.studio/Trash/items/n2/n1.md' })],
+      ['mismatched Trash basename', trashEntry({ trashPath: '.studio/Trash/items/n1/other.md' })],
+      ['traversing Trash path', trashEntry({ trashPath: '.studio/Trash/items/n1/../n1.md' })],
+      ['non-canonical Trash root', trashEntry({ trashPath: '.studio/trash/items/n1/n1.md' })],
+      ['traversing attachment path', trashEntry({
+        attachments: [{ path: '../Attachments/present.jpg', availability: 'available' }],
+      })],
+      ['reserved attachment path', trashEntry({
+        attachments: [{ path: '.studio/private.jpg', availability: 'available' }],
+      })],
+      ['traversing restore path', trashEntry({ restorePath: '../Reflection Garden/n1.md' })],
+      ['reserved restore path', trashEntry({ restorePath: '.studio/recovered.md' })],
+    ];
+
+    for (const [description, entry] of invalidEntries) {
+      const { service, vault, index } = await setup();
+      const manifestText = `${JSON.stringify({ version: 1, entries: [entry] })}\n`;
+      await vault.writeTextAtomic('.studio/Trash/manifest.json', manifestText);
+
+      await expect(service.reconcile(), description).rejects.toMatchObject({
+        name: 'TrashManifestError',
+      });
+      await expect(vault.readText('.studio/Trash/manifest.json')).resolves.toMatchObject({
+        text: manifestText,
+      });
+      await expect(vault.exists('Reflection Garden/n1.md')).resolves.toBe(true);
+      await expect(vault.exists('.studio/Trash/items/n1/n1.md')).resolves.toBe(false);
+      await expect(index.getById('n1')).resolves.not.toBeNull();
+    }
+  });
+
+  it('rejects duplicate and colliding Trash records as one invalid manifest', async () => {
+    const collisionCases: Array<[string, Array<Record<string, unknown>>]> = [
+      ['duplicate entry', [trashEntry(), trashEntry()]],
+      ['duplicate id', [
+        trashEntry(),
+        trashEntry({
+          originalPath: 'Notes/other.md',
+          trashPath: '.studio/Trash/items/n1/other.md',
+        }),
+      ]],
+      ['duplicate original path', [
+        trashEntry(),
+        trashEntry({
+          id: 'n2',
+          trashPath: '.studio/Trash/items/n2/n1.md',
+        }),
+      ]],
+      ['colliding restore destination', [
+        trashEntry({ state: 'restoring', restorePath: 'Recovered/shared.md' }),
+        trashEntry({
+          id: 'n2',
+          originalPath: 'Notes/n2.md',
+          trashPath: '.studio/Trash/items/n2/n2.md',
+          state: 'restoring',
+          restorePath: 'Recovered/shared.md',
+        }),
+      ]],
+      ['restore destination collides with another original', [
+        trashEntry({ state: 'restoring', restorePath: 'Notes/n2.md' }),
+        trashEntry({
+          id: 'n2',
+          originalPath: 'Notes/n2.md',
+          trashPath: '.studio/Trash/items/n2/n2.md',
+        }),
+      ]],
+      ['duplicate attachment record', [trashEntry({
+        attachments: [
+          { path: 'Attachments/shared.jpg', availability: 'available' },
+          { path: 'Attachments/shared.jpg', availability: 'missing' },
+        ],
+      })]],
+    ];
+
+    for (const [description, entries] of collisionCases) {
+      const { service, vault, index } = await setup();
+      const manifestText = `${JSON.stringify({ version: 1, entries })}\n`;
+      await vault.writeTextAtomic('.studio/Trash/manifest.json', manifestText);
+
+      await expect(service.trash('n1'), description).rejects.toMatchObject({
+        name: 'TrashManifestError',
+      });
+      await expect(vault.readText('.studio/Trash/manifest.json')).resolves.toMatchObject({
+        text: manifestText,
+      });
+      await expect(vault.exists('Reflection Garden/n1.md')).resolves.toBe(true);
+      await expect(vault.exists('.studio/Trash/items/n1/n1.md')).resolves.toBe(false);
+      await expect(index.getById('n1')).resolves.not.toBeNull();
     }
   });
 
