@@ -298,17 +298,36 @@ describe('browser vault backend selection', () => {
       opfsSupported: true,
       readSelection: vi.fn(async () => undefined),
       writeSelection: vi.fn(async () => undefined),
+      opfsVaultExists: vi.fn(async () => false),
       openOpfs: vi.fn(async () => createTestStore()),
       openIndexedDb: vi.fn(async () => createTestStore()),
       ...overrides,
     };
   }
 
-  it('surfaces OPFS runtime failures without silently opening an empty IndexedDB vault', async () => {
+  it('pins IndexedDB when a brand-new vault cannot complete its initial OPFS open', async () => {
+    const failure = new DOMException('temporarily unavailable', 'UnknownError');
+    const fallback = vi.fn(async () => createTestStore());
+    const writeSelection = vi.fn(async () => undefined);
+    const vault = createBrowserVault('anna', {
+      environment: environment({
+        openOpfs: vi.fn(async () => Promise.reject(failure)),
+        openIndexedDb: fallback,
+        writeSelection,
+      }),
+    });
+
+    await expect(vault.list()).resolves.toEqual([]);
+    expect(fallback).toHaveBeenCalledOnce();
+    expect(writeSelection).toHaveBeenCalledWith('anna', 'indexeddb');
+  });
+
+  it('surfaces an unpinned OPFS failure when an OPFS vault already exists', async () => {
     const failure = new DOMException('temporarily unavailable', 'UnknownError');
     const fallback = vi.fn(async () => createTestStore());
     const vault = createBrowserVault('anna', {
       environment: environment({
+        opfsVaultExists: vi.fn(async () => true),
         openOpfs: vi.fn(async () => Promise.reject(failure)),
         openIndexedDb: fallback,
       }),

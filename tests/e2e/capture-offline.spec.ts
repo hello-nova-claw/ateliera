@@ -12,14 +12,6 @@ test('captured note survives reload while offline', async ({
   page.on('console', (message) => {
     if (message.type() === 'error') browserErrors.push(message.text());
   });
-  if (browserName === 'webkit') {
-    await page.addInitScript(() => {
-      Object.defineProperty(navigator.storage, 'getDirectory', {
-        configurable: true,
-        value: undefined,
-      });
-    });
-  }
   await page.goto('/');
   await page.getByRole('button', { name: 'Capture' }).click();
   await page
@@ -71,16 +63,7 @@ test('falls back to IndexedDB when OPFS is unavailable', async ({ page }) => {
 
 test('restores focus and keeps private captures out of app-shell caches', async ({
   page,
-  browserName,
 }) => {
-  if (browserName === 'webkit') {
-    await page.addInitScript(() => {
-      Object.defineProperty(navigator.storage, 'getDirectory', {
-        configurable: true,
-        value: undefined,
-      });
-    });
-  }
   await page.goto('/');
   const capture = page.getByRole('button', { name: 'Capture' });
   await capture.click();
