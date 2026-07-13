@@ -23,6 +23,32 @@ function setup() {
   };
 }
 
+async function completeWizard(
+  seasons: ReturnType<typeof createSeasonService>,
+  record: Awaited<
+    ReturnType<ReturnType<typeof createSeasonService>['beginSeason']>
+  >,
+) {
+  let current = record;
+  for (const step of [
+    'prior-reflection',
+    'feelings',
+    'priorities',
+    'decisions-practices',
+    'supports-constraints',
+    'enough',
+    'not-now',
+    'confirm',
+  ] as const) {
+    current = await seasons.saveStep(
+      current,
+      step,
+      step === 'prior-reflection' ? { skippedPriorReflection: true } : {},
+    );
+  }
+  return current;
+}
+
 describe('season service', () => {
   it('persists each wizard step and recovers the draft at the next incomplete step', async () => {
     const { seasons } = setup();
@@ -428,6 +454,108 @@ describe('season service', () => {
     await expect(seasons.activateSeason(draft)).rejects.toThrow(
       'Another active season',
     );
+  });
+
+  it('has one exact winner when two confirmed drafts activate concurrently', async () => {
+    const vault = createInMemoryVault();
+    const studio = createStudioService({
+      vault,
+      index: new RecordingIndex(),
+      clock: () => new Date('2026-07-14T00:00:00.000Z'),
+    });
+    const winter = createSeasonService(studio, {
+      clock: () => new Date('2026-07-14T00:00:00.000Z'),
+      generateId: () => 'winter',
+    });
+    const spring = createSeasonService(studio, {
+      clock: () => new Date('2026-07-14T00:00:00.000Z'),
+      generateId: () => 'spring',
+    });
+    const winterDraft = await completeWizard(
+      winter,
+      await winter.beginSeason({ title: 'Winter' }),
+    );
+    const springDraft = await completeWizard(
+      spring,
+      await spring.beginSeason({ title: 'Spring' }),
+    );
+
+    const results = await Promise.allSettled([
+      winter.activateSeason(winterDraft),
+      spring.activateSeason(springDraft),
+    ]);
+
+    expect(
+      results.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
+    expect((await studio.projectCurrentSeason()).conflicts).toEqual([]);
+    expect((await studio.projectCurrentSeason()).current?.status).toBe(
+      'active',
+    );
+    expect(
+      (await studio.seasonTransactions.readActive()).value.operation,
+    ).toBeNull();
+  });
+
+  it('recovers an activation reserved before the note write', async () => {
+    const { studio, seasons } = setup();
+    const draft = await completeWizard(
+      seasons,
+      await seasons.beginSeason({ title: 'Winter' }),
+    );
+    const observed = await studio.seasonTransactions.readActive();
+    await studio.seasonTransactions.compareAndSetActive(observed, {
+      version: 1,
+      revision: observed.value.revision + 1,
+      activeNoteId: draft.note.id,
+      activePath: draft.path,
+      operation: {
+        id: 'interrupted-activation',
+        kind: 'activating',
+        targetNoteId: draft.note.id,
+        targetPath: draft.path,
+      },
+    });
+
+    const recovered = await seasons.loadCurrent();
+
+    expect(recovered.record?.state.status).toBe('active');
+    expect(
+      (await studio.seasonTransactions.readActive()).value.operation,
+    ).toBeNull();
+  });
+
+  it('serializes opposite conflict repairs so they cannot archive both seasons', async () => {
+    const { studio, seasons } = setup();
+    for (const id of ['first', 'second']) {
+      await studio.save({
+        note: note({
+          id,
+          title: id,
+          cardType: 'season',
+          status: 'active',
+          rooms: ['current-season'],
+          extraFrontmatter: { season_id: id },
+        }),
+        path: `Current Season/${id}.md`,
+        expectedMissing: true,
+      });
+    }
+
+    const results = await Promise.allSettled([
+      seasons.repairActiveSeason('first'),
+      seasons.repairActiveSeason('second'),
+    ]);
+
+    expect(
+      results.filter((result) => result.status === 'fulfilled'),
+    ).toHaveLength(1);
+    const projection = await studio.projectCurrentSeason();
+    expect(projection.current).not.toBeNull();
+    expect(projection.conflicts).toEqual([]);
+    const checkpoint = await studio.seasonTransactions.readActive();
+    expect(checkpoint.value.activeNoteId).toBe(projection.current?.noteId);
+    expect(checkpoint.value.operation).toBeNull();
   });
 
   it('parses valid dates, active state, experiments, and non-object workflows', () => {
