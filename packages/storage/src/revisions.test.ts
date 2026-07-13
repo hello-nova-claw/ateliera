@@ -38,7 +38,6 @@ describe('local revision snapshots', () => {
     await store.create('migration', ['Notes/a.md']);
     now = new Date('2026-08-13T13:00:00.000Z');
     await store.create('migration', ['Notes/a.md']);
-    await store.prune();
 
     const manifests = (await vault.list('.studio/backups')).filter((entry) => entry.path.endsWith('/manifest.json'));
     expect(manifests).toHaveLength(1);
