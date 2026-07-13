@@ -1,0 +1,24 @@
+{
+  "name": "The Studio",
+  "short_name": "Studio",
+  "description": "A quiet, local-first place to remember and reflect.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f3eb",
+  "theme_color": "#f7f3eb",
+  "icons": [
+    {
+      "src": "/studio-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/studio-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
