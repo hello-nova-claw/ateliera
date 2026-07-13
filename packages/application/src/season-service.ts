@@ -190,11 +190,9 @@ function markdownForSeason(state: SeasonState): string {
 
 function noteWithState(note: StudioNote, state: SeasonState): StudioNote {
   const existing = note.extraFrontmatter;
-  const {
-    date_start: _previousStart,
-    date_end: _previousEnd,
-    ...preservedMetadata
-  } = existing;
+  const preservedMetadata = { ...existing };
+  delete preservedMetadata.date_start;
+  delete preservedMetadata.date_end;
   return {
     ...note,
     title: state.title,
