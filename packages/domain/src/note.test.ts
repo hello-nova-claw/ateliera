@@ -1,6 +1,8 @@
 import { expect, it } from 'vitest';
 import {
   aiAccessLevels,
+  defaultLifeAreas,
+  landscapeAnchorDefinitions,
   landscapeAnchors,
   noteStatuses,
   semanticTypes,
@@ -32,4 +34,21 @@ it('exposes the complete stable domain enums', () => {
   ]);
   expect(sensitivityLevels).toEqual(['private', 'sensitive']);
   expect(aiAccessLevels).toEqual(['never', 'ask', 'selected', 'scoped']);
+});
+
+it('defines the configurable Landscape defaults and five fixed prompts', () => {
+  expect(defaultLifeAreas).toHaveLength(10);
+  expect(defaultLifeAreas.slice(0, 5).map((area) => area.id)).toEqual([
+    'family',
+    'home',
+    'health-wellbeing',
+    'work-business',
+    'money',
+  ]);
+  expect(landscapeAnchorDefinitions.map((anchor) => anchor.id)).toEqual(
+    landscapeAnchors,
+  );
+  expect(
+    landscapeAnchorDefinitions.every((anchor) => anchor.prompt.length > 20),
+  ).toBe(true);
 });

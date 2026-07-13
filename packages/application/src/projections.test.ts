@@ -6,6 +6,66 @@ import { createViewStateRepository } from './view-state';
 import { RecordingIndex, note, seed } from './test-helpers';
 
 describe('room projections', () => {
+  it('projects a Landscape board once with featured cards, counts, links, and decision horizons', async () => {
+    const shared = note({
+      id: 'shared',
+      title: 'Choose a calmer rhythm',
+      lifeAreas: ['home', 'family'],
+      landscapeAnchor: 'decisions',
+      extraFrontmatter: { decision_horizon: '60d', untouched: 'yes' },
+      display: { featured: true },
+    });
+    const second = note({
+      id: 'second',
+      title: 'Clear one surface',
+      lifeAreas: ['home'],
+      landscapeAnchor: 'decisions',
+    });
+    const vault = await seed([
+      { path: 'Landscape/shared.md', note: shared },
+      { path: 'Landscape/second.md', note: second },
+    ]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    const board = await service.projectLandscapeBoard(['home', 'family']);
+    expect(board.cells).toHaveLength(10);
+    expect(
+      board.cells.find(
+        (cell) => cell.lifeArea === 'home' && cell.anchor === 'decisions',
+      ),
+    ).toMatchObject({
+      featured: { noteId: 'shared', decisionHorizon: '60d' },
+      additionalCount: 1,
+      noteIds: ['shared', 'second'],
+    });
+    expect(
+      board.cells.find(
+        (cell) => cell.lifeArea === 'family' && cell.anchor === 'decisions',
+      )?.featured?.noteId,
+    ).toBe('shared');
+  });
+
+  it('moves or links one canonical Landscape note while preserving unknown metadata', async () => {
+    const original = note({
+      id: 'move-me',
+      lifeAreas: ['home'],
+      landscapeAnchor: 'vision',
+      extraFrontmatter: { unknown_key: { preserved: true } },
+    });
+    const vault = await seed([{ path: 'Landscape/move.md', note: original }]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    const linked = await service.updateLandscapePlacement({
+      path: 'Landscape/move.md',
+      lifeAreas: ['home', 'family'],
+      anchor: 'practices',
+    });
+    expect(linked.note.lifeAreas).toEqual(['home', 'family']);
+    expect(linked.note.landscapeAnchor).toBe('practices');
+    expect(linked.note.extraFrontmatter).toEqual({
+      unknown_key: { preserved: true },
+    });
+  });
   it('projects one canonical note multiple ways without duplication', async () => {
     const shared = note({
       id: 'n1',
