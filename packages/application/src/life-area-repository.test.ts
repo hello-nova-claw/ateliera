@@ -29,7 +29,7 @@ describe('life area repository', () => {
     const snapshot = await repository.load();
 
     expect(snapshot.revision).toBeNull();
-    expect(snapshot.repaired).toBe(false);
+    expect(snapshot.repairRequired).toBe(false);
     expect(snapshot.areas).toEqual(
       defaultLifeAreas.map((area, order) => ({
         ...area,
@@ -54,7 +54,7 @@ describe('life area repository', () => {
     expect(saved.areas[0]).toMatchObject({ title: 'Family Life', hidden: true });
 
     const loaded = await repository.load();
-    expect(loaded).toEqual({ ...saved, repaired: false });
+    expect(loaded).toEqual({ ...saved, repairRequired: false });
 
     const renamed = loaded.areas.map((area) =>
       area.id === 'home' ? { ...area, title: 'A Calm Home' } : area,
@@ -66,38 +66,36 @@ describe('life area repository', () => {
     expect(updated.revision).not.toBe(loaded.revision);
   });
 
-  it('repairs malformed config to defaults against the observed hash', async () => {
+  it('falls back from malformed config without replacing its original bytes', async () => {
     const vault = createInMemoryVault();
-    const malformed = await vault.writeTextAtomic(LIFE_AREA_CONFIG_PATH, '{');
+    const text = '{';
+    const malformed = await vault.writeTextAtomic(LIFE_AREA_CONFIG_PATH, text);
     const repository = createLifeAreaRepository(vault);
 
     const snapshot = await repository.load();
 
-    expect(snapshot.repaired).toBe(true);
-    expect(snapshot.revision).not.toBe(malformed.hash);
+    expect(snapshot.repairRequired).toBe(true);
+    expect(snapshot.revision).toBe(malformed.hash);
     expect(snapshot.areas[0]).toMatchObject({ id: 'family', order: 0 });
-    await expect(repository.load()).resolves.toEqual({
-      ...snapshot,
-      repaired: false,
+    await expect(vault.readText(LIFE_AREA_CONFIG_PATH)).resolves.toEqual({
+      text,
+      hash: malformed.hash,
     });
   });
 
-  it('never overwrites a concurrent edit while repairing malformed config', async () => {
+  it('never overwrites a concurrent edit when saving from a malformed fallback', async () => {
     const vault = createInMemoryVault();
     await vault.writeTextAtomic(LIFE_AREA_CONFIG_PATH, '{');
     const repository = createLifeAreaRepository(vault);
-    const originalWrite = vault.writeTextAtomic.bind(vault);
-    vi.spyOn(vault, 'writeTextAtomic').mockImplementationOnce(
-      async (path, text, condition) => {
-        await originalWrite(
-          LIFE_AREA_CONFIG_PATH,
-          JSON.stringify({ version: 1, areas: customAreas }),
-        );
-        return originalWrite(path, text, condition);
-      },
+    const fallback = await repository.load();
+    await vault.writeTextAtomic(
+      LIFE_AREA_CONFIG_PATH,
+      JSON.stringify({ version: 1, areas: customAreas }),
     );
 
-    await expect(repository.load()).rejects.toBeInstanceOf(VaultConflictError);
+    await expect(
+      repository.save(fallback.areas, fallback.revision),
+    ).rejects.toBeInstanceOf(VaultConflictError);
     expect((await repository.load()).areas).toEqual(
       [...customAreas].sort((left, right) => left.order - right.order),
     );
@@ -144,18 +142,41 @@ describe('life area repository', () => {
     expect(write).not.toHaveBeenCalled();
   });
 
-  it('falls back and repairs oversized and structurally invalid config', async () => {
+  it('falls back from structurally invalid config without publishing defaults', async () => {
     for (const text of [
-      ' '.repeat(65_537),
       '{"version":0,"areas":[]}',
       '{"version":1,"areas":[{"id":"home"}]}',
     ]) {
       const vault = createInMemoryVault();
-      await vault.writeTextAtomic(LIFE_AREA_CONFIG_PATH, text);
+      const original = await vault.writeTextAtomic(LIFE_AREA_CONFIG_PATH, text);
       const snapshot = await createLifeAreaRepository(vault).load();
-      expect(snapshot.repaired).toBe(true);
+      expect(snapshot.repairRequired).toBe(true);
+      expect(snapshot.revision).toBe(original.hash);
       expect(snapshot.areas).toHaveLength(defaultLifeAreas.length);
+      await expect(vault.readText(LIFE_AREA_CONFIG_PATH)).resolves.toMatchObject({
+        text,
+      });
     }
+  });
+
+  it('uses size metadata to preserve oversized config without reading it', async () => {
+    const vault = createInMemoryVault();
+    const text = `{"version":2,"areas":[],"padding":"${'x'.repeat(65_537)}"}\n`;
+    const original = await vault.writeTextAtomic(LIFE_AREA_CONFIG_PATH, text);
+    const read = vi.spyOn(vault, 'readText');
+
+    const snapshot = await createLifeAreaRepository(vault).load();
+
+    expect(snapshot).toMatchObject({
+      revision: original.hash,
+      repairRequired: true,
+    });
+    expect(read).not.toHaveBeenCalled();
+    read.mockRestore();
+    await expect(vault.readText(LIFE_AREA_CONFIG_PATH)).resolves.toMatchObject({
+      text,
+      hash: original.hash,
+    });
   });
 
   it('preserves configuration written by a newer schema version', async () => {
