@@ -1,3 +1,4 @@
+import { serializeNote } from '@studio/content';
 import { createInMemoryVault } from '@studio/storage';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -190,5 +191,32 @@ describe('StudioService note lifecycle', () => {
     expect(create).toHaveBeenCalledOnce();
     await expect(service.save({ note: note(), path: 'Notes/late.md' })).rejects.toThrow('disposed');
     expect(() => service.snapshot('conflict-resolution', [])).toThrow('disposed');
+  });
+
+  it('publishes an explicit non-mutating repair event for restore identity collisions', async () => {
+    const vault = createInMemoryVault();
+    const events: StudioEvent[] = [];
+    const service = createStudioService({
+      vault,
+      index: new RecordingIndex(),
+      publish: (event) => events.push(event),
+    });
+    await service.save({ note: note(), path: 'Notes/n1.md', expectedMissing: true });
+    const deleted = await service.trash('n1');
+    await vault.writeTextAtomic(
+      'Elsewhere/existing.md',
+      serializeNote(note({ id: 'n1', title: 'Existing identity' })),
+    );
+
+    await expect(service.restore('n1')).resolves.toEqual(expect.objectContaining({
+      kind: 'identity-conflict',
+      conflictingPaths: ['Elsewhere/existing.md'],
+    }));
+    await expect(vault.exists(deleted.trashPath)).resolves.toBe(true);
+    expect(events.at(-1)).toEqual({
+      kind: 'note-restore-conflict',
+      noteId: 'n1',
+      conflictingPaths: ['Elsewhere/existing.md'],
+    });
   });
 });

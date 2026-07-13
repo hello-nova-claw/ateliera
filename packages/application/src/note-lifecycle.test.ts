@@ -1,6 +1,6 @@
 import { parseNote, serializeNote } from '@studio/content';
 import { VaultConflictError, createInMemoryVault } from '@studio/storage';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   LifecycleStorageUnavailableError,
@@ -54,6 +54,8 @@ describe('note lifecycle', () => {
     ]);
 
     const restored = await service.restore('n1');
+    expect(restored.kind).toBe('restored');
+    if (restored.kind !== 'restored') throw new Error('Expected a restored note.');
     expect(restored.path).toBe('Reflection Garden/n1.md');
     expect(restored.relocated).toBe(false);
     expect(restored.missingAttachments).toEqual(['Attachments/missing.jpg']);
@@ -85,6 +87,8 @@ describe('note lifecycle', () => {
     await vault.writeTextAtomic('Reflection Garden/n1--restored.md', 'also occupied');
 
     const restored = await service.restore('n1');
+    expect(restored.kind).toBe('restored');
+    if (restored.kind !== 'restored') throw new Error('Expected a restored note.');
     expect(restored).toMatchObject({ path: 'Reflection Garden/n1--restored-2.md', relocated: true });
     expect((await vault.readText('Reflection Garden/n1.md')).text).toBe('someone else');
   });
@@ -525,7 +529,61 @@ describe('note lifecycle', () => {
     await service.trash('root');
     await vault.writeTextAtomic('root-note', 'occupied');
     const restored = await service.restore('root');
+    expect(restored.kind).toBe('restored');
+    if (restored.kind !== 'restored') throw new Error('Expected a restored note.');
     expect(restored.path).toBe('root-note--restored');
+  });
+
+  it('returns a repair state instead of restoring a stable id that already exists elsewhere', async () => {
+    const { service, vault, index } = await setup();
+    const deleted = await service.trash('n1');
+    const collision = note({ id: 'n1', title: 'Existing identity', body: 'Keep my backlinks.' });
+    const collisionWrite = await vault.writeTextAtomic(
+      'Elsewhere/existing.md',
+      serializeNote(collision),
+    );
+    await index.upsert(collision, 'Elsewhere/existing.md', collisionWrite.hash);
+    const backlinks = vi.spyOn(index, 'backlinks').mockResolvedValue(['source-note']);
+    const manifestBefore = await vault.readText('.studio/Trash/manifest.json');
+
+    const result = await service.restore('n1');
+
+    expect(result).toEqual({
+      kind: 'identity-conflict',
+      noteId: 'n1',
+      trashPath: deleted.trashPath,
+      conflictingPaths: ['Elsewhere/existing.md'],
+      repair: {
+        required: true,
+        options: ['change-existing-id', 'restore-with-new-id'],
+      },
+    });
+    await expect(vault.exists(deleted.trashPath)).resolves.toBe(true);
+    await expect(vault.readText('Elsewhere/existing.md')).resolves.toMatchObject({
+      hash: collisionWrite.hash,
+    });
+    await expect(vault.readText('.studio/Trash/manifest.json')).resolves.toEqual(manifestBefore);
+    await expect(index.getById('n1')).resolves.toMatchObject({ path: 'Elsewhere/existing.md' });
+    await expect(index.backlinks('n1')).resolves.toEqual(['source-note']);
+    expect(backlinks).toHaveBeenCalledOnce();
+  });
+
+  it('keeps restore retryable when another potential note cannot be inspected for id collisions', async () => {
+    const { service, vault } = await setup();
+    const deleted = await service.trash('n1');
+    await vault.writeTextAtomic('Elsewhere/unreadable.md', 'temporarily unavailable');
+    const read = vault.readText.bind(vault);
+    vault.readText = async (path) => {
+      if (path === 'Elsewhere/unreadable.md') throw new Error('read outage');
+      return read(path);
+    };
+
+    await expect(service.restore('n1')).rejects.toMatchObject({
+      name: 'LifecycleStorageUnavailableError',
+      paths: ['Elsewhere/unreadable.md'],
+      cause: expect.any(Error),
+    });
+    await expect(vault.exists(deleted.trashPath)).resolves.toBe(true);
   });
 
   it('refuses to move a note whose indexed source version is stale', async () => {

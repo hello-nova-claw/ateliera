@@ -28,10 +28,20 @@ interface StudioVaultTestHarness {
     }>;
   }>;
   restore(id: string, noteId: string): Promise<{
+    kind: 'restored';
     path: string;
     relocated: boolean;
     missingAttachments: string[];
     unknownAttachments: string[];
+  } | {
+    kind: 'identity-conflict';
+    noteId: string;
+    trashPath: string;
+    conflictingPaths: string[];
+    repair: {
+      required: true;
+      options: ['change-existing-id', 'restore-with-new-id'];
+    };
   }>;
   reconcileTrash(id: string): Promise<string[]>;
 }

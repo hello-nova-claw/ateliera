@@ -35,6 +35,7 @@ test('archives, trashes, and safely restores through the persistent browser adap
   ), id);
   const restored = await page.evaluate((handle) => window.studioVaultTest.restore(handle, 'n1'), id);
   expect(restored).toMatchObject({
+    kind: 'restored',
     path: 'Reflection Garden/n1--restored.md',
     relocated: true,
     missingAttachments: ['Attachments/missing.jpg'],
