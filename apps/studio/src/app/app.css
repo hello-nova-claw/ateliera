@@ -1,0 +1,21 @@
+:root {
+  --studio-color-canvas: #f7f5f0;
+  --studio-color-ink: #292a28;
+  --studio-font-display: "Iowan Old Style", "Baskerville", "Georgia", serif;
+}
+
+body {
+  margin: 0;
+}
+
+.studio-shell {
+  box-sizing: border-box;
+  min-block-size: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  color: var(--studio-color-ink);
+  background: var(--studio-color-canvas);
+  font-family: var(--studio-font-display);
+  font-size: clamp(2.25rem, 5vw, 4.5rem);
+}

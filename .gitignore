@@ -10,3 +10,4 @@ target/
 .superpowers/
 .worktrees/
 *.log
+*.tsbuildinfo

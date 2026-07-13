@@ -1,0 +1,13 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./apps/studio" },
+    { "path": "./packages/application" },
+    { "path": "./packages/content" },
+    { "path": "./packages/domain" },
+    { "path": "./packages/index" },
+    { "path": "./packages/storage" },
+    { "path": "./packages/test-utils" },
+    { "path": "./packages/ui" }
+  ]
+}
