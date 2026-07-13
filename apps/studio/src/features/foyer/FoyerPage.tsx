@@ -72,6 +72,28 @@ function FoyerImage({
   );
 }
 
+function FoyerSkeleton() {
+  return (
+    <div
+      aria-hidden="true"
+      className="foyer-skeleton"
+      data-testid="foyer-skeleton"
+    >
+      <div className="foyer-skeleton__wide">
+        <span className="foyer-skeleton__line foyer-skeleton__line--label" />
+        <span className="foyer-skeleton__line foyer-skeleton__line--title" />
+        <span className="foyer-skeleton__line foyer-skeleton__line--title-short" />
+        <span className="foyer-skeleton__panel" />
+      </div>
+      <div className="foyer-skeleton__narrow">
+        <span className="foyer-skeleton__line foyer-skeleton__line--label" />
+        <span className="foyer-skeleton__pill" />
+        <span className="foyer-skeleton__card" />
+      </div>
+    </div>
+  );
+}
+
 export function FoyerPage({
   error,
   model,
@@ -84,6 +106,13 @@ export function FoyerPage({
     model.becoming === null &&
     model.feelings.length === 0 &&
     model.principles.length === 0;
+  const firstLoad =
+    state === 'loading' &&
+    empty &&
+    model.currentSeason === null &&
+    model.priorities.length === 0 &&
+    model.returning === null &&
+    model.image === null;
   return (
     <div className={`foyer-page${empty ? ' foyer-page--empty' : ''}`}>
       <header className="foyer-page__header">
@@ -114,58 +143,65 @@ export function FoyerPage({
             'The Foyer could not be gathered. Your notes remain in the Studio.'}
         </p>
       )}
-      <div className="foyer-page__spread">
-        <div className="foyer-page__wide">
-          <Becoming
-            card={model.becoming}
-            {...(onCreate
-              ? {
-                  onCreate: (trigger: HTMLButtonElement) =>
-                    onCreate('becoming', trigger),
-                }
-              : {})}
-            {...(onOpen ? { onOpen } : {})}
-          />
-          <SeasonPreview
-            priorities={model.priorities}
-            season={model.currentSeason}
-            {...(onOpen ? { onOpen } : {})}
-          />
-          <Principles
-            principles={model.principles}
-            {...(onCreate
-              ? {
-                  onCreate: (trigger: HTMLButtonElement) =>
-                    onCreate('principle', trigger),
-                }
-              : {})}
-            {...(onOpen ? { onOpen } : {})}
-          />
-        </div>
-        <aside className="foyer-page__narrow" aria-label="Feeling and return">
-          {model.image && (
-            <FoyerImage
-              image={model.image}
-              {...(onRemoveImage
+      {firstLoad ? (
+        <FoyerSkeleton />
+      ) : (
+        <div className="foyer-page__spread">
+          <div className="foyer-page__wide">
+            <Becoming
+              card={model.becoming}
+              {...(onCreate
                 ? {
-                    onRemove: (trigger: HTMLButtonElement) =>
-                      onRemoveImage(model.image!.noteId, trigger),
+                    onCreate: (trigger: HTMLButtonElement) =>
+                      onCreate('becoming', trigger),
+                  }
+                : {})}
+              {...(onOpen ? { onOpen } : {})}
+            />
+            <SeasonPreview
+              priorities={model.priorities}
+              season={model.currentSeason}
+              {...(onOpen ? { onOpen } : {})}
+            />
+            <Principles
+              principles={model.principles}
+              {...(onCreate
+                ? {
+                    onCreate: (trigger: HTMLButtonElement) =>
+                      onCreate('principle', trigger),
+                  }
+                : {})}
+              {...(onOpen ? { onOpen } : {})}
+            />
+          </div>
+          <aside className="foyer-page__narrow" aria-label="Feeling and return">
+            {model.image && (
+              <FoyerImage
+                image={model.image}
+                {...(onRemoveImage
+                  ? {
+                      onRemove: (trigger: HTMLButtonElement) =>
+                        onRemoveImage(model.image!.noteId, trigger),
+                    }
+                  : {})}
+              />
+            )}
+            <Feelings
+              feelings={model.feelings}
+              {...(onCreate
+                ? {
+                    onCreate: (trigger: HTMLButtonElement) =>
+                      onCreate('feeling', trigger),
                   }
                 : {})}
             />
-          )}
-          <Feelings
-            feelings={model.feelings}
-            {...(onCreate
-              ? {
-                  onCreate: (trigger: HTMLButtonElement) =>
-                    onCreate('feeling', trigger),
-                }
-              : {})}
-          />
-          <ReturnCard card={model.returning} {...(onOpen ? { onOpen } : {})} />
-        </aside>
-      </div>
+            <ReturnCard
+              card={model.returning}
+              {...(onOpen ? { onOpen } : {})}
+            />
+          </aside>
+        </div>
+      )}
       <Legend />
     </div>
   );

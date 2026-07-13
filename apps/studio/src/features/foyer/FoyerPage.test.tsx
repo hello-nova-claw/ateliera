@@ -167,8 +167,12 @@ it('does not contact an external image host and offers recoverable removal', () 
 });
 
 it('announces loading and recoverable errors without replacing the fixed structure', () => {
-  const view = render(<FoyerPage model={empty} state="loading" />);
+  const view = render(
+    <FoyerPage model={empty} onCreate={vi.fn()} state="loading" />,
+  );
   expect(screen.getByRole('status')).toHaveTextContent('Gathering the Foyer');
+  expect(screen.queryAllByRole('button')).toHaveLength(0);
+  expect(screen.getByTestId('foyer-skeleton')).toBeVisible();
   view.rerender(
     <FoyerPage
       error="The index needs a quiet rebuild."
