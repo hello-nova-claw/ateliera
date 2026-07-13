@@ -1,4 +1,4 @@
-import { createInMemoryVault } from '@studio/storage';
+import { VaultConflictError, createInMemoryVault } from '@studio/storage';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createSeasonService, seasonStateFromNote } from './season-service';
@@ -679,6 +679,96 @@ describe('season service', () => {
     await expect(seasons.beginSeason({ title: 'Spring' })).rejects.toThrow(
       'Close the active season',
     );
+  });
+
+  it('treats an already-completed activation checkpoint as idempotent', async () => {
+    const { studio, seasons } = setup();
+    const draft = await completeWizard(
+      seasons,
+      await seasons.beginSeason({ title: 'Winter' }),
+    );
+    const compare = studio.seasonTransactions.compareAndSetActive.bind(
+      studio.seasonTransactions,
+    );
+    let calls = 0;
+    vi.spyOn(
+      studio.seasonTransactions,
+      'compareAndSetActive',
+    ).mockImplementation(async (observed, next) => {
+      calls += 1;
+      const result = await compare(observed, next);
+      if (calls === 2) throw new VaultConflictError();
+      return result;
+    });
+
+    await expect(seasons.activateSeason(draft)).resolves.toMatchObject({
+      state: { status: 'active' },
+    });
+  });
+
+  it('preserves unexpected checkpoint and note-save failures', async () => {
+    const first = setup();
+    const firstDraft = await completeWizard(
+      first.seasons,
+      await first.seasons.beginSeason({ title: 'Winter' }),
+    );
+    vi.spyOn(
+      first.studio.seasonTransactions,
+      'compareAndSetActive',
+    ).mockRejectedValueOnce(new Error('checkpoint unavailable'));
+    await expect(first.seasons.activateSeason(firstDraft)).rejects.toThrow(
+      'checkpoint unavailable',
+    );
+
+    const second = setup();
+    const secondDraft = await completeWizard(
+      second.seasons,
+      await second.seasons.beginSeason({ title: 'Winter' }),
+    );
+    const observed = await second.studio.seasonTransactions.readActive();
+    await second.studio.seasonTransactions.compareAndSetActive(observed, {
+      version: 1,
+      revision: 1,
+      activeNoteId: secondDraft.note.id,
+      activePath: secondDraft.path,
+      operation: {
+        id: 'activate-with-conflict',
+        kind: 'activating',
+        targetNoteId: secondDraft.note.id,
+        targetPath: secondDraft.path,
+      },
+    });
+    vi.spyOn(second.studio, 'save').mockRejectedValueOnce(
+      new StudioSaveConflictError(secondDraft.note, ''),
+    );
+    await expect(second.seasons.loadCurrent()).rejects.toBeInstanceOf(
+      StudioSaveConflictError,
+    );
+  });
+
+  it('returns the same season when activation resumes its own reservation', async () => {
+    const { studio, seasons } = setup();
+    const draft = await completeWizard(
+      seasons,
+      await seasons.beginSeason({ title: 'Winter' }),
+    );
+    const observed = await studio.seasonTransactions.readActive();
+    await studio.seasonTransactions.compareAndSetActive(observed, {
+      version: 1,
+      revision: 1,
+      activeNoteId: draft.note.id,
+      activePath: draft.path,
+      operation: {
+        id: 'activate-self',
+        kind: 'activating',
+        targetNoteId: draft.note.id,
+        targetPath: draft.path,
+      },
+    });
+    await expect(seasons.activateSeason(draft)).resolves.toMatchObject({
+      note: { id: draft.note.id },
+      state: { status: 'active' },
+    });
   });
 
   it('serializes opposite conflict repairs so they cannot archive both seasons', async () => {
