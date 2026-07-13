@@ -20,6 +20,10 @@ import {
   type SavedNote,
   type StudioService,
 } from './studio-service';
+import {
+  SeasonClosePreflightError,
+  type SeasonCloseRequest,
+} from './season-close-transaction';
 
 export interface SeasonRecord extends SavedNote {
   state: SeasonState;
@@ -41,6 +45,7 @@ export interface SeasonCloseReflection {
   dispositions: Array<{
     noteId: string;
     title: string;
+    expectedHash: string;
     disposition: SeasonDisposition;
   }>;
 }
@@ -287,6 +292,41 @@ function seasonLetterBody(
   );
 }
 
+function normalizeCloseReflection(
+  state: SeasonState,
+  reflection: SeasonCloseReflection,
+): SeasonCloseReflection {
+  const normalized = {
+    ...reflection,
+    celebration: reflection.celebration.trim(),
+    learning: reflection.learning.trim(),
+    identity: reflection.identity.trim(),
+  };
+  for (const [field, value] of Object.entries({
+    celebration: normalized.celebration,
+    learning: normalized.learning,
+    identity: normalized.identity,
+  })) {
+    if (value === '') throw new Error(`The ${field} reflection is required.`);
+  }
+  const priorityIds = new Set(state.priorities);
+  if (
+    priorityIds.size !== state.priorities.length ||
+    normalized.dispositions.length !== state.priorities.length ||
+    new Set(normalized.dispositions.map((item) => item.noteId)).size !==
+      normalized.dispositions.length ||
+    normalized.dispositions.some(
+      (item) =>
+        !priorityIds.has(item.noteId) || item.expectedHash.trim() === '',
+    )
+  ) {
+    throw new Error(
+      'Choose exactly one current disposition for every priority.',
+    );
+  }
+  return normalized;
+}
+
 export function createSeasonService(
   studio: StudioService,
   options: SeasonServiceOptions = {},
@@ -496,11 +536,7 @@ export function createSeasonService(
         candidates.map((candidate) => candidate.path),
       );
       await reserveActiveOperation('repairing', keep);
-      const repaired = await resumeActiveOperation();
-      if (repaired === null) {
-        throw new Error('The active-season repair could not be resumed.');
-      }
-      return repaired;
+      return (await resumeActiveOperation())!;
     },
 
     async saveStep(record, step, answers, options = {}) {
@@ -521,11 +557,7 @@ export function createSeasonService(
         throw new Error('Another active season needs attention first.');
       }
       await reserveActiveOperation('activating', record);
-      const activated = await resumeActiveOperation();
-      if (activated === null) {
-        throw new Error('The active-season activation could not be resumed.');
-      }
-      return activated;
+      return (await resumeActiveOperation())!;
     },
 
     async updateSeason(record, answers) {

@@ -365,7 +365,9 @@ describe('season service', () => {
       }),
     ).rejects.toThrow('snapshot unavailable');
     expect((await studio.load(record.path)).note.status).toBe('active');
-    expect((await studio.seasonTransactions.readActive()).value.operation).toMatchObject({
+    expect(
+      (await studio.seasonTransactions.readActive()).value.operation,
+    ).toMatchObject({
       kind: 'closing',
       targetNoteId: record.note.id,
     });
@@ -400,7 +402,9 @@ describe('season service', () => {
         dispositions: [],
       }),
     ).rejects.toThrow('celebration');
-    expect((await studio.seasonTransactions.readActive()).value.operation).toBeNull();
+    expect(
+      (await studio.seasonTransactions.readActive()).value.operation,
+    ).toBeNull();
   });
 
   it('recovers malformed optional workflow fields conservatively', () => {
@@ -554,12 +558,127 @@ describe('season service', () => {
       },
     });
 
-    const recovered = await seasons.loadCurrent();
+    const [recovered, concurrentRecovery] = await Promise.all([
+      seasons.loadCurrent(),
+      seasons.loadCurrent(),
+    ]);
 
     expect(recovered.record?.state.status).toBe('active');
+    expect(concurrentRecovery.record?.state.status).toBe('active');
     expect(
       (await studio.seasonTransactions.readActive()).value.operation,
     ).toBeNull();
+  });
+
+  it('fails closed when a reserved activation targets the wrong or archived note', async () => {
+    const { studio, seasons } = setup();
+    const draft = await completeWizard(
+      seasons,
+      await seasons.beginSeason({ title: 'Winter' }),
+    );
+    let observed = await studio.seasonTransactions.readActive();
+    let reserved = await studio.seasonTransactions.compareAndSetActive(
+      observed,
+      {
+        version: 1,
+        revision: 1,
+        activeNoteId: 'different-id',
+        activePath: draft.path,
+        operation: {
+          id: 'wrong-target',
+          kind: 'activating',
+          targetNoteId: 'different-id',
+          targetPath: draft.path,
+        },
+      },
+    );
+    await expect(seasons.loadCurrent()).rejects.toThrow('no longer matches');
+    reserved = await studio.seasonTransactions.compareAndSetActive(reserved, {
+      ...reserved.value,
+      revision: 2,
+      activeNoteId: draft.note.id,
+      operation: {
+        id: 'archived-target',
+        kind: 'activating',
+        targetNoteId: draft.note.id,
+        targetPath: draft.path,
+      },
+    });
+    await studio.archive(draft.note.id);
+    await expect(seasons.loadCurrent()).rejects.toThrow('cannot be activated');
+    observed = reserved;
+    expect(observed.value.operation?.id).toBe('archived-target');
+  });
+
+  it('fails closed when a reserved repair target disappeared', async () => {
+    const { studio, seasons } = setup();
+    const observed = await studio.seasonTransactions.readActive();
+    await studio.seasonTransactions.compareAndSetActive(observed, {
+      version: 1,
+      revision: 1,
+      activeNoteId: 'missing',
+      activePath: 'Current Season/missing.md',
+      operation: {
+        id: 'repair-missing',
+        kind: 'repairing',
+        targetNoteId: 'missing',
+        targetPath: 'Current Season/missing.md',
+      },
+    });
+    await expect(seasons.loadCurrent()).rejects.toThrow('no longer exists');
+  });
+
+  it('finishes another interrupted activation before rejecting this draft', async () => {
+    const vault = createInMemoryVault();
+    const studio = createStudioService({
+      vault,
+      index: new RecordingIndex(),
+      clock: () => new Date('2026-07-14T00:00:00.000Z'),
+    });
+    const winter = createSeasonService(studio, { generateId: () => 'winter' });
+    const spring = createSeasonService(studio, { generateId: () => 'spring' });
+    const winterDraft = await completeWizard(
+      winter,
+      await winter.beginSeason({ title: 'Winter' }),
+    );
+    const springDraft = await completeWizard(
+      spring,
+      await spring.beginSeason({ title: 'Spring' }),
+    );
+    const observed = await studio.seasonTransactions.readActive();
+    await studio.seasonTransactions.compareAndSetActive(observed, {
+      version: 1,
+      revision: 1,
+      activeNoteId: winterDraft.note.id,
+      activePath: winterDraft.path,
+      operation: {
+        id: 'activate-winter',
+        kind: 'activating',
+        targetNoteId: winterDraft.note.id,
+        targetPath: winterDraft.path,
+      },
+    });
+    await expect(spring.activateSeason(springDraft)).rejects.toThrow(
+      'Another active season',
+    );
+    expect((await winter.loadCurrent()).record?.note.id).toBe('winter');
+  });
+
+  it('blocks begin for a legacy active note even before checkpoint adoption', async () => {
+    const { studio, seasons } = setup();
+    await studio.save({
+      note: note({
+        id: 'legacy',
+        cardType: 'season',
+        status: 'active',
+        rooms: ['current-season'],
+      }),
+      path: 'Current Season/legacy.md',
+      expectedMissing: true,
+    });
+    await expect(seasons.beginSeason({ title: 'Spring' })).rejects.toThrow(
+      'Close the active season',
+    );
   });
 
   it('serializes opposite conflict repairs so they cannot archive both seasons', async () => {
