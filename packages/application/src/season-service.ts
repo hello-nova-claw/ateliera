@@ -3,11 +3,13 @@ import {
   activateSeasonState,
   closeSeasonState,
   createSeasonDraft,
-  PriorityLimitError,
+  reviseSeasonState,
   seasonProgress,
   seasonWizardSteps,
   updateSeasonDraft,
   type SeasonState,
+  type SeasonStepAnswers,
+  type SeasonUpdateInput,
   type SeasonWizardStep,
 } from '@studio/domain';
 import type { StudioNote } from '@studio/domain';
@@ -56,16 +58,16 @@ export interface SeasonService {
     conflicts: SavedNote[];
   }>;
   repairActiveSeason(keepNoteId: string): Promise<SeasonRecord>;
-  saveStep(
+  saveStep<Step extends SeasonWizardStep>(
     record: SeasonRecord,
-    step: SeasonWizardStep,
-    answers: Partial<SeasonState>,
+    step: Step,
+    answers: SeasonStepAnswers<Step>,
     options?: { priorityOverride?: boolean },
   ): Promise<SeasonRecord>;
   activateSeason(record: SeasonRecord): Promise<SeasonRecord>;
   updateSeason(
     record: SeasonRecord,
-    answers: Partial<SeasonState>,
+    answers: SeasonUpdateInput,
   ): Promise<SeasonRecord>;
   closeSeason(
     record: SeasonRecord,
@@ -178,6 +180,11 @@ function markdownForSeason(state: SeasonState): string {
 
 function noteWithState(note: StudioNote, state: SeasonState): StudioNote {
   const existing = note.extraFrontmatter;
+  const {
+    date_start: _previousStart,
+    date_end: _previousEnd,
+    ...preservedMetadata
+  } = existing;
   return {
     ...note,
     title: state.title,
@@ -185,7 +192,7 @@ function noteWithState(note: StudioNote, state: SeasonState): StudioNote {
     status: state.status === 'draft' ? 'draft' : state.status,
     rooms: [...new Set([...note.rooms, 'current-season', 'foyer'])],
     extraFrontmatter: {
-      ...existing,
+      ...preservedMetadata,
       season_id: state.id,
       ...(state.startsOn === undefined ? {} : { date_start: state.startsOn }),
       ...(state.endsOn === undefined ? {} : { date_end: state.endsOn }),
@@ -378,15 +385,9 @@ export function createSeasonService(
     },
 
     async saveStep(record, step, answers, options = {}) {
-      if (
-        step === 'priorities' &&
-        (answers.priorities?.length ?? record.state.priorities.length) > 3 &&
-        options.priorityOverride !== true
-      )
-        throw new PriorityLimitError();
       return saveState(
         record,
-        updateSeasonDraft(record.state, step, answers, now()),
+        updateSeasonDraft(record.state, step, answers, now(), options),
       );
     },
 
@@ -399,7 +400,7 @@ export function createSeasonService(
     },
 
     async updateSeason(record, answers) {
-      return saveState(record, { ...record.state, ...answers, updated: now() });
+      return saveState(record, reviseSeasonState(record.state, answers, now()));
     },
 
     async closeSeason(record, reflection) {

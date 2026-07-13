@@ -90,6 +90,22 @@ export type SeasonUpdateInput = Partial<
   endsOn?: string | null;
 };
 
+const updateKeys = [
+  'title',
+  'startsOn',
+  'endsOn',
+  'statement',
+  'feelings',
+  'priorities',
+  'decisions',
+  'practices',
+  'supports',
+  'constraints',
+  'enough',
+  'notNow',
+  'midSeasonNotes',
+] as const satisfies readonly (keyof SeasonUpdateInput)[];
+
 export interface ClosedSeasonState extends SeasonState {
   status: 'archived';
   carryForward: [];
@@ -164,6 +180,34 @@ function assertAcceptedKeys(step: SeasonWizardStep, answers: object): void {
   }
 }
 
+function normalizeDates<
+  Answers extends { startsOn?: string | null; endsOn?: string | null },
+>(answers: Answers): Answers & { startsOn?: string; endsOn?: string } {
+  return {
+    ...answers,
+    ...('startsOn' in answers
+      ? { startsOn: answers.startsOn || undefined }
+      : {}),
+    ...('endsOn' in answers ? { endsOn: answers.endsOn || undefined } : {}),
+  };
+}
+
+function validateSeasonState(
+  state: SeasonState,
+  options: { priorityOverride?: boolean },
+): void {
+  if (!validDate(state.startsOn) || !validDate(state.endsOn)) {
+    throw new Error('Season dates must use YYYY-MM-DD.');
+  }
+  if (state.startsOn && state.endsOn && state.endsOn < state.startsOn) {
+    throw new Error('End date must be on or after the start date.');
+  }
+  if (state.title.trim() === '') throw new Error('Give this season a name.');
+  if (state.priorities.length > 3 && options.priorityOverride !== true) {
+    throw new PriorityLimitError();
+  }
+}
+
 export function updateSeasonDraft<Step extends SeasonWizardStep>(
   season: SeasonState,
   step: Step,
@@ -175,32 +219,15 @@ export function updateSeasonDraft<Step extends SeasonWizardStep>(
     throw new Error('Wizard steps can update only a draft season.');
   }
   assertAcceptedKeys(step, answers);
-  const normalized = {
-    ...answers,
-    ...('startsOn' in answers
-      ? { startsOn: answers.startsOn || undefined }
-      : {}),
-    ...('endsOn' in answers ? { endsOn: answers.endsOn || undefined } : {}),
-  };
+  const normalized = normalizeDates(answers);
   const next = { ...season, ...normalized } as SeasonState;
-  if (!validDate(next.startsOn) || !validDate(next.endsOn)) {
-    throw new Error('Season dates must use YYYY-MM-DD.');
-  }
-  if (next.startsOn && next.endsOn && next.endsOn < next.startsOn) {
-    throw new Error('End date must be on or after the start date.');
-  }
-  if (step === 'name-dates' && next.title.trim() === '') {
-    throw new Error('Give this season a name.');
-  }
+  validateSeasonState(next, options);
   if (
     step === 'prior-reflection' &&
     next.priorReflection.trim() === '' &&
     !next.skippedPriorReflection
   ) {
     throw new Error('Add a reflection, or choose to skip this step.');
-  }
-  if (next.priorities.length > 3 && options.priorityOverride !== true) {
-    throw new PriorityLimitError();
   }
   return {
     ...next,
@@ -210,6 +237,30 @@ export function updateSeasonDraft<Step extends SeasonWizardStep>(
     ),
     updated: now,
   };
+}
+
+export function reviseSeasonState(
+  season: SeasonState,
+  answers: SeasonUpdateInput,
+  now = season.updated,
+): SeasonState {
+  if (season.status === 'archived') {
+    throw new Error('An archived season cannot be revised.');
+  }
+  const accepted = new Set<string>(updateKeys);
+  const unexpected = Object.keys(answers).filter((key) => !accepted.has(key));
+  if (unexpected.length > 0) {
+    throw new Error(
+      `${unexpected.join(', ')} is not accepted by a season revision.`,
+    );
+  }
+  const next = {
+    ...season,
+    ...normalizeDates(answers),
+    updated: now,
+  } as SeasonState;
+  validateSeasonState(next, {});
+  return next;
 }
 
 export function addSeasonPriority(
