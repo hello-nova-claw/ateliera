@@ -152,6 +152,8 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   let state: 'ready' | 'stale' | 'rebuilding' = 'ready';
   let durableGeneration = 0;
   let indexedGeneration = 0;
+  let externalGeneration = 0;
+  let reconciledExternalGeneration = 0;
   let rebuildRequired = false;
   let mutationTail: Promise<void> = Promise.resolve();
   let recoveryAttempt = 0;
@@ -252,6 +254,7 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   function rebuildIndex(): Promise<void> {
     return enqueueIndexMutation(async () => {
       const targetGeneration = durableGeneration;
+      const targetExternalGeneration = externalGeneration;
       state = 'rebuilding';
       try {
         const { notes } = await scan();
@@ -261,10 +264,15 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
         }));
         await dependencies.index.rebuild(entries);
         indexedGeneration = targetGeneration;
+        reconciledExternalGeneration = targetExternalGeneration;
         rebuildRequired = false;
         recoveryAttempt = 0;
         cancelRecovery();
-        state = indexedGeneration === durableGeneration ? 'ready' : 'stale';
+        state =
+          indexedGeneration === durableGeneration &&
+          reconciledExternalGeneration === externalGeneration
+            ? 'ready'
+            : 'stale';
         emit({ kind: 'index-rebuilt' });
       } catch (error) {
         state = 'stale';
@@ -318,7 +326,11 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
           indexedContent(savedNote),
         );
         indexedGeneration = Math.max(indexedGeneration, generation);
-        if (!rebuildRequired && indexedGeneration === durableGeneration) state = 'ready';
+        if (
+          !rebuildRequired &&
+          indexedGeneration === durableGeneration &&
+          reconciledExternalGeneration === externalGeneration
+        ) state = 'ready';
       } catch {
         markIndexStale();
       }
@@ -333,7 +345,11 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     async start() {
       if (stopWatching !== undefined) return;
       stopWatching = await dependencies.vault.watch((event) => {
-        if (!isInternalPath(event.path)) scheduleReconciliation();
+        if (!isInternalPath(event.path)) {
+          externalGeneration += 1;
+          state = 'stale';
+          scheduleReconciliation();
+        }
       });
     },
 

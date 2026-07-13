@@ -163,4 +163,33 @@ describe('service lifecycle and reconciliation', () => {
       vi.useRealTimers();
     }
   });
+
+  it('stays stale when another external write lands during watcher reconciliation', async () => {
+    const vault = createInMemoryVault();
+    const index = new RecordingIndex();
+    const timers = new ManualTimers();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let rebuilds = 0;
+    index.rebuild = async (entries) => {
+      rebuilds += 1;
+      if (rebuilds === 1) await gate;
+      index.entries.clear();
+      for (const entry of entries) index.entries.set(entry.note.id, entry);
+    };
+    const service = createStudioService({ vault, index, timers });
+    await service.start();
+    await vault.writeTextAtomic('Notes/a.md', serializeNote(note({ id: 'a' })));
+    const firstReconciliation = timers.runNext();
+    await vi.waitFor(() => expect(service.indexState()).toBe('rebuilding'));
+    await vault.writeTextAtomic('Notes/b.md', serializeNote(note({ id: 'b' })));
+    expect(service.indexState()).toBe('stale');
+    release();
+    await firstReconciliation;
+    expect(service.indexState()).toBe('stale');
+    await timers.runNext();
+    expect(service.indexState()).toBe('ready');
+    expect(index.entries.has('b')).toBe(true);
+    await service.dispose();
+  });
 });
