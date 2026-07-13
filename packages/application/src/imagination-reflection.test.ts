@@ -210,4 +210,82 @@ describe('Uncharted and Reflection Garden application behavior', () => {
       unknown_key: { preserved: true },
     });
   });
+
+  it('validates room-specific link mutations before writing', async () => {
+    const vault = await seed([
+      {
+        path: 'Uncharted/question.md',
+        note: note({
+          id: 'question',
+          semanticType: 'uncharted',
+          rooms: ['uncharted'],
+        }),
+      },
+      {
+        path: 'Elsewhere/note.md',
+        note: note({ id: 'elsewhere', semanticType: 'vision' }),
+      },
+      {
+        path: 'Reflection Garden/Reflections/empty-links.md',
+        note: note({
+          id: 'empty-links',
+          semanticType: 'reflection',
+          rooms: ['reflection-garden'],
+          extraFrontmatter: {},
+        }),
+      },
+    ]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    const uncharted = await service.load('Uncharted/question.md');
+    const elsewhere = await service.load('Elsewhere/note.md');
+    const reflection = await service.load(
+      'Reflection Garden/Reflections/empty-links.md',
+    );
+
+    await expect(
+      service.inviteUnchartedToSeason({
+        path: uncharted.path,
+        expectedHash: uncharted.hash,
+        seasonId: '   ',
+      }),
+    ).rejects.toThrow('Choose a season');
+    await expect(
+      service.inviteUnchartedToSeason({
+        path: elsewhere.path,
+        expectedHash: elsewhere.hash,
+        seasonId: '2026-winter',
+      }),
+    ).rejects.toThrow('Only an Uncharted');
+    await expect(
+      service.linkReflectionEvidence({
+        path: elsewhere.path,
+        expectedHash: elsewhere.hash,
+      }),
+    ).rejects.toThrow('Evidence links belong');
+
+    const unchangedLinks = await service.linkReflectionEvidence({
+      path: reflection.path,
+      expectedHash: reflection.hash,
+    });
+    expect(unchangedLinks.note.extraFrontmatter.related_notes).toEqual([]);
+  });
+
+  it('sorts equally recurring themes by name', async () => {
+    const vault = await seed([
+      {
+        path: 'Reflection Garden/Reflections/themes.md',
+        note: note({
+          id: 'themes',
+          semanticType: 'reflection',
+          rooms: ['reflection-garden'],
+          tags: ['zest', 'calm'],
+        }),
+      },
+    ]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    expect((await service.projectReflectionGarden()).themes).toEqual([
+      { name: 'calm', count: 1 },
+      { name: 'zest', count: 1 },
+    ]);
+  });
 });

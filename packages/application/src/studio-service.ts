@@ -35,13 +35,17 @@ import {
   type LandscapeBoardProjection,
   type LandscapeProjectionQuery,
   type LoadedNote,
+  type ReflectionGardenProjection,
   type StudioCardProjection,
+  type UnchartedProjection,
   projectCurrentSeason,
   projectFoyer,
   projectLandscape,
   projectLandscapeBoard,
+  projectReflectionGardenRoom,
   projectRoom,
   projectStream,
+  projectUnchartedRoom,
 } from './projections';
 import { createViewStateRepository } from './view-state';
 import type { ViewStateRepository } from './view-state';
@@ -119,7 +123,12 @@ export interface CaptureNoteInput {
 }
 
 export type CapturePlacement =
-  'foyer-becoming' | 'foyer-feeling' | 'foyer-principle';
+  | 'foyer-becoming'
+  | 'foyer-feeling'
+  | 'foyer-principle'
+  | 'uncharted'
+  | 'reflection'
+  | 'celebration';
 
 const capturePlacements = {
   'foyer-becoming': {
@@ -139,6 +148,24 @@ const capturePlacements = {
     semanticType: 'foundations',
     rooms: ['foyer', 'identity-studio'],
     folder: 'Foyer',
+  },
+  uncharted: {
+    cardType: 'possibility',
+    semanticType: 'uncharted',
+    rooms: ['uncharted'],
+    folder: 'Uncharted',
+  },
+  reflection: {
+    cardType: 'reflection',
+    semanticType: 'reflection',
+    rooms: ['reflection-garden'],
+    folder: 'Reflection Garden/Reflections',
+  },
+  celebration: {
+    cardType: 'celebration',
+    semanticType: 'celebration',
+    rooms: ['reflection-garden'],
+    folder: 'Reflection Garden/Celebrations',
   },
 } as const satisfies Record<
   CapturePlacement,
@@ -204,6 +231,20 @@ export interface StudioService {
     expectedHash: string;
     lifeAreas: string[];
     anchor: LandscapeAnchor;
+  }): Promise<SavedNote>;
+  projectUncharted(): Promise<UnchartedProjection>;
+  inviteUnchartedToSeason(input: {
+    path: string;
+    expectedHash: string;
+    seasonId: string;
+  }): Promise<SavedNote>;
+  projectReflectionGarden(): Promise<ReflectionGardenProjection>;
+  linkReflectionEvidence(input: {
+    path: string;
+    expectedHash: string;
+    noteIds?: string[];
+    lifeAreas?: string[];
+    seasons?: string[];
   }): Promise<SavedNote>;
   projectCurrentSeason(): Promise<ActiveSeasonProjection>;
   projectStream(
@@ -1036,6 +1077,73 @@ export function createStudioService(
           lifeAreas: [...new Set(input.lifeAreas)],
           landscapeAnchor: input.anchor,
           updated: clock().toISOString(),
+        },
+      });
+    },
+    async projectUncharted() {
+      assertActive();
+      return projectUnchartedRoom((await scan()).notes, views);
+    },
+    async inviteUnchartedToSeason(input) {
+      assertActive();
+      const seasonId = input.seasonId.trim();
+      if (seasonId === '') throw new Error('Choose a season to invite this into.');
+      const loaded = await loadNote(input.path);
+      if (loaded.note.semanticType !== 'uncharted') {
+        throw new Error('Only an Uncharted possibility can be invited into a season.');
+      }
+      return save({
+        path: loaded.path,
+        expectedHash: input.expectedHash,
+        note: {
+          ...loaded.note,
+          seasons: [...new Set([...loaded.note.seasons, seasonId])],
+        },
+      });
+    },
+    async projectReflectionGarden() {
+      assertActive();
+      return projectReflectionGardenRoom((await scan()).notes, views);
+    },
+    async linkReflectionEvidence(input) {
+      assertActive();
+      const loaded = await loadNote(input.path);
+      if (
+        loaded.note.semanticType !== 'reflection' &&
+        loaded.note.semanticType !== 'celebration'
+      ) {
+        throw new Error('Evidence links belong to a reflection or celebration.');
+      }
+      const existingRelated = Array.isArray(
+        loaded.note.extraFrontmatter.related_notes,
+      )
+        ? loaded.note.extraFrontmatter.related_notes.filter(
+            (item): item is string =>
+              typeof item === 'string' && item.trim() !== '',
+          )
+        : [];
+      const unique = (items: readonly string[]) =>
+        [...new Set(items.map((item) => item.trim()).filter(Boolean))];
+      return save({
+        path: loaded.path,
+        expectedHash: input.expectedHash,
+        note: {
+          ...loaded.note,
+          lifeAreas: unique([
+            ...loaded.note.lifeAreas,
+            ...(input.lifeAreas ?? []),
+          ]),
+          seasons: unique([
+            ...loaded.note.seasons,
+            ...(input.seasons ?? []),
+          ]),
+          extraFrontmatter: {
+            ...loaded.note.extraFrontmatter,
+            related_notes: unique([
+              ...existingRelated,
+              ...(input.noteIds ?? []),
+            ]),
+          },
         },
       });
     },

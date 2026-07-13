@@ -27,6 +27,37 @@ export interface StudioCardProjection {
   updated: string;
 }
 
+export interface UnchartedCardProjection extends StudioCardProjection {
+  hash: string;
+  horizon: 'near' | 'beyond';
+  seasons: string[];
+}
+
+export interface UnchartedProjection {
+  cards: UnchartedCardProjection[];
+}
+
+export interface ReflectionCardProjection extends StudioCardProjection {
+  hash: string;
+  created: string;
+  lifeAreas: string[];
+  seasons: string[];
+  tags: string[];
+  linkedNoteIds: string[];
+  thenNoteId?: string;
+  coverReference?: string;
+}
+
+export interface ReflectionThemeProjection {
+  name: string;
+  count: number;
+}
+
+export interface ReflectionGardenProjection {
+  cards: ReflectionCardProjection[];
+  themes: ReflectionThemeProjection[];
+}
+
 export interface FoyerImageProjection {
   noteId: string;
   path: string;
@@ -250,6 +281,81 @@ export async function projectStream(
     `stream:${semanticType}`,
     views,
   );
+}
+
+function stringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((item): item is string =>
+    typeof item === 'string' && item.trim() !== '',
+  ))];
+}
+
+export async function projectUnchartedRoom(
+  notes: LoadedNote[],
+  views: ViewStateRepository,
+): Promise<UnchartedProjection> {
+  const candidates = notes.filter((item) => belongsToRoom(item.note, 'uncharted'));
+  const ordered = await orderedProjection(candidates, 'room:uncharted', views);
+  const byId = new Map(candidates.map((item) => [item.note.id, item]));
+  return {
+    cards: ordered.map((card) => {
+      const source = byId.get(card.noteId)!;
+      return {
+        ...card,
+        hash: source.hash,
+        horizon: source.note.extraFrontmatter.beyond_gate === true
+          ? 'beyond'
+          : 'near',
+        seasons: [...source.note.seasons],
+      };
+    }),
+  };
+}
+
+export async function projectReflectionGardenRoom(
+  notes: LoadedNote[],
+  views: ViewStateRepository,
+): Promise<ReflectionGardenProjection> {
+  const candidates = notes.filter((item) =>
+    belongsToRoom(item.note, 'reflection-garden'),
+  );
+  const ordered = await orderedProjection(
+    candidates,
+    'room:reflection-garden',
+    views,
+  );
+  const byId = new Map(candidates.map((item) => [item.note.id, item]));
+  const cards = ordered.map((card): ReflectionCardProjection => {
+    const source = byId.get(card.noteId)!;
+    const thenNoteId = source.note.extraFrontmatter.then_note_id;
+    return {
+      ...card,
+      hash: source.hash,
+      created: source.note.created,
+      lifeAreas: [...source.note.lifeAreas],
+      seasons: [...source.note.seasons],
+      tags: [...source.note.tags],
+      linkedNoteIds: stringList(source.note.extraFrontmatter.related_notes),
+      ...(typeof thenNoteId === 'string' && thenNoteId.trim() !== ''
+        ? { thenNoteId }
+        : {}),
+      ...(source.note.display.cover === undefined
+        ? {}
+        : { coverReference: source.note.display.cover }),
+    };
+  });
+  const themeCounts = new Map<string, number>();
+  for (const card of cards) {
+    for (const tag of new Set(card.tags)) {
+      themeCounts.set(tag, (themeCounts.get(tag) ?? 0) + 1);
+    }
+  }
+  const themes = [...themeCounts]
+    .map(([name, count]) => ({ name, count }))
+    .sort((left, right) =>
+      right.count - left.count || left.name.localeCompare(right.name, 'en'),
+    );
+  return { cards, themes };
 }
 
 export async function projectCurrentSeason(
