@@ -566,6 +566,92 @@ describe('season service', () => {
     ).resolves.toMatchObject({ state: { status: 'archived' } });
   });
 
+  it('rejects a close when recovery completes a different season first', async () => {
+    const { seasons, studio } = setup();
+    let record = await completeWizard(
+      seasons,
+      await seasons.beginSeason({ title: 'Winter' }),
+    );
+    record = await seasons.activateSeason(record);
+    const observed = await studio.seasonTransactions.readActive();
+    await studio.seasonTransactions.compareAndSetActive(observed, {
+      ...observed.value,
+      revision: observed.value.revision + 1,
+      operation: {
+        id: 'other-completed-close',
+        kind: 'closing',
+        targetNoteId: 'other-season',
+        targetPath: 'Current Season/other.md',
+      },
+    });
+    vi.spyOn(studio, 'resumeSeasonCloseTransaction').mockResolvedValue({
+      season: {
+        note: note({
+          id: 'other-season',
+          cardType: 'season',
+          status: 'archived',
+          extraFrontmatter: { season_id: 'other-season' },
+        }),
+        path: 'Current Season/other.md',
+        hash: 'other-hash',
+      },
+      snapshot: {
+        manifestPath: '.studio/backups/other/manifest.json',
+        manifest: {
+          version: 1,
+          id: 'other',
+          reason: 'season-close',
+          createdAt: '2026-07-14T00:00:00.000Z',
+          state: 'complete',
+          files: [],
+        },
+      },
+    });
+
+    await expect(
+      seasons.closeSeason(record, {
+        celebration: 'Enough.',
+        learning: 'Learning.',
+        identity: 'Becoming.',
+        dispositions: [],
+      }),
+    ).rejects.toThrow('Another active season needs attention');
+  });
+
+  it('treats a close checkpoint cleared by a concurrent finisher as complete', async () => {
+    const { seasons, studio } = setup();
+    let record = await completeWizard(
+      seasons,
+      await seasons.beginSeason({ title: 'Winter' }),
+    );
+    record = await seasons.activateSeason(record);
+    const compare = studio.seasonTransactions.compareAndSetActive.bind(
+      studio.seasonTransactions,
+    );
+    let calls = 0;
+    vi.spyOn(
+      studio.seasonTransactions,
+      'compareAndSetActive',
+    ).mockImplementation(async (observed, next) => {
+      calls += 1;
+      const result = await compare(observed, next);
+      if (calls === 2) throw new VaultConflictError();
+      return result;
+    });
+
+    await expect(
+      seasons.closeSeason(record, {
+        celebration: 'Enough.',
+        learning: 'Learning.',
+        identity: 'Becoming.',
+        dispositions: [],
+      }),
+    ).resolves.toMatchObject({ state: { status: 'archived' } });
+    expect(
+      (await studio.seasonTransactions.readActive()).value,
+    ).toMatchObject({ activeNoteId: null, operation: null });
+  });
+
   it('clears only the close reservation when canonical preflight fails', async () => {
     const { seasons, studio } = setup();
     await studio.save({
