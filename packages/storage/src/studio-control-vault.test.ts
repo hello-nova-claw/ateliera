@@ -23,6 +23,7 @@ describe('Studio control vault', () => {
     await expect(vault.readText('Notes/restored.md')).resolves.toMatchObject({ text: 'a' });
 
     await expect(control.moveInto('.studio/views/a.json', '.studio/Trash/a.json')).rejects.toBeInstanceOf(PathEscapeError);
+    await expect(control.moveInto('Notes/.studio-attack.md', '.studio/Trash/a.json')).rejects.toBeInstanceOf(PathEscapeError);
     await expect(control.moveOut('.studio/Trash/a.json', '.studio/views/a.json')).rejects.toBeInstanceOf(PathEscapeError);
   });
 });

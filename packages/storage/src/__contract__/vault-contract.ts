@@ -19,6 +19,8 @@ const unsafePaths = [
   'Inbox//a.md',
   'Inbox/./a.md',
   'Inbox/a.md/',
+  '.studio-write.lock',
+  'Notes/.Studio-attack.md',
 ] as const;
 
 type PathOperation = (vault: VaultPort, path: string) => Promise<unknown>;
