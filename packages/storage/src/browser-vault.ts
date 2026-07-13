@@ -35,6 +35,7 @@ export interface BrowserVaultEnvironment {
   opfsSupported: boolean;
   readSelection(name: string): Promise<BrowserVaultBackend | undefined>;
   writeSelection(name: string, backend: BrowserVaultBackend): Promise<void>;
+  opfsVaultExists(name: string): Promise<boolean>;
   openOpfs(name: string): Promise<BrowserVaultStore>;
   openIndexedDb(name: string): Promise<BrowserVaultStore>;
 }
@@ -491,6 +492,22 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
   const root = await studioRoot.getDirectoryHandle(encodeURIComponent(name), {
     create: true,
   });
+  const probeName = `.studio-opfs-probe-${crypto.randomUUID()}`;
+  let probeCreated = false;
+  try {
+    const probe = await root.getFileHandle(probeName, { create: true });
+    probeCreated = true;
+    const writable = await probe.createWritable();
+    try {
+      await writable.write(new Uint8Array([0]));
+      await writable.close();
+    } catch (error) {
+      await writable.abort?.();
+      throw error;
+    }
+  } finally {
+    if (probeCreated) await root.removeEntry(probeName);
+  }
 
   async function walk(
     directory: FileSystemDirectoryHandleLike,
@@ -566,6 +583,20 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
   };
 }
 
+async function opfsVaultExists(name: string): Promise<boolean> {
+  const storage = navigator.storage as unknown as StorageManagerWithOpfs;
+  if (storage.getDirectory === undefined) return false;
+  try {
+    const originRoot = await storage.getDirectory();
+    const studioRoot = await originRoot.getDirectoryHandle('the-studio');
+    await studioRoot.getDirectoryHandle(encodeURIComponent(name));
+    return true;
+  } catch (error) {
+    if (isNotFound(error)) return false;
+    throw error;
+  }
+}
+
 function defaultEnvironment(): BrowserVaultEnvironment {
   const storage =
     typeof navigator === 'undefined'
@@ -575,6 +606,7 @@ function defaultEnvironment(): BrowserVaultEnvironment {
     opfsSupported: storage?.getDirectory !== undefined,
     readSelection: readBackendSelection,
     writeSelection: writeBackendSelection,
+    opfsVaultExists,
     openOpfs: createOpfsStore,
     openIndexedDb: async (name) => createIndexedDbStore(name),
   };
@@ -587,21 +619,35 @@ async function selectStore(
 ): Promise<BrowserVaultStore> {
   if (storage === 'indexeddb') return environment.openIndexedDb(name);
   if (storage === 'opfs') return environment.openOpfs(name);
-  const selected = await environment.readSelection(name);
-  if (selected !== undefined) {
-    return selected === 'opfs'
-      ? environment.openOpfs(name)
-      : environment.openIndexedDb(name);
-  }
-  const backend: BrowserVaultBackend = environment.opfsSupported
-    ? 'opfs'
-    : 'indexeddb';
-  const store =
-    backend === 'opfs'
-      ? await environment.openOpfs(name)
-      : await environment.openIndexedDb(name);
-  await environment.writeSelection(name, backend);
-  return store;
+  return withVaultLock(`backend:${name}`, async () => {
+    const selected = await environment.readSelection(name);
+    if (selected !== undefined) {
+      return selected === 'opfs'
+        ? environment.openOpfs(name)
+        : environment.openIndexedDb(name);
+    }
+    if (!environment.opfsSupported) {
+      const indexedDb = await environment.openIndexedDb(name);
+      await environment.writeSelection(name, 'indexeddb');
+      return indexedDb;
+    }
+
+    let existingOpfsVault = false;
+    try {
+      existingOpfsVault = await environment.opfsVaultExists(name);
+      const opfs = await environment.openOpfs(name);
+      await environment.writeSelection(name, 'opfs');
+      return opfs;
+    } catch (error) {
+      if (existingOpfsVault) throw error;
+      // With no persisted backend authority, a failed capability probe/open
+      // cannot expose an authoritative OPFS vault. Pin the compatibility
+      // backend before returning it; future opens never probe OPFS again.
+      const indexedDb = await environment.openIndexedDb(name);
+      await environment.writeSelection(name, 'indexeddb');
+      return indexedDb;
+    }
+  });
 }
 
 export function createBrowserVault(

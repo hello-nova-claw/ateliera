@@ -337,6 +337,24 @@ describe('browser vault backend selection', () => {
     expect(fallback).not.toHaveBeenCalled();
   });
 
+  it('pins IndexedDB when the initial OPFS existence probe itself is unusable', async () => {
+    const fallback = vi.fn(async () => createTestStore());
+    const writeSelection = vi.fn(async () => undefined);
+    const vault = createBrowserVault('anna', {
+      environment: environment({
+        opfsVaultExists: vi.fn(async () =>
+          Promise.reject(new DOMException('probe unavailable', 'UnknownError')),
+        ),
+        openIndexedDb: fallback,
+        writeSelection,
+      }),
+    });
+
+    await expect(vault.list()).resolves.toEqual([]);
+    expect(fallback).toHaveBeenCalledOnce();
+    expect(writeSelection).toHaveBeenCalledWith('anna', 'indexeddb');
+  });
+
   it('persists the first backend choice and reopens only that backend', async () => {
     let selected: 'opfs' | 'indexeddb' | undefined;
     const first = environment({
