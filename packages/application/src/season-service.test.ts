@@ -1,11 +1,13 @@
 import {
   VaultConflictError,
   createInMemoryVault,
+  createRevisionStore,
   createStudioControlVault,
 } from '@studio/storage';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createSeasonService, seasonStateFromNote } from './season-service';
+import { SeasonClosePreflightError } from './season-close-transaction';
 import { StudioSaveConflictError, createStudioService } from './studio-service';
 import { RecordingIndex, note } from './test-helpers';
 
@@ -244,12 +246,17 @@ describe('season service', () => {
     const vault = createInMemoryVault();
     const order: string[] = [];
     let next = 0;
+    const durableRevisions = createRevisionStore(vault, {
+      clock: () => new Date('2026-07-14T00:00:00.000Z'),
+    });
     const revisions = {
-      create: vi.fn(async () => {
-        order.push('snapshot');
-        return { manifest: {} as never, manifestPath: '.studio/revision.json' };
-      }),
-      prune: vi.fn(async () => undefined),
+      create: vi.fn(
+        async (...input: Parameters<typeof durableRevisions.create>) => {
+          order.push('snapshot');
+          return durableRevisions.create(...input);
+        },
+      ),
+      prune: vi.fn(() => durableRevisions.prune()),
     };
     const studio = createStudioService({
       vault,
@@ -397,9 +404,7 @@ describe('season service', () => {
         dispositions: [],
       }),
     ).rejects.toThrow('journal unavailable');
-    expect(
-      (await studio.seasonTransactions.readActive()).value,
-    ).toMatchObject({
+    expect((await studio.seasonTransactions.readActive()).value).toMatchObject({
       activeNoteId: record.note.id,
       activePath: record.path,
       operation: null,
@@ -453,9 +458,98 @@ describe('season service', () => {
       conflicts: [],
     });
     expect((await studio.load(record.path)).note.status).toBe('archived');
-    expect(
-      (await studio.seasonTransactions.readActive()).value,
-    ).toMatchObject({ activeNoteId: null, activePath: null, operation: null });
+    expect((await studio.seasonTransactions.readActive()).value).toMatchObject({
+      activeNoteId: null,
+      activePath: null,
+      operation: null,
+    });
+  });
+
+  it('ignores a completed journal after its active checkpoint was cleared', async () => {
+    const { seasons } = setup();
+    let record = await completeWizard(
+      seasons,
+      await seasons.beginSeason({ title: 'Winter' }),
+    );
+    record = await seasons.activateSeason(record);
+    await seasons.closeSeason(record, {
+      celebration: 'A beginning.',
+      learning: 'Still learning.',
+      identity: 'More present.',
+      dispositions: [],
+    });
+
+    await expect(seasons.loadCurrent()).resolves.toEqual({
+      record: null,
+      conflicts: [],
+    });
+  });
+
+  it('fails closed when an orphaned journal targets the wrong note or an archived season', async () => {
+    const wrong = setup();
+    let wrongRecord = await completeWizard(
+      wrong.seasons,
+      await wrong.seasons.beginSeason({ title: 'Winter' }),
+    );
+    wrongRecord = await wrong.seasons.activateSeason(wrongRecord);
+    vi.spyOn(wrong.studio, 'pendingSeasonCloseTransaction').mockResolvedValue({
+      transactionId: 'closing-wrong',
+      seasonNoteId: 'other-season',
+      seasonPath: wrongRecord.path,
+      stage: 'prepared',
+    });
+    await expect(wrong.seasons.loadCurrent()).rejects.toThrow(
+      'no longer matches its canonical note',
+    );
+
+    const archived = setup();
+    let archivedRecord = await completeWizard(
+      archived.seasons,
+      await archived.seasons.beginSeason({ title: 'Winter' }),
+    );
+    archivedRecord = await archived.seasons.activateSeason(archivedRecord);
+    await archived.studio.archive(archivedRecord.note.id);
+    vi.spyOn(
+      archived.studio,
+      'pendingSeasonCloseTransaction',
+    ).mockResolvedValue({
+      transactionId: 'closing-archived',
+      seasonNoteId: archivedRecord.note.id,
+      seasonPath: archivedRecord.path,
+      stage: 'prepared',
+    });
+    await expect(archived.seasons.loadCurrent()).rejects.toThrow(
+      'no longer targets an active season',
+    );
+  });
+
+  it('preserves a matched closing checkpoint when its journal disappears before resume', async () => {
+    const { seasons, studio } = setup();
+    let record = await completeWizard(
+      seasons,
+      await seasons.beginSeason({ title: 'Winter' }),
+    );
+    record = await seasons.activateSeason(record);
+    const observed = await studio.seasonTransactions.readActive();
+    await studio.seasonTransactions.compareAndSetActive(observed, {
+      ...observed.value,
+      revision: observed.value.revision + 1,
+      operation: {
+        id: 'closing-missing-at-resume',
+        kind: 'closing',
+        targetNoteId: record.note.id,
+        targetPath: record.path,
+      },
+    });
+    vi.spyOn(studio, 'pendingSeasonCloseTransaction').mockResolvedValue({
+      transactionId: 'closing-missing-at-resume',
+      seasonNoteId: record.note.id,
+      seasonPath: record.path,
+      stage: 'prepared',
+    });
+    vi.spyOn(studio, 'resumeSeasonCloseTransaction').mockResolvedValue(null);
+
+    await expect(seasons.loadCurrent()).rejects.toThrow('has no journal');
   });
 
   it('rejects blank close reflections and incomplete disposition sets before reserving close', async () => {
@@ -598,7 +692,9 @@ describe('season service', () => {
       },
     });
 
-    await expect(seasons.loadCurrent()).rejects.toThrow('has no journal');
+    await expect(seasons.loadCurrent()).rejects.toThrow(
+      'does not match its durable journal',
+    );
     expect(
       (await studio.seasonTransactions.readActive()).value.operation,
     ).toMatchObject({ id: 'missing-close-journal' });
@@ -639,6 +735,12 @@ describe('season service', () => {
         },
       },
     });
+    vi.spyOn(studio, 'pendingSeasonCloseTransaction').mockResolvedValue({
+      transactionId: 'completed-close',
+      seasonNoteId: record.note.id,
+      seasonPath: record.path,
+      stage: 'completed',
+    });
 
     await expect(
       seasons.closeSeason(record, {
@@ -648,6 +750,130 @@ describe('season service', () => {
         dispositions: [],
       }),
     ).resolves.toMatchObject({ state: { status: 'archived' } });
+  });
+
+  it('rejects close when recovery completes another season first', async () => {
+    const { seasons, studio } = setup();
+    let record = await completeWizard(
+      seasons,
+      await seasons.beginSeason({ title: 'Winter' }),
+    );
+    record = await seasons.activateSeason(record);
+    const observed = await studio.seasonTransactions.readActive();
+    await studio.seasonTransactions.compareAndSetActive(observed, {
+      ...observed.value,
+      revision: observed.value.revision + 1,
+      operation: {
+        id: 'closing-other',
+        kind: 'closing',
+        targetNoteId: record.note.id,
+        targetPath: record.path,
+      },
+    });
+    vi.spyOn(studio, 'pendingSeasonCloseTransaction').mockResolvedValue({
+      transactionId: 'closing-other',
+      seasonNoteId: record.note.id,
+      seasonPath: record.path,
+      stage: 'completed',
+    });
+    vi.spyOn(studio, 'resumeSeasonCloseTransaction').mockResolvedValue({
+      season: {
+        note: note({
+          id: 'other-season',
+          cardType: 'season',
+          status: 'archived',
+          extraFrontmatter: { season_id: 'other-season' },
+        }),
+        path: 'Current Season/other-season.md',
+        hash: 'other-hash',
+      },
+      snapshot: {
+        manifestPath: '.studio/backups/other/manifest.json',
+        manifest: {
+          version: 1,
+          id: 'other',
+          reason: 'season-close',
+          createdAt: '2026-07-14T00:00:00.000Z',
+          state: 'complete',
+          files: [],
+        },
+      },
+    });
+
+    await expect(
+      seasons.closeSeason(record, {
+        celebration: 'Enough.',
+        learning: 'Learning.',
+        identity: 'Becoming.',
+        dispositions: [],
+      }),
+    ).rejects.toThrow('Another active season needs attention');
+  });
+
+  it('rejects close when the active checkpoint changed before preparation', async () => {
+    const { seasons, studio } = setup();
+    let record = await completeWizard(
+      seasons,
+      await seasons.beginSeason({ title: 'Winter' }),
+    );
+    record = await seasons.activateSeason(record);
+    const observed = await studio.seasonTransactions.readActive();
+    await studio.seasonTransactions.compareAndSetActive(observed, {
+      ...observed.value,
+      revision: observed.value.revision + 1,
+      activeNoteId: 'other-season',
+      activePath: 'Current Season/other-season.md',
+    });
+
+    await expect(
+      seasons.closeSeason(record, {
+        celebration: 'Enough.',
+        learning: 'Learning.',
+        identity: 'Becoming.',
+        dispositions: [],
+      }),
+    ).rejects.toThrow('Another active season needs attention');
+  });
+
+  it('clears a reservation after a resume preflight failure and detects a disappeared prepared journal', async () => {
+    for (const failure of [
+      null,
+      new SeasonClosePreflightError('resume preflight failed'),
+    ] as const) {
+      const { seasons, studio } = setup();
+      let record = await completeWizard(
+        seasons,
+        await seasons.beginSeason({ title: 'Winter' }),
+      );
+      record = await seasons.activateSeason(record);
+      if (failure === null) {
+        vi.spyOn(studio, 'resumeSeasonCloseTransaction').mockResolvedValueOnce(
+          null,
+        );
+      } else {
+        vi.spyOn(studio, 'resumeSeasonCloseTransaction').mockRejectedValueOnce(
+          failure,
+        );
+      }
+
+      await expect(
+        seasons.closeSeason(record, {
+          celebration: 'Enough.',
+          learning: 'Learning.',
+          identity: 'Becoming.',
+          dispositions: [],
+        }),
+      ).rejects.toThrow(
+        failure === null ? 'journal disappeared' : 'resume preflight failed',
+      );
+      const operation = (await studio.seasonTransactions.readActive()).value
+        .operation;
+      if (failure === null) {
+        expect(operation).toMatchObject({ kind: 'closing' });
+      } else {
+        expect(operation).toBeNull();
+      }
+    }
   });
 
   it('fails explicitly without mutating user notes when recovery finds a forged active target', async () => {
@@ -661,17 +887,17 @@ describe('season service', () => {
     await createStudioControlVault(vault).writeTextAtomic(
       '.studio/season/active.json',
       `${JSON.stringify({
-      version: 1,
-      revision: 3,
-      activeNoteId: record.note.id,
-      activePath: record.path,
-      operation: {
-        id: 'other-completed-close',
-        kind: 'closing',
-        targetNoteId: 'other-season',
-        targetPath: 'Current Season/other.md',
-      },
-    })}\n`,
+        version: 1,
+        revision: 3,
+        activeNoteId: record.note.id,
+        activePath: record.path,
+        operation: {
+          id: 'other-completed-close',
+          kind: 'closing',
+          targetNoteId: 'other-season',
+          targetPath: 'Current Season/other.md',
+        },
+      })}\n`,
     );
     const resume = vi.spyOn(studio, 'resumeSeasonCloseTransaction');
 
@@ -715,9 +941,10 @@ describe('season service', () => {
         dispositions: [],
       }),
     ).resolves.toMatchObject({ state: { status: 'archived' } });
-    expect(
-      (await studio.seasonTransactions.readActive()).value,
-    ).toMatchObject({ activeNoteId: null, operation: null });
+    expect((await studio.seasonTransactions.readActive()).value).toMatchObject({
+      activeNoteId: null,
+      operation: null,
+    });
   });
 
   it('clears only the close reservation when canonical preflight fails', async () => {
@@ -769,9 +996,7 @@ describe('season service', () => {
         ],
       }),
     ).rejects.toThrow('changed before close began');
-    expect(
-      (await studio.seasonTransactions.readActive()).value,
-    ).toMatchObject({
+    expect((await studio.seasonTransactions.readActive()).value).toMatchObject({
       activeNoteId: record.note.id,
       operation: null,
     });
