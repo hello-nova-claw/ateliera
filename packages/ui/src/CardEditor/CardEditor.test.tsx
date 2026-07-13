@@ -38,7 +38,7 @@ it('exposes title, Markdown body, metadata, and a deduplicated save state', asyn
     await screen.findByRole('textbox', { name: 'Markdown body' }),
   ).toHaveTextContent('The hill was green.');
   expect(screen.getByRole('status')).toHaveTextContent('Saving…');
-  fireEvent.click(screen.getByRole('button', { name: 'Note details' }));
+  fireEvent.click(screen.getByText('Note details'));
   expect(screen.getByLabelText('Semantic meaning')).toHaveValue('reflection');
   expect(screen.getByLabelText('Status')).toHaveValue('active');
 
@@ -88,8 +88,8 @@ it('preserves both conflict versions and exposes all explicit resolutions', () =
   );
 
   expect(screen.getByRole('alert')).toHaveTextContent('Another version exists');
-  expect(screen.getByText('Mine')).toBeVisible();
-  expect(screen.getByText('The other version')).toBeVisible();
+  expect(screen.getByRole('region', { name: 'Your version' })).toHaveTextContent('Mine');
+  expect(screen.getByRole('region', { name: 'Other version' })).toHaveTextContent('The other version');
   expect(screen.getByRole('button', { name: 'Keep mine as a sibling' })).toBeVisible();
   expect(screen.getByRole('button', { name: 'Keep other' })).toBeVisible();
   expect(screen.getByRole('button', { name: 'Merge manually' })).toBeVisible();

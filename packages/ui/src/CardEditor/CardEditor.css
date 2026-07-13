@@ -1,0 +1,171 @@
+.card-editor {
+  display: grid;
+  gap: var(--studio-space-5);
+  min-block-size: 100%;
+  padding: clamp(var(--studio-space-5), 5vw, var(--studio-space-10));
+  color: var(--studio-color-ink);
+  background: var(--studio-color-surface);
+}
+
+.card-editor__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--studio-space-4);
+}
+
+.card-editor__eyebrow,
+.card-editor__save-state {
+  margin: 0;
+  font: var(--studio-type-eyebrow);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.card-editor__save-state {
+  color: var(--studio-color-ink-muted);
+}
+
+.card-editor__save-state--saved {
+  color: var(--studio-color-growth);
+}
+
+.card-editor__save-state--conflict,
+.card-editor__save-state--error {
+  color: var(--studio-color-celebration);
+}
+
+.card-editor__title-field,
+.card-editor__metadata label {
+  display: grid;
+  gap: var(--studio-space-2);
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-control);
+}
+
+.card-editor__title-field input {
+  inline-size: 100%;
+  padding: var(--studio-space-2) 0;
+  border: 0;
+  border-block-end: 1px solid var(--studio-color-line);
+  color: var(--studio-color-ink-strong);
+  background: transparent;
+  font: var(--studio-type-page-title);
+}
+
+.card-editor__markdown {
+  min-block-size: 18rem;
+  border: 1px solid var(--studio-color-line);
+  border-radius: var(--studio-radius-card);
+  background: var(--studio-color-frame);
+  overflow: clip;
+}
+
+.card-editor__markdown .cm-editor,
+.card-editor__markdown .cm-scroller {
+  min-block-size: inherit;
+}
+
+.card-editor__markdown .cm-editor {
+  color: var(--studio-color-ink);
+  background: transparent;
+  font: var(--studio-type-body);
+}
+
+.card-editor__markdown .cm-content {
+  padding: var(--studio-space-5);
+  caret-color: var(--studio-color-ink);
+}
+
+.card-editor__markdown .cm-focused {
+  outline: var(--studio-focus-width) solid var(--studio-color-focus);
+  outline-offset: calc(-1 * var(--studio-focus-width));
+}
+
+.card-editor__details {
+  border-block-start: 1px solid var(--studio-color-line);
+  padding-block-start: var(--studio-space-4);
+}
+
+.card-editor__details summary {
+  min-block-size: var(--studio-touch-target);
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-control);
+  cursor: pointer;
+}
+
+.card-editor__metadata,
+.card-editor__versions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--studio-space-4);
+}
+
+.card-editor__metadata select,
+.card-editor__actions button {
+  min-block-size: var(--studio-touch-target);
+  border: 1px solid var(--studio-color-line-strong);
+  border-radius: 0.625rem;
+  color: var(--studio-color-ink);
+  background: var(--studio-color-surface);
+  font: var(--studio-type-control);
+}
+
+.card-editor__notice,
+.card-editor__conflict {
+  padding: var(--studio-space-5);
+  border: 1px solid var(--studio-color-line-strong);
+  border-radius: var(--studio-radius-card);
+  background: var(--studio-color-sunken);
+}
+
+.card-editor__notice h2,
+.card-editor__conflict h2,
+.card-editor__versions h3 {
+  margin-block-start: 0;
+  font-family: var(--studio-font-display);
+}
+
+.card-editor__versions section {
+  padding: var(--studio-space-4);
+  border: 1px solid var(--studio-color-line);
+  border-radius: var(--studio-radius-note);
+  background: var(--studio-stock-reflection);
+  white-space: pre-wrap;
+}
+
+.card-editor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--studio-space-3);
+}
+
+.card-editor__actions button {
+  padding-inline: var(--studio-space-4);
+  cursor: pointer;
+}
+
+@media (width <= 47.99rem) {
+  .card-editor {
+    padding: var(--studio-space-5);
+  }
+
+  .card-editor__metadata,
+  .card-editor__versions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-editor__markdown .cm-cursor {
+    animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .card-editor__notice,
+  .card-editor__conflict,
+  .card-editor__markdown {
+    border-color: CanvasText;
+  }
+}

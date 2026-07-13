@@ -7,6 +7,13 @@ export {
 } from './CommandPalette/CommandPalette';
 export { Dialog, type DialogProps } from './Dialog/Dialog';
 export {
+  CardEditor,
+  type CardEditorProps,
+  type ConflictView,
+  type EditorSaveState,
+  type RecoveryDraftView,
+} from './CardEditor/CardEditor';
+export {
   SemanticMark,
   type SemanticMarkProps,
 } from './SemanticMark/SemanticMark';
