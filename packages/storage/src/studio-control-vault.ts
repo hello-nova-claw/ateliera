@@ -1,5 +1,5 @@
 import { PathEscapeError } from './conflict';
-import type { VaultEntry, VaultPort, WriteCondition } from './vault-port';
+import type { MoveCondition, VaultEntry, VaultPort, WriteCondition } from './vault-port';
 
 export interface StudioControlVault {
   list(prefix: string): Promise<VaultEntry[]>;
@@ -9,8 +9,8 @@ export interface StudioControlVault {
   writeBinaryAtomic(path: string, bytes: Uint8Array, condition?: WriteCondition): ReturnType<VaultPort['writeBinaryAtomic']>;
   remove(path: string, condition?: WriteCondition): ReturnType<VaultPort['remove']>;
   exists(path: string): ReturnType<VaultPort['exists']>;
-  moveInto(userPath: string, controlPath: string): ReturnType<VaultPort['move']>;
-  moveOut(controlPath: string, userPath: string): ReturnType<VaultPort['move']>;
+  moveInto(userPath: string, controlPath: string, condition?: MoveCondition): ReturnType<VaultPort['move']>;
+  moveOut(controlPath: string, userPath: string, condition?: MoveCondition): ReturnType<VaultPort['move']>;
 }
 
 function isAllowedControlPath(path: string): boolean {
@@ -44,7 +44,7 @@ export function createStudioControlVault(vault: VaultPort): StudioControlVault {
       vault.writeBinaryAtomic(controlPath(path), bytes, condition),
     remove: async (path, condition) => vault.remove(controlPath(path), condition),
     exists: async (path) => vault.exists(controlPath(path)),
-    moveInto: async (from, to) => vault.move(userPath(from), controlPath(to)),
-    moveOut: async (from, to) => vault.move(controlPath(from), userPath(to)),
+    moveInto: async (from, to, condition) => vault.move(userPath(from), controlPath(to), condition),
+    moveOut: async (from, to, condition) => vault.move(controlPath(from), userPath(to), condition),
   };
 }

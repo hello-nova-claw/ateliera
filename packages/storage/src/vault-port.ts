@@ -18,6 +18,11 @@ export interface WriteCondition {
   expectedMissing?: true;
 }
 
+export interface MoveCondition {
+  /** Move only when the source still has this content hash. */
+  expectedHash?: string;
+}
+
 export type VaultChange =
   | { kind: 'created' | 'modified'; path: string; hash: string }
   | { kind: 'moved'; path: string; previousPath: string; hash: string }
@@ -37,7 +42,7 @@ export interface VaultPort {
     bytes: Uint8Array,
     condition?: WriteCondition,
   ): Promise<{ hash: string }>;
-  move(from: string, to: string): Promise<void>;
+  move(from: string, to: string, condition?: MoveCondition): Promise<void>;
   remove(path: string, condition?: WriteCondition): Promise<void>;
   exists(path: string): Promise<boolean>;
   watch(listener: (event: VaultChange) => void): Promise<() => void>;

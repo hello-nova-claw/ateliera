@@ -4,6 +4,7 @@ import {
   VaultUnavailableError,
 } from './conflict';
 import type {
+  MoveCondition,
   VaultChange,
   VaultEntry,
   VaultPort,
@@ -238,13 +239,16 @@ class BrowserVault implements VaultPort {
     return this.#write(validatePath(path), bytes, condition);
   }
 
-  async move(from: string, to: string): Promise<void> {
+  async move(from: string, to: string, condition?: MoveCondition): Promise<void> {
     const sourcePath = validatePath(from);
     const destinationPath = validatePath(to);
     await withVaultLock(this.name, async () => {
       const store = await this.storePromise;
       const file = await store.read(sourcePath);
       if (file === undefined) throw new VaultUnavailableError();
+      if (condition?.expectedHash !== undefined && file.hash !== condition.expectedHash) {
+        throw new VaultConflictError();
+      }
       if ((await store.read(destinationPath)) !== undefined) {
         throw new VaultConflictError();
       }

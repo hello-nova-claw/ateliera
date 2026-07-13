@@ -286,11 +286,7 @@ export function createNoteLifecycleService({
         ...loaded,
         manifest: { version: 1, entries: [...loaded.manifest.entries, entry] },
       });
-      const beforeMove = await vault.readText(current.path);
-      if (beforeMove.hash !== current.hash) {
-        throw new VaultConflictError('The note changed before it could be moved to Trash.');
-      }
-      await controlVault.moveInto(current.path, trashPath);
+      await controlVault.moveInto(current.path, trashPath, { expectedHash: current.hash });
       try {
         loaded = await writeManifest(controlVault, {
           ...loaded,
@@ -303,7 +299,9 @@ export function createNoteLifecycleService({
         void loaded;
       } catch (error) {
         if (!(await available(vault, current.path)) && await available(controlVault, trashPath)) {
-          await controlVault.moveOut(trashPath, current.path).catch(() => undefined);
+          await controlVault.moveOut(trashPath, current.path, {
+            expectedHash: current.hash,
+          }).catch(() => undefined);
         }
         throw new LifecyclePartialFailureError(
           'Trash was interrupted. The note was preserved and its journal can be reconciled.',
@@ -351,7 +349,9 @@ export function createNoteLifecycleService({
             item.id === id ? { ...item, state: 'restoring', restorePath: destination } : item),
         },
       });
-      await controlVault.moveOut(entry.trashPath, destination);
+      await controlVault.moveOut(entry.trashPath, destination, {
+        expectedHash: entry.originalHash,
+      });
       const restored = await vault.readText(destination);
       try {
         await writeManifest(controlVault, {

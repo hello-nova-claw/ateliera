@@ -35,6 +35,7 @@ export type {
 export type {
   VaultChange,
   VaultEntry,
+  MoveCondition,
   VaultPort,
   WriteCondition,
 } from './vault-port';

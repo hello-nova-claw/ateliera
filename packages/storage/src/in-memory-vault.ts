@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { PathEscapeError, VaultConflictError, VaultUnavailableError } from './conflict';
-import type { VaultChange, VaultEntry, VaultPort, WriteCondition } from './vault-port';
+import type { MoveCondition, VaultChange, VaultEntry, VaultPort, WriteCondition } from './vault-port';
 
 interface StoredFile {
   bytes: Uint8Array;
@@ -98,10 +98,13 @@ class InMemoryVault implements VaultPort {
     return this.#write(validatePath(path), bytes, condition);
   }
 
-  async move(from: string, to: string): Promise<void> {
+  async move(from: string, to: string, condition?: MoveCondition): Promise<void> {
     const sourcePath = validatePath(from);
     const destinationPath = validatePath(to);
     const file = this.#requiredFile(sourcePath);
+    if (condition?.expectedHash !== undefined && file.hash !== condition.expectedHash) {
+      throw new VaultConflictError();
+    }
     if (this.#files.has(destinationPath)) throw new VaultConflictError();
 
     this.#files.delete(sourcePath);

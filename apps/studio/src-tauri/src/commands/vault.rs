@@ -663,7 +663,12 @@ impl Vault {
         })
     }
 
-    pub fn move_path(&self, from: &str, to: &str) -> Result<(), VaultError> {
+    pub fn move_path(
+        &self,
+        from: &str,
+        to: &str,
+        expected_hash: Option<&str>,
+    ) -> Result<(), VaultError> {
         let _write_guard = self.lock_writes()?;
         let from_parent = open_parent(&self.root, from, false)?;
         let metadata = from_parent
@@ -672,6 +677,9 @@ impl Vault {
             .map_err(map_path_error)?;
         if metadata.file_type().is_symlink() {
             return Err(VaultError::PathEscape);
+        }
+        if let Some(expected) = expected_hash {
+            Self::require_expected_hash(&from_parent.directory, &from_parent.basename, expected)?;
         }
         let to_parent = open_parent(&self.root, to, true)?;
         rename_exclusive(
@@ -1168,8 +1176,13 @@ pub fn vault_move<R: Runtime>(
     vault_token: String,
     from: String,
     to: String,
+    expected_hash: Option<String>,
 ) -> Result<(), VaultError> {
-    selected_vault(&window, &state, &vault_token)?.move_path(&from, &to)
+    selected_vault(&window, &state, &vault_token)?.move_path(
+        &from,
+        &to,
+        expected_hash.as_deref(),
+    )
 }
 
 #[tauri::command]
