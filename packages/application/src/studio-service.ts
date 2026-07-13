@@ -512,8 +512,8 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   }
 
   async function loadNote(path: string): Promise<SavedNote> {
-    const { text: _text, ...loaded } = await readNote(path);
-    return loaded;
+    const loaded = await readNote(path);
+    return { note: loaded.note, path: loaded.path, hash: loaded.hash };
   }
 
   async function finishLifecycle<T>(

@@ -187,7 +187,12 @@ describe('cover media resolution', () => {
     unknownSize.vault.list = async (prefix) => [
       { path: 'Attachments', kind: 'directory' },
       { path: 'Attachments/other.jpg', kind: 'file', size: 1 },
-      ...(await unknownList(prefix)).map(({ size: _size, ...entry }) => entry),
+      ...(await unknownList(prefix)).map((entry) => ({
+        path: entry.path,
+        kind: entry.kind,
+        ...(entry.modifiedAt === undefined ? {} : { modifiedAt: entry.modifiedAt }),
+        ...(entry.contentHash === undefined ? {} : { contentHash: entry.contentHash }),
+      })),
     ];
     await expect(unknownSize.service.resolveCover('Foyer/cover.md')).resolves.toMatchObject({
       kind: 'available', mimeType: 'image/jpeg',
