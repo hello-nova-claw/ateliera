@@ -364,6 +364,26 @@
 .foyer-legend__heart--celebration { color: var(--studio-color-celebration); }
 .foyer-legend__heart--uncharted { color: var(--studio-color-uncharted); }
 
+.foyer-drafts {
+  max-inline-size: 44rem;
+  margin-block-start: var(--studio-space-12);
+  padding: var(--studio-space-5);
+  border: 1px solid var(--studio-color-line);
+  border-radius: var(--studio-radius-card);
+  background: var(--studio-color-sunken);
+}
+
+.foyer-drafts h2 {
+  margin: 0;
+  font: 400 1.35rem/1.2 var(--studio-font-display);
+}
+
+.foyer-drafts ul {
+  margin: var(--studio-space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
 @media (width <= 68rem) {
   .foyer-page__spread {
     grid-template-columns: minmax(0, 1.3fr) minmax(17rem, 1fr);

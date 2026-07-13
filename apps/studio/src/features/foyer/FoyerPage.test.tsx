@@ -35,7 +35,7 @@ it('invites only three starting choices in an empty Foyer', () => {
   expect(screen.getAllByRole('button')).toHaveLength(3);
   expect(screen.getByText('What are you currently becoming?')).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Add a becoming sentence' }));
-  expect(onCreate).toHaveBeenCalledWith('becoming');
+  expect(onCreate).toHaveBeenCalledWith('becoming', expect.any(HTMLButtonElement));
 });
 
 it('composes populated editorial slots without turning cards into giant buttons', () => {

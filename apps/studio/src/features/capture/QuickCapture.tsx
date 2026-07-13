@@ -5,7 +5,7 @@ import { useState } from 'react';
 export interface QuickCaptureProps {
   capture: (input: QuickCaptureInput) => Promise<SavedNote>;
   onCancel: () => void;
-  onRemembered: (saved: SavedNote) => void;
+  onRemembered: (saved: SavedNote) => void | Promise<void>;
 }
 
 export type QuickCaptureInput = CaptureNoteInput;
@@ -27,7 +27,7 @@ export function QuickCapture({
       const saved = await capture(
         semanticType === '' ? { body } : { body, semanticType },
       );
-      onRemembered(saved);
+      await onRemembered(saved);
     } catch (reason) {
       setError(
         reason instanceof Error ? reason.message : 'This thought could not be remembered.',

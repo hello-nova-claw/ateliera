@@ -2,14 +2,14 @@ import type { StudioCardProjection } from '@studio/application';
 
 export function Principles({ principles, onCreate, onOpen }: {
   principles: StudioCardProjection[];
-  onCreate?: () => void;
+  onCreate?: (trigger: HTMLButtonElement) => void;
   onOpen?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
 }) {
   return (
     <section className="foyer-principles" aria-labelledby="foyer-principles-title">
       <div className="foyer-principles__heading">
         <div><p className="foyer-section-label">Guiding principles</p><h2 id="foyer-principles-title">What supports this life?</h2></div>
-        {principles.length === 0 && onCreate && <button className="foyer-action" onClick={onCreate} type="button">Add a principle</button>}
+        {principles.length === 0 && onCreate && <button className="foyer-action" onClick={(event) => onCreate(event.currentTarget)} type="button">Add a principle</button>}
       </div>
       {principles.length > 0 && (
         <div className="foyer-principles__grid">

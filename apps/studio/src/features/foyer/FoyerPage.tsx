@@ -13,7 +13,7 @@ export type FoyerSlot = 'becoming' | 'feeling' | 'principle';
 export interface FoyerPageProps {
   error?: string;
   model: FoyerProjection;
-  onCreate?: (slot: FoyerSlot) => void;
+  onCreate?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
   onOpen?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
   state?: 'ready' | 'loading' | 'offline' | 'stale' | 'error';
 }
@@ -45,13 +45,13 @@ export function FoyerPage({ error, model, onCreate, onOpen, state = 'ready' }: F
       {state === 'error' && <p className="foyer-page__state foyer-page__state--error" role="alert">{error ?? 'The Foyer could not be gathered. Your notes remain in the Studio.'}</p>}
       <div className="foyer-page__spread">
         <div className="foyer-page__wide">
-          <Becoming card={model.becoming} {...(onCreate ? { onCreate: () => onCreate('becoming') } : {})} {...(onOpen ? { onOpen } : {})} />
+          <Becoming card={model.becoming} {...(onCreate ? { onCreate: (trigger: HTMLButtonElement) => onCreate('becoming', trigger) } : {})} {...(onOpen ? { onOpen } : {})} />
           <SeasonPreview priorities={model.priorities} season={model.currentSeason} {...(onOpen ? { onOpen } : {})} />
-          <Principles principles={model.principles} {...(onCreate ? { onCreate: () => onCreate('principle') } : {})} {...(onOpen ? { onOpen } : {})} />
+          <Principles principles={model.principles} {...(onCreate ? { onCreate: (trigger: HTMLButtonElement) => onCreate('principle', trigger) } : {})} {...(onOpen ? { onOpen } : {})} />
         </div>
         <aside className="foyer-page__narrow" aria-label="Feeling and return">
           {model.image && <FoyerImage image={model.image} />}
-          <Feelings feelings={model.feelings} {...(onCreate ? { onCreate: () => onCreate('feeling') } : {})} />
+          <Feelings feelings={model.feelings} {...(onCreate ? { onCreate: (trigger: HTMLButtonElement) => onCreate('feeling', trigger) } : {})} />
           <ReturnCard card={model.returning} {...(onOpen ? { onOpen } : {})} />
         </aside>
       </div>

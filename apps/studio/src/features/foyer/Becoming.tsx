@@ -2,7 +2,7 @@ import type { StudioCardProjection } from '@studio/application';
 
 interface BecomingProps {
   card: StudioCardProjection | null;
-  onCreate?: () => void;
+  onCreate?: (trigger: HTMLButtonElement) => void;
   onOpen?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
 }
 
@@ -12,7 +12,7 @@ export function Becoming({ card, onCreate, onOpen }: BecomingProps) {
       <section className="foyer-becoming foyer-becoming--empty" aria-labelledby="foyer-becoming-title">
         <p className="foyer-section-label">Currently becoming</p>
         <h2 id="foyer-becoming-title">What are you currently becoming?</h2>
-        {onCreate && <button className="foyer-action" onClick={onCreate} type="button">Add a becoming sentence</button>}
+        {onCreate && <button className="foyer-action" onClick={(event) => onCreate(event.currentTarget)} type="button">Add a becoming sentence</button>}
       </section>
     );
   }

@@ -1,5 +1,6 @@
 import {
   type CaptureEntry,
+  type CapturePlacement,
   type CaptureService,
   type SavedNote,
   type StudioService,
@@ -32,6 +33,7 @@ import { useStudioRouter, type StudioPath } from './router';
 import { themes, type ThemeId } from './themes';
 import { QuickCapture } from '../features/capture/QuickCapture';
 import type { QuickCaptureInput } from '../features/capture/QuickCapture';
+import type { FoyerSlot } from '../features/foyer/FoyerPage';
 import './app.css';
 
 const NoteEditorSession = lazy(() =>
@@ -173,6 +175,7 @@ function StudioApplication({
   const capturePaths = useRef(new Map<string, string>());
   const activeLifecycleService = useRef<StudioService | undefined>(undefined);
   const pendingNavigation = useRef<StudioPath | undefined>(undefined);
+  const pendingCapturePlacement = useRef<CapturePlacement | undefined>(undefined);
 
   navigationGuard.current = (next) => {
     if (editor === undefined) return false;
@@ -395,6 +398,9 @@ function StudioApplication({
         ...(input.semanticType === undefined
           ? {}
           : { semanticType: input.semanticType }),
+        ...(pendingCapturePlacement.current === undefined
+          ? {}
+          : { placement: pendingCapturePlacement.current }),
       });
     }
     const captured = await service.capture(input.body);
@@ -403,7 +409,31 @@ function StudioApplication({
 
   function closeCapture(): void {
     setCaptureOpen(false);
+    pendingCapturePlacement.current = undefined;
     queueMicrotask(() => captureButton.current?.focus());
+  }
+
+  function beginFoyerCapture(slot: FoyerSlot, trigger: HTMLButtonElement): void {
+    const placements: Record<FoyerSlot, CapturePlacement> = {
+      becoming: 'foyer-becoming',
+      feeling: 'foyer-feeling',
+      principle: 'foyer-principle',
+    };
+    pendingCapturePlacement.current = placements[slot];
+    captureButton.current = trigger;
+    setCaptureOpen(true);
+  }
+
+  function openProjectedCard(card: { path: string }, trigger: HTMLButtonElement): void {
+    if (!isStudioService(service)) return;
+    editorTrigger.current = trigger;
+    setToast('');
+    void service.load(card.path).then((saved) => {
+      setEditorCloseRequest(0);
+      setEditor(saved);
+    }).catch((reason: unknown) => {
+      setError(reason instanceof Error ? reason.message : 'This note could not be opened.');
+    });
   }
 
   function closeEditor(): void {
@@ -560,6 +590,8 @@ function StudioApplication({
       <section className="studio-room">
         <RoomRoute
           captures={captures}
+          onCreateFoyer={beginFoyerCapture}
+          onOpenCard={openProjectedCard}
           onOpenCapture={(id, trigger) => {
             if (!isStudioService(service)) return;
             const notePath = capturePaths.current.get(id);
@@ -574,6 +606,8 @@ function StudioApplication({
             });
           }}
           path={path}
+          projectionRevision={projectionRevision}
+          {...(isStudioService(service) ? { service } : {})}
           title={title}
         />
         {!opened && (

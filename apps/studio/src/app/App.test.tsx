@@ -167,15 +167,11 @@ it('turns an empty Foyer invitation into a canonical featured note', async () =>
   fireEvent.change(screen.getByRole('textbox', { name: 'What would you like remembered?' }), { target: { value: 'A woman who creates from calm' } });
   fireEvent.click(screen.getByRole('button', { name: 'Remember' }));
 
-  await waitFor(() => expect(fixture.service.save).toHaveBeenCalledWith(expect.objectContaining({
-    expectedHash: 'hash-1',
-    note: expect.objectContaining({
-      cardType: 'identity',
-      semanticType: 'foundations',
-      rooms: expect.arrayContaining(['foyer', 'identity-studio']),
-      display: expect.objectContaining({ featured: true }),
-    }),
+  await waitFor(() => expect(fixture.service.capture).toHaveBeenCalledWith(expect.objectContaining({
+    body: 'A woman who creates from calm',
+    placement: 'foyer-becoming',
   })));
+  expect(fixture.service.save).not.toHaveBeenCalled();
 });
 
 it('describes best-effort local storage without an alarm', async () => {
