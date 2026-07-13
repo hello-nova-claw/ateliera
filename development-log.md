@@ -28,9 +28,17 @@
 - Added representative vault fixtures plus enum, malformed metadata, fidelity, and property-based coverage.
 - Task 3 is complete; current phase: ready for Task 4 migrations and links.
 
-## 2026-07-13 — Desktop vault adapter
+## 2026-07-13 — Desktop vault security remediation
 
-- Added a root-contained Tauri vault adapter with canonical path and symlink guards.
-- Added conditional SHA-256 writes using same-directory temporary files, file/directory sync, and atomic rename.
-- Added selected-root filesystem watching and a TypeScript adapter verified by the shared VaultPort contract.
-- Task 5 is complete; current phase: ready for Task 6 browser-local storage.
+- Added an initial Tauri vault adapter, conditional SHA-256 writes, same-directory atomic replacement, filesystem watching, and a TypeScript bridge.
+- Security review found pathname time-of-check/time-of-use exposure, raw temporary watcher events, non-atomic expected-hash/move behavior against external writers, and watcher lifecycle gaps.
+- Task 5 is not complete. It is under security remediation to use native folder selection, a retained open-directory capability, opaque webview tokens, descriptor-relative operations, logical watcher events, and lifecycle revocation.
+- Task 6 browser-vault contract work may proceed independently; Task 5 remains a release blocker until re-reviewed.
+
+## 2026-07-13 — Final visual design handoff
+
+- Accepted Anna's final Studio design-system ZIP as the visual source of truth.
+- Added the implementation-grade visual addendum covering exact tokens, seven themes, self-hosted typography, room compositions, component states, responsive behavior, accessibility, interaction gaps, and authority rules.
+- Added architecture decisions for token-override themes and self-hosted Newsreader, Hanken Grotesk, and Caveat.
+- Retained the original mockup and artifact checksums as durable provenance; the bespoke `.dc.html` prototype runtime is reference-only and will not ship.
+- Updated the product bible and executable plan without changing MVP scope.

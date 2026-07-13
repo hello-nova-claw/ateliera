@@ -3,7 +3,7 @@
 ## Product Requirements & Design Bible
 
 **Status:** Living product specification  
-**Version:** 1.0  
+**Version:** 1.1
 **Date:** 13 July 2026  
 **Product owner:** Anna McPhee  
 **Working definition:** A private, calm, Markdown-native personal environment for identity architecture, life design, reflection, and imagination.
@@ -33,6 +33,12 @@ When a feature request conflicts with this document, resolve it in this order:
 6. Feature breadth.
 
 The app is successful when Anna wants to return to it and can still understand, export, and own everything inside it years later.
+
+### 1.1 Companion implementation authorities
+
+- [The Studio Final Visual Design Addendum](../design/The-Studio-Final-Visual-Design-Addendum.md) is authoritative for the accepted final visual system, exact themes, typography, screen composition, component states, responsive behavior, and visual acceptance tests.
+- [The Studio implementation plan](../superpowers/plans/2026-07-13-the-studio-mvp.md) is authoritative for sequencing, package boundaries, executable acceptance criteria, and MVP delivery gates.
+- Product behavior, privacy, data ownership, safety, and MVP scope remain authoritative in this bible if a static mockup or prototype suggests otherwise.
 
 ---
 
@@ -214,33 +220,9 @@ Reference qualities—not copied brands—include generous Apple-like spacing, K
 
 ### 6.2 Design tokens
 
-Initial tokens should be implemented as CSS custom properties and remain themeable.
+The accepted token contract, exact Chamomile values, per-theme note-stock pairs, seven theme override maps, geometry, elevation, spacing, and motion values are specified in [the final visual addendum](../design/The-Studio-Final-Visual-Design-Addendum.md#3-canonical-token-contract).
 
-```css
-:root {
-  --studio-color-canvas: #f7f5f0;
-  --studio-color-surface: #fffdfa;
-  --studio-color-ink: #292a28;
-  --studio-color-ink-muted: #6f716c;
-  --studio-color-line: #dedbd3;
-  --studio-color-shadow: rgb(43 42 38 / 8%);
-
-  --studio-color-foundation: #8c8d89;
-  --studio-color-vision: #d5ab42;
-  --studio-color-growth: #6f9478;
-  --studio-color-reflection: #6e91ad;
-  --studio-color-celebration: #d2874f;
-  --studio-color-uncharted: #8976a7;
-
-  --studio-radius-card: 18px;
-  --studio-radius-control: 12px;
-  --studio-shadow-card: 0 8px 28px var(--studio-color-shadow);
-  --studio-content-max: 1440px;
-  --studio-reading-max: 720px;
-}
-```
-
-The six semantic colors should normally appear as a small heart, dot, edge, underline, or icon accent—not as full saturated card backgrounds. A very pale tint may be used for selected or featured states.
+Tokens are semantic CSS custom properties applied at the app root. Components must not embed theme hex values or branch by theme name. Chamomile is the complete fallback; other themes are typed override maps. The six semantic colors normally appear as a labeled heart/dot, edge, underline, or icon accent—not as a full saturated card background.
 
 ### 6.3 Color semantics
 
@@ -257,14 +239,14 @@ The removed “Action” color is intentional. Execution belongs primarily in ca
 
 ### 6.4 Typography
 
-Recommended hierarchy:
+Accepted hierarchy:
 
-- **Editorial display:** Canela Text if legally available and distributable for the chosen deployment. Use for room titles and occasional short pull statements.
-- **Fallback display stack:** `Iowan Old Style`, `Baskerville`, `Georgia`, serif.
-- **Interface and body:** Avenir Next where locally available; web distribution should use a licensed webfont or the system stack: `Inter`, `-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, sans-serif.
+- **Editorial display:** self-hosted Newsreader for room titles, card display titles, and occasional short pull statements.
+- **Interface and body:** self-hosted Hanken Grotesk.
+- **Handwritten accent:** self-hosted Caveat, used rarely and decoratively; never for essential copy or controls.
 - **Monospace:** `SFMono-Regular`, `Consolas`, monospace, only for file paths, Markdown, and metadata examples.
 
-Do not assume a desktop-installed font may legally be embedded on the web. The implementation must document licenses and use fallbacks gracefully. Avoid script fonts. Create hierarchy through size, weight, spacing, and whitespace rather than decorative type.
+Font files require recorded licenses, `font-display: swap`, privacy-preserving local delivery, offline availability, and resilient system fallbacks. See [ADR-007](../architecture/decisions/ADR-007-self-hosted-typography.md).
 
 Suggested scale:
 
@@ -278,7 +260,7 @@ Suggested scale:
 ### 6.5 Layout and spacing
 
 - Use an 8px base spacing rhythm with generous 32–96px section gaps.
-- Desktop content should rarely occupy more than 70–80% of the viewport width.
+- Primary room content caps at approximately 1180px and should rarely occupy more than 70–80% of a wide viewport.
 - Reading views cap line length near 65–75 characters.
 - Cards have generous internal padding (20–28px desktop, 16–20px mobile).
 - White space is a functional component and should not be automatically filled.
@@ -1794,6 +1776,18 @@ privacy.ai_access:
 **Why:** The Studio exists to create clarity and return, not engagement pressure.  
 **Consequence:** Success must be measured qualitatively and through durable value rather than daily active use.
 
+### ADR-006: Token override themes preserve semantic identity
+
+**Decision:** Use Chamomile as the complete base token set and implement the other six themes as typed root-level CSS custom-property overrides.
+**Why:** Theme changes must preserve component behavior, content, and the learned meaning of all six semantic colors.
+**Consequence:** Every theme requires independent contrast, state, and screenshot verification. See [the full ADR](../architecture/decisions/ADR-006-theme-architecture.md).
+
+### ADR-007: Self-host the licensed Studio typefaces
+
+**Decision:** Self-host Newsreader, Hanken Grotesk, and Caveat with reviewed licenses and robust fallbacks.
+**Why:** Preserve the final editorial direction while remaining private and complete offline.
+**Consequence:** Font licenses, bundle weight, fallback layout, and font-ready screenshots are release-gated. See [the full ADR](../architecture/decisions/ADR-007-self-hosted-typography.md).
+
 ---
 
-*End of version 1.0. Update this document alongside product decisions, schema migrations, and meaningful changes to the Studio’s philosophy.*
+*End of version 1.1. Update this document alongside product decisions, schema migrations, and meaningful changes to the Studio’s philosophy or accepted design authority.*

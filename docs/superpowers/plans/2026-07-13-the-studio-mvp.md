@@ -8,13 +8,15 @@
 
 **Tech Stack:** Node 22 LTS, pnpm 10, TypeScript 5.8+, React 19, Vite 7, React Router 7, TanStack Query 5, Zustand 5, Zod 4, unified/remark, CodeMirror 6, dnd-kit, Tauri 2/Rust stable, SQLite FTS5, Vitest, React Testing Library, Playwright, axe-core, Storybook 9.
 
+**Final visual authority:** [The Studio Final Visual Design Addendum](../../design/The-Studio-Final-Visual-Design-Addendum.md). It fixes the accepted tokens, seven themes, self-hosted typography, compositions, state matrices, responsive behavior, and visual test requirements without changing MVP scope.
+
 ## Global Constraints
 
 - Markdown and ordinary media files are the authoritative durable store; databases and indexes are disposable.
 - The core application MUST work without AI and without an internet connection.
 - Desktop/macOS is the primary deep-authoring surface; iPhone web/PWA is optimized for capture, search, reading, and short reflection.
 - All user-visible design uses BEM CSS class naming, semantic classes, CSS custom properties, and no `!important`.
-- The visual implementation MUST treat the finalized Claude design as a replaceable token/component skin; domain behavior must not depend on unfinished visual values.
+- The visual implementation MUST follow the final visual addendum through replaceable tokens and semantic component contracts; domain behavior must never depend on a theme or static mockup geometry.
 - The six semantic types are `foundations`, `vision`, `growth`, `reflection`, `celebration`, and `uncharted`; there is no Action semantic type.
 - Fixed Landscape anchors are `vision`, `identity-values-feelings`, `decisions`, `practices`, and `structure-strategy`.
 - WCAG 2.2 AA, full keyboard operation, reduced-motion behavior, 44 × 44px touch targets, and non-color semantic labels are release requirements.
@@ -442,8 +444,8 @@ git commit -m "chore: scaffold studio workspace"
 - Test: `packages/ui/src/SemanticMark/SemanticMark.test.tsx`, `Card.test.tsx`.
 
 **Interfaces:**
-- Consumes: `SemanticType` from `@studio/domain`.
-- Produces: `<SemanticMark type labelMode />`, `<Card semanticType title excerpt actions />`; all final Claude design changes flow through tokens and component CSS.
+- Consumes: `SemanticType` from `@studio/domain`; the final visual token and state contracts.
+- Produces: `<SemanticMark type labelMode />`, `<Card semanticType title excerpt actions />`; all theme changes flow through root token overrides and component CSS.
 
 - [ ] **Step 1: Write failing semantic-label and card tests**
 
@@ -484,14 +486,14 @@ export function SemanticMark({ type, labelMode = 'hidden' }: Props) {
 }
 ```
 
-- [ ] **Step 4: Implement temporary design tokens**
+- [ ] **Step 4: Implement the accepted primitive token contract**
 
-Use the PRD palette as provisional CSS variables. Add a comment that finalized Claude tokens replace values, not names or component contracts. Include focus, reduced-motion, high-contrast, spacing, type scale, radii, shadows, and breakpoint variables.
+Use semantic CSS variables and BEM classes. Establish focus, forced-colors, reduced-motion, spacing, type scale, radii, shadows, and breakpoint variables. The complete seven-theme maps and self-hosted fonts are integrated when the shell/room vertical slice can verify them in context; primitive contracts and semantic meanings remain stable.
 
 - [ ] **Step 5: Run unit, axe, Storybook, and screenshot checks**
 
 Run: `pnpm --filter @studio/ui test && pnpm storybook:build && pnpm test:visual --project=chromium`  
-Expected: PASS; no axe violations; baseline images written/reviewed at 1440×1000 and 390×844.
+Expected: PASS; no axe violations; empty, full, selected, editing, dragging, saving, offline, error, and archived card states reviewed at 1440×1000 and 390×844.
 
 - [ ] **Step 6: Commit**
 
@@ -616,15 +618,21 @@ git commit -m "feat: define vault storage contract"
 - Test: Rust unit/integration tests and TypeScript contract invocation.
 
 **Interfaces:**
-- Consumes: Tauri invoke commands under an explicitly selected vault root.
-- Produces: `createTauriVault(rootToken: string): VaultPort`.
+- Consumes: a directory selected through a native Tauri folder dialog and retained as a capability-scoped open directory handle.
+- Produces: `createTauriVault(rootToken: string): VaultPort`, where `rootToken` is random and opaque to the webview.
 
 - [ ] **Step 1: Write failing Rust path and atomic-write tests**
 
 ```rust
 #[test]
 fn rejects_parent_traversal() {
-    assert!(resolve_inside(Path::new("/vault"), "../secret.md").is_err());
+    assert!(validate_relative_path("../secret.md").is_err());
+}
+
+#[test]
+fn replacing_a_parent_with_a_symlink_cannot_escape_the_open_root() {
+    // Operate through the retained directory capability after the hostile swap.
+    // The write must fail or remain beneath the originally opened directory.
 }
 
 #[test]
@@ -638,20 +646,20 @@ fn temp_file_is_replaced_atomically() {
 - [ ] **Step 2: Verify failure**
 
 Run: `cd apps/studio/src-tauri && cargo test`  
-Expected: FAIL because `resolve_inside` and `atomic_write` do not exist.
+Expected: FAIL because the retained capability registry, descriptor-relative operations, and atomic writer do not exist.
 
-- [ ] **Step 3: Implement commands with least-privilege capabilities**
+- [ ] **Step 3: Implement native selection and capability-scoped commands**
 
-Canonicalize the root, reject symlink/path escapes, write a same-directory temporary file, flush, rename, and return SHA-256. Do not grant blanket filesystem scope in Tauri configuration. Watch only the selected vault.
+Open/select the vault through the native desktop flow. Retain a `cap_std::fs::Dir` or equivalent open-directory capability in Rust and return only a random opaque token to the webview. Every list/read/write/move/remove/watch operation resolves relative components and opens files descriptor-relative from that retained root; validation must not return an ambient absolute path for later reopening. Reject absolute, parent, NUL, symlink, special-file, and invalid-token inputs. Revoke tokens and stop watchers when the owning window/app closes. Do not grant blanket filesystem scope.
 
-- [ ] **Step 4: Connect TypeScript adapter and run the shared contract**
+- [ ] **Step 4: Connect TypeScript adapter and normalize logical changes**
 
-Expose `list`, `read_text`, `write_text_atomic`, `move`, `remove`, and `watch` commands. Convert Rust error codes to typed domain errors without leaking full external paths into UI messages.
+Expose native `vault_select`/`vault_open`, plus token-scoped `list`, `read_text`, `write_text_atomic`, `move`, `remove`, and `watch` commands. Convert Rust error codes to typed domain errors without leaking full external paths. Conditional writes and moves must compare hashes through the same retained capability used for mutation. The watcher emits debounced logical `created | modified | moved | removed` vault changes and suppresses temporary atomic-write artifacts.
 
 - [ ] **Step 5: Verify Rust and desktop integration**
 
 Run: `pnpm tauri:test && pnpm --filter @studio/storage test:tauri`  
-Expected: PASS; deliberate write interruption leaves either old or complete new file, never partial content.
+Expected: PASS against the real Tauri IPC boundary and macOS watcher; hostile parent/symlink replacement cannot escape the selected directory; deliberate interruption leaves old or complete new content; stale expected hashes fail; watcher output contains no temp files; closing the app revokes tokens and watchers.
 
 - [ ] **Step 6: Commit**
 
@@ -836,16 +844,16 @@ Expected: FAIL because onboarding and routes are absent.
 
 - [ ] **Step 3: Implement responsive shell and route boundaries**
 
-Routes: `/foyer`, `/landscape`, `/landscape/:lifeArea`, `/season`, `/uncharted`, `/reflection`, `/search`, `/inbox`, `/settings`. Lazy-load room bundles. Use landmarks, skip link, logical focus order, and route-title announcements.
+Routes: `/foyer`, `/landscape`, `/landscape/:lifeArea`, `/season`, `/uncharted`, `/reflection`, `/search`, `/inbox`, `/settings`. Lazy-load room bundles. Desktop uses the 248px rail, 60px sticky top bar, and 440px modal inspector contract. Mobile replaces the rail with Home/Capture/Search/More bottom navigation and uses full-screen editor/inspector surfaces. Use landmarks, skip link, logical focus order, focus restoration, and route-title announcements. Design System, States Gallery, and Mobile Preview stay development-only.
 
 - [ ] **Step 4: Implement command palette and mobile navigation**
 
-Support open room, capture, search, and settings. Keyboard shortcuts must avoid editor conflicts. Mobile Capture remains one tap from every primary screen.
+Support open room, capture, search, and settings. Keyboard shortcuts must avoid editor conflicts. Mobile Capture remains one tap from every primary screen. Implement the seven-theme radio menu using the accepted override maps, local preference, `color-scheme`, Escape/outside close, and a polite selection announcement. Self-host Newsreader, Hanken Grotesk, and Caveat with licenses and offline fallbacks.
 
 - [ ] **Step 5: Browser visual verification**
 
 Run: `pnpm test:e2e -- onboarding.spec.ts accessibility.spec.ts && pnpm test:visual`  
-Expected: PASS at 1440×1000, 1024×768, 390×844; no horizontal overflow; visible focus.
+Expected: PASS at 1440×1000, 1024×768, 390×844; no horizontal overflow except the named Landscape region; visible focus and 44px targets; font-ready screenshots; Chamomile, Fig Leaf, and Deep Ocean visually reviewed; reduced-motion theme change is instant.
 
 - [ ] **Step 6: Commit**
 
@@ -979,18 +987,18 @@ it('invites only three starting choices in an empty Foyer', () => {
 Run: `pnpm --filter @studio/app test -- FoyerPage.test.tsx`  
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the semantic structure using provisional tokens**
+- [ ] **Step 3: Implement the accepted Foyer composition**
 
-Maintain the design’s slot architecture: title/motto, currently becoming, current season, desired feelings, principles, image, return card, compact legend. Do not introduce arbitrary dashboard widgets.
+Use the 1.55fr/1fr desktop composition with at least 35% negative space: title/motto, currently becoming, current season, and principles on the wide side; one optional taped polaroid, desired-feeling note chips, and one resurfaced celebration on the narrow side; compact six-meaning legend below. Stack into the specified mobile reading order. Do not introduce arbitrary dashboard widgets.
 
-- [ ] **Step 4: Integrate Claude’s finalized design**
+- [ ] **Step 4: Apply the final design authority**
 
-Replace token values, font files with verified licenses, spacing, imagery rules, and component styling. Preserve landmarks, DOM order, component contracts, empty states, and interaction tests. Record deliberate deviations from the design mockup.
+Apply the final addendum's tokens, Newsreader/Hanken Grotesk hierarchy, note stock, spacing, polaroid treatment, imagery rules, and component states. Preserve landmarks, logical DOM order, empty states, and interactions. Personal imagery is optional and removable; decorative tape/sprig is hidden from assistive technology. Record deliberate deviations from the accepted design.
 
 - [ ] **Step 5: Inspect in Playwright**
 
 Run: `pnpm test:visual -- foyer && pnpm test:e2e -- accessibility.spec.ts`  
-Expected: PASS and manual approval for empty/partial/full at desktop and mobile, 200% zoom, high contrast, and reduced motion.
+Expected: PASS and manual approval for empty/partial/full/dense at desktop and mobile, missing image, all three save states, 200% zoom, forced/high contrast, dark theme, and reduced motion.
 
 - [ ] **Step 6: Commit**
 
@@ -1029,7 +1037,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement overview and focus projections**
 
-Desktop matrix uses CSS Grid with a sticky top header and anchor rail. Cells show one featured card plus additional count. Mobile routes directly to stacked anchors with horizontal life-area switcher.
+Desktop matrix uses the accepted architectural grid: 184px sticky anchor rail plus 5–10 sticky life-area columns at a minimum 132px, with Matrix/Focus/Lens segmented control and horizontal scrolling contained to a named region. Cells show one featured note plus additional count. Focus uses a horizontal area switcher and five spacious stacked anchors with serif prompts. Mobile never renders a shrunken matrix and routes directly to the focused stack.
 
 - [ ] **Step 4: Implement drag and keyboard movement**
 
@@ -1038,7 +1046,7 @@ Use dnd-kit for pointer/touch. Provide menu/keyboard commands “Move within sec
 - [ ] **Step 5: Validate density and accessibility**
 
 Run: `pnpm test:e2e -- landscape.spec.ts accessibility.spec.ts && pnpm test:visual -- landscape`  
-Expected: PASS for empty, 5-area sparse, 10-area dense, focus view, touch drag, keyboard move, and 200% zoom.
+Expected: PASS for empty, 5-area sparse, 10-area dense, matrix/focus/lens views, three-line matrix clamping with accessible full titles, touch drag, keyboard move, 200% zoom, and no page-level horizontal overflow.
 
 - [ ] **Step 6: Commit**
 
@@ -1080,6 +1088,8 @@ Expected: FAIL.
 - [ ] **Step 3: Implement seasonal state and wizard**
 
 Begin steps: name/dates, previous reflection/skip, feelings, priorities, decisions/experiments, practices, constraints/support, enough, Not now, confirmation. Persist after every step so interruptions are safe.
+
+The read view follows the accepted editorial cover: title and range, “This is a season of…”, up to three priority note cards, feeling chips, Enough, 30/60/90 decision tags, practices, constraints/support, and a collapsed Not now shelf. It becomes a single calm reading flow on mobile.
 
 - [ ] **Step 4: Implement close workflow**
 
@@ -1125,16 +1135,16 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement Uncharted**
 
-Use snapped thematic clusters and a large composer. Support optional invitation into a season as a link; never change semantic type automatically. Exclude status gamification from MVP.
+Use the accepted spacious composition: a large purple “What if…” composer, two-column near-possibility notes, a “Beyond the gate” divider, and dashed genuinely-unknowable cards; stack to one column on mobile. Support optional invitation into a season as a link; never change semantic type automatically. Exclude dates, progress, pressure, and status gamification.
 
 - [ ] **Step 4: Implement Reflection Garden**
 
-Views: Garden, Reflection, Celebration, Themes. Use a chronological stream, not a heatmap. Allow one-sentence quick reflection and full editor. Connect celebrations to identity/season/life-area cards through links.
+Views: Garden, Reflection, Celebration, Themes. Use the accepted chronological stream with blue reflections, orange celebrations, linked evidence, an optional Then & now pair, and one optional taped image—not a heatmap. Allow one-sentence quick reflection and full editor. Connect celebrations to identity/season/life-area cards through links.
 
 - [ ] **Step 5: Visual and content QA**
 
 Run: `pnpm test:e2e -- uncharted.spec.ts reflection.spec.ts && pnpm test:visual -- uncharted reflection`  
-Expected: PASS; editorial whitespace remains intact at sparse and dense states; semantic meaning includes text/icon labels.
+Expected: PASS; editorial whitespace remains intact at sparse and dense states; two-column layouts stack below 720px; optional imagery can be absent; semantic meaning includes text/icon labels; no streak, date, or progress language appears in Uncharted.
 
 - [ ] **Step 6: Commit**
 
@@ -1322,7 +1332,7 @@ Expected initially: FAIL until all release budgets and manual gates are satisfie
 
 - [ ] **Step 3: Fix accessibility and responsive defects**
 
-Complete keyboard-only and VoiceOver journeys for onboarding, capture, edit, drag alternative, search, season, archive, export, and conflict resolution. Verify 200% zoom, reduced motion, increased contrast, touch targets, and text scaling.
+Complete keyboard-only and VoiceOver journeys for onboarding, capture, edit, drag alternative, search, season, archive, export, and conflict resolution. Verify the final addendum's full component/state matrix at 200% zoom, reduced motion, increased/forced contrast, 44px touch targets, text scaling, missing images, long international strings, and full-screen mobile sheets.
 
 - [ ] **Step 4: Meet performance and offline budgets**
 
@@ -1331,7 +1341,7 @@ Warm shell interactive under 1.5s on reference Mac; note open under 100ms after 
 - [ ] **Step 5: Build and visually inspect real artifacts**
 
 Run: `pnpm tauri build && pnpm build:pwa && pnpm test:e2e && pnpm test:visual`  
-Expected: PASS. Install the macOS artifact and PWA fresh; inspect every screen with realistic fixtures rather than trusting snapshots alone.
+Expected: PASS. Install the macOS artifact and PWA fresh; inspect every screen with realistic fixtures rather than trusting snapshots alone. Run screenshot and contrast coverage across all seven themes at 1440×1000, 1024×768, and 390×844, waiting for self-hosted fonts before capture. Confirm no production route or bundle contains the design prototype runtime.
 
 - [ ] **Step 6: Update documentation and development log**
 
@@ -1380,22 +1390,22 @@ Create a separate plan and safety review for places, figures, dreams, symbols, s
 
 ---
 
-## 7. Claude design integration contract
+## 7. Final design integration contract
 
-When the finalized design arrives, do not rewrite the architecture around static mockup geometry. Translate it through this order:
+The final design is accepted and transcribed into [The Studio Final Visual Design Addendum](../../design/The-Studio-Final-Visual-Design-Addendum.md). Do not rewrite architecture around static mockup geometry. Implement it through this order:
 
-1. Inventory screen, component, state, and breakpoint coverage.
-2. Extract design tokens: color, type, spacing, grid, radii, shadows, motion.
-3. Map each design component to existing semantic UI components.
+1. Treat the addendum's screen, component, state, and breakpoint inventory as the visual acceptance contract.
+2. Implement its tokens through semantic CSS custom properties, not copied inline prototype values.
+3. Map each design component to existing semantic UI components and BEM classes.
 4. Identify missing states: empty, partial, dense, hover, focus, selected, editing, dragging, saving, offline, conflict, error, archived, reduced motion, high contrast.
 5. Resolve any accessibility conflict in favor of WCAG and document the visual adaptation.
 6. Implement tokens and primitives in Storybook first.
 7. Update room compositions.
 8. Run Playwright visual comparisons at all supported widths.
 9. Inspect the running app directly on Mac and iPhone-sized Safari/WebKit.
-10. Record accepted deviations and update the PRD/design bible.
+10. Record accepted deviations and update the PRD/design bible and development log.
 
-The design is authoritative for visual intent; the PRD remains authoritative for product behavior, data ownership, privacy, and emotional boundaries.
+The design addendum is authoritative for visual intent. The PRD remains authoritative for product behavior, MVP scope, data ownership, privacy, safety, and emotional boundaries. The prototype runtime is reference-only and must not ship.
 
 ---
 
@@ -1442,7 +1452,7 @@ A task is not complete until:
 ### Covered in the executable MVP
 
 - Vision, philosophy, calm/no-urgency constraints: Global Constraints, Tasks 2, 9, 12–15.
-- Visual language and Claude handoff: Task 2, Task 12, Section 7.
+- Final visual language and handoff: Task 2, Task 9, Task 12, Section 7, and the visual addendum.
 - Information architecture: Tasks 8–9.
 - Foyer: Task 12.
 - Life Landscape: Task 13.
