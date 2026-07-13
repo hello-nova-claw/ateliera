@@ -378,6 +378,86 @@ describe('season service', () => {
     expect(await studio.projectStream('reflection')).toEqual([]);
   });
 
+  it('does not reserve closing when the durable request cannot be prepared', async () => {
+    const { seasons, studio } = setup();
+    let record = await completeWizard(
+      seasons,
+      await seasons.beginSeason({ title: 'Winter' }),
+    );
+    record = await seasons.activateSeason(record);
+    vi.spyOn(studio, 'prepareSeasonCloseTransaction').mockRejectedValueOnce(
+      new Error('journal unavailable'),
+    );
+
+    await expect(
+      seasons.closeSeason(record, {
+        celebration: 'A beginning.',
+        learning: 'Still learning.',
+        identity: 'More present.',
+        dispositions: [],
+      }),
+    ).rejects.toThrow('journal unavailable');
+    expect(
+      (await studio.seasonTransactions.readActive()).value,
+    ).toMatchObject({
+      activeNoteId: record.note.id,
+      activePath: record.path,
+      operation: null,
+    });
+    expect(
+      (await studio.seasonTransactions.readCloseJournal()).value,
+    ).toBeNull();
+  });
+
+  it('recovers a prepared close after reservation fails before process restart', async () => {
+    const { seasons, studio } = setup();
+    let record = await completeWizard(
+      seasons,
+      await seasons.beginSeason({ title: 'Winter' }),
+    );
+    record = await seasons.activateSeason(record);
+    const compare = studio.seasonTransactions.compareAndSetActive.bind(
+      studio.seasonTransactions,
+    );
+    const compareSpy = vi
+      .spyOn(studio.seasonTransactions, 'compareAndSetActive')
+      .mockImplementation(async (observed, next) => {
+        if (next.operation?.kind === 'closing') {
+          compareSpy.mockRestore();
+          throw new VaultConflictError();
+        }
+        return compare(observed, next);
+      });
+
+    await expect(
+      seasons.closeSeason(record, {
+        celebration: 'A beginning.',
+        learning: 'Still learning.',
+        identity: 'More present.',
+        dispositions: [],
+      }),
+    ).rejects.toThrow('Another active season needs attention');
+    expect(
+      (await studio.seasonTransactions.readActive()).value.operation,
+    ).toBeNull();
+    expect(
+      (await studio.seasonTransactions.readCloseJournal()).value,
+    ).not.toBeNull();
+
+    const restarted = createSeasonService(studio, {
+      clock: () => new Date('2026-07-14T00:00:00.000Z'),
+      generateId: () => '01SEASONNOTE',
+    });
+    await expect(restarted.loadCurrent()).resolves.toEqual({
+      record: null,
+      conflicts: [],
+    });
+    expect((await studio.load(record.path)).note.status).toBe('archived');
+    expect(
+      (await studio.seasonTransactions.readActive()).value,
+    ).toMatchObject({ activeNoteId: null, activePath: null, operation: null });
+  });
+
   it('rejects blank close reflections and incomplete disposition sets before reserving close', async () => {
     const { seasons, studio } = setup();
     let record = await seasons.beginSeason({ title: 'Winter' });
