@@ -205,6 +205,8 @@ describe('note lifecycle', () => {
       ['non-canonical hash', trashEntry({ originalHash: 'A'.repeat(64) })],
       ['malformed date', trashEntry({ deletedAt: 'sometime' })],
       ['non-canonical date', trashEntry({ deletedAt: '2026-07-13T01:02:03Z' })],
+      ['non-string date', trashEntry({ deletedAt: 1 })],
+      ['absolute original path', trashEntry({ originalPath: '/Reflection Garden/n1.md' })],
       ['traversing original path', trashEntry({ originalPath: '../Reflection Garden/n1.md' })],
       ['reserved original path', trashEntry({ originalPath: '.studio/private.md' })],
       ['case-folded reserved original path', trashEntry({ originalPath: '.STUDIO/private.md' })],
@@ -299,6 +301,21 @@ describe('note lifecycle', () => {
       await expect(vault.exists('.studio/Trash/items/n1/n1.md')).resolves.toBe(false);
       await expect(index.getById('n1')).resolves.not.toBeNull();
     }
+  });
+
+  it('refuses to create a Trash manifest from a non-canonical durable note id', async () => {
+    const vault = createInMemoryVault();
+    const index = new RecordingIndex();
+    const invalidId = ' n1';
+    const source = note({ id: invalidId });
+    const written = await vault.writeTextAtomic('Notes/n1.md', serializeNote(source));
+    await index.upsert(source, 'Notes/n1.md', written.hash);
+    const service = createNoteLifecycleService({ vault, index, clock: () => NOW });
+
+    await expect(service.trash(invalidId)).rejects.toMatchObject({ name: 'TrashManifestError' });
+    await expect(vault.exists('Notes/n1.md')).resolves.toBe(true);
+    await expect(vault.exists('.studio/Trash/manifest.json')).resolves.toBe(false);
+    await expect(vault.exists('.studio/Trash/items/%20n1/n1.md')).resolves.toBe(false);
   });
 
   it('reconciles journal states and reports ambiguous transactions for review', async () => {
