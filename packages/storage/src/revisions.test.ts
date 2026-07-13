@@ -308,7 +308,7 @@ describe('local revision snapshots', () => {
             await write(copyPath, 'changed', { expectedHash: current.hash });
           } else if (mutation === 'manifest') {
             const current = await vault.readText(manifestPath);
-            await write(manifestPath, `${current.text.trimEnd()}\n`, { expectedHash: current.hash });
+            await write(manifestPath, `${current.text.trimEnd()}\n\n`, { expectedHash: current.hash });
           } else {
             await write(`${root}/unexpected.md`, 'do not delete', { expectedMissing: true });
           }
