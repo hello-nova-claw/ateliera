@@ -333,7 +333,7 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     async start() {
       if (stopWatching !== undefined) return;
       stopWatching = await dependencies.vault.watch((event) => {
-        if (!isInternalPath(event.path)) scheduleReconciliation(event);
+        if (!isInternalPath(event.path)) scheduleReconciliation();
       });
     },
 
