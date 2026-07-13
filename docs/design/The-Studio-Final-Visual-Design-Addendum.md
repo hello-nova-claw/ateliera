@@ -1,7 +1,7 @@
 # The Studio Final Visual Design Addendum
 
 **Status:** Accepted implementation authority
-**Version:** 1.0
+**Version:** 1.1
 **Date:** 13 July 2026
 **Design source:** Anna McPhee's final “The Studio design system” handoff
 
@@ -19,7 +19,7 @@ Authority is resolved in this order:
 4. The supplied prototype controls details not transcribed here only when they do not conflict with the first three sources.
 5. WCAG 2.2 AA and content integrity override pixel fidelity. Record any resulting visual deviation.
 
-The `.dc.html` artifact is a reference prototype, not an application dependency. Do not ship its runtime, copy its inline-style architecture, or reproduce simulated behavior without real domain and storage integration. See [the reference manifest](reference/README.md).
+The clone-local [`.dc.html` artifact](<reference/The Studio.dc.html>) is a reference prototype, not an application dependency. It is retained so future implementers can inspect details not yet transcribed. Do not execute it with a compatible streaming runtime, ship it, copy its inline-style architecture, or reproduce simulated behavior without real domain and storage integration. See [the reference manifest](reference/README.md).
 
 ## 2. Experience target
 
@@ -30,6 +30,8 @@ The composition should preserve negative space, reveal secondary detail progress
 ## 3. Canonical token contract
 
 Use CSS custom properties on `.studio-app`. Components reference semantic token names only. BEM component classes remain the styling interface. Do not use `!important`, utility-class strings as component APIs, raw theme values inside components, or color as the only carrier of meaning.
+
+The existing Task 2 token names are stable component contracts. This addendum extends them; it does not rename them. In particular, `SemanticMark` and `Card` continue to consume `--studio-color-foundation`, `--studio-color-vision`, `--studio-color-growth`, `--studio-color-reflection`, `--studio-color-celebration`, and `--studio-color-uncharted`.
 
 ### 3.1 Chamomile base colors
 
@@ -60,12 +62,12 @@ Use CSS custom properties on `.studio-app`. Components reference semantic token 
 
 | Meaning | Token | Chamomile | Required label | Guiding question |
 |---|---|---:|---|---|
-| Foundations | `--studio-semantic-foundations` | `#8c8d89` | Foundations | What supports this? |
-| Vision | `--studio-semantic-vision` | `#d5ab42` | Vision | What am I creating? |
-| Growth | `--studio-semantic-growth` | `#6f9478` | Growth | What am I cultivating? |
-| Reflection | `--studio-semantic-reflection` | `#6e91ad` | Reflection | What am I learning? |
-| Celebration | `--studio-semantic-celebration` | `#d2874f` | Celebration | What is working? |
-| Uncharted | `--studio-semantic-uncharted` | `#8976a7` | Uncharted | What if…? |
+| Foundations | `--studio-color-foundation` | `#8c8d89` | Foundations | What supports this? |
+| Vision | `--studio-color-vision` | `#d5ab42` | Vision | What am I creating? |
+| Growth | `--studio-color-growth` | `#6f9478` | Growth | What am I cultivating? |
+| Reflection | `--studio-color-reflection` | `#6e91ad` | Reflection | What am I learning? |
+| Celebration | `--studio-color-celebration` | `#d2874f` | Celebration | What is working? |
+| Uncharted | `--studio-color-uncharted` | `#8976a7` | Uncharted | What if…? |
 
 There is no Action semantic color. Semantic accents normally appear as a labeled dot/heart, edge, underline, or small icon. Full saturated semantic fills are prohibited.
 
@@ -82,7 +84,22 @@ There is no Action semantic color. Semantic accents normally appear as a labeled
 
 Expose each as `--studio-stock-<meaning>` and `--studio-stock-<meaning>-edge`. Note stock is pastel paper, not a semantic status substitute.
 
-### 3.4 Geometry, elevation, space, and motion
+### 3.4 Prototype-to-application token mapping
+
+The prototype uses short names because it is an isolated design artifact. Production uses the existing `--studio-*` namespace. Implement themes by assigning the application names directly; do not add a second independent semantic palette.
+
+| Prototype token | Production token |
+|---|---|
+| `--canvas`, `--frame`, `--rail`, `--surface`, `--sunken`, `--topbar` | `--studio-color-canvas`, `--studio-color-frame`, `--studio-color-rail`, `--studio-color-surface`, `--studio-color-sunken`, `--studio-color-topbar` |
+| `--ink`, `--ink-strong`, `--ink-1`, `--ink-muted`, `--ink-soft`, `--ink-faint` | Corresponding `--studio-color-ink*` token |
+| `--line`, `--line-strong`, `--link`, `--script`, `--script-ink` | Corresponding `--studio-color-*` token |
+| `--foundation`, `--vision`, `--growth`, `--reflection`, `--celebration`, `--uncharted` | `--studio-color-foundation`, `--studio-color-vision`, `--studio-color-growth`, `--studio-color-reflection`, `--studio-color-celebration`, `--studio-color-uncharted` |
+| `--stk-<meaning>-bg`, `--stk-<meaning>-edge` | `--studio-stock-<meaning>`, `--studio-stock-<meaning>-edge` |
+| `--accent-soft`, `--accent-soft2`, `--accent-line` | `--studio-color-accent-soft`, `--studio-color-accent-soft-hover`, `--studio-color-accent-line` |
+
+Existing layout/type tokens such as `--studio-space-*`, `--studio-type-*`, `--studio-radius-card`, `--studio-shadow-card`, `--studio-touch-target`, and `--studio-motion-*` remain canonical. Where this addendum specifies a different final value—for example 1180px rather than the provisional 1440px content maximum—the later implementation task changes the value under the same name. No component contract changes.
+
+### 3.5 Geometry, elevation, space, and motion
 
 | Token | Value | Use |
 |---|---:|---|
@@ -162,7 +179,37 @@ Each pair is `background / edge`, ordered Foundations; Vision; Growth; Reflectio
 | Sunset | `#332a3a/#443850; #3a2f1e/#50402a; #26342c/#374a3b; #2b2f45/#3d4160; #3d2a26/#543a30; #382a42/#4c3959` |
 | Forest | `#2a352a/#3a473a; #333820/#484e2b; #22371f/#324b2d; #213a3f/#315056; #37301f/#4c412b; #2d2f3f/#3f4155` |
 
-Theme swatches are the canvas gradients simplified to 135-degree chips. Dark themes must be visibly labeled as dark; do not infer selection through swatch alone. Theme changes announce the selected name politely and close the popover.
+### 4.5 Exact picker chips and swatches
+
+The picker uses a compact chip on its trigger and a larger swatch inside the menu. These are authored values, not generated from the canvas.
+
+| Theme | Trigger chip | Menu swatch |
+|---|---|---|
+| Chamomile | `linear-gradient(135deg,#fdfaf3,#f0e6cf)` | `linear-gradient(135deg,#fdfaf3,#f0e6cf)` |
+| Fig Leaf | `linear-gradient(135deg,#eef2e2,#cdd8bb)` | `linear-gradient(135deg,#eef2e2,#cdd8bb)` |
+| Sunrise | `linear-gradient(135deg,#fde0cd,#f4d6cf)` | `linear-gradient(135deg,#fbecdc,#f4d6cf)` |
+| Wisteria | `linear-gradient(135deg,#efe9f6,#d3c4e6)` | `linear-gradient(135deg,#efe9f6,#d3c4e6)` |
+| Deep Ocean | `linear-gradient(135deg,#1f4a63,#0f1b28)` | `linear-gradient(135deg,#2b6a86,#0f1b28)` |
+| Sunset | `linear-gradient(135deg,#5a3350,#201a2c)` | `linear-gradient(135deg,#e08a5e,#3a2436 70%)` |
+| Forest | `linear-gradient(135deg,#33512f,#111a11)` | `linear-gradient(135deg,#3f6a37,#111a11)` |
+
+### 4.6 Quiet-action accent overrides
+
+Values are ordered `accent-soft / accent-soft-hover / accent-line` and map to the application tokens in Section 3.4.
+
+| Theme | Exact values | Inheritance rule |
+|---|---|---|
+| Chamomile | `#f4ecd8 / #efe4c9 / #d8c9a6` | Complete base |
+| Fig Leaf | `#f4ecd8 / #efe4c9 / #d8c9a6` | Intentionally inherits the complete Chamomile trio |
+| Sunrise | `#f8ead2 / #f2ddc0 / #e4c9a2` | Complete override |
+| Wisteria | `#f4ecd8 / #efe4c9 / #d8c9a6` | Intentionally inherits the complete Chamomile trio |
+| Deep Ocean | `#123246 / #17405a / #2b5f7a` | Complete override; no light-theme leakage |
+| Sunset | `#3a2a1c / #472f22 / #5e4433` | Complete override; no light-theme leakage |
+| Forest | `#293618 / #33421f / #47592b` | Complete override; no light-theme leakage |
+
+Dark themes must override the entire structural, ink, semantic, stock, and quiet-action token groups. A missing dark override is an implementation error rather than permission to fall through to Chamomile. Fig Leaf and Wisteria inherit only values that the final prototype intentionally leaves absent.
+
+Dark themes must be visibly labeled as dark; do not infer selection through swatch alone. Theme changes announce the selected name politely and close the popover.
 
 ## 5. Typography
 

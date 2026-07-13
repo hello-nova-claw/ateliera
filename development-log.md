@@ -28,6 +28,12 @@
 - Added representative vault fixtures plus enum, malformed metadata, fidelity, and property-based coverage.
 - Task 3 is complete; current phase: ready for Task 4 migrations and links.
 
+## 2026-07-13 — Storage adapter contract
+
+- Defined the adapter-neutral `VaultPort` contract and in-memory conformance harness across list, read, atomic conditional write, move, remove, and watch behavior.
+- Added 129 contract cases covering path validation, expected-hash conflicts, failed-write atomicity, move/remove edge cases, and normalized logical watcher events.
+- Task 4 is complete; its shared contract is the acceptance boundary for desktop and browser storage adapters.
+
 ## 2026-07-13 — Desktop vault security remediation
 
 - Added an initial Tauri vault adapter, conditional SHA-256 writes, same-directory atomic replacement, filesystem watching, and a TypeScript bridge.
@@ -38,7 +44,8 @@
 ## 2026-07-13 — Final visual design handoff
 
 - Accepted Anna's final Studio design-system ZIP as the visual source of truth.
-- Added the implementation-grade visual addendum covering exact tokens, seven themes, self-hosted typography, room compositions, component states, responsive behavior, accessibility, interaction gaps, and authority rules.
+- Transcribed the implementation-grade visual authority: exact base and per-theme target values, picker chips/swatches, quiet-action overrides, self-hosted typography, token-name migration, room compositions, component states, responsive behavior, accessibility, interaction gaps, and authority rules.
+- Task 2's current CSS remains the reviewed provisional high-contrast primitive baseline. Applying all final theme/type values to production tokens is scheduled through the shell and Foyer visual tasks and requires contrast/Playwright verification.
 - Added architecture decisions for token-override themes and self-hosted Newsreader, Hanken Grotesk, and Caveat.
-- Retained the original mockup and artifact checksums as durable provenance; the bespoke `.dc.html` prototype runtime is reference-only and will not ship.
+- Retained the original mockup, byte-identical `.dc.html` source, artifact checksums, and security boundary as durable provenance; no compatible prototype runtime is retained or shipped.
 - Updated the product bible and executable plan without changing MVP scope.

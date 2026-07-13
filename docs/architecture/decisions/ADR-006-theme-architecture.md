@@ -11,6 +11,8 @@ The final design handoff defines seven complete visual themes: four light and th
 
 Use one canonical semantic token contract. Chamomile defines the complete default token set. Every other theme is a typed override map applied to the application root through `data-theme` and CSS custom properties. Components consume semantic tokens only; they do not import theme-specific values or branch on a theme name.
 
+The existing Task 2 application names are canonical: `--studio-color-foundation`, `--studio-color-vision`, `--studio-color-growth`, `--studio-color-reflection`, `--studio-color-celebration`, and `--studio-color-uncharted`. The prototype's short names map into these properties; they do not create a parallel token family. The complete mapping is in the final visual addendum.
+
 Each theme declares `light` or `dark` mode so the shell can set `color-scheme`, browser chrome, and accessibility expectations. Theme selection is a local user preference and is independent of content. An absent, invalid, or incomplete preference falls back to Chamomile. Missing override values also fall back to Chamomile.
 
 Semantic hue identity is invariant. A theme may retune luminance, saturation, and warmth for contrast, but it may not remap a meaning to another semantic hue. Text or icons always accompany semantic color.
