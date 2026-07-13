@@ -159,9 +159,12 @@ export class SqliteIndex implements IndexPort {
   }
 
   async forwardLinks(id: string): Promise<IndexedLink[]> {
+    const titleCandidates = rows<Pick<NoteRow, 'id' | 'title'>>(this.database.prepare('SELECT id,title FROM notes ORDER BY id').all());
     return rows<LinkRow>(this.database.prepare('SELECT source_id, kind, target, label, target_id FROM links WHERE source_id = ? ORDER BY ordinal').all(id)).map((item) => {
       const candidates = item.kind === 'wiki' && !item.target_id
-        ? rows<{ id: string }>(this.database.prepare('SELECT id FROM notes WHERE lower(title) = lower(?) ORDER BY id').all(item.target)).map((candidate) => candidate.id)
+        ? titleCandidates
+          .filter((candidate) => candidate.title.normalize('NFC').toLocaleLowerCase('en') === item.target.normalize('NFC').toLocaleLowerCase('en'))
+          .map((candidate) => candidate.id)
         : [];
       return {
         sourceId: item.source_id, kind: item.kind, target: item.target, label: item.label,
@@ -173,6 +176,11 @@ export class SqliteIndex implements IndexPort {
 
   async rebuild(entries: IndexEntry[], onProgress?: (progress: IndexRebuildProgress) => void): Promise<void> {
     const ordered = [...entries].sort((left, right) => left.path.localeCompare(right.path, 'en'));
+    const ids = new Set<string>();
+    for (const entry of ordered) {
+      if (ids.has(entry.note.id)) throw new Error(`Duplicate stable note ID in index rebuild: ${entry.note.id}`);
+      ids.add(entry.note.id);
+    }
     this.transaction(() => {
       this.deleteAll();
       onProgress?.({ phase: 'indexing', processed: 0, total: ordered.length });
