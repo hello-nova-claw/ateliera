@@ -38,8 +38,9 @@
 
 - Added an initial Tauri vault adapter, conditional SHA-256 writes, same-directory atomic replacement, filesystem watching, and a TypeScript bridge.
 - Security review found pathname time-of-check/time-of-use exposure, raw temporary watcher events, non-atomic expected-hash/move behavior against external writers, and watcher lifecycle gaps.
-- Task 5 is not complete. It is under security remediation to use native folder selection, a retained open-directory capability, opaque webview tokens, descriptor-relative operations, logical watcher events, and lifecycle revocation.
-- Task 6 browser-vault contract work may proceed independently; Task 5 remains a release blocker until re-reviewed.
+- Replaced the pathname API with native folder selection, retained `cap_std` directory capabilities, random window-owned tokens, and component-relative no-follow operations.
+- Added macOS atomic compare-and-swap/no-clobber primitives, coalesced logical watcher projections that hide write-temporary files, and window/app lifecycle revocation.
+- Added a complete runnable Tauri bootstrap plus real invoke-handler and macOS watcher-to-Tauri event tests. Task 5 is implemented and awaiting independent security re-review.
 
 ## 2026-07-13 — Final visual design handoff
 

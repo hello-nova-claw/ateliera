@@ -1,24 +1,28 @@
 use std::{
-    collections::HashMap,
-    fs::{self, File, OpenOptions},
+    collections::{BTreeMap, HashMap, HashSet},
+    ffi::CString,
     io::{Read, Write},
+    os::fd::AsRawFd,
     path::{Path, PathBuf},
-    sync::{Mutex, OnceLock},
+    sync::{
+        Arc, Mutex, Weak,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::Duration,
 };
 
-use notify::{
-    EventKind, RecommendedWatcher, RecursiveMode, Watcher,
-    event::{ModifyKind, RenameMode},
+use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
+use cap_std::{
+    ambient_authority,
+    fs::{Dir, OpenOptions},
 };
+use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use tauri::Emitter;
+use tauri::{AppHandle, Emitter, Runtime, State, WebviewWindow};
 use uuid::Uuid;
 
-use crate::security::path_guard::resolve_inside;
-
-static WRITE_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-static WATCHERS: OnceLock<Mutex<HashMap<String, RecommendedWatcher>>> = OnceLock::new();
+use crate::security::path_guard::{map_path_error, open_parent, validate_relative};
 
 #[derive(Debug, thiserror::Error)]
 pub enum VaultError {
@@ -37,6 +41,12 @@ impl Serialize for VaultError {
     {
         serializer.serialize_str(&self.to_string())
     }
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultSelection {
+    pub vault_token: String,
 }
 
 #[derive(Serialize)]
@@ -62,7 +72,7 @@ pub struct VaultEntry {
     pub content_hash: Option<String>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 enum WatchEvent {
     Created {
@@ -89,273 +99,756 @@ pub struct WatchRegistration {
     pub event: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SnapshotFile {
+    hash: String,
+    size: u64,
+}
+
+struct WatchHandle {
+    _watcher: RecommendedWatcher,
+}
+
+pub struct Vault {
+    root: Dir,
+    selected_path: PathBuf,
+    write_lock: Mutex<()>,
+    watchers: Mutex<HashMap<String, WatchHandle>>,
+}
+
+struct RegisteredVault {
+    owner: String,
+    vault: Arc<Vault>,
+}
+
+#[derive(Default)]
+pub struct VaultRegistry {
+    vaults: Mutex<HashMap<String, RegisteredVault>>,
+}
+
+impl VaultRegistry {
+    fn register_selected_path(
+        &self,
+        owner: &str,
+        selected_path: &Path,
+    ) -> Result<String, VaultError> {
+        // Native selection is the only ambient-authority boundary. Open it immediately and
+        // retain the resulting directory descriptor; later commands never reopen this path.
+        let root = Dir::open_ambient_dir(selected_path, ambient_authority())
+            .map_err(|_| VaultError::Unavailable)?;
+        let selected_path = selected_path.to_owned();
+        let token = Uuid::new_v4().simple().to_string();
+        self.vaults
+            .lock()
+            .map_err(|_| VaultError::Unavailable)?
+            .insert(
+                token.clone(),
+                RegisteredVault {
+                    owner: owner.to_owned(),
+                    vault: Arc::new(Vault {
+                        root,
+                        selected_path,
+                        write_lock: Mutex::new(()),
+                        watchers: Mutex::new(HashMap::new()),
+                    }),
+                },
+            );
+        Ok(token)
+    }
+
+    fn vault(&self, owner: &str, token: &str) -> Result<Arc<Vault>, VaultError> {
+        let vaults = self.vaults.lock().map_err(|_| VaultError::Unavailable)?;
+        let registered = vaults.get(token).ok_or(VaultError::Unavailable)?;
+        if registered.owner != owner {
+            return Err(VaultError::Unavailable);
+        }
+        Ok(Arc::clone(&registered.vault))
+    }
+
+    pub fn revoke_owner(&self, owner: &str) {
+        if let Ok(mut vaults) = self.vaults.lock() {
+            vaults.retain(|_, registered| registered.owner != owner);
+        }
+    }
+
+    pub fn revoke_all(&self) {
+        if let Ok(mut vaults) = self.vaults.lock() {
+            vaults.clear();
+        }
+    }
+
+    #[cfg(test)]
+    pub fn register_selected_path_for_test(
+        &self,
+        owner: &str,
+        path: &Path,
+    ) -> Result<String, VaultError> {
+        self.register_selected_path(owner, path)
+    }
+
+    #[cfg(test)]
+    pub fn vault_for_test(&self, owner: &str, token: &str) -> Result<Arc<Vault>, VaultError> {
+        self.vault(owner, token)
+    }
+
+    #[cfg(test)]
+    pub fn capability_count_for_test(&self) -> usize {
+        self.vaults.lock().map(|vaults| vaults.len()).unwrap_or(0)
+    }
+}
+
 fn hash(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
 }
 
-fn root(token: &str) -> Result<PathBuf, VaultError> {
-    Path::new(token)
-        .canonicalize()
-        .map_err(|_| VaultError::Unavailable)
+fn open_file_nofollow(directory: &Dir, basename: &str) -> Result<cap_std::fs::File, VaultError> {
+    let mut options = OpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    directory
+        .open_with(basename, &options)
+        .map_err(map_path_error)
 }
 
-fn read_bytes(path: &Path) -> Result<Vec<u8>, VaultError> {
+fn read_file_nofollow(directory: &Dir, basename: &str) -> Result<Vec<u8>, VaultError> {
     let mut bytes = Vec::new();
-    File::open(path)
-        .and_then(|mut file| file.read_to_end(&mut bytes))
+    open_file_nofollow(directory, basename)?
+        .read_to_end(&mut bytes)
         .map_err(|_| VaultError::Unavailable)?;
     Ok(bytes)
 }
 
-pub fn atomic_write(
-    root: &Path,
-    relative: &str,
-    bytes: &[u8],
-    expected_hash: Option<&str>,
-) -> Result<String, VaultError> {
-    let _guard = WRITE_LOCK
-        .get_or_init(|| Mutex::new(()))
-        .lock()
-        .map_err(|_| VaultError::Unavailable)?;
-    let destination = resolve_inside(root, relative)?;
-    if let Some(expected) = expected_hash {
-        let current = read_bytes(&destination).map(|value| hash(&value)).ok();
-        if current.as_deref() != Some(expected) {
-            return Err(VaultError::Conflict);
-        }
-    }
-    let parent = destination.parent().ok_or(VaultError::PathEscape)?;
-    fs::create_dir_all(parent).map_err(|_| VaultError::Unavailable)?;
-    // Re-resolve after directory creation to detect a concurrently introduced symlink.
-    let destination = resolve_inside(root, relative)?;
-    let parent = destination.parent().ok_or(VaultError::PathEscape)?;
-    let temporary = parent.join(format!(".studio-{}.tmp", Uuid::new_v4()));
-    let result = (|| {
-        let mut file = OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(&temporary)
-            .map_err(|_| VaultError::Unavailable)?;
-        file.write_all(bytes).map_err(|_| VaultError::Unavailable)?;
-        file.flush().map_err(|_| VaultError::Unavailable)?;
-        file.sync_all().map_err(|_| VaultError::Unavailable)?;
-        fs::rename(&temporary, &destination).map_err(|_| VaultError::Unavailable)?;
-        File::open(parent)
-            .and_then(|directory| directory.sync_all())
-            .map_err(|_| VaultError::Unavailable)?;
-        Ok(hash(bytes))
-    })();
-    if result.is_err() {
-        let _ = fs::remove_file(temporary);
-    }
-    result
+fn sync_directory(directory: &Dir) -> Result<(), VaultError> {
+    directory
+        .try_clone()
+        .and_then(|clone| clone.into_std_file().sync_all())
+        .map_err(|_| VaultError::Unavailable)
 }
 
-#[tauri::command]
-pub fn vault_read_text(root_token: String, path: String) -> Result<ReadTextResult, VaultError> {
-    let bytes = read_bytes(&resolve_inside(&root(&root_token)?, &path)?)?;
-    let text = String::from_utf8(bytes.clone()).map_err(|_| VaultError::Unavailable)?;
-    Ok(ReadTextResult {
-        text,
-        hash: hash(&bytes),
+fn c_name(name: &str) -> Result<CString, VaultError> {
+    CString::new(name).map_err(|_| VaultError::PathEscape)
+}
+
+#[cfg(target_os = "macos")]
+unsafe extern "C" {
+    fn renameatx_np(
+        fromfd: libc::c_int,
+        from: *const libc::c_char,
+        tofd: libc::c_int,
+        to: *const libc::c_char,
+        flags: libc::c_uint,
+    ) -> libc::c_int;
+}
+
+#[cfg(target_os = "macos")]
+fn macos_rename(
+    from_dir: &Dir,
+    from: &str,
+    to_dir: &Dir,
+    to: &str,
+    flags: libc::c_uint,
+) -> Result<(), std::io::Error> {
+    let from_fd = from_dir.try_clone()?.into_std_file();
+    let to_fd = to_dir.try_clone()?.into_std_file();
+    let from = c_name(from).map_err(|_| std::io::Error::from_raw_os_error(libc::EINVAL))?;
+    let to = c_name(to).map_err(|_| std::io::Error::from_raw_os_error(libc::EINVAL))?;
+    // SAFETY: both directory descriptors and NUL-terminated basename pointers remain valid
+    // for the duration of this single syscall.
+    let result = unsafe {
+        renameatx_np(
+            from_fd.as_raw_fd(),
+            from.as_ptr(),
+            to_fd.as_raw_fd(),
+            to.as_ptr(),
+            flags,
+        )
+    };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn rename_exclusive(from_dir: &Dir, from: &str, to_dir: &Dir, to: &str) -> Result<(), VaultError> {
+    const RENAME_EXCL: libc::c_uint = 0x0000_0004;
+    macos_rename(from_dir, from, to_dir, to, RENAME_EXCL).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            VaultError::Conflict
+        } else {
+            VaultError::Unavailable
+        }
     })
 }
 
-#[tauri::command]
-pub fn vault_read_binary(root_token: String, path: String) -> Result<Vec<u8>, VaultError> {
-    read_bytes(&resolve_inside(&root(&root_token)?, &path)?)
+#[cfg(target_os = "macos")]
+fn rename_swap(directory: &Dir, left: &str, right: &str) -> Result<(), VaultError> {
+    const RENAME_SWAP: libc::c_uint = 0x0000_0002;
+    macos_rename(directory, left, directory, right, RENAME_SWAP).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            VaultError::Conflict
+        } else {
+            VaultError::Unavailable
+        }
+    })
+}
+
+#[cfg(not(target_os = "macos"))]
+fn rename_exclusive(
+    _from_dir: &Dir,
+    _from: &str,
+    _to_dir: &Dir,
+    _to: &str,
+) -> Result<(), VaultError> {
+    Err(VaultError::Unavailable)
+}
+
+impl Vault {
+    pub fn read_text(&self, path: &str) -> Result<ReadTextResult, VaultError> {
+        let parent = open_parent(&self.root, path, false)?;
+        let bytes = read_file_nofollow(&parent.directory, &parent.basename)?;
+        let text = String::from_utf8(bytes.clone()).map_err(|_| VaultError::Unavailable)?;
+        Ok(ReadTextResult {
+            text,
+            hash: hash(&bytes),
+        })
+    }
+
+    fn read_binary(&self, path: &str) -> Result<Vec<u8>, VaultError> {
+        let parent = open_parent(&self.root, path, false)?;
+        read_file_nofollow(&parent.directory, &parent.basename)
+    }
+
+    fn write_atomic<F>(
+        &self,
+        path: &str,
+        bytes: &[u8],
+        expected_hash: Option<&str>,
+        before_commit: F,
+    ) -> Result<String, VaultError>
+    where
+        F: FnOnce(),
+    {
+        let _write_guard = self
+            .write_lock
+            .lock()
+            .map_err(|_| VaultError::Unavailable)?;
+        let parent = open_parent(&self.root, path, true)?;
+        let temporary = format!(".studio-{}.tmp", Uuid::new_v4().simple());
+        let mut options = OpenOptions::new();
+        options
+            .create_new(true)
+            .write(true)
+            .follow(FollowSymlinks::No);
+        let mut file = parent
+            .directory
+            .open_with(&temporary, &options)
+            .map_err(map_path_error)?;
+        let write_result = (|| {
+            file.write_all(bytes).map_err(|_| VaultError::Unavailable)?;
+            file.flush().map_err(|_| VaultError::Unavailable)?;
+            file.sync_all().map_err(|_| VaultError::Unavailable)?;
+            drop(file);
+            before_commit();
+
+            if let Some(expected) = expected_hash {
+                #[cfg(target_os = "macos")]
+                {
+                    rename_swap(&parent.directory, &temporary, &parent.basename)?;
+                    let observed =
+                        read_file_nofollow(&parent.directory, &temporary).map(|old| hash(&old));
+                    if !matches!(observed.as_deref(), Ok(actual) if actual == expected) {
+                        rename_swap(&parent.directory, &temporary, &parent.basename)
+                            .map_err(|_| VaultError::Unavailable)?;
+                        parent
+                            .directory
+                            .remove_file(&temporary)
+                            .map_err(|_| VaultError::Unavailable)?;
+                        sync_directory(&parent.directory)?;
+                        return Err(VaultError::Conflict);
+                    }
+                    parent
+                        .directory
+                        .remove_file(&temporary)
+                        .map_err(|_| VaultError::Unavailable)?;
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    let _ = expected;
+                    return Err(VaultError::Unavailable);
+                }
+            } else {
+                parent
+                    .directory
+                    .rename(&temporary, &parent.directory, &parent.basename)
+                    .map_err(map_path_error)?;
+            }
+            sync_directory(&parent.directory)?;
+            Ok(hash(bytes))
+        })();
+        if write_result.is_err() {
+            let _ = parent.directory.remove_file(&temporary);
+        }
+        write_result
+    }
+
+    fn write_text_atomic(
+        &self,
+        path: &str,
+        text: &str,
+        expected_hash: Option<&str>,
+    ) -> Result<HashResult, VaultError> {
+        Ok(HashResult {
+            hash: self.write_atomic(path, text.as_bytes(), expected_hash, || {})?,
+        })
+    }
+
+    fn write_binary_atomic(&self, path: &str, bytes: &[u8]) -> Result<HashResult, VaultError> {
+        Ok(HashResult {
+            hash: self.write_atomic(path, bytes, None, || {})?,
+        })
+    }
+
+    pub fn move_path(&self, from: &str, to: &str) -> Result<(), VaultError> {
+        let _write_guard = self
+            .write_lock
+            .lock()
+            .map_err(|_| VaultError::Unavailable)?;
+        let from_parent = open_parent(&self.root, from, false)?;
+        let metadata = from_parent
+            .directory
+            .symlink_metadata(&from_parent.basename)
+            .map_err(map_path_error)?;
+        if metadata.file_type().is_symlink() {
+            return Err(VaultError::PathEscape);
+        }
+        let to_parent = open_parent(&self.root, to, true)?;
+        rename_exclusive(
+            &from_parent.directory,
+            &from_parent.basename,
+            &to_parent.directory,
+            &to_parent.basename,
+        )?;
+        sync_directory(&from_parent.directory)?;
+        sync_directory(&to_parent.directory)
+    }
+
+    fn remove(&self, path: &str) -> Result<(), VaultError> {
+        let _write_guard = self
+            .write_lock
+            .lock()
+            .map_err(|_| VaultError::Unavailable)?;
+        let parent = open_parent(&self.root, path, false)?;
+        let metadata = parent
+            .directory
+            .symlink_metadata(&parent.basename)
+            .map_err(map_path_error)?;
+        if metadata.file_type().is_symlink() {
+            return Err(VaultError::PathEscape);
+        }
+        parent
+            .directory
+            .remove_file(&parent.basename)
+            .map_err(map_path_error)?;
+        sync_directory(&parent.directory)
+    }
+
+    fn exists(&self, path: &str) -> Result<bool, VaultError> {
+        let parent = match open_parent(&self.root, path, false) {
+            Ok(parent) => parent,
+            Err(VaultError::Unavailable) => return Ok(false),
+            Err(error) => return Err(error),
+        };
+        match parent.directory.symlink_metadata(&parent.basename) {
+            Ok(metadata) if metadata.file_type().is_symlink() => Err(VaultError::PathEscape),
+            Ok(_) => Ok(true),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(map_path_error(error)),
+        }
+    }
+
+    fn list(&self, prefix: Option<&str>) -> Result<Vec<VaultEntry>, VaultError> {
+        let mut entries = Vec::new();
+        match prefix {
+            None => collect_entries(&self.root, "", &mut entries)?,
+            Some(prefix) => {
+                validate_relative(prefix)?;
+                let parent = open_parent(&self.root, prefix, false)?;
+                let metadata = match parent.directory.symlink_metadata(&parent.basename) {
+                    Ok(metadata) => metadata,
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                        return Ok(Vec::new());
+                    }
+                    Err(error) => return Err(map_path_error(error)),
+                };
+                if metadata.file_type().is_symlink() {
+                    return Err(VaultError::PathEscape);
+                }
+                if metadata.is_dir() {
+                    let directory = parent
+                        .directory
+                        .open_dir_nofollow(&parent.basename)
+                        .map_err(map_path_error)?;
+                    collect_entries(&directory, prefix, &mut entries)?;
+                } else {
+                    push_file_entry(&parent.directory, &parent.basename, prefix, &mut entries)?;
+                }
+            }
+        }
+        entries.sort_by(|left, right| left.path.cmp(&right.path));
+        Ok(entries)
+    }
+
+    fn snapshot(&self) -> Result<BTreeMap<String, SnapshotFile>, VaultError> {
+        let mut entries = Vec::new();
+        collect_entries(&self.root, "", &mut entries)?;
+        Ok(entries
+            .into_iter()
+            .filter_map(|entry| {
+                Some((
+                    entry.path,
+                    SnapshotFile {
+                        hash: entry.content_hash?,
+                        size: entry.size?,
+                    },
+                ))
+            })
+            .collect())
+    }
+
+    fn start_watch<R: Runtime>(
+        self: &Arc<Self>,
+        app: AppHandle<R>,
+    ) -> Result<WatchRegistration, VaultError> {
+        let id = Uuid::new_v4().simple().to_string();
+        let event_name = format!("studio-vault-{id}");
+        let current = Arc::new(Mutex::new(self.snapshot()?));
+        let running = Arc::new(AtomicBool::new(false));
+        let dirty = Arc::new(AtomicBool::new(false));
+        let vault = Arc::downgrade(self);
+        let emitted_name = event_name.clone();
+        let mut watcher = notify::recommended_watcher(move |_raw_event| {
+            dirty.store(true, Ordering::Release);
+            if running.swap(true, Ordering::AcqRel) {
+                return;
+            }
+            let vault = Weak::clone(&vault);
+            let current = Arc::clone(&current);
+            let running = Arc::clone(&running);
+            let dirty = Arc::clone(&dirty);
+            let app = app.clone();
+            let emitted_name = emitted_name.clone();
+            std::thread::spawn(move || {
+                loop {
+                    std::thread::sleep(Duration::from_millis(50));
+                    dirty.store(false, Ordering::Release);
+                    let Some(vault) = vault.upgrade() else {
+                        running.store(false, Ordering::Release);
+                        return;
+                    };
+                    if let Ok(next) = vault.snapshot()
+                        && let Ok(mut previous) = current.lock()
+                    {
+                        for event in logical_changes(&previous, &next) {
+                            let _ = app.emit(&emitted_name, event);
+                        }
+                        *previous = next;
+                    }
+                    if dirty.load(Ordering::Acquire) {
+                        continue;
+                    }
+                    running.store(false, Ordering::Release);
+                    if !dirty.swap(false, Ordering::AcqRel) || running.swap(true, Ordering::AcqRel)
+                    {
+                        break;
+                    }
+                }
+            });
+        })
+        .map_err(|_| VaultError::Unavailable)?;
+        watcher
+            .watch(&self.selected_path, RecursiveMode::Recursive)
+            .map_err(|_| VaultError::Unavailable)?;
+        self.watchers
+            .lock()
+            .map_err(|_| VaultError::Unavailable)?
+            .insert(id.clone(), WatchHandle { _watcher: watcher });
+        Ok(WatchRegistration {
+            id,
+            event: event_name,
+        })
+    }
+
+    fn stop_watch(&self, id: &str) -> Result<(), VaultError> {
+        self.watchers
+            .lock()
+            .map_err(|_| VaultError::Unavailable)?
+            .remove(id);
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub fn write_text_atomic_with_before_commit_for_test<F>(
+        &self,
+        path: &str,
+        text: &str,
+        expected_hash: Option<&str>,
+        before_commit: F,
+    ) -> Result<String, VaultError>
+    where
+        F: FnOnce(),
+    {
+        self.write_atomic(path, text.as_bytes(), expected_hash, before_commit)
+    }
+}
+
+fn collect_entries(
+    directory: &Dir,
+    prefix: &str,
+    entries: &mut Vec<VaultEntry>,
+) -> Result<(), VaultError> {
+    for entry in directory.entries().map_err(|_| VaultError::Unavailable)? {
+        let entry = entry.map_err(|_| VaultError::Unavailable)?;
+        let name = entry
+            .file_name()
+            .into_string()
+            .map_err(|_| VaultError::Unavailable)?;
+        if name.starts_with(".studio-") {
+            continue;
+        }
+        let path = if prefix.is_empty() {
+            name.clone()
+        } else {
+            format!("{prefix}/{name}")
+        };
+        let metadata = directory.symlink_metadata(&name).map_err(map_path_error)?;
+        if metadata.file_type().is_symlink() {
+            continue;
+        }
+        if metadata.is_dir() {
+            entries.push(VaultEntry {
+                path: path.clone(),
+                kind: "directory",
+                size: None,
+                modified_at: None,
+                content_hash: None,
+            });
+            let child = directory.open_dir_nofollow(&name).map_err(map_path_error)?;
+            collect_entries(&child, &path, entries)?;
+        } else if metadata.is_file() {
+            push_file_entry(directory, &name, &path, entries)?;
+        }
+    }
+    Ok(())
+}
+
+fn push_file_entry(
+    directory: &Dir,
+    basename: &str,
+    path: &str,
+    entries: &mut Vec<VaultEntry>,
+) -> Result<(), VaultError> {
+    let bytes = read_file_nofollow(directory, basename)?;
+    entries.push(VaultEntry {
+        path: path.to_owned(),
+        kind: "file",
+        size: Some(bytes.len() as u64),
+        modified_at: None,
+        content_hash: Some(hash(&bytes)),
+    });
+    Ok(())
+}
+
+fn logical_changes(
+    previous: &BTreeMap<String, SnapshotFile>,
+    next: &BTreeMap<String, SnapshotFile>,
+) -> Vec<WatchEvent> {
+    let mut events = Vec::new();
+    let mut removed: Vec<_> = previous
+        .iter()
+        .filter(|(path, _)| !next.contains_key(*path))
+        .map(|(path, file)| (path.clone(), file.clone()))
+        .collect();
+    let mut created: Vec<_> = next
+        .iter()
+        .filter(|(path, _)| !previous.contains_key(*path))
+        .map(|(path, file)| (path.clone(), file.clone()))
+        .collect();
+    let mut used_created = HashSet::new();
+    let mut used_removed = HashSet::new();
+
+    for (removed_index, (previous_path, old_file)) in removed.iter().enumerate() {
+        if let Some((created_index, (path, new_file))) = created
+            .iter()
+            .enumerate()
+            .find(|(index, (_, file))| !used_created.contains(index) && file.hash == old_file.hash)
+        {
+            used_removed.insert(removed_index);
+            used_created.insert(created_index);
+            events.push(WatchEvent::Moved {
+                path: path.clone(),
+                previous_path: previous_path.clone(),
+                hash: new_file.hash.clone(),
+            });
+        }
+    }
+    for (index, (path, _)) in removed.drain(..).enumerate() {
+        if !used_removed.contains(&index) {
+            events.push(WatchEvent::Removed { path });
+        }
+    }
+    for (index, (path, file)) in created.drain(..).enumerate() {
+        if !used_created.contains(&index) {
+            events.push(WatchEvent::Created {
+                path,
+                hash: file.hash,
+            });
+        }
+    }
+    for (path, file) in next {
+        if let Some(old_file) = previous.get(path)
+            && old_file != file
+        {
+            events.push(WatchEvent::Modified {
+                path: path.clone(),
+                hash: file.hash.clone(),
+            });
+        }
+    }
+    events.sort_by(|left, right| format!("{left:?}").cmp(&format!("{right:?}")));
+    events
+}
+
+fn selected_vault<R: Runtime>(
+    window: &WebviewWindow<R>,
+    state: &State<'_, VaultRegistry>,
+    token: &str,
+) -> Result<Arc<Vault>, VaultError> {
+    state.vault(window.label(), token)
 }
 
 #[tauri::command]
-pub fn vault_write_text_atomic(
-    root_token: String,
+pub fn vault_select<R: Runtime>(
+    window: WebviewWindow<R>,
+    state: State<'_, VaultRegistry>,
+) -> Result<Option<VaultSelection>, VaultError> {
+    let Some(path) = rfd::FileDialog::new()
+        .set_title("Choose a Studio vault")
+        .pick_folder()
+    else {
+        return Ok(None);
+    };
+    Ok(Some(VaultSelection {
+        vault_token: state.register_selected_path(window.label(), &path)?,
+    }))
+}
+
+#[tauri::command]
+pub fn vault_read_text<R: Runtime>(
+    window: WebviewWindow<R>,
+    state: State<'_, VaultRegistry>,
+    vault_token: String,
+    path: String,
+) -> Result<ReadTextResult, VaultError> {
+    selected_vault(&window, &state, &vault_token)?.read_text(&path)
+}
+
+#[tauri::command]
+pub fn vault_read_binary<R: Runtime>(
+    window: WebviewWindow<R>,
+    state: State<'_, VaultRegistry>,
+    vault_token: String,
+    path: String,
+) -> Result<Vec<u8>, VaultError> {
+    selected_vault(&window, &state, &vault_token)?.read_binary(&path)
+}
+
+#[tauri::command]
+pub fn vault_write_text_atomic<R: Runtime>(
+    window: WebviewWindow<R>,
+    state: State<'_, VaultRegistry>,
+    vault_token: String,
     path: String,
     text: String,
     expected_hash: Option<String>,
 ) -> Result<HashResult, VaultError> {
-    Ok(HashResult {
-        hash: atomic_write(
-            &root(&root_token)?,
-            &path,
-            text.as_bytes(),
-            expected_hash.as_deref(),
-        )?,
-    })
+    selected_vault(&window, &state, &vault_token)?.write_text_atomic(
+        &path,
+        &text,
+        expected_hash.as_deref(),
+    )
 }
 
 #[tauri::command]
-pub fn vault_write_binary_atomic(
-    root_token: String,
+pub fn vault_write_binary_atomic<R: Runtime>(
+    window: WebviewWindow<R>,
+    state: State<'_, VaultRegistry>,
+    vault_token: String,
     path: String,
     bytes: Vec<u8>,
 ) -> Result<HashResult, VaultError> {
-    Ok(HashResult {
-        hash: atomic_write(&root(&root_token)?, &path, &bytes, None)?,
-    })
-}
-
-fn relative_string(root: &Path, path: &Path) -> Result<String, VaultError> {
-    path.strip_prefix(root)
-        .map_err(|_| VaultError::PathEscape)?
-        .to_str()
-        .map(str::to_owned)
-        .ok_or(VaultError::Unavailable)
+    selected_vault(&window, &state, &vault_token)?.write_binary_atomic(&path, &bytes)
 }
 
 #[tauri::command]
-pub fn vault_list(
-    root_token: String,
+pub fn vault_list<R: Runtime>(
+    window: WebviewWindow<R>,
+    state: State<'_, VaultRegistry>,
+    vault_token: String,
     prefix: Option<String>,
 ) -> Result<Vec<VaultEntry>, VaultError> {
-    let root = root(&root_token)?;
-    let start = prefix
-        .as_deref()
-        .map(|p| resolve_inside(&root, p))
-        .transpose()?
-        .unwrap_or_else(|| root.clone());
-    if !start.exists() {
-        return Ok(Vec::new());
-    }
-    let mut pending = vec![start];
-    let mut entries = Vec::new();
-    while let Some(path) = pending.pop() {
-        if path != root {
-            let metadata = fs::symlink_metadata(&path).map_err(|_| VaultError::Unavailable)?;
-            if metadata.file_type().is_symlink() {
-                continue;
-            }
-            let is_dir = metadata.is_dir();
-            let content_hash = if is_dir {
-                None
-            } else {
-                Some(hash(&read_bytes(&path)?))
-            };
-            entries.push(VaultEntry {
-                path: relative_string(&root, &path)?,
-                kind: if is_dir { "directory" } else { "file" },
-                size: (!is_dir).then_some(metadata.len()),
-                modified_at: None,
-                content_hash,
-            });
-        }
-        if path.is_dir() {
-            for child in fs::read_dir(path).map_err(|_| VaultError::Unavailable)? {
-                pending.push(child.map_err(|_| VaultError::Unavailable)?.path());
-            }
-        }
-    }
-    entries.sort_by(|a, b| a.path.cmp(&b.path));
-    Ok(entries)
+    selected_vault(&window, &state, &vault_token)?.list(prefix.as_deref())
 }
 
 #[tauri::command]
-pub fn vault_exists(root_token: String, path: String) -> Result<bool, VaultError> {
-    Ok(resolve_inside(&root(&root_token)?, &path)?.exists())
+pub fn vault_exists<R: Runtime>(
+    window: WebviewWindow<R>,
+    state: State<'_, VaultRegistry>,
+    vault_token: String,
+    path: String,
+) -> Result<bool, VaultError> {
+    selected_vault(&window, &state, &vault_token)?.exists(&path)
 }
 
 #[tauri::command]
-pub fn vault_move(root_token: String, from: String, to: String) -> Result<(), VaultError> {
-    let root = root(&root_token)?;
-    let source = resolve_inside(&root, &from)?;
-    if !source.exists() {
-        return Err(VaultError::Unavailable);
-    }
-    let destination = resolve_inside(&root, &to)?;
-    if destination.exists() {
-        return Err(VaultError::Conflict);
-    }
-    fs::create_dir_all(destination.parent().ok_or(VaultError::PathEscape)?)
-        .map_err(|_| VaultError::Unavailable)?;
-    fs::rename(source, destination).map_err(|_| VaultError::Unavailable)
+pub fn vault_move<R: Runtime>(
+    window: WebviewWindow<R>,
+    state: State<'_, VaultRegistry>,
+    vault_token: String,
+    from: String,
+    to: String,
+) -> Result<(), VaultError> {
+    selected_vault(&window, &state, &vault_token)?.move_path(&from, &to)
 }
 
 #[tauri::command]
-pub fn vault_remove(root_token: String, path: String) -> Result<(), VaultError> {
-    let target = resolve_inside(&root(&root_token)?, &path)?;
-    fs::remove_file(target).map_err(|_| VaultError::Unavailable)
+pub fn vault_remove<R: Runtime>(
+    window: WebviewWindow<R>,
+    state: State<'_, VaultRegistry>,
+    vault_token: String,
+    path: String,
+) -> Result<(), VaultError> {
+    selected_vault(&window, &state, &vault_token)?.remove(&path)
 }
 
 #[tauri::command]
-pub fn vault_watch(
-    app: tauri::AppHandle<tauri::Wry>,
-    root_token: String,
+pub fn vault_watch<R: Runtime>(
+    app: AppHandle<R>,
+    window: WebviewWindow<R>,
+    state: State<'_, VaultRegistry>,
+    vault_token: String,
 ) -> Result<WatchRegistration, VaultError> {
-    let watched_root = root(&root_token)?;
-    let id = Uuid::new_v4().to_string();
-    let event_name = format!("studio-vault-{id}");
-    let emitted_name = event_name.clone();
-    let callback_root = watched_root.clone();
-    let mut watcher = notify::recommended_watcher(move |result: notify::Result<notify::Event>| {
-        let Ok(event) = result else { return };
-        if matches!(
-            event.kind,
-            EventKind::Modify(ModifyKind::Name(RenameMode::Both))
-        ) && event.paths.len() == 2
-        {
-            let previous = relative_string(&callback_root, &event.paths[0]);
-            let current = relative_string(&callback_root, &event.paths[1]);
-            if let (Ok(previous_path), Ok(path), Ok(bytes)) =
-                (previous, current, read_bytes(&event.paths[1]))
-            {
-                let _ = app.emit(
-                    &emitted_name,
-                    WatchEvent::Moved {
-                        path,
-                        previous_path,
-                        hash: hash(&bytes),
-                    },
-                );
-            }
-            return;
-        }
-        for changed in event.paths {
-            let Ok(relative) = relative_string(&callback_root, &changed) else {
-                continue;
-            };
-            let payload = match event.kind {
-                EventKind::Create(_) => {
-                    read_bytes(&changed).ok().map(|bytes| WatchEvent::Created {
-                        path: relative,
-                        hash: hash(&bytes),
-                    })
-                }
-                EventKind::Modify(_) => {
-                    read_bytes(&changed).ok().map(|bytes| WatchEvent::Modified {
-                        path: relative,
-                        hash: hash(&bytes),
-                    })
-                }
-                EventKind::Remove(_) => Some(WatchEvent::Removed { path: relative }),
-                _ => None,
-            };
-            if let Some(payload) = payload {
-                let _ = app.emit(&emitted_name, payload);
-            }
-        }
-    })
-    .map_err(|_| VaultError::Unavailable)?;
-    watcher
-        .watch(&watched_root, RecursiveMode::Recursive)
-        .map_err(|_| VaultError::Unavailable)?;
-    WATCHERS
-        .get_or_init(|| Mutex::new(HashMap::new()))
-        .lock()
-        .map_err(|_| VaultError::Unavailable)?
-        .insert(id.clone(), watcher);
-    Ok(WatchRegistration {
-        id,
-        event: event_name,
-    })
+    selected_vault(&window, &state, &vault_token)?.start_watch(app)
 }
 
 #[tauri::command]
-pub fn vault_unwatch(id: String) -> Result<(), VaultError> {
-    WATCHERS
-        .get_or_init(|| Mutex::new(HashMap::new()))
-        .lock()
-        .map_err(|_| VaultError::Unavailable)?
-        .remove(&id);
-    Ok(())
+pub fn vault_unwatch<R: Runtime>(
+    window: WebviewWindow<R>,
+    state: State<'_, VaultRegistry>,
+    vault_token: String,
+    id: String,
+) -> Result<(), VaultError> {
+    selected_vault(&window, &state, &vault_token)?.stop_watch(&id)
 }
 
 #[cfg(test)]
@@ -363,79 +856,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn temp_file_is_replaced_atomically() {
-        let dir = tempfile::tempdir().unwrap();
-        atomic_write(dir.path(), "note.md", b"complete", None).unwrap();
-        assert_eq!(fs::read(dir.path().join("note.md")).unwrap(), b"complete");
-        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
-    }
-
-    #[test]
-    fn expected_hash_conflict_preserves_old_content() {
-        let dir = tempfile::tempdir().unwrap();
-        atomic_write(dir.path(), "note.md", b"old", None).unwrap();
-        assert!(matches!(
-            atomic_write(dir.path(), "note.md", b"new", Some("stale")),
-            Err(VaultError::Conflict)
-        ));
-        assert_eq!(fs::read(dir.path().join("note.md")).unwrap(), b"old");
-    }
-
-    #[test]
-    fn repeated_atomic_replacement_is_never_partial() {
-        let dir = tempfile::tempdir().unwrap();
-        let old = vec![b'o'; 128 * 1024];
-        let new = vec![b'n'; 128 * 1024];
-        atomic_write(dir.path(), "note.md", &old, None).unwrap();
-        let root = dir.path().to_owned();
-        let replacement = new.clone();
-        let writer =
-            std::thread::spawn(move || atomic_write(&root, "note.md", &replacement, None).unwrap());
-        while !writer.is_finished() {
-            let observed = fs::read(dir.path().join("note.md")).unwrap();
-            assert!(observed == old || observed == new);
-        }
-        writer.join().unwrap();
-        assert_eq!(fs::read(dir.path().join("note.md")).unwrap(), new);
-    }
-
-    #[test]
-    fn interrupted_pre_rename_write_preserves_old_file() {
-        let dir = tempfile::tempdir().unwrap();
-        atomic_write(dir.path(), "note.md", b"old", None).unwrap();
-        let temporary = dir.path().join(".studio-interrupted.tmp");
-        let mut file = OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(&temporary)
-            .unwrap();
-        file.write_all(b"partial-new").unwrap();
-        file.sync_all().unwrap();
-        drop(file); // Process interruption before rename leaves the authoritative path untouched.
-        assert_eq!(fs::read(dir.path().join("note.md")).unwrap(), b"old");
-    }
-
-    #[test]
-    fn watcher_observes_committed_content_after_atomic_write() {
-        use std::{sync::mpsc, time::Duration};
-        let dir = tempfile::tempdir().unwrap();
-        let watched = dir.path().to_owned();
-        let (sender, receiver) = mpsc::channel();
-        let mut watcher =
-            notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
-                if let Ok(event) = event
-                    && event.paths.iter().any(|path| path.ends_with("note.md"))
-                {
-                    let _ = sender.send(fs::read(watched.join("note.md")));
-                }
-            })
-            .unwrap();
-        watcher.watch(dir.path(), RecursiveMode::Recursive).unwrap();
-        atomic_write(dir.path(), "note.md", b"complete", None).unwrap();
-        let visible = receiver
-            .recv_timeout(Duration::from_secs(5))
-            .unwrap()
-            .unwrap();
-        assert_eq!(visible, b"complete");
+    fn logical_diff_coalesces_a_rename() {
+        let previous = BTreeMap::from([(
+            "before.md".to_owned(),
+            SnapshotFile {
+                hash: "same".to_owned(),
+                size: 4,
+            },
+        )]);
+        let next = BTreeMap::from([(
+            "after.md".to_owned(),
+            SnapshotFile {
+                hash: "same".to_owned(),
+                size: 4,
+            },
+        )]);
+        assert_eq!(
+            logical_changes(&previous, &next),
+            vec![WatchEvent::Moved {
+                path: "after.md".to_owned(),
+                previous_path: "before.md".to_owned(),
+                hash: "same".to_owned(),
+            }]
+        );
     }
 }

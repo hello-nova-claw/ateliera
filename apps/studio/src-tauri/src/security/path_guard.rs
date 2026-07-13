@@ -1,35 +1,16 @@
-use std::path::{Component, Path, PathBuf};
+use std::path::{Component, Path};
+
+use cap_fs_ext::DirExt;
+use cap_std::fs::Dir;
 
 use crate::commands::vault::VaultError;
 
-/// Resolves a portable vault-relative path without following a symlink outside the vault.
-pub fn resolve_inside(root: &Path, relative: &str) -> Result<PathBuf, VaultError> {
-    let root = root.canonicalize().map_err(|_| VaultError::Unavailable)?;
-    validate_relative(relative)?;
-    let candidate = root.join(relative);
-
-    let mut existing = candidate.as_path();
-    while !existing.exists() {
-        existing = existing.parent().ok_or(VaultError::PathEscape)?;
-    }
-    let canonical_existing = existing
-        .canonicalize()
-        .map_err(|_| VaultError::Unavailable)?;
-    if !canonical_existing.starts_with(&root) {
-        return Err(VaultError::PathEscape);
-    }
-    if candidate.exists() {
-        let canonical_candidate = candidate
-            .canonicalize()
-            .map_err(|_| VaultError::Unavailable)?;
-        if !canonical_candidate.starts_with(&root) {
-            return Err(VaultError::PathEscape);
-        }
-    }
-    Ok(candidate)
+pub struct ParentHandle {
+    pub directory: Dir,
+    pub basename: String,
 }
 
-fn validate_relative(relative: &str) -> Result<(), VaultError> {
+pub fn validate_relative(relative: &str) -> Result<(), VaultError> {
     if relative.is_empty()
         || relative == "."
         || relative.contains('\0')
@@ -37,42 +18,83 @@ fn validate_relative(relative: &str) -> Result<(), VaultError> {
         || relative.starts_with('/')
         || relative.ends_with('/')
         || relative.as_bytes().get(1) == Some(&b':')
-    {
-        return Err(VaultError::PathEscape);
-    }
-    if Path::new(relative)
-        .components()
-        .any(|part| !matches!(part, Component::Normal(_)))
-    {
-        return Err(VaultError::PathEscape);
-    }
-    if relative
-        .split('/')
-        .any(|part| part.is_empty() || part == "." || part == "..")
+        || relative
+            .split('/')
+            .any(|part| part.is_empty() || part == "." || part == "..")
+        || Path::new(relative)
+            .components()
+            .any(|part| !matches!(part, Component::Normal(_)))
     {
         return Err(VaultError::PathEscape);
     }
     Ok(())
 }
 
+pub fn open_parent(root: &Dir, relative: &str, create: bool) -> Result<ParentHandle, VaultError> {
+    validate_relative(relative)?;
+    let mut parts = relative.split('/').peekable();
+    let mut current = root.try_clone().map_err(|_| VaultError::Unavailable)?;
+    let mut basename = None;
+
+    while let Some(part) = parts.next() {
+        if parts.peek().is_none() {
+            basename = Some(part.to_owned());
+            break;
+        }
+        match current.open_dir_nofollow(part) {
+            Ok(next) => current = next,
+            Err(error) if create && error.kind() == std::io::ErrorKind::NotFound => {
+                current
+                    .create_dir(part)
+                    .or_else(|create_error| {
+                        if create_error.kind() == std::io::ErrorKind::AlreadyExists {
+                            Ok(())
+                        } else {
+                            Err(create_error)
+                        }
+                    })
+                    .map_err(map_path_error)?;
+                current = current.open_dir_nofollow(part).map_err(map_path_error)?;
+            }
+            Err(error) => return Err(map_path_error(error)),
+        }
+    }
+
+    Ok(ParentHandle {
+        directory: current,
+        basename: basename.ok_or(VaultError::PathEscape)?,
+    })
+}
+
+pub fn map_path_error(error: std::io::Error) -> VaultError {
+    if matches!(error.raw_os_error(), Some(code) if code == libc::ELOOP || code == libc::ENOTDIR) {
+        VaultError::PathEscape
+    } else {
+        VaultError::Unavailable
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use cap_std::{ambient_authority, fs::Dir};
 
-    use super::resolve_inside;
+    use super::*;
 
     #[test]
     fn rejects_parent_traversal() {
-        assert!(resolve_inside(Path::new("/vault"), "../secret.md").is_err());
+        assert!(validate_relative("../secret.md").is_err());
     }
 
-    #[cfg(unix)]
     #[test]
-    fn rejects_a_symlink_escape() {
+    fn opens_each_parent_without_following_symlinks() {
         use std::os::unix::fs::symlink;
         let root = tempfile::tempdir().unwrap();
         let outside = tempfile::tempdir().unwrap();
         symlink(outside.path(), root.path().join("escape")).unwrap();
-        assert!(resolve_inside(root.path(), "escape/secret.md").is_err());
+        let directory = Dir::open_ambient_dir(root.path(), ambient_authority()).unwrap();
+        assert!(matches!(
+            open_parent(&directory, "escape/secret.md", false),
+            Err(VaultError::PathEscape)
+        ));
     }
 }

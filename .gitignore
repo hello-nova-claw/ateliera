@@ -8,6 +8,7 @@ artifacts/
 .turbo/
 .vite/
 target/
+apps/studio/src-tauri/gen/
 .toolchains/
 .superpowers/
 .worktrees/
