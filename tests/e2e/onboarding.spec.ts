@@ -3,8 +3,9 @@ import { expect, test } from '@playwright/test';
 
 test('creates a local Studio and enters the Foyer', async ({ page }) => {
   await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Capture' })).toBeDisabled();
   await page.getByRole('button', { name: 'Create a Studio' }).click();
-  await page.getByLabel('Studio name').fill('The Studio');
+  await page.getByLabel('Studio name').fill('Anna’s Studio');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
 
   await expect(page).toHaveURL(/\/foyer$/);
@@ -16,12 +17,38 @@ test('creates a local Studio and enters the Foyer', async ({ page }) => {
     }),
   ).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
+  await page.reload();
+  await expect(
+    page.getByRole('button', { name: 'Open Anna’s Studio' }),
+  ).toBeVisible();
 });
 
 test('opens an existing browser Studio', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Open this Studio' }).click();
+  await page.getByRole('button', { name: 'Create a Studio' }).click();
+  await page.getByLabel('Studio name').fill('The Studio');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await page.reload();
+  await page.getByRole('button', { name: 'Open The Studio' }).click();
   await expect(page).toHaveURL(/\/foyer$/);
+});
+
+test('offers to open an existing Studio instead of overwriting it', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create a Studio' }).click();
+  await page.getByLabel('Studio name').fill('The Studio');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await page.reload();
+  await page.getByRole('button', { name: 'Create a Studio' }).click();
+  await page.getByLabel('Studio name').fill('the studio');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+
+  await expect(page.getByRole('alert')).toContainText('already exists');
+  await page.getByRole('button', { name: 'Open existing Studio' }).click();
+  await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
 });
 
 test('native relaunch requires a fresh session-scoped folder selection', async ({
