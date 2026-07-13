@@ -18,12 +18,14 @@ describe('Uncharted and Reflection Garden application behavior', () => {
       body: 'What if there were a place for thoughtful retreats?',
       title: 'A thoughtful retreat',
       placement: 'uncharted',
+      unchartedHorizon: 'beyond',
     });
     expect(uncharted.note).toMatchObject({
       cardType: 'possibility',
       semanticType: 'uncharted',
       status: 'active',
       rooms: ['uncharted'],
+      extraFrontmatter: { beyond_gate: true },
     });
     expect(uncharted.path).toMatch(
       /^Uncharted\/2026-07-14--a-thoughtful-retreat--[a-z0-9]{6}\.md$/,
