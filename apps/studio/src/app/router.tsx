@@ -18,18 +18,25 @@ function normalizePath(path: string): StudioPath {
   return path in studioRoutes ? (path as keyof typeof studioRoutes) : '/foyer';
 }
 
+function canonicalLocationPath(): StudioPath {
+  const normalized = normalizePath(location.pathname);
+  if (normalized !== location.pathname) {
+    history.replaceState(null, '', normalized);
+  }
+  return normalized;
+}
+
 export function useStudioRouter() {
-  const [path, setPath] = useState<StudioPath>(() =>
-    normalizePath(location.pathname),
-  );
+  const [path, setPath] = useState<StudioPath>(canonicalLocationPath);
   useEffect(() => {
-    const onPop = () => setPath(normalizePath(location.pathname));
+    const onPop = () => setPath(canonicalLocationPath());
     addEventListener('popstate', onPop);
     return () => removeEventListener('popstate', onPop);
   }, []);
   const navigate = useCallback((next: string) => {
     const normalized = normalizePath(next);
-    history.pushState(null, '', normalized);
+    if (normalized === next) history.pushState(null, '', normalized);
+    else history.replaceState(null, '', normalized);
     setPath(normalized);
   }, []);
   const title = path.startsWith('/landscape/')

@@ -38,9 +38,7 @@ it('announces the canonical Foyer after an unknown URL is replaced', async () =>
   );
 
   expect(replaceState).toHaveBeenCalledWith(null, '', '/foyer');
-  await waitFor(() =>
-    expect(document.title).toBe('Foyer — The Studio'),
-  );
+  await waitFor(() => expect(document.title).toBe('Foyer — The Studio'));
   expect(screen.getByText(/Foyer opened\./)).toBeInTheDocument();
 });
 

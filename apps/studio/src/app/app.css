@@ -221,6 +221,12 @@
   font: var(--studio-type-page-subtitle);
 }
 
+.studio-room__loading {
+  margin: 0;
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-page-subtitle);
+}
+
 .studio-room__remembered {
   color: var(--studio-color-ink);
   margin-block-start: clamp(var(--studio-space-16), 10vw, 7rem);

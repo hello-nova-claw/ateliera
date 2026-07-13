@@ -17,6 +17,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { StudioProviders } from './providers';
 import { useTheme } from './theme-context';
+import { RoomRoute } from './RoomRoute';
 import { useStudioRouter } from './router';
 import { themes, type ThemeId } from './themes';
 import './app.css';
@@ -363,7 +364,7 @@ function StudioApplication({
         {title} opened. {themeAnnouncement}
       </span>
       <section className="studio-room">
-        <RoomPlaceholder captures={captures} path={path} title={title} />
+        <RoomRoute captures={captures} path={path} title={title} />
         {!opened && (
           <Onboarding
             onCreate={() => setCreateOpen(true)}
@@ -507,48 +508,6 @@ function Onboarding({
         </button>
       </div>
     </section>
-  );
-}
-
-function RoomPlaceholder({
-  captures,
-  path,
-  title,
-}: {
-  captures: CaptureEntry[];
-  path: string;
-  title: string;
-}) {
-  const foyer = path === '/foyer';
-  return (
-    <>
-      <p className="studio-room__eyebrow">
-        {foyer ? 'Welcome home' : 'A room in your Studio'}
-      </p>
-      <h1>{foyer ? 'The Studio' : title}</h1>
-      <p className="studio-room__intro">
-        {foyer
-          ? 'A quiet place to design a life, notice who you are becoming, and keep what you learn.'
-          : 'This room is ready for its focused content in the next stage of the build.'}
-      </p>
-      {foyer && (
-        <section
-          className="studio-room__remembered"
-          aria-labelledby="remembered-heading"
-        >
-          <h2 id="remembered-heading">Remembered</h2>
-          {captures.length === 0 ? (
-            <p>There is room for whatever arrives.</p>
-          ) : (
-            <ul>
-              {captures.map((capture) => (
-                <li key={capture.id}>{capture.text}</li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
-    </>
   );
 }
 
