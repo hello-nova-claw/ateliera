@@ -194,17 +194,12 @@ async function snapshotFilesAreIntact(
   for (const file of manifest.files) {
     const entry = entriesByPath.get(file.snapshotPath);
     if (entry === undefined) return false;
-    let size = entry.size;
-    let bytes: Uint8Array | undefined;
-    if (size === undefined || entry.contentHash === undefined) {
-      bytes = await control.readBinary(file.snapshotPath);
-      size = bytes.byteLength;
-    }
+    const bytes = await control.readBinary(file.snapshotPath);
+    const size = bytes.byteLength;
     if (size > limits.maxFileBytes) return false;
     totalBytes += size;
     if (totalBytes > limits.maxTotalBytes) return false;
-    if (entry.contentHash !== undefined && entry.contentHash !== file.hash) return false;
-    if (bytes !== undefined && await sha256(bytes) !== file.hash) return false;
+    if (await sha256(bytes) !== file.hash) return false;
   }
   return true;
 }
