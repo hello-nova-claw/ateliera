@@ -20,6 +20,7 @@ afterEach(() => {
   cleanup();
   Reflect.deleteProperty(window, '__TAURI_INTERNALS__');
   selectTauriVault.mockReset();
+  vi.unstubAllGlobals();
 });
 
 it('renders the Studio landmark', async () => {
@@ -102,6 +103,29 @@ it('asks the native shell to select a vault before opening the Studio', async ()
   render(<App />);
   fireEvent.click(screen.getByRole('button', { name: 'Open this Studio' }));
 
+  await waitFor(() => expect(selectTauriVault).toHaveBeenCalledOnce());
+  expect(
+    screen.getByRole('heading', { name: 'Make this space yours.' }),
+  ).toBeVisible();
+});
+
+it('requires native folder selection again after a persisted browser-style relaunch', async () => {
+  Object.defineProperty(window, '__TAURI_INTERNALS__', {
+    configurable: true,
+    value: {},
+  });
+  vi.stubGlobal('localStorage', {
+    getItem: (key: string) => (key === 'studio:opened' ? 'true' : null),
+    setItem: vi.fn(),
+  });
+  selectTauriVault.mockResolvedValue(null);
+
+  render(<App />);
+
+  expect(
+    screen.getByRole('heading', { name: 'Make this space yours.' }),
+  ).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Open this Studio' }));
   await waitFor(() => expect(selectTauriVault).toHaveBeenCalledOnce());
   expect(
     screen.getByRole('heading', { name: 'Make this space yours.' }),
