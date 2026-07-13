@@ -236,7 +236,7 @@ describe('season service', () => {
     ).rejects.toThrow('not accepted');
   });
 
-  it('snapshots before close mutations, writes a letter, and archives only explicit dispositions', async () => {
+  it('coordinates a journalled close, writes a letter, and clears the active checkpoint last', async () => {
     const vault = createInMemoryVault();
     const order: string[] = [];
     let next = 0;
@@ -263,7 +263,7 @@ describe('season service', () => {
       clock: () => new Date('2026-07-14T00:00:00.000Z'),
       generateId: () => `season-${(next += 1)}`,
     });
-    await studio.save({
+    const thread = await studio.save({
       note: note({
         id: 'thread',
         title: 'A thread',
@@ -300,25 +300,27 @@ describe('season service', () => {
       learning: 'Small was enough.',
       identity: 'More trusting.',
       dispositions: [
-        { noteId: 'thread', title: 'A thread', disposition: 'archive' },
         {
-          noteId: 'future',
-          title: 'A possibility',
-          disposition: 'invite-forward',
+          noteId: 'thread',
+          title: 'A thread',
+          expectedHash: thread.hash,
+          disposition: 'archive',
         },
       ],
     });
     expect(order[0]).toBe('snapshot');
-    expect(order).toContain('archive:thread');
-    expect(order).not.toContain('archive:future');
-    expect(order.at(-1)).toBe(`save:${record.path}`);
+    expect((await studio.load(thread.path)).note.status).toBe('archived');
     expect(closed.state.status).toBe('archived');
+    expect((await studio.seasonTransactions.readActive()).value).toMatchObject({
+      activeNoteId: null,
+      operation: null,
+    });
     expect((await studio.projectStream('reflection'))[0]?.title).toBe(
       'A letter from Winter',
     );
   });
 
-  it('does not mutate anything when the pre-close snapshot fails', async () => {
+  it('keeps an explicit resumable checkpoint when the pre-close snapshot fails', async () => {
     const vault = createInMemoryVault();
     const studio = createStudioService({
       vault,
@@ -356,14 +358,49 @@ describe('season service', () => {
     record = await seasons.activateSeason(record);
     await expect(
       seasons.closeSeason(record, {
-        celebration: '',
-        learning: '',
-        identity: '',
+        celebration: 'A beginning.',
+        learning: 'Still learning.',
+        identity: 'More present.',
         dispositions: [],
       }),
     ).rejects.toThrow('snapshot unavailable');
-    expect((await seasons.loadCurrent()).record?.state.status).toBe('active');
+    expect((await studio.load(record.path)).note.status).toBe('active');
+    expect((await studio.seasonTransactions.readActive()).value.operation).toMatchObject({
+      kind: 'closing',
+      targetNoteId: record.note.id,
+    });
     expect(await studio.projectStream('reflection')).toEqual([]);
+  });
+
+  it('rejects blank close reflections and incomplete disposition sets before reserving close', async () => {
+    const { seasons, studio } = setup();
+    let record = await seasons.beginSeason({ title: 'Winter' });
+    for (const step of [
+      'prior-reflection',
+      'feelings',
+      'priorities',
+      'decisions-practices',
+      'supports-constraints',
+      'enough',
+      'not-now',
+      'confirm',
+    ] as const) {
+      record = await seasons.saveStep(
+        record,
+        step,
+        step === 'prior-reflection' ? { skippedPriorReflection: true } : {},
+      );
+    }
+    record = await seasons.activateSeason(record);
+    await expect(
+      seasons.closeSeason(record, {
+        celebration: '   ',
+        learning: 'Learning',
+        identity: 'Becoming',
+        dispositions: [],
+      }),
+    ).rejects.toThrow('celebration');
+    expect((await studio.seasonTransactions.readActive()).value.operation).toBeNull();
   });
 
   it('recovers malformed optional workflow fields conservatively', () => {
