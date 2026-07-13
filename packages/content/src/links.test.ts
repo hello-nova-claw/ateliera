@@ -46,4 +46,15 @@ describe('extractLinks', () => {
   it('derives searchable text from rendered CommonMark rather than destinations or comments', () => {
     expect(markdownToPlainText('Visible [calm label](https://hidden.example/calm-secret) `code word` <!-- hidden comment -->')).toBe('Visible calm label code word');
   });
+
+  it('resolves full, collapsed, and shortcut reference links through definitions', () => {
+    expect(extractLinks('[proof][evidence] and [identity][] and [Evidence]\n\n[evidence]: <../Reflection/Proof (now).md>\n[identity]: studio://note/01REF')).toEqual([
+      { kind: 'path', target: '../Reflection/Proof (now).md', label: 'proof' },
+      { kind: 'id', target: '01REF', label: 'identity' },
+    ]);
+  });
+
+  it('derives plain text from GFM tables without delimiter syntax', () => {
+    expect(markdownToPlainText('| Name | Feeling |\n| --- | --- |\n| Anna | Calm |')).toBe('Name Feeling Anna Calm');
+  });
 });

@@ -46,8 +46,8 @@ describe('SQLite IndexPort', () => {
     const hits = await index.search('calm', { semanticTypes: ['reflection'], lifeAreas: ['work'], statuses: ['active'], tags: ['practice'], dateFrom: '2026-01-01T00:00:00.000Z' });
     expect(hits).toHaveLength(1);
     expect(hits[0]).toMatchObject({ id: '01H00000000000000000000001', path: 'Reflection/work.md', title: '<script>calm work</script>' });
-    expect(hits[0]!.snippet).not.toContain('<script>');
-    expect(hits[0]!.highlightRanges.length).toBeGreaterThan(0);
+    expect(hits[0]!.snippet).toContain('<script>calm work</script>');
+    expect(hits[0]!.highlightRanges.map((range) => hits[0]!.snippet.slice(range.start, range.end).toLocaleLowerCase('en'))).toContain('calm');
   });
 
   it('resolves forward links and backlinks by title, path, and stable ID', async () => {
@@ -154,6 +154,14 @@ describe('SQLite IndexPort', () => {
     const [hit] = await index.search('cafe');
     expect(hit?.title).toBe('A café ritual');
     expect(hit?.highlightRanges).toEqual([]);
+  });
+
+  it('maps length-changing Turkish case folds back to original UTF-16 offsets', async () => {
+    await upsert(index, note({ title: 'İstanbul calm', body: 'Tea.' }), 'istanbul.md', 'istanbul');
+    const [cityHit] = await index.search('istanbul');
+    expect(cityHit?.highlightRanges.map((range) => cityHit.snippet.slice(range.start, range.end))).toContain('İstanbul');
+    const [laterHit] = await index.search('calm');
+    expect(laterHit?.highlightRanges.map((range) => laterHit.snippet.slice(range.start, range.end))).toContain('calm');
   });
 
   it('returns no notes for punctuation or emoji-only queries', async () => {
