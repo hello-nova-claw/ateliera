@@ -25,9 +25,11 @@ function translate(error: unknown): never {
   throw new VaultUnavailableError();
 }
 
-export function createTauriVault(rootToken: string, bridge: TauriVaultBridge = defaultBridge): VaultPort {
+type VaultToken = string & { readonly __vaultToken: unique symbol };
+
+function createTauriVault(vaultToken: VaultToken, bridge: TauriVaultBridge): VaultPort {
   const call = async <T>(command: string, args: Record<string, unknown>): Promise<T> => {
-    try { return await bridge.invoke(command, { rootToken, ...args }) as T; } catch (error) { translate(error); }
+    try { return await bridge.invoke(command, { vaultToken, ...args }) as T; } catch (error) { translate(error); }
   };
   return {
     list: (prefix) => call<VaultEntry[]>('vault_list', { prefix }),
@@ -44,4 +46,28 @@ export function createTauriVault(rootToken: string, bridge: TauriVaultBridge = d
       return () => { stopListening(); void call('vault_unwatch', { id: registration.id }); };
     },
   };
+}
+
+export async function selectTauriVault(
+  bridge: TauriVaultBridge = defaultBridge,
+): Promise<VaultPort | null> {
+  let selection: unknown;
+  try {
+    selection = await bridge.invoke('vault_select', {});
+  } catch (error) {
+    translate(error);
+  }
+  if (selection === null) return null;
+  if (
+    typeof selection !== 'object'
+    || selection === null
+    || typeof (selection as { vaultToken?: unknown }).vaultToken !== 'string'
+    || (selection as { vaultToken: string }).vaultToken.length < 32
+  ) {
+    throw new VaultUnavailableError();
+  }
+  return createTauriVault(
+    (selection as { vaultToken: string }).vaultToken as VaultToken,
+    bridge,
+  );
 }
