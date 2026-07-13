@@ -7,7 +7,7 @@ import {
 import { createNoteId, parseNote, suggestFilename } from '@studio/content';
 import type { StudioNote } from '@studio/domain';
 import { CardEditor, type RecoveryDraftView } from '@studio/ui';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { browserDraftRecovery } from './browser-draft-recovery';
 import { useAutosave } from './use-autosave';
 
@@ -83,7 +83,7 @@ function AutosaveEditor({
     staleLocal,
   );
   const [recoveryView, setRecoveryView] = useState<RecoveryDraftView | undefined>(
-    pending.kind === 'recoverable'
+    pending.kind === 'recoverable' && restored === undefined
       ? {
           body: pending.draft.body,
           ...(pending.draft.title === undefined ? {} : { title: pending.draft.title }),
@@ -95,7 +95,7 @@ function AutosaveEditor({
   const [actionError, setActionError] = useState<string>();
   const [closeError, setCloseError] = useState<string>();
   const autosave = useAutosave({
-    initial: restored ?? initial,
+    initial,
     save: (note, expectedHash) => service.save({ note, path: initial.path, expectedHash }),
     writeRecovery: (note, expectedHash) => {
       if (!recovery.write(recoveryRecord(studioId, initial.path, note, expectedHash))) {
@@ -106,6 +106,12 @@ function AutosaveEditor({
       if (!recovery.remove(studioId, initial.path)) setRecoveryUnavailable(true);
     },
   });
+  const restoredApplied = useRef(false);
+  useEffect(() => {
+    if (restored === undefined || restoredApplied.current) return;
+    restoredApplied.current = true;
+    autosave.update(restored.note);
+  }, [autosave, restored]);
   const flush = autosave.flush;
 
   const close = useCallback(async (): Promise<void> => {

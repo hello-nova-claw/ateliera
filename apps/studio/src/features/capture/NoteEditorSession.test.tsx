@@ -210,16 +210,23 @@ it('keeps the editor open after a failed close flush and offers a retry', async 
 it('begins a live manual merge with both versions preserved in recovery', async () => {
   const attempted = { ...note, title: 'Local title' };
   const remote = { ...note, title: 'Remote title', body: 'Remote words' };
+  const onClose = vi.fn();
+  const save = vi
+    .fn()
+    .mockRejectedValueOnce(new StudioSaveConflictError(attempted, serializeNote(remote)))
+    .mockImplementationOnce(async ({ note: savedNote, path }) => ({
+      note: savedNote,
+      path,
+      hash: 'merged-hash',
+    }));
   const service = mockService({
     load: vi.fn(async () => ({ ...initial, note: remote, hash: 'remote-hash' })),
-    save: vi.fn().mockRejectedValueOnce(
-      new StudioSaveConflictError(attempted, serializeNote(remote)),
-    ),
+    save,
   });
   render(
     <NoteEditorSession
       initial={initial}
-      onClose={vi.fn()}
+      onClose={onClose}
       requestClose={0}
       service={service}
       studioId="studio-a"
@@ -239,6 +246,19 @@ it('begins a live manual merge with both versions preserved in recovery', async 
     expectedHash: 'remote-hash',
     body: expect.stringContaining('Remote words'),
   });
+  expect(screen.getByRole('status')).toHaveTextContent('Unsaved changes');
+
+  fireEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+  await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+  expect(save).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      path: initial.path,
+      expectedHash: 'remote-hash',
+      note: expect.objectContaining({
+        body: expect.stringContaining('Remote words'),
+      }),
+    }),
+  );
 });
 
 it('keeps both live conflict versions available when manual merge loading fails', async () => {
