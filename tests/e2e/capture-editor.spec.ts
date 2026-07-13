@@ -86,9 +86,9 @@ test('flushes the latest words on blur and Escape, then restores focus', async (
     .fill('After the blur');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Edit note' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Before the blur' })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'After the blur' })).toBeFocused();
 
-  await openEditor(page, 'Before the blur');
+  await openEditor(page, 'After the blur');
   await expect(page.getByRole('textbox', { name: 'Markdown body' })).toContainText(
     'After the blur',
   );
@@ -134,7 +134,104 @@ test('keeps local and external versions when exact-hash save conflicts', async (
   await expect(page.getByRole('region', { name: 'Other version' })).toContainText(
     'The other version',
   );
+  await expect(page.getByRole('textbox', { name: 'Markdown body' })).toHaveAttribute(
+    'contenteditable',
+    'false',
+  );
   await expect(page.getByRole('button', { name: 'Keep mine as a sibling' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Keep other' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Merge manually' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Keep mine as a sibling' }).click();
+  await expect(page.getByRole('dialog', { name: 'Edit note' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'My local version' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'The other version' })).toBeVisible();
+});
+
+test('keeps the durable IndexedDB version across browsers when choosing Keep other', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator.storage, 'getDirectory', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+  await createLocalStudio(page);
+  await capture(page, 'IndexedDB original');
+  await openEditor(page, 'IndexedDB original');
+
+  await page.evaluate(async () => {
+    const active = localStorage.getItem('studio:active-browser-studio');
+    if (active === null) throw new Error('No active Studio');
+    const request = indexedDB.open('the-studio-browser-vaults', 2);
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.addEventListener('success', () => resolve(request.result), { once: true });
+      request.addEventListener('error', () => reject(request.error), { once: true });
+    });
+    const readTransaction = database.transaction('files', 'readonly');
+    const read = readTransaction.objectStore('files').index('vault').getAll(active);
+    const records = await new Promise<Array<{
+      key: string;
+      vault: string;
+      path: string;
+      bytes: ArrayBuffer;
+      hash: string;
+      modifiedAt: string;
+    }>>((resolve, reject) => {
+      read.addEventListener('success', () => resolve(read.result), { once: true });
+      read.addEventListener('error', () => reject(read.error), { once: true });
+    });
+    const record = records.find((item) => item.path.startsWith('Inbox/'));
+    if (record === undefined) throw new Error('No IndexedDB capture found');
+    const text = new TextDecoder().decode(record.bytes);
+    const bytes = new TextEncoder().encode(
+      text.replace('IndexedDB original', 'IndexedDB durable version'),
+    );
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    record.bytes = bytes.buffer;
+    record.hash = [...new Uint8Array(digest)]
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('');
+    record.modifiedAt = new Date().toISOString();
+    const writeTransaction = database.transaction('files', 'readwrite');
+    writeTransaction.objectStore('files').put(record);
+    await new Promise<void>((resolve, reject) => {
+      writeTransaction.addEventListener('complete', () => resolve(), { once: true });
+      writeTransaction.addEventListener('error', () => reject(writeTransaction.error), {
+        once: true,
+      });
+    });
+    database.close();
+  });
+
+  await page
+    .getByRole('textbox', { name: 'Markdown body' })
+    .fill('IndexedDB local version');
+  await expect(page.getByRole('alert')).toContainText('Another version exists');
+  await page.getByRole('button', { name: 'Keep other' }).click();
+  await expect(page.getByRole('dialog', { name: 'Edit note' })).toHaveCount(0);
+
+  const durableText = await page.evaluate(async () => {
+    const active = localStorage.getItem('studio:active-browser-studio');
+    if (active === null) throw new Error('No active Studio');
+    const request = indexedDB.open('the-studio-browser-vaults', 2);
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.addEventListener('success', () => resolve(request.result), { once: true });
+      request.addEventListener('error', () => reject(request.error), { once: true });
+    });
+    const transaction = database.transaction('files', 'readonly');
+    const read = transaction.objectStore('files').index('vault').getAll(active);
+    const records = await new Promise<Array<{ path: string; bytes: ArrayBuffer }>>(
+      (resolve, reject) => {
+        read.addEventListener('success', () => resolve(read.result), { once: true });
+        read.addEventListener('error', () => reject(read.error), { once: true });
+      },
+    );
+    database.close();
+    const record = records.find((item) => item.path.startsWith('Inbox/'));
+    return record === undefined ? '' : new TextDecoder().decode(record.bytes);
+  });
+  expect(durableText).toContain('IndexedDB durable version');
+  expect(durableText).not.toContain('IndexedDB local version');
 });

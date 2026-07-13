@@ -406,7 +406,11 @@ function StudioApplication({
   function closeEditor(): void {
     setEditor(undefined);
     setProjectionRevision((revision) => revision + 1);
-    requestAnimationFrame(() => editorTrigger.current?.focus());
+    queueMicrotask(() => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => editorTrigger.current?.focus());
+      });
+    });
   }
 
   const commands: StudioCommand[] = [
