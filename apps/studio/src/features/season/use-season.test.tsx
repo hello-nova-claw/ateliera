@@ -35,6 +35,7 @@ it('loads canonical Landscape priorities and creates a selectable canonical note
       current: null,
       conflicts: [],
     })),
+    pendingSeasonCloseTransaction: vi.fn(async () => null),
     projectRoom: vi.fn(async (room: string) =>
       room === 'life-landscape'
         ? [
