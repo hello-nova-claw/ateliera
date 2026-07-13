@@ -12,7 +12,7 @@ import {
   VaultConflictError,
   VaultUnavailableError,
 } from '@studio/storage/portable';
-import type { VaultPort } from '@studio/storage/portable';
+import type { VaultChange, VaultPort } from '@studio/storage/portable';
 
 import {
   type ActiveSeasonProjection,
@@ -72,6 +72,7 @@ export interface StudioServiceDependencies {
   generateId?: () => string;
   publish?: StudioEventListener;
   reportListenerError?: (error: unknown, event: StudioEvent) => void;
+  reportDiagnostic?: (error: unknown, context: 'recovery-scheduler') => void;
   /** Compatibility hook; production recovery uses the safe timer-backed default. */
   scheduleIndexRebuild?: (rebuild: () => Promise<void>) => void;
   timers?: StudioTimers;
@@ -110,6 +111,7 @@ export class StudioSaveConflictError extends Error {
 const RECOVERY_DELAYS = [100, 500, 2_000, 5_000] as const;
 const CAPTURE_ATTEMPTS = 8;
 const RECONCILE_DELAY = 50;
+const SELF_EVENT_TTL = 5_000;
 
 const defaultTimers: StudioTimers = {
   setTimeout(callback, delayMs) {
@@ -163,8 +165,18 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   let stopWatching: (() => void) | undefined;
   let startPromise: Promise<void> | undefined;
   let lifecycleGeneration = 0;
+  let disposed = false;
+  const pendingWatchEvents: Array<{ event: VaultChange; needsClassification: boolean }> = [];
+  const selfPublications = new Map<string, Map<string, { count: number; expiresAt: number }>>();
+  const pendingWritePaths = new Map<string, number>();
+  const pendingSaves = new Set<Promise<SavedNote>>();
+
+  function assertActive(): void {
+    if (disposed) throw new Error('This Studio service has been disposed.');
+  }
 
   function emit(event: StudioEvent): void {
+    if (disposed) return;
     for (const listener of [...listeners]) {
       try {
         listener(event);
@@ -234,7 +246,7 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   }
 
   function scheduleRecovery(): void {
-    if (recoveryScheduled || recoveryAttempt >= RECOVERY_DELAYS.length) return;
+    if (disposed || recoveryScheduled || recoveryAttempt >= RECOVERY_DELAYS.length) return;
     recoveryScheduled = true;
     const run = async () => {
       recoveryScheduled = false;
@@ -248,10 +260,18 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
       }
     };
     if (dependencies.scheduleIndexRebuild !== undefined) {
-      dependencies.scheduleIndexRebuild(run);
-    } else {
-      recoveryTimer = timers.setTimeout(run, RECOVERY_DELAYS[recoveryAttempt]!);
+      try {
+        dependencies.scheduleIndexRebuild(run);
+        return;
+      } catch (error) {
+        try {
+          dependencies.reportDiagnostic?.(error, 'recovery-scheduler');
+        } catch {
+          // Diagnostics never replace the safe timer fallback.
+        }
+      }
     }
+    recoveryTimer = timers.setTimeout(run, RECOVERY_DELAYS[recoveryAttempt]!);
   }
 
   function markIndexStale(): void {
@@ -262,6 +282,7 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   }
 
   function rebuildIndex(): Promise<void> {
+    if (disposed) return Promise.reject(new Error('This Studio service has been disposed.'));
     return enqueueIndexMutation(async () => {
       const targetGeneration = durableGeneration;
       const targetExternalGeneration = externalGeneration;
@@ -292,10 +313,51 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     });
   }
 
+  function recordSelfPublication(path: string, hash: string): void {
+    const hashes = selfPublications.get(path) ?? new Map();
+    const current = hashes.get(hash);
+    hashes.set(hash, {
+      count: (current?.count ?? 0) + 1,
+      expiresAt: Date.now() + SELF_EVENT_TTL,
+    });
+    selfPublications.set(path, hashes);
+  }
+
+  function consumeSelfPublication(event: VaultChange): boolean {
+    if (event.kind !== 'created' && event.kind !== 'modified') return false;
+    const hashes = selfPublications.get(event.path);
+    if (hashes === undefined) return false;
+    const now = Date.now();
+    for (const [hash, publication] of hashes) {
+      if (publication.expiresAt < now) hashes.delete(hash);
+    }
+    const publication = hashes.get(event.hash);
+    if (publication === undefined) {
+      if (hashes.size === 0) selfPublications.delete(event.path);
+      return false;
+    }
+    if (publication.count === 1) hashes.delete(event.hash);
+    else publication.count -= 1;
+    if (hashes.size === 0) selfPublications.delete(event.path);
+    return true;
+  }
+
   function scheduleReconciliation(): void {
-    if (reconcileTimer !== undefined) return;
+    if (disposed || reconcileTimer !== undefined) return;
     reconcileTimer = timers.setTimeout(async () => {
       reconcileTimer = undefined;
+      if (disposed) return;
+      const pending = pendingWatchEvents.splice(0);
+      let hasExternalEvent = false;
+      for (const item of pending) {
+        if (item.needsClassification) {
+          if (consumeSelfPublication(item.event)) continue;
+          externalGeneration += 1;
+          state = 'stale';
+        }
+        hasExternalEvent = true;
+      }
+      if (!hasExternalEvent) return;
       try {
         await rebuildIndex();
       } catch {
@@ -304,10 +366,11 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     }, RECONCILE_DELAY);
   }
 
-  async function save(input: SaveNoteInput): Promise<SavedNote> {
+  async function performSave(input: SaveNoteInput): Promise<SavedNote> {
     const savedNote: StudioNote = { ...input.note, updated: iso(clock) };
     const serialized = validateAndSerialize(savedNote);
     let written: { hash: string };
+    pendingWritePaths.set(input.path, (pendingWritePaths.get(input.path) ?? 0) + 1);
     try {
       written = await dependencies.vault.writeTextAtomic(input.path, serialized, {
         ...(input.expectedHash === undefined ? {} : { expectedHash: input.expectedHash }),
@@ -322,8 +385,13 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
         // The attempted note remains attached to the conflict even if the other writer removed it.
       }
       throw new StudioSaveConflictError(savedNote, durableText, { cause: error });
+    } finally {
+      const count = pendingWritePaths.get(input.path) ?? 1;
+      if (count === 1) pendingWritePaths.delete(input.path);
+      else pendingWritePaths.set(input.path, count - 1);
     }
 
+    recordSelfPublication(input.path, written.hash);
     durableGeneration += 1;
     const generation = durableGeneration;
     state = 'stale';
@@ -349,10 +417,22 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     return { note: savedNote, path: input.path, hash: written.hash };
   }
 
+  function save(input: SaveNoteInput): Promise<SavedNote> {
+    if (disposed) return Promise.reject(new Error('This Studio service has been disposed.'));
+    const operation = performSave(input);
+    pendingSaves.add(operation);
+    void operation.then(
+      () => { pendingSaves.delete(operation); },
+      () => { pendingSaves.delete(operation); },
+    );
+    return operation;
+  }
+
   const service: StudioService = {
     views,
 
     start() {
+      if (disposed) return Promise.reject(new Error('This Studio service has been disposed.'));
       if (stopWatching !== undefined) return Promise.resolve();
       if (startPromise !== undefined) return startPromise;
       const generation = lifecycleGeneration;
@@ -362,8 +442,15 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
           !isInternalPath(event.path) ||
           (event.kind === 'moved' && !isInternalPath(event.previousPath));
         if (touchesUserContent) {
-          externalGeneration += 1;
-          state = 'stale';
+          const canBeSelfPublished =
+            (event.kind === 'created' || event.kind === 'modified') &&
+            pendingWritePaths.has(event.path);
+          if (!canBeSelfPublished && consumeSelfPublication(event)) return;
+          if (!canBeSelfPublished) {
+            externalGeneration += 1;
+            state = 'stale';
+          }
+          pendingWatchEvents.push({ event, needsClassification: canBeSelfPublished });
           scheduleReconciliation();
         }
       }).then((stop) => {
@@ -382,23 +469,37 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     },
 
     async dispose() {
+      if (disposed) {
+        await mutationTail;
+        return;
+      }
+      disposed = true;
       lifecycleGeneration += 1;
       const pendingStart = startPromise;
       stopWatching?.();
       stopWatching = undefined;
       if (reconcileTimer !== undefined) timers.clearTimeout(reconcileTimer);
       reconcileTimer = undefined;
+      pendingWatchEvents.length = 0;
+      selfPublications.clear();
+      pendingWritePaths.clear();
       cancelRecovery();
       listeners.clear();
       await pendingStart?.catch(() => undefined);
+      await Promise.allSettled([...pendingSaves]);
+      await mutationTail;
+      selfPublications.clear();
+      pendingWritePaths.clear();
     },
 
     subscribe(listener) {
+      assertActive();
       listeners.add(listener);
       return () => { listeners.delete(listener); };
     },
 
     async capture(input) {
+      assertActive();
       const body = input.body.trim();
       if (body === '') throw new Error('Write something to remember first.');
       const created = iso(clock);
@@ -441,6 +542,7 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     },
 
     async load(path) {
+      assertActive();
       const file = await dependencies.vault.readText(path);
       const parsed = parseNote(file.text);
       if (!parsed.ok) throw new Error(`The note at ${path} needs metadata repair.`);
@@ -448,14 +550,14 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     },
 
     save,
-    async repairs() { return (await scan()).repairs; },
+    async repairs() { assertActive(); return (await scan()).repairs; },
     rebuildIndex,
     indexState() { return state; },
-    async projectRoom(room) { return projectRoom((await scan()).notes, room, views); },
-    async projectLandscape(query) { return projectLandscape((await scan()).notes, query, views); },
-    async projectCurrentSeason() { return projectCurrentSeason((await scan()).notes); },
-    async projectStream(type) { return projectStream((await scan()).notes, type, views); },
-    async projectFoyer() { return projectFoyer((await scan()).notes, views); },
+    async projectRoom(room) { assertActive(); return projectRoom((await scan()).notes, room, views); },
+    async projectLandscape(query) { assertActive(); return projectLandscape((await scan()).notes, query, views); },
+    async projectCurrentSeason() { assertActive(); return projectCurrentSeason((await scan()).notes); },
+    async projectStream(type) { assertActive(); return projectStream((await scan()).notes, type, views); },
+    async projectFoyer() { assertActive(); return projectFoyer((await scan()).notes, views); },
   };
   return service;
 }

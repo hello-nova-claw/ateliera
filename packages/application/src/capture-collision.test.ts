@@ -77,6 +77,15 @@ describe('capture collisions', () => {
     await expect(createCaptureService(vault).list()).rejects.toThrow('backend offline');
   });
 
+  it('preserves the original read outage when existence cannot be confirmed', async () => {
+    const vault = createInMemoryVault();
+    await vault.writeTextAtomic('Inbox/capture.md', 'temporarily unreadable');
+    vi.spyOn(vault, 'readText').mockRejectedValueOnce(new VaultUnavailableError('read offline'));
+    vi.spyOn(vault, 'exists').mockRejectedValueOnce(new VaultUnavailableError('existence offline'));
+
+    await expect(createCaptureService(vault).list()).rejects.toThrow('read offline');
+  });
+
   it('bounds StudioService collision retries and propagates unrelated capture errors', async () => {
     const vault = createInMemoryVault();
     const sameId = '01JCOLLISION0000000000000099';

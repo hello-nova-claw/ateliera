@@ -246,7 +246,6 @@ describe('service lifecycle and reconciliation', () => {
     let resolveWatch!: (stop: () => void) => void;
     const pendingWatch = new Promise<() => void>((resolve) => { resolveWatch = resolve; });
     const firstStop = vi.fn();
-    const secondStop = vi.fn();
     let pendingListener: Parameters<VaultPort['watch']>[0] | undefined;
     let registrations = 0;
     const watch = vi.fn((listener: Parameters<VaultPort['watch']>[0]) => {
@@ -255,7 +254,7 @@ describe('service lifecycle and reconciliation', () => {
         pendingListener = listener;
         return pendingWatch;
       }
-      return Promise.resolve(secondStop);
+      return Promise.resolve(vi.fn());
     });
     const vault: VaultPort = {
       list: backing.list.bind(backing),
@@ -281,10 +280,9 @@ describe('service lifecycle and reconciliation', () => {
     await Promise.all([firstStart, secondStart, disposing]);
     expect(firstStop).toHaveBeenCalledOnce();
 
-    await service.start();
-    expect(watch).toHaveBeenCalledTimes(2);
+    await expect(service.start()).rejects.toThrow('disposed');
     await service.dispose();
-    expect(secondStop).toHaveBeenCalledOnce();
+    expect(firstStop).toHaveBeenCalledOnce();
   });
 
   it('suppresses matching self-published events but reconciles a mismatched concurrent hash', async () => {
@@ -332,6 +330,175 @@ describe('service lifecycle and reconciliation', () => {
     expect(service.indexState()).toBe('ready');
   });
 
+  it('keeps the timer fallback when diagnostic reporting also throws', async () => {
+    const index = new RecordingIndex();
+    index.failUpsert = true;
+    const timers = new ManualTimers();
+    const service = createStudioService({
+      vault: createInMemoryVault(),
+      index,
+      timers,
+      scheduleIndexRebuild: () => { throw new Error('scheduler failed'); },
+      reportDiagnostic: () => { throw new Error('diagnostic failed'); },
+    });
+
+    await service.save({ note: note(), path: 'Notes/n.md', expectedMissing: true });
+    expect(timers.tasks.map((task) => task.delay)).toEqual([100]);
+    index.failUpsert = false;
+    await timers.runNext();
+    expect(service.indexState()).toBe('ready');
+  });
+
+  it('classifies delayed, repeated, expired, and mismatched self-publication events by hash', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-13T00:00:00Z'));
+    try {
+      const backing = createInMemoryVault();
+      let listener: Parameters<VaultPort['watch']>[0] | undefined;
+      const vault: VaultPort = {
+        list: backing.list.bind(backing),
+        readText: backing.readText.bind(backing),
+        writeTextAtomic: backing.writeTextAtomic.bind(backing),
+        readBinary: backing.readBinary.bind(backing),
+        writeBinaryAtomic: backing.writeBinaryAtomic.bind(backing),
+        move: backing.move.bind(backing),
+        remove: backing.remove.bind(backing),
+        exists: backing.exists.bind(backing),
+        watch: async (next) => { listener = next; return () => undefined; },
+      };
+      const index = new RecordingIndex();
+      const rebuild = vi.spyOn(index, 'rebuild');
+      const timers = new ManualTimers();
+      const service = createStudioService({
+        vault,
+        index,
+        timers,
+        clock: () => new Date('2026-07-13T00:00:00Z'),
+      });
+      await service.start();
+
+      const first = await service.save({ note: note({ id: 'self' }), path: 'Notes/self.md' });
+      const second = await service.save({ note: note({ id: 'self' }), path: 'Notes/self.md' });
+      expect(second.hash).toBe(first.hash);
+      listener?.({ kind: 'modified', path: 'Notes/self.md', hash: first.hash });
+      listener?.({ kind: 'modified', path: 'Notes/self.md', hash: first.hash });
+      expect(timers.tasks).toEqual([]);
+
+      const expiring = await service.save({ note: note({ id: 'expiring' }), path: 'Notes/expiring.md' });
+      vi.setSystemTime(new Date('2026-07-13T00:00:06Z'));
+      listener?.({ kind: 'modified', path: 'Notes/expiring.md', hash: expiring.hash });
+      await timers.runNext();
+      expect(rebuild).toHaveBeenCalledOnce();
+      await service.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reconciles a synchronous watcher event whose hash does not match the completed write', async () => {
+    const backing = createInMemoryVault();
+    let listener: Parameters<VaultPort['watch']>[0] | undefined;
+    const vault: VaultPort = {
+      list: backing.list.bind(backing),
+      readText: backing.readText.bind(backing),
+      async writeTextAtomic(path, value, options) {
+        const result = await backing.writeTextAtomic(path, value, options);
+        listener?.({ kind: 'modified', path, hash: 'concurrent-hash' });
+        return result;
+      },
+      readBinary: backing.readBinary.bind(backing),
+      writeBinaryAtomic: backing.writeBinaryAtomic.bind(backing),
+      move: backing.move.bind(backing),
+      remove: backing.remove.bind(backing),
+      exists: backing.exists.bind(backing),
+      watch: async (next) => { listener = next; return () => undefined; },
+    };
+    const timers = new ManualTimers();
+    const index = new RecordingIndex();
+    const rebuild = vi.spyOn(index, 'rebuild');
+    const service = createStudioService({ vault, index, timers });
+    await service.start();
+
+    await service.save({ note: note(), path: 'Notes/n.md' });
+    expect(service.indexState()).toBe('ready');
+    await timers.runNext();
+    expect(service.indexState()).toBe('ready');
+    expect(rebuild).toHaveBeenCalledOnce();
+    await service.dispose();
+  });
+
+  it('tracks overlapping writes to the same path until both have settled', async () => {
+    const backing = createInMemoryVault();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const vault: VaultPort = {
+      list: backing.list.bind(backing),
+      readText: backing.readText.bind(backing),
+      async writeTextAtomic(path, value, options) {
+        await gate;
+        return backing.writeTextAtomic(path, value, options);
+      },
+      readBinary: backing.readBinary.bind(backing),
+      writeBinaryAtomic: backing.writeBinaryAtomic.bind(backing),
+      move: backing.move.bind(backing),
+      remove: backing.remove.bind(backing),
+      exists: backing.exists.bind(backing),
+      watch: backing.watch.bind(backing),
+    };
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    const first = service.save({ note: note({ id: 'first' }), path: 'Notes/shared.md' });
+    const second = service.save({ note: note({ id: 'second' }), path: 'Notes/shared.md' });
+    release();
+
+    await expect(Promise.all([first, second])).resolves.toHaveLength(2);
+  });
+
+  it('waits for an in-flight durable save before disposal completes', async () => {
+    const backing = createInMemoryVault();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const vault: VaultPort = {
+      list: backing.list.bind(backing),
+      readText: backing.readText.bind(backing),
+      async writeTextAtomic(path, value, options) {
+        await gate;
+        return backing.writeTextAtomic(path, value, options);
+      },
+      readBinary: backing.readBinary.bind(backing),
+      writeBinaryAtomic: backing.writeBinaryAtomic.bind(backing),
+      move: backing.move.bind(backing),
+      remove: backing.remove.bind(backing),
+      exists: backing.exists.bind(backing),
+      watch: backing.watch.bind(backing),
+    };
+    const events = vi.fn();
+    const service = createStudioService({ vault, index: new RecordingIndex(), publish: events });
+    const saving = service.save({ note: note(), path: 'Notes/pending.md' });
+    let disposed = false;
+    const disposing = service.dispose().then(() => { disposed = true; });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(disposed).toBe(false);
+
+    release();
+    await Promise.all([saving, disposing]);
+    expect(events).not.toHaveBeenCalled();
+  });
+
+  it('ignores a reconciliation callback that begins after disposal', async () => {
+    const vault = createInMemoryVault();
+    const timers = new ManualTimers();
+    const index = new RecordingIndex();
+    const rebuild = vi.spyOn(index, 'rebuild');
+    const service = createStudioService({ vault, index, timers });
+    await service.start();
+    await vault.writeTextAtomic('Notes/external.md', serializeNote(note()));
+    const callback = timers.tasks[0]!.callback;
+
+    await service.dispose();
+    await callback();
+    expect(rebuild).not.toHaveBeenCalled();
+  });
+
   it('makes dispose terminal, drains pending index work, and suppresses late effects', async () => {
     const vault = createInMemoryVault();
     const index = new RecordingIndex();
@@ -345,7 +512,9 @@ describe('service lifecycle and reconciliation', () => {
     release();
     await Promise.all([rebuilding, disposing]);
     expect(events).not.toHaveBeenCalled();
+    expect(() => service.subscribe(() => undefined)).toThrow('disposed');
     await expect(service.start()).rejects.toThrow('disposed');
     await expect(service.save({ note: note(), path: 'Notes/late.md' })).rejects.toThrow('disposed');
+    await expect(service.rebuildIndex()).rejects.toThrow('disposed');
   });
 });

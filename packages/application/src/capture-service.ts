@@ -5,7 +5,7 @@ import {
   suggestFilename,
 } from '@studio/content';
 import type { StudioNote } from '@studio/domain';
-import { VaultConflictError } from '@studio/storage/portable';
+import { VaultConflictError, VaultUnavailableError } from '@studio/storage/portable';
 import type { VaultPort } from '@studio/storage/portable';
 
 export interface CaptureEntry {
@@ -69,8 +69,17 @@ export function createCaptureService(vault: VaultPort): CaptureService {
           if (parsed.ok && parsed.note.cardType === 'capture') {
             captures.push({ id: parsed.note.id, text: parsed.note.body });
           }
-        } catch {
-          // A concurrent move/remove is reconciled by the next list rather than failing capture UI.
+        } catch (error) {
+          if (error instanceof VaultUnavailableError) {
+            let stillExists: boolean;
+            try {
+              stillExists = await vault.exists(entry.path);
+            } catch {
+              throw error;
+            }
+            if (!stillExists) continue;
+          }
+          throw error;
         }
       }
       return captures;

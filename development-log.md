@@ -98,4 +98,7 @@
 - Active-season projections now expose conflicts and a repair payload, Inbox drafts remain visible only in Inbox until triage, Foyer featured content excludes the dedicated season card, and chronological fallbacks compare parsed epochs with deterministic ties.
 - Added bounded collision retries to StudioService and hardened the transitional shell capture adapter with draft/Inbox defaults and conditional writes; all production application files now participate in coverage.
 - Added a separate external-change generation so an event arriving during watcher reconciliation keeps the index stale until a follow-up rebuild represents it.
-- Verified 42 application tests at 100% statement/branch/function/line coverage, 416 workspace tests, lint, workspace typecheck, and the production build. Task 8 remediation is complete and ready for re-review.
+- Final lifecycle review added hash-and-count-based suppression for self-published watcher events with bounded expiry, while mismatched or expired hashes remain external changes and force reconciliation.
+- Recovery now survives a throwing injected scheduler and diagnostic callback by falling back to the bounded timer path. Disposal is terminal, suppresses late effects, closes delayed watcher registrations, and waits for both in-flight durable saves and queued index work.
+- Vault scans and the transitional capture listing skip only files confirmed missing after a read race; storage and existence outages remain visible to callers instead of masquerading as empty or deleted content.
+- Verified 56 application tests at 100% statement/branch/function/line coverage, 430 workspace tests, lint, focused and workspace typecheck, and the production build. Task 8 remediation is complete and ready for re-review.
