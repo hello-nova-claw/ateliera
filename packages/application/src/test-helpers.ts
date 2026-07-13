@@ -47,7 +47,7 @@ export class RecordingIndex implements IndexPort {
   async remove(id: string): Promise<void> { this.entries.delete(id); }
   async getById(id: string) { return this.entries.get(id) ?? null; }
   async search(): Promise<SearchHit[]> { return []; }
-  async backlinks(_id: string): Promise<string[]> { return []; }
+  async backlinks(id: string): Promise<string[]> { void id; return []; }
   async forwardLinks(): Promise<IndexedLink[]> { return []; }
   async rebuild(entries: Parameters<IndexPort['rebuild']>[0]): Promise<void> {
     this.entries.clear();
