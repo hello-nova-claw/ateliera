@@ -10,7 +10,16 @@ test('captured note survives reload while offline', async ({
   const browserErrors: string[] = [];
   page.on('pageerror', (error) => browserErrors.push(error.message));
   page.on('console', (message) => {
-    if (message.type() === 'error') browserErrors.push(message.text());
+    const text = message.text();
+    // Chromium reports cache-first requests as disconnected while Playwright
+    // emulates network loss, even when the service worker returns the cached
+    // response. Preserve all application errors and ignore only that browser
+    // transport diagnostic.
+    if (
+      message.type() === 'error' &&
+      !text.includes('net::ERR_INTERNET_DISCONNECTED')
+    )
+      browserErrors.push(text);
   });
   await page.goto('/');
   await page.getByRole('button', { name: 'Capture' }).click();
@@ -61,6 +70,29 @@ test('falls back to IndexedDB when OPFS is unavailable', async ({ page }) => {
     .fill('The garden');
   await page.getByRole('button', { name: 'Remember' }).click();
   await expect(page.getByText('The garden')).toBeVisible();
+  await page.waitForFunction(async () => {
+    const request = indexedDB.open('the-studio-browser-vaults', 2);
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.addEventListener('success', () => resolve(request.result), {
+        once: true,
+      });
+      request.addEventListener('error', () => reject(request.error), {
+        once: true,
+      });
+    });
+    const transaction = database.transaction('files', 'readonly');
+    const count = transaction.objectStore('files').count();
+    const result = await new Promise<number>((resolve, reject) => {
+      count.addEventListener('success', () => resolve(count.result), {
+        once: true,
+      });
+      count.addEventListener('error', () => reject(count.error), {
+        once: true,
+      });
+    });
+    database.close();
+    return result > 0;
+  });
   await page.reload();
 
   await expect(page.getByText('The garden')).toBeVisible();
@@ -90,5 +122,7 @@ test('restores focus and keeps private captures out of app-shell caches', async 
   });
   expect(cachedUrls.join('\n')).not.toContain('private');
   expect(cachedUrls.join('\n')).not.toContain('hill');
-  expect(cachedUrls.every((url) => new URL(url).origin === 'http://127.0.0.1:4173')).toBe(true);
+  expect(
+    cachedUrls.every((url) => new URL(url).origin === 'http://127.0.0.1:4173'),
+  ).toBe(true);
 });
