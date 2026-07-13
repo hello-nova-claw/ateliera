@@ -18,8 +18,9 @@ export default defineConfig({
     { name: 'desktop-webkit', use: { ...devices['Desktop Safari'], viewport: { width: 1440, height: 1000 } } },
   ],
   webServer: {
-    command: 'pnpm --filter @studio/app dev --port 4173',
+    command:
+      'STUDIO_E2E=1 pnpm --filter @studio/app build && pnpm --filter @studio/app exec vite preview --host 127.0.0.1 --port 4173 --strictPort',
     url: 'http://127.0.0.1:4173',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
   },
 });
