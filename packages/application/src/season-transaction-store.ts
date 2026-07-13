@@ -139,7 +139,8 @@ function isActiveOperation(
     !isRecord(value) ||
     !hasExactKeys(value, ['id', 'kind', 'targetNoteId', 'targetPath']) ||
     !isCanonicalIdentifier(value.id, 256) ||
-    !['activating', 'repairing', 'closing'].includes(String(value.kind)) ||
+    typeof value.kind !== 'string' ||
+    !['activating', 'repairing', 'closing'].includes(value.kind) ||
     !isCanonicalIdentifier(value.targetNoteId) ||
     !isCanonicalUserPath(value.targetPath)
   ) {
