@@ -155,7 +155,7 @@ test('restores the mobile More trigger after outside dismissal', async ({
     page.getByRole('menu', { name: 'More Studio rooms' }),
   ).toBeVisible();
 
-  await page.getByRole('main').click({ position: { x: 8, y: 8 } });
+  await page.locator('.studio-app-shell__topbar').click();
 
   await expect(
     page.getByRole('menu', { name: 'More Studio rooms' }),
