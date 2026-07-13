@@ -130,6 +130,8 @@ function studioService(overrides: Partial<StudioService> = {}) {
     restore: vi.fn(),
     reconcileTrash: vi.fn(async () => []),
     snapshot: vi.fn(),
+    prepareSeasonCloseTransaction: vi.fn(),
+    pendingSeasonCloseTransaction: vi.fn(async () => null),
     closeSeasonTransaction: vi.fn(),
     resumeSeasonCloseTransaction: vi.fn(async () => null),
     repairs: vi.fn(async () => []),
