@@ -1,4 +1,5 @@
 use std::{
+    ffi::CString,
     fs,
     os::fd::AsRawFd,
     sync::{Arc, Barrier, mpsc},
@@ -104,6 +105,38 @@ fn ipc_rejects_symlink_components_and_traversal() {
         );
         assert_eq!(response.unwrap_err(), json!("path_escape"));
     }
+}
+
+#[test]
+fn direct_reads_reject_a_fifo_without_blocking() {
+    let selected = tempfile::tempdir().unwrap();
+    let fifo = selected.path().join("pipe");
+    let fifo_name = CString::new(fifo.as_os_str().as_encoded_bytes()).unwrap();
+    // SAFETY: `fifo_name` is NUL-terminated and points to a path owned by this test.
+    assert_eq!(unsafe { libc::mkfifo(fifo_name.as_ptr(), 0o600) }, 0);
+    let registry = VaultRegistry::default();
+    let token = registry
+        .register_selected_path_for_test("main", selected.path())
+        .unwrap();
+    let vault = registry.vault_for_test("main", &token).unwrap();
+    let (sender, receiver) = mpsc::channel();
+    std::thread::spawn(move || {
+        let text = vault.read_text("pipe");
+        let binary = vault.read_binary_for_test("pipe");
+        sender.send((text, binary)).unwrap();
+    });
+
+    let (text, binary) = receiver
+        .recv_timeout(Duration::from_millis(500))
+        .expect("FIFO read blocked instead of rejecting the special file");
+    assert!(matches!(
+        text,
+        Err(crate::commands::vault::VaultError::Unavailable)
+    ));
+    assert!(matches!(
+        binary,
+        Err(crate::commands::vault::VaultError::Unavailable)
+    ));
 }
 
 #[test]
@@ -376,10 +409,14 @@ fn watcher_follows_retained_root_after_selected_path_is_replaced() {
         .vault_for_test("main", &token)
         .unwrap();
     let registration = vault
-        .start_watch_with_registration_hook_for_test(app.handle().clone(), || {
-            fs::rename(&selected, &retained).unwrap();
-            fs::create_dir(&selected).unwrap();
-        })
+        .start_watch_with_registration_hooks_for_test(
+            app.handle().clone(),
+            || {},
+            || {
+                fs::rename(&selected, &retained).unwrap();
+                fs::create_dir(&selected).unwrap();
+            },
+        )
         .unwrap();
     let event_name = registration.event;
     let (sender, receiver) = mpsc::channel();
@@ -442,6 +479,89 @@ fn watcher_follows_retained_root_after_selected_path_is_replaced() {
         retargeted_payloads.is_empty(),
         "established watcher retargeted to replacement: {retargeted_payloads:?}"
     );
+}
+
+#[test]
+fn watcher_aba_never_discloses_outside_content_and_periodically_reconciles() {
+    let parent = tempfile::tempdir().unwrap();
+    let selected = parent.path().join("selected");
+    let retained = parent.path().join("retained");
+    let retained_after_registration = parent.path().join("retained-after-registration");
+    let impostor = parent.path().join("impostor");
+    let watched_impostor = parent.path().join("watched-impostor");
+    fs::create_dir(&selected).unwrap();
+    fs::create_dir(&impostor).unwrap();
+    let app = app();
+    let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+        .build()
+        .unwrap();
+    let token = app
+        .state::<VaultRegistry>()
+        .register_selected_path_for_test("main", &selected)
+        .unwrap();
+    let vault = app
+        .state::<VaultRegistry>()
+        .vault_for_test("main", &token)
+        .unwrap();
+
+    let registration = vault
+        .start_watch_with_registration_hooks_for_test(
+            app.handle().clone(),
+            || {
+                fs::rename(&selected, &retained).unwrap();
+                fs::rename(&impostor, &selected).unwrap();
+            },
+            || {
+                fs::rename(&selected, &watched_impostor).unwrap();
+                fs::rename(&retained, &selected).unwrap();
+            },
+        )
+        .unwrap();
+    let watch_id = registration.id.clone();
+    let (sender, receiver) = mpsc::channel();
+    let listener_id = app.listen(registration.event, move |event| {
+        let _ = sender.send(event.payload().to_owned());
+    });
+
+    fs::write(watched_impostor.join("outside.md"), "secret").unwrap();
+    let outside = collect_until_quiet(
+        &receiver,
+        Duration::from_millis(500),
+        Duration::from_millis(200),
+    );
+    assert!(
+        outside.is_empty(),
+        "outside watcher content leaked: {outside:?}"
+    );
+
+    vault.drop_native_watcher_for_test(&watch_id);
+    fs::rename(&selected, &retained_after_registration).unwrap();
+    fs::create_dir(&selected).unwrap();
+    invoke_mock(
+        &webview,
+        "vault_write_text_atomic",
+        json!({
+            "vaultToken": token,
+            "path": "retained.md",
+            "text": "inside",
+            "expectedHash": null
+        }),
+    )
+    .unwrap();
+    let reconciled = collect_until_quiet(
+        &receiver,
+        Duration::from_secs(4),
+        Duration::from_millis(400),
+    );
+    app.unlisten(listener_id);
+    assert_eq!(
+        reconciled.len(),
+        1,
+        "periodic reconciliation failed: {reconciled:?}"
+    );
+    let payload: serde_json::Value = serde_json::from_str(&reconciled[0]).unwrap();
+    assert_eq!(payload["path"], "retained.md");
+    assert!(!reconciled[0].contains("outside.md"));
 }
 
 #[test]

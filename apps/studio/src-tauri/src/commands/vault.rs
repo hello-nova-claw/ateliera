@@ -14,7 +14,7 @@ use std::{
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::{
     ambient_authority,
-    fs::{Dir, MetadataExt, OpenOptions},
+    fs::{Dir, MetadataExt, OpenOptions, OpenOptionsExt},
 };
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
@@ -108,10 +108,18 @@ struct SnapshotFile {
 }
 
 struct WatchHandle {
-    _watcher: RecommendedWatcher,
+    _watcher: Option<RecommendedWatcher>,
+    active: Arc<AtomicBool>,
+}
+
+impl Drop for WatchHandle {
+    fn drop(&mut self) {
+        self.active.store(false, Ordering::Release);
+    }
 }
 
 type SharedWatchCallback = Arc<dyn Fn(notify::Result<notify::Event>) + Send + Sync>;
+type SharedReconcile = Arc<dyn Fn() + Send + Sync>;
 
 pub struct Vault {
     root: Dir,
@@ -229,10 +237,21 @@ fn hash(bytes: &[u8]) -> String {
 
 fn open_file_nofollow(directory: &Dir, basename: &str) -> Result<cap_std::fs::File, VaultError> {
     let mut options = OpenOptions::new();
-    options.read(true).follow(FollowSymlinks::No);
-    directory
+    options
+        .read(true)
+        .custom_flags(libc::O_NONBLOCK)
+        .follow(FollowSymlinks::No);
+    let file = directory
         .open_with(basename, &options)
-        .map_err(map_path_error)
+        .map_err(map_path_error)?;
+    if !file
+        .metadata()
+        .map_err(|_| VaultError::Unavailable)?
+        .is_file()
+    {
+        return Err(VaultError::Unavailable);
+    }
+    Ok(file)
 }
 
 fn read_file_nofollow(directory: &Dir, basename: &str) -> Result<Vec<u8>, VaultError> {
@@ -375,17 +394,23 @@ impl Vault {
         Err(VaultError::Unavailable)
     }
 
-    fn watch_retained_root<F>(
+    fn watch_retained_root<B, A>(
         &self,
         callback: SharedWatchCallback,
-        after_first_registration: F,
+        before_first_registration: B,
+        after_first_registration: A,
     ) -> Result<RecommendedWatcher, VaultError>
     where
-        F: FnOnce(),
+        B: FnOnce(),
+        A: FnOnce(),
     {
-        let mut registration_hook = Some(after_first_registration);
+        let mut before_hook = Some(before_first_registration);
+        let mut after_hook = Some(after_first_registration);
         for _ in 0..8 {
             let candidate = self.retained_root_path()?;
+            if let Some(hook) = before_hook.take() {
+                hook();
+            }
             let callback = Arc::clone(&callback);
             let mut watcher = notify::recommended_watcher(move |event| callback(event))
                 .map_err(|_| VaultError::Unavailable)?;
@@ -393,15 +418,16 @@ impl Vault {
                 .watch(&candidate, RecursiveMode::Recursive)
                 .map_err(|_| VaultError::Unavailable)?;
 
-            if let Some(hook) = registration_hook.take() {
+            if let Some(hook) = after_hook.take() {
                 hook();
             }
 
             // F_GETPATH and notify both require a pathname boundary. Register first, then prove
             // that the pathname still names the retained directory. If an attacker replaced it
             // during registration, drop that watcher and retry from the descriptor's new path.
-            // Once identity matches, the already-registered native watcher owns the vnode; later
-            // pathname replacement cannot retarget that registration.
+            // This closes an ordinary one-way replacement race. A hostile replace-then-restore
+            // ABA can still fool a pathname backend, so all events are reconciled from the
+            // retained capability and a periodic reconciliation provides eventual availability.
             let retained = self
                 .root
                 .dir_metadata()
@@ -604,17 +630,19 @@ impl Vault {
         self: &Arc<Self>,
         app: AppHandle<R>,
     ) -> Result<WatchRegistration, VaultError> {
-        self.start_watch_with_hook(app, || {})
+        self.start_watch_with_hooks(app, || {}, || {})
     }
 
-    fn start_watch_with_hook<R, F>(
+    fn start_watch_with_hooks<R, B, A>(
         self: &Arc<Self>,
         app: AppHandle<R>,
-        after_first_registration: F,
+        before_first_registration: B,
+        after_first_registration: A,
     ) -> Result<WatchRegistration, VaultError>
     where
         R: Runtime,
-        F: FnOnce(),
+        B: FnOnce(),
+        A: FnOnce(),
     {
         let id = Uuid::new_v4().simple().to_string();
         let event_name = format!("studio-vault-{id}");
@@ -622,8 +650,9 @@ impl Vault {
         let running = Arc::new(AtomicBool::new(false));
         let dirty = Arc::new(AtomicBool::new(false));
         let vault = Arc::downgrade(self);
+        let periodic_vault = Weak::clone(&vault);
         let emitted_name = event_name.clone();
-        let callback: SharedWatchCallback = Arc::new(move |_raw_event| {
+        let reconcile: SharedReconcile = Arc::new(move || {
             dirty.store(true, Ordering::Release);
             if running.swap(true, Ordering::AcqRel) {
                 return;
@@ -661,11 +690,34 @@ impl Vault {
                 }
             });
         });
-        let watcher = self.watch_retained_root(callback, after_first_registration)?;
+        let callback_reconcile = Arc::clone(&reconcile);
+        let callback: SharedWatchCallback = Arc::new(move |_raw_event| callback_reconcile());
+        let watcher = self.watch_retained_root(
+            callback,
+            before_first_registration,
+            after_first_registration,
+        )?;
+        let active = Arc::new(AtomicBool::new(true));
+        let periodic_active = Arc::clone(&active);
+        std::thread::spawn(move || {
+            loop {
+                std::thread::sleep(Duration::from_secs(2));
+                if !periodic_active.load(Ordering::Acquire) || periodic_vault.upgrade().is_none() {
+                    break;
+                }
+                reconcile();
+            }
+        });
         self.watchers
             .lock()
             .map_err(|_| VaultError::Unavailable)?
-            .insert(id.clone(), WatchHandle { _watcher: watcher });
+            .insert(
+                id.clone(),
+                WatchHandle {
+                    _watcher: Some(watcher),
+                    active,
+                },
+            );
         Ok(WatchRegistration {
             id,
             event: event_name,
@@ -705,16 +757,32 @@ impl Vault {
     }
 
     #[cfg(test)]
-    pub fn start_watch_with_registration_hook_for_test<R, F>(
+    pub fn read_binary_for_test(&self, path: &str) -> Result<Vec<u8>, VaultError> {
+        self.read_binary(path)
+    }
+
+    #[cfg(test)]
+    pub fn start_watch_with_registration_hooks_for_test<R, B, A>(
         self: &Arc<Self>,
         app: AppHandle<R>,
-        after_first_registration: F,
+        before_first_registration: B,
+        after_first_registration: A,
     ) -> Result<WatchRegistration, VaultError>
     where
         R: Runtime,
-        F: FnOnce(),
+        B: FnOnce(),
+        A: FnOnce(),
     {
-        self.start_watch_with_hook(app, after_first_registration)
+        self.start_watch_with_hooks(app, before_first_registration, after_first_registration)
+    }
+
+    #[cfg(test)]
+    pub fn drop_native_watcher_for_test(&self, id: &str) {
+        if let Ok(mut watchers) = self.watchers.lock()
+            && let Some(handle) = watchers.get_mut(id)
+        {
+            handle._watcher = None;
+        }
     }
 }
 
