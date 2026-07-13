@@ -140,3 +140,25 @@ test('stays a calm one-column flow on mobile', async ({ page }, testInfo) => {
     boxes.every((box, index) => index === 0 || box!.y > boxes[index - 1]!.y),
   ).toBe(true);
 });
+
+test('restores the mobile More trigger after outside dismissal', async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'mobile-chromium',
+    'Mobile navigation focus proof.',
+  );
+  await createLocalStudio(page);
+  const more = page.getByRole('button', { name: 'More' });
+  await more.click();
+  await expect(
+    page.getByRole('menu', { name: 'More Studio rooms' }),
+  ).toBeVisible();
+
+  await page.getByRole('main').click({ position: { x: 8, y: 8 } });
+
+  await expect(
+    page.getByRole('menu', { name: 'More Studio rooms' }),
+  ).toBeHidden();
+  await expect(more).toBeFocused();
+});
