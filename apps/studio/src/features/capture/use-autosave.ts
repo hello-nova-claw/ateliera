@@ -24,8 +24,9 @@ export interface UseAutosaveOptions {
 export interface AutosaveModel {
   conflict?: StudioSaveConflictError;
   error?: Error;
-  flush(): Promise<void>;
+  flush(): Promise<boolean>;
   note: StudioNote;
+  retry(): Promise<boolean>;
   state: SaveState;
   update(note: StudioNote): void;
 }
@@ -47,7 +48,7 @@ export function useAutosave({
   const savedRevision = useRef(0);
   const failedRevision = useRef<number | undefined>(undefined);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const inFlight = useRef<Promise<void> | undefined>(undefined);
+  const inFlight = useRef<Promise<boolean> | undefined>(undefined);
   const stopped = useRef(false);
   const saveRef = useRef(save);
   const writeRecoveryRef = useRef(writeRecovery);
@@ -56,26 +57,26 @@ export function useAutosave({
   writeRecoveryRef.current = writeRecovery;
   removeRecoveryRef.current = removeRecovery;
 
-  const persist = useCallback(async (): Promise<void> => {
+  const persist = useCallback(async (): Promise<boolean> => {
     if (
       stopped.current ||
       savedRevision.current === editRevision.current ||
       failedRevision.current === editRevision.current
     ) {
-      return;
+      return !stopped.current && failedRevision.current !== editRevision.current;
     }
     if (inFlight.current !== undefined) {
       await inFlight.current;
       if (!stopped.current && savedRevision.current !== editRevision.current) {
-        await persist();
+        return persist();
       }
-      return;
+      return !stopped.current;
     }
 
     const revision = editRevision.current;
     const value = latest.current;
     setState('saving');
-    const operation = (async () => {
+    const operation = (async (): Promise<boolean> => {
       try {
         const result = await saveRef.current(value, durableHash.current);
         durableHash.current = result.hash;
@@ -88,6 +89,7 @@ export function useAutosave({
           writeRecoveryRef.current(latest.current, durableHash.current);
           setState('dirty');
         }
+        return true;
       } catch (reason) {
         stopped.current = reason instanceof StudioSaveConflictError;
         if (reason instanceof StudioSaveConflictError) {
@@ -98,20 +100,22 @@ export function useAutosave({
           setError(reason instanceof Error ? reason : new Error('The note could not be saved.'));
           setState('error');
         }
+        return false;
       }
     })();
     inFlight.current = operation;
-    await operation;
+    const succeeded = await operation;
     if (inFlight.current === operation) inFlight.current = undefined;
     if (!stopped.current && savedRevision.current !== editRevision.current) {
-      await persist();
+      return persist();
     }
+    return succeeded;
   }, []);
 
-  const flush = useCallback(async (): Promise<void> => {
+  const flush = useCallback(async (): Promise<boolean> => {
     if (timer.current !== undefined) clearTimeout(timer.current);
     timer.current = undefined;
-    await persist();
+    return persist();
   }, [persist]);
 
   const update = useCallback(
@@ -132,6 +136,12 @@ export function useAutosave({
     [delayMs, persist],
   );
 
+  const retry = useCallback(async (): Promise<boolean> => {
+    failedRevision.current = undefined;
+    setError(undefined);
+    return persist();
+  }, [persist]);
+
   useEffect(
     () => () => {
       void flush();
@@ -144,6 +154,7 @@ export function useAutosave({
     ...(error === undefined ? {} : { error }),
     flush,
     note,
+    retry,
     state,
     update,
   };

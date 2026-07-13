@@ -66,7 +66,7 @@ export function QuickCapture({
         value={semanticType}
       >
         <option value="">Place later</option>
-        <option value="foundation">Foundation</option>
+        <option value="foundations">Foundations</option>
         <option value="vision">Vision</option>
         <option value="growth">Growth</option>
         <option value="reflection">Reflection</option>
