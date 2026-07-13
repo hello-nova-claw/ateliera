@@ -398,4 +398,30 @@ describe('LandscapePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save Home name' }));
     expect(onRenameArea).toHaveBeenCalledWith('home', 'Home & Hearth');
   });
+
+  it('keeps an unreadable area configuration untouched until explicit recovery confirmation', async () => {
+    const onRepairAreas = vi.fn(async () => undefined);
+    render(
+      <LandscapePage
+        areas={[...defaultLifeAreas.slice(0, 5)]}
+        board={emptyBoard}
+        onAddArea={vi.fn()}
+        onNavigate={vi.fn()}
+        onRepairAreas={onRepairAreas}
+        path="/landscape"
+        repairRequired
+      />,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The original file is untouched',
+    );
+    expect(screen.queryByText('Manage life areas')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Review recovery' }));
+    expect(onRepairAreas).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Replace with defaults' }),
+    );
+    await vi.waitFor(() => expect(onRepairAreas).toHaveBeenCalledOnce());
+  });
 });
