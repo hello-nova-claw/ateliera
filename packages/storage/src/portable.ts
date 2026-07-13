@@ -2,5 +2,11 @@ export { PathEscapeError, VaultConflictError, VaultUnavailableError } from './co
 export type { MoveCondition, VaultChange, VaultEntry, VaultPort, WriteCondition } from './vault-port';
 export { createStudioControlVault } from './studio-control-vault';
 export type { StudioControlVault } from './studio-control-vault';
-export { createRevisionStore } from './revisions';
-export type { RevisionReason, RevisionSnapshot, RevisionStore } from './revisions';
+export { createRevisionStore, RevisionLimitError } from './revisions';
+export type {
+  RevisionLimits,
+  RevisionReason,
+  RevisionSnapshot,
+  RevisionStore,
+  RevisionStoreOptions,
+} from './revisions';

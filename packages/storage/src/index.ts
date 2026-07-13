@@ -21,11 +21,12 @@ export type {
   VaultArchiveErrorCode,
 } from './browser-vault';
 export { selectTauriVault } from './tauri-vault';
-export { createRevisionStore } from './revisions';
+export { createRevisionStore, RevisionLimitError } from './revisions';
 export { createStudioControlVault } from './studio-control-vault';
 export type { StudioControlVault } from './studio-control-vault';
 export type {
   RevisionFile,
+  RevisionLimits,
   RevisionManifest,
   RevisionReason,
   RevisionSnapshot,
