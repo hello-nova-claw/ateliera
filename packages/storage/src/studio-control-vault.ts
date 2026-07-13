@@ -25,7 +25,11 @@ function controlPath(path: string): string {
 }
 
 function userPath(path: string): string {
-  if (path.toLocaleLowerCase('en').startsWith('.studio/')) throw new PathEscapeError();
+  const segments = path.split('/');
+  if (segments.some((segment) => {
+    const folded = segment.toLocaleLowerCase('en');
+    return folded === '.studio' || folded.startsWith('.studio-');
+  })) throw new PathEscapeError();
   return path;
 }
 

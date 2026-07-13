@@ -24,7 +24,9 @@ function validatePath(path: string): string {
   }
 
   const segments = path.split('/');
-  if (segments.some((segment) => segment === '' || segment === '.' || segment === '..')) {
+  if (segments.some((segment) =>
+    segment === '' || segment === '.' || segment === '..' ||
+    segment.slice(0, '.studio-'.length).toLocaleLowerCase('en') === '.studio-')) {
     throw new PathEscapeError();
   }
 

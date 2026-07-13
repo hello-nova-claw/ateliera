@@ -121,7 +121,9 @@ function validatePath(path: string): string {
   if (
     path
       .split('/')
-      .some((segment) => segment === '' || segment === '.' || segment === '..')
+      .some((segment) =>
+        segment === '' || segment === '.' || segment === '..' ||
+        segment.slice(0, '.studio-'.length).toLocaleLowerCase('en') === '.studio-')
   ) {
     throw new PathEscapeError();
   }
