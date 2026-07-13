@@ -65,14 +65,19 @@
 
 .life-landscape__matrix-region {
   max-inline-size: 100%;
-  overflow-x: auto;
+  max-block-size: calc(100dvh - 8rem);
+  overflow: auto;
   overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
   border-block: 1px solid var(--studio-color-line);
 }
 
 .life-landscape__matrix {
   display: grid;
-  grid-template-columns: 184px repeat(var(--landscape-area-count, 5), minmax(132px, 1fr));
+  grid-template-columns: 184px repeat(
+      var(--landscape-area-count, 5),
+      minmax(132px, 1fr)
+    );
   min-inline-size: var(--landscape-matrix-min, 844px);
 }
 
@@ -143,7 +148,8 @@
   min-block-size: 9.5rem;
   padding: var(--studio-space-3);
   border-block-end: 1px solid var(--studio-color-line);
-  border-inline-start: 1px solid color-mix(in srgb, var(--studio-color-line) 65%, transparent);
+  border-inline-start: 1px solid
+    color-mix(in srgb, var(--studio-color-line) 65%, transparent);
   color: var(--studio-color-ink-muted);
   font-size: 0.75rem;
 }
@@ -357,7 +363,77 @@
 }
 
 .life-landscape-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--studio-space-2);
   margin-block-start: var(--studio-space-3);
+}
+
+.life-landscape-card__drag-mode {
+  display: grid;
+  gap: var(--studio-space-1);
+  color: var(--studio-color-ink-muted);
+  font-size: 0.75rem;
+}
+
+.life-landscape-card__drag-mode select,
+.life-landscape__manage input {
+  min-block-size: var(--studio-touch-target);
+  max-inline-size: 100%;
+  border: 1px solid var(--studio-color-line-strong);
+  border-radius: var(--studio-radius-control);
+  color: var(--studio-color-ink);
+  background: var(--studio-color-surface);
+}
+
+.life-landscape-card__drag-help {
+  align-self: center;
+  max-inline-size: 10rem;
+  color: var(--studio-color-ink-soft);
+  font-size: 0.75rem;
+}
+
+.life-landscape-card--dragging {
+  opacity: 0.35;
+}
+
+.life-landscape__cell--drop-preview,
+.life-landscape__section-drop--drop-preview,
+.life-landscape__lens-drop--drop-preview {
+  outline: 3px solid var(--studio-color-focus);
+  outline-offset: -3px;
+  background: color-mix(
+    in srgb,
+    var(--studio-color-accent-soft) 45%,
+    transparent
+  );
+}
+
+.life-landscape__section-drop,
+.life-landscape__lens-drop {
+  min-block-size: 7rem;
+  border-radius: var(--studio-radius-card);
+}
+
+.life-landscape__drag-overlay {
+  display: grid;
+  gap: var(--studio-space-2);
+  inline-size: min(18rem, calc(100vw - 2rem));
+  padding: var(--studio-space-4);
+  border: 1px solid var(--studio-color-line-strong);
+  border-radius: var(--studio-radius-note);
+  color: var(--studio-color-ink);
+  background: var(--studio-color-surface);
+  box-shadow: var(--studio-shadow-card);
+}
+
+.life-landscape__drag-overlay button {
+  min-block-size: var(--studio-touch-target);
+  border: 1px solid var(--studio-color-line-strong);
+  border-radius: var(--studio-radius-control);
+  color: var(--studio-color-ink);
+  background: var(--studio-color-surface);
 }
 
 .life-landscape-card__menu {
@@ -370,6 +446,11 @@
   border-radius: var(--studio-radius-control);
   background: var(--studio-color-surface);
   box-shadow: var(--studio-shadow-card);
+}
+
+.life-landscape-card__menu [role='group'] {
+  display: grid;
+  gap: 2px;
 }
 
 .life-landscape-card__menu p {
@@ -434,9 +515,26 @@
 }
 
 .life-landscape__manage li {
-  display: grid;
-  grid-template-columns: 1fr auto auto auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  gap: var(--studio-space-2);
+}
+
+.life-landscape__manage label {
+  display: grid;
+  gap: var(--studio-space-1);
+}
+
+.life-landscape__manage li > span,
+.life-landscape__manage li > label {
+  flex: 1 1 12rem;
+}
+
+.life-landscape__area-library {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
   gap: var(--studio-space-2);
 }
 
@@ -453,6 +551,11 @@
   border-radius: var(--studio-radius-control);
   background: var(--studio-color-surface);
   box-shadow: var(--studio-shadow-card);
+}
+
+.life-landscape__undo p {
+  margin: 0;
+  color: var(--studio-color-ink-strong);
 }
 
 .life-landscape__undo button {

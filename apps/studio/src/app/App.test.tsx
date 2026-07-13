@@ -13,7 +13,7 @@ import {
   type StudioEventListener,
   type StudioService,
 } from '@studio/application';
-import type { StudioNote } from '@studio/domain';
+import { defaultLifeAreas, type StudioNote } from '@studio/domain';
 import { StrictMode } from 'react';
 import { afterEach, vi } from 'vitest';
 import { App } from './App';
@@ -71,6 +71,22 @@ function studioService(overrides: Partial<StudioService> = {}) {
   const unsubscribe = vi.fn();
   const service: StudioService = {
     views: { load: async () => [], save: async () => undefined },
+    lifeAreas: {
+      load: async () => ({
+        areas: defaultLifeAreas.map((area, order) => ({
+          ...area,
+          hidden: order >= 5,
+          order,
+        })),
+        repaired: false,
+        revision: null,
+      }),
+      save: async (areas, revision) => ({
+        areas: [...areas],
+        repaired: false,
+        revision: revision ?? 'hash-1',
+      }),
+    },
     start: vi.fn(async () => undefined),
     dispose: vi.fn(async () => undefined),
     subscribe: vi.fn((next) => {
