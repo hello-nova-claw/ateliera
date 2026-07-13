@@ -109,6 +109,18 @@ describe('season domain', () => {
         priorities: ['one', 'two', 'three', 'four'],
       }),
     ).toThrow(PriorityLimitError);
+    expect(() =>
+      updateSeasonDraft(draft, 'feelings', {
+        feelings: ['calm', 42],
+      } as never),
+    ).toThrow('feelings');
+    expect(() =>
+      updateSeasonDraft(draft, 'decisions-practices', {
+        decisions: [
+          { id: 'bad', text: 'Maybe', horizon: '120', kind: 'decision' },
+        ],
+      } as never),
+    ).toThrow('decisions');
   });
 
   it('activates only a draft confirmed through the confirm step', () => {
