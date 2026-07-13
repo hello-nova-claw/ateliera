@@ -1,7 +1,6 @@
 import {
   type CaptureEntry,
   type CaptureService,
-  type CaptureNoteInput,
   type SavedNote,
   type StudioService,
 } from '@studio/application';
@@ -32,6 +31,7 @@ import { createAppStudioService } from './studio-service-factory';
 import { useStudioRouter } from './router';
 import { themes, type ThemeId } from './themes';
 import { QuickCapture } from '../features/capture/QuickCapture';
+import type { QuickCaptureInput } from '../features/capture/QuickCapture';
 import './app.css';
 
 const NoteEditorSession = lazy(() =>
@@ -106,6 +106,7 @@ async function prepareOfflineShell(): Promise<boolean> {
 export interface AppProps {
   captureService?: CaptureService;
   requestPersistence?: () => Promise<BrowserPersistenceStatus>;
+  studioId?: string;
   studioService?: StudioService;
 }
 
@@ -120,15 +121,23 @@ export function App(props: AppProps = {}) {
 function StudioApplication({
   captureService,
   requestPersistence = ensureBrowserPersistence,
+  studioId,
   studioService,
 }: AppProps) {
+  const injectedStudioId = useRef(studioId ?? `session:${crypto.randomUUID()}`);
   const [service, setService] = useState<CaptureService | StudioService | null>(
     () => studioService ?? captureService ?? null,
+  );
+  const [activeStudioId, setActiveStudioId] = useState(() =>
+    studioId ?? injectedStudioId.current,
   );
   const { navigate, path, title } = useStudioRouter();
   const { announce: themeAnnouncement, setTheme, theme } = useTheme();
   const [captures, setCaptures] = useState<CaptureEntry[]>([]);
-  const [opened, setOpened] = useState(() => captureService !== undefined);
+  const [opened, setOpened] = useState(
+    () => captureService !== undefined || studioService !== undefined,
+  );
+  const [projectionRevision, setProjectionRevision] = useState(0);
   const [browserStudios, setBrowserStudios] = useState<BrowserStudioRecord[]>(
     () => (isNativeShell() ? [] : readBrowserStudios(localStorage)),
   );
@@ -141,7 +150,7 @@ function StudioApplication({
   const [name, setName] = useState('The Studio');
   const [toast, setToast] = useState('');
   const [status, setStatus] = useState(() =>
-    captureService === undefined
+    captureService === undefined && studioService === undefined
       ? 'Choose a Studio'
       : 'serviceWorker' in navigator &&
           navigator.serviceWorker.controller !== null
@@ -161,11 +170,54 @@ function StudioApplication({
   const capturePaths = useRef(new Map<string, string>());
 
   useEffect(() => {
+    if (studioService !== undefined) {
+      setEditor(undefined);
+      setService(studioService);
+      setActiveStudioId(studioId ?? injectedStudioId.current);
+      setOpened(true);
+    } else if (captureService !== undefined) {
+      setEditor(undefined);
+      setService(captureService);
+      setActiveStudioId(studioId ?? injectedStudioId.current);
+      setOpened(true);
+    }
+  }, [captureService, studioId, studioService]);
+
+  useEffect(() => {
+    if (!isStudioService(service)) return undefined;
+    let active = true;
+    const unsubscribe = service.subscribe((event) => {
+      if (
+        active &&
+        (event.kind === 'note-saved' || event.kind === 'index-rebuilt')
+      ) {
+        setProjectionRevision((revision) => revision + 1);
+      }
+    });
+    void service.start().catch((reason: unknown) => {
+      if (active) {
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : 'The Studio could not watch this folder.',
+        );
+      }
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+      queueMicrotask(() => void service.dispose());
+    };
+  }, [service]);
+
+  useEffect(() => {
     if (service === null) return;
     let active = true;
     const listing = isStudioService(service)
       ? service.projectRoom('inbox').then((items) => {
-          for (const item of items) capturePaths.current.set(item.noteId, item.path);
+          const paths = new Map<string, string>();
+          for (const item of items) paths.set(item.noteId, item.path);
+          if (active) capturePaths.current = paths;
           return items.map((item) => ({ id: item.noteId, text: item.excerpt }));
         })
       : service.list();
@@ -189,7 +241,7 @@ function StudioApplication({
     return () => {
       active = false;
     };
-  }, [service]);
+  }, [projectionRevision, service]);
 
   useEffect(() => {
     document.title = `${title} — The Studio`;
@@ -234,6 +286,8 @@ function StudioApplication({
     const { selectTauriVault } = await import('@studio/storage/tauri');
     const vault = await selectTauriVault();
     if (vault === null) return false;
+    setEditor(undefined);
+    setActiveStudioId(`session:${crypto.randomUUID()}`);
     setService(createAppStudioService(vault));
     setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
     return true;
@@ -248,6 +302,8 @@ function StudioApplication({
       }
       if (record === undefined) return;
       activateBrowserStudio(localStorage, record.vaultId);
+      setEditor(undefined);
+      setActiveStudioId(record.vaultId);
       setService(createAppStudioService(createBrowserVault(record.vaultId)));
       setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
       finishOnboarding();
@@ -296,6 +352,8 @@ function StudioApplication({
       registerBrowserStudio(localStorage, record);
       activateBrowserStudio(localStorage, record.vaultId);
       setBrowserStudios(readBrowserStudios(localStorage));
+      setEditor(undefined);
+      setActiveStudioId(record.vaultId);
       setService(createAppStudioService(vault));
       setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
       localStorage.setItem('studio:name', record.name);
@@ -310,9 +368,25 @@ function StudioApplication({
     }
   }
 
-  async function captureThought(input: CaptureNoteInput): Promise<SavedNote> {
+  async function captureThought(input: QuickCaptureInput): Promise<SavedNote> {
     if (service === null) throw new Error('Choose a Studio before remembering a thought.');
-    if (isStudioService(service)) return service.capture(input);
+    if (isStudioService(service)) {
+      const captured = await service.capture({
+        body: input.body,
+        ...(input.title === undefined ? {} : { title: input.title }),
+      });
+      if (
+        input.semanticType === undefined ||
+        input.semanticType === captured.note.semanticType
+      ) {
+        return captured;
+      }
+      return service.save({
+        note: { ...captured.note, semanticType: input.semanticType },
+        path: captured.path,
+        expectedHash: captured.hash,
+      });
+    }
     const captured = await service.capture(input.body);
     return legacySavedNote(captured);
   }
@@ -324,6 +398,7 @@ function StudioApplication({
 
   function closeEditor(): void {
     setEditor(undefined);
+    setProjectionRevision((revision) => revision + 1);
     requestAnimationFrame(() => editorTrigger.current?.focus());
   }
 
@@ -556,10 +631,12 @@ function StudioApplication({
           onCancel={closeCapture}
           onRemembered={(saved) => {
             capturePaths.current.set(saved.note.id, saved.path);
-            setCaptures((current) => [
-              ...current,
-              { id: saved.note.id, text: saved.note.body },
-            ]);
+            if (!isStudioService(service)) {
+              setCaptures((current) => [
+                ...current,
+                { id: saved.note.id, text: saved.note.body },
+              ]);
+            }
             closeCapture();
             setToast('Remembered.');
             void requestPersistence()
@@ -589,6 +666,7 @@ function StudioApplication({
               onClose={closeEditor}
               requestClose={editorCloseRequest}
               service={service}
+              studioId={activeStudioId}
             />
           </Suspense>
         )}
