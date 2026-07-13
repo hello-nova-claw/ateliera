@@ -366,7 +366,6 @@ describe('browser vault ZIP portability boundary', () => {
 
   it('does not overwrite a later edit while rolling back a partial import', async () => {
     const base = createTestStore();
-    let otherTab: ReturnType<typeof createBrowserVault>;
     let outsideEdit: Promise<{ hash: string }> | undefined;
     let firstPublished = false;
     const store: BrowserVaultStore = {
@@ -389,7 +388,7 @@ describe('browser vault ZIP portability boundary', () => {
     await source.writeTextAtomic('Inbox/a.md', 'new a');
     await source.writeTextAtomic('Inbox/b.md', 'new b');
     const target = createBrowserVault('rollback-race-target', { store });
-    otherTab = createBrowserVault('rollback-race-target', { store });
+    const otherTab = createBrowserVault('rollback-race-target', { store });
     await target.writeTextAtomic('Inbox/a.md', 'old a');
     await target.writeTextAtomic('Inbox/b.md', 'old b');
     const plan = await prepareBrowserVaultImport(
