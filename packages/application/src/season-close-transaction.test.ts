@@ -480,6 +480,44 @@ describe('season close transaction', () => {
     ).resolves.toBe(false);
   });
 
+  it.each([
+    ['an unknown disposition', { disposition: 'defer' }],
+    ['a non-string disposition', { disposition: 1 }],
+    ['a malformed expected hash', { expectedHash: 'not-a-sha256' }],
+    ['a non-string expected hash', { expectedHash: 1 }],
+  ] as const)(
+    'rejects %s at the request boundary before publishing or executing the transaction',
+    async (_, replacement) => {
+      const { vault, revisions, closeRequest } = await setup();
+      const create = vi.spyOn(revisions, 'create');
+      const list = vi.spyOn(vault, 'list');
+      const service = createSeasonCloseTransactionService({
+        vault,
+        control: createStudioControlVault(vault),
+        revisions,
+        clock: () => new Date(now),
+      });
+      const hostile = structuredClone(closeRequest) as unknown as {
+        dispositions: Array<Record<string, unknown>>;
+      };
+      hostile.dispositions[0] = {
+        ...hostile.dispositions[0],
+        ...replacement,
+      };
+
+      await expect(
+        service.close(hostile as unknown as SeasonCloseRequest),
+      ).rejects.toBeInstanceOf(SeasonClosePreflightError);
+      expect(list).not.toHaveBeenCalled();
+      expect(create).not.toHaveBeenCalled();
+      await expect(
+        createStudioControlVault(vault).exists(
+          '.studio/season/close-journal.json',
+        ),
+      ).resolves.toBe(false);
+    },
+  );
+
   it('rejects a forged cold-start journal without touching user notes', async () => {
     const { vault, revisions } = await setup();
     await createStudioControlVault(vault).writeTextAtomic(
@@ -1265,6 +1303,64 @@ describe('season close transaction', () => {
     expect(manifests).toHaveLength(1);
   });
 
+  it('lets concurrent prepared-journal resumes converge on one transaction-owned snapshot manifest', async () => {
+    const { vault, revisions, closeRequest } = await setup();
+    const base = createStudioControlVault(vault);
+    const preparing = createSeasonCloseTransactionService({
+      vault,
+      control: base,
+      revisions,
+      clock: () => new Date(now),
+    });
+    await preparing.prepare(closeRequest);
+
+    let entrants = 0;
+    let releaseCopies!: () => void;
+    let bothEntered!: () => void;
+    const copiesReleased = new Promise<void>((resolve) => {
+      releaseCopies = resolve;
+    });
+    const bothCopiesEntered = new Promise<void>((resolve) => {
+      bothEntered = resolve;
+    });
+    const coordinated: StudioControlVault = {
+      ...base,
+      async writeBinaryAtomic(path, bytes, condition) {
+        if (path.includes('/files/')) {
+          entrants += 1;
+          if (entrants === 2) bothEntered();
+          await copiesReleased;
+        }
+        return base.writeBinaryAtomic(path, bytes, condition);
+      },
+    };
+    const first = createSeasonCloseTransactionService({
+      vault,
+      control: coordinated,
+      revisions,
+      clock: () => new Date(now),
+    });
+    const second = createSeasonCloseTransactionService({
+      vault,
+      control: coordinated,
+      revisions,
+      clock: () => new Date(now),
+    });
+
+    const results = Promise.all([first.resume(), second.resume()]);
+    await bothCopiesEntered;
+    releaseCopies();
+
+    await expect(results).resolves.toEqual([
+      expect.objectContaining({ season: { note: { status: 'archived' } } }),
+      expect.objectContaining({ season: { note: { status: 'archived' } } }),
+    ]);
+    const manifests = (await base.list('.studio/backups')).filter(
+      (entry) => entry.kind === 'file' && entry.path.endsWith('/manifest.json'),
+    );
+    expect(manifests).toHaveLength(1);
+  });
+
   it.each(['target-output', 'season-bytes', 'season-status'] as const)(
     'fails closed when completed durable %s no longer matches its journal',
     async (failure) => {
@@ -1321,6 +1417,56 @@ describe('season close transaction', () => {
     };
     const service = createSeasonCloseTransactionService({
       vault,
+      control,
+      revisions,
+      clock: () => new Date(now),
+    });
+
+    await expect(service.close(closeRequest)).rejects.toThrow(
+      'archived season no longer matches',
+    );
+  });
+
+  it('rejects a season changed on the exact final read after completed-output verification', async () => {
+    const { vault, revisions, closeRequest } = await setup();
+    let completed = false;
+    let completedSeasonReads = 0;
+    const adversarialVault = new Proxy(vault, {
+      get(target, property, receiver) {
+        if (property === 'readText') {
+          return async (path: string) => {
+            if (completed && path === closeRequest.season.path) {
+              completedSeasonReads += 1;
+              if (completedSeasonReads === 2) {
+                const current = await vault.readText(path);
+                await vault.writeTextAtomic(path, 'changed on final read', {
+                  expectedHash: current.hash,
+                });
+              }
+            }
+            return vault.readText(path);
+          };
+        }
+        const value = Reflect.get(target, property, receiver) as unknown;
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const base = createStudioControlVault(adversarialVault);
+    const control: StudioControlVault = {
+      ...base,
+      async writeTextAtomic(path, text, condition) {
+        const written = await base.writeTextAtomic(path, text, condition);
+        if (
+          path === '.studio/season/close-journal.json' &&
+          (JSON.parse(text) as { stage?: string }).stage === 'completed'
+        ) {
+          completed = true;
+        }
+        return written;
+      },
+    };
+    const service = createSeasonCloseTransactionService({
+      vault: adversarialVault,
       control,
       revisions,
       clock: () => new Date(now),
