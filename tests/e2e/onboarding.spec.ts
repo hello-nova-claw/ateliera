@@ -1,12 +1,20 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+async function createLocalStudio(
+  page: Page,
+  name = 'The Studio',
+): Promise<void> {
+  await page.getByRole('button', { name: 'Create a Studio' }).click();
+  await page.getByLabel('Studio name').fill(name);
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
+}
 
 test('creates a local Studio and enters the Foyer', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Capture' })).toBeDisabled();
-  await page.getByRole('button', { name: 'Create a Studio' }).click();
-  await page.getByLabel('Studio name').fill('Anna’s Studio');
-  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await createLocalStudio(page, 'Anna’s Studio');
 
   await expect(page).toHaveURL(/\/foyer$/);
   await expect(page.getByRole('heading', { name: 'The Studio' })).toBeVisible();
@@ -17,7 +25,6 @@ test('creates a local Studio and enters the Foyer', async ({ page }) => {
     }),
   ).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-  await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
   await page.reload();
   await expect(
     page.getByRole('button', { name: 'Open Anna’s Studio' }),
@@ -26,9 +33,7 @@ test('creates a local Studio and enters the Foyer', async ({ page }) => {
 
 test('opens an existing browser Studio', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Create a Studio' }).click();
-  await page.getByLabel('Studio name').fill('The Studio');
-  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await createLocalStudio(page);
   await page.reload();
   await page.getByRole('button', { name: 'Open The Studio' }).click();
   await expect(page).toHaveURL(/\/foyer$/);
@@ -38,9 +43,7 @@ test('offers to open an existing Studio instead of overwriting it', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Create a Studio' }).click();
-  await page.getByLabel('Studio name').fill('The Studio');
-  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await createLocalStudio(page);
   await page.reload();
   await page.getByRole('button', { name: 'Create a Studio' }).click();
   await page.getByLabel('Studio name').fill('the studio');
@@ -79,7 +82,7 @@ test('changes theme with a keyboard radio menu and remembers it', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Open this Studio' }).click();
+  await createLocalStudio(page);
   const picker = page.getByRole('button', { name: /Theme/ });
   await picker.click();
   const chamomile = page.getByRole('menuitemradio', {
@@ -135,7 +138,7 @@ test('supports command navigation and restores focus after Escape', async ({
   page,
 }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Open this Studio' }).click();
+  await createLocalStudio(page);
   await page.keyboard.press('Meta+k');
   const input = page.getByRole('combobox', { name: 'Find a command' });
   await expect(input).toBeFocused();
@@ -148,7 +151,7 @@ test('mobile shell keeps Capture one tap away without page overflow', async ({
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await page.getByRole('button', { name: 'Open this Studio' }).click();
+  await createLocalStudio(page);
   await expect(
     page.getByRole('navigation', { name: 'Mobile navigation' }),
   ).toBeVisible();

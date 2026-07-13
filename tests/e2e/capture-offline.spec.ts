@@ -1,6 +1,13 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 test.describe.configure({ mode: 'serial' });
+
+async function createLocalStudio(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Create a Studio' }).click();
+  await page.getByLabel('Studio name').fill('The Studio');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
+}
 
 test('captured note survives reload while offline', async ({
   page,
@@ -22,6 +29,7 @@ test('captured note survives reload while offline', async ({
       browserErrors.push(text);
   });
   await page.goto('/');
+  await createLocalStudio(page);
   await page.getByRole('button', { name: 'Capture' }).click();
   await page
     .getByRole('textbox', { name: 'What would you like remembered?' })
@@ -48,6 +56,7 @@ test('captured note survives reload while offline', async ({
     await context.setOffline(true);
   }
   await page.reload();
+  await page.getByRole('button', { name: 'Open The Studio' }).click();
 
   await expect(page.getByText('The hill')).toBeVisible();
   await expect(page.getByText('Ready offline')).toBeVisible();
@@ -64,6 +73,7 @@ test('falls back to IndexedDB when OPFS is unavailable', async ({ page }) => {
   });
 
   await page.goto('/');
+  await createLocalStudio(page);
   await page.getByRole('button', { name: 'Capture' }).click();
   await page
     .getByRole('textbox', { name: 'What would you like remembered?' })
@@ -94,6 +104,7 @@ test('falls back to IndexedDB when OPFS is unavailable', async ({ page }) => {
     return result > 0;
   });
   await page.reload();
+  await page.getByRole('button', { name: 'Open The Studio' }).click();
 
   await expect(page.getByText('The garden')).toBeVisible();
 });
@@ -102,6 +113,7 @@ test('restores focus and keeps private captures out of app-shell caches', async 
   page,
 }) => {
   await page.goto('/');
+  await createLocalStudio(page);
   const capture = page.getByRole('button', { name: 'Capture' });
   await capture.click();
   await page
@@ -109,6 +121,18 @@ test('restores focus and keeps private captures out of app-shell caches', async 
     .fill('A private childhood hill');
   await page.getByRole('button', { name: 'Remember' }).click();
   await expect(capture).toBeFocused();
+  await expect
+    .poll(() =>
+      capture.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          color: style.outlineColor,
+          style: style.outlineStyle,
+          width: style.outlineWidth,
+        };
+      }),
+    )
+    .toEqual({ color: 'rgb(91, 61, 132)', style: 'solid', width: '3px' });
 
   const cachedUrls = await page.evaluate(async () => {
     const urls: string[] = [];

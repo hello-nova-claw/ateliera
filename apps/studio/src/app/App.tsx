@@ -16,6 +16,13 @@ import {
 } from '@studio/storage/browser';
 import { useEffect, useRef, useState } from 'react';
 import { StudioProviders } from './providers';
+import {
+  activateBrowserStudio,
+  createBrowserStudioRecord,
+  readBrowserStudios,
+  registerBrowserStudio,
+  type BrowserStudioRecord,
+} from './browser-studios';
 import { useTheme } from './theme-context';
 import { RoomRoute } from './RoomRoute';
 import { useStudioRouter } from './router';
@@ -96,20 +103,14 @@ function StudioApplication({
   requestPersistence = ensureBrowserPersistence,
 }: AppProps) {
   const [service, setService] = useState<CaptureService | null>(
-    () =>
-      captureService ??
-      (isNativeShell()
-        ? null
-        : createCaptureService(createBrowserVault('the-studio'))),
+    () => captureService ?? null,
   );
   const { navigate, path, title } = useStudioRouter();
   const { announce: themeAnnouncement, setTheme, theme } = useTheme();
   const [captures, setCaptures] = useState<CaptureEntry[]>([]);
-  const [opened, setOpened] = useState(
-    () =>
-      !isNativeShell() &&
-      typeof localStorage.getItem === 'function' &&
-      localStorage.getItem('studio:opened') === 'true',
+  const [opened, setOpened] = useState(() => captureService !== undefined);
+  const [browserStudios, setBrowserStudios] = useState<BrowserStudioRecord[]>(
+    () => (isNativeShell() ? [] : readBrowserStudios(localStorage)),
   );
   const [captureOpen, setCaptureOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
@@ -119,11 +120,16 @@ function StudioApplication({
   const [text, setText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [status, setStatus] = useState(() =>
-    'serviceWorker' in navigator && navigator.serviceWorker.controller !== null
-      ? 'Ready offline'
-      : 'Stored locally',
+    captureService === undefined
+      ? 'Choose a Studio'
+      : 'serviceWorker' in navigator &&
+          navigator.serviceWorker.controller !== null
+        ? 'Ready offline'
+        : 'Stored locally',
   );
   const [error, setError] = useState<string>();
+  const [createError, setCreateError] = useState<string>();
+  const [duplicateStudio, setDuplicateStudio] = useState<BrowserStudioRecord>();
   const searchButton = useRef<HTMLButtonElement>(null);
   const captureButton = useRef<HTMLButtonElement>(null);
   const themeButton = useRef<HTMLButtonElement>(null);
@@ -185,8 +191,6 @@ function StudioApplication({
   }
 
   function finishOnboarding(): void {
-    if (typeof localStorage.setItem === 'function')
-      localStorage.setItem('studio:opened', 'true');
     setOpened(true);
     go('/foyer');
   }
@@ -197,18 +201,77 @@ function StudioApplication({
     const vault = await selectTauriVault();
     if (vault === null) return false;
     setService(createCaptureService(vault));
+    setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
     return true;
   }
 
-  async function openStudio(): Promise<void> {
+  async function openStudio(record?: BrowserStudioRecord): Promise<void> {
     setError(undefined);
     try {
-      if (await selectNativeService()) finishOnboarding();
+      if (isNativeShell()) {
+        if (await selectNativeService()) finishOnboarding();
+        return;
+      }
+      if (record === undefined) return;
+      activateBrowserStudio(localStorage, record.vaultId);
+      setService(createCaptureService(createBrowserVault(record.vaultId)));
+      setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
+      finishOnboarding();
     } catch (reason) {
       setError(
         reason instanceof Error
           ? reason.message
           : 'The Studio could not open this folder.',
+      );
+    }
+  }
+
+  async function createStudio(): Promise<void> {
+    setCreateError(undefined);
+    setDuplicateStudio(undefined);
+    try {
+      if (isNativeShell()) {
+        if (!(await selectNativeService())) return;
+        setCreateOpen(false);
+        finishOnboarding();
+        return;
+      }
+
+      const record = createBrowserStudioRecord(name);
+      const known = browserStudios.find(
+        (studio) =>
+          studio.name.localeCompare(record.name, undefined, {
+            sensitivity: 'accent',
+          }) === 0,
+      );
+      if (known !== undefined) {
+        setDuplicateStudio(known);
+        setCreateError(`A local Studio named “${record.name}” already exists.`);
+        return;
+      }
+
+      const vault = createBrowserVault(record.vaultId);
+      if ((await vault.list()).length > 0) {
+        registerBrowserStudio(localStorage, record);
+        setBrowserStudios(readBrowserStudios(localStorage));
+        setDuplicateStudio(record);
+        setCreateError(`A local Studio named “${record.name}” already exists.`);
+        return;
+      }
+
+      registerBrowserStudio(localStorage, record);
+      activateBrowserStudio(localStorage, record.vaultId);
+      setBrowserStudios(readBrowserStudios(localStorage));
+      setService(createCaptureService(vault));
+      setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
+      localStorage.setItem('studio:name', record.name);
+      setCreateOpen(false);
+      finishOnboarding();
+    } catch (reason) {
+      setCreateError(
+        reason instanceof Error
+          ? reason.message
+          : 'The Studio could not create this space.',
       );
     }
   }
@@ -271,12 +334,16 @@ function StudioApplication({
       label: 'Open Reflection Garden',
       onSelect: () => go('/reflection'),
     },
-    {
-      id: 'capture',
-      label: 'Capture a thought',
-      onSelect: () => setCaptureOpen(true),
-      shortcut: 'C',
-    },
+    ...(opened && service !== null
+      ? [
+          {
+            id: 'capture',
+            label: 'Capture a thought',
+            onSelect: () => setCaptureOpen(true),
+            shortcut: 'C',
+          } satisfies StudioCommand,
+        ]
+      : []),
     { id: 'search', label: 'Search the Studio', onSelect: () => go('/search') },
     { id: 'settings', label: 'Open Settings', onSelect: () => go('/settings') },
   ];
@@ -347,7 +414,10 @@ function StudioApplication({
         <button
           aria-label="Capture"
           className="studio-topbar__new"
-          onClick={() => setCaptureOpen(true)}
+          disabled={!opened || service === null}
+          onClick={() => {
+            if (opened && service !== null) setCaptureOpen(true);
+          }}
           ref={captureButton}
           type="button"
         >
@@ -360,7 +430,9 @@ function StudioApplication({
   return (
     <AppShell
       activePath={path}
+      captureEnabled={opened && service !== null}
       onCapture={(trigger) => {
+        if (!opened || service === null) return;
         captureButton.current = trigger;
         setCaptureOpen(true);
       }}
@@ -375,8 +447,10 @@ function StudioApplication({
         <RoomRoute captures={captures} path={path} title={title} />
         {!opened && (
           <Onboarding
+            browserStudios={browserStudios}
+            isNative={isNativeShell()}
             onCreate={() => setCreateOpen(true)}
-            onOpen={() => void openStudio()}
+            onOpen={(record) => void openStudio(record)}
           />
         )}
       </section>
@@ -394,22 +468,7 @@ function StudioApplication({
           className="studio-form"
           onSubmit={(event) => {
             event.preventDefault();
-            void (async () => {
-              setError(undefined);
-              try {
-                if (!(await selectNativeService())) return;
-                if (typeof localStorage.setItem === 'function')
-                  localStorage.setItem('studio:name', name);
-                setCreateOpen(false);
-                finishOnboarding();
-              } catch (reason) {
-                setError(
-                  reason instanceof Error
-                    ? reason.message
-                    : 'The Studio could not create this space.',
-                );
-              }
-            })();
+            void createStudio();
           }}
         >
           <p className="studio-form__eyebrow">A place of your own</p>
@@ -420,6 +479,11 @@ function StudioApplication({
             onChange={(event) => setName(event.target.value)}
             value={name}
           />
+          {createError && (
+            <p className="studio-form__error" role="alert">
+              {createError}
+            </p>
+          )}
           <div className="studio-form__actions">
             <button
               className="studio-form__button studio-form__button--secondary"
@@ -431,6 +495,18 @@ function StudioApplication({
             <button className="studio-form__button" type="submit">
               Create
             </button>
+            {duplicateStudio && (
+              <button
+                className="studio-form__button studio-form__button--secondary"
+                onClick={() => {
+                  setCreateOpen(false);
+                  void openStudio(duplicateStudio);
+                }}
+                type="button"
+              >
+                Open existing Studio
+              </button>
+            )}
           </div>
         </form>
       </Dialog>
@@ -483,12 +559,23 @@ function StudioApplication({
 }
 
 function Onboarding({
+  browserStudios,
+  isNative,
   onCreate,
   onOpen,
 }: {
+  browserStudios: BrowserStudioRecord[];
+  isNative: boolean;
   onCreate: () => void;
-  onOpen: () => void;
+  onOpen: (record?: BrowserStudioRecord) => void;
 }) {
+  const [selectedVault, setSelectedVault] = useState(
+    browserStudios[0]?.vaultId ?? '',
+  );
+  const selected = browserStudios.find(
+    (studio) => studio.vaultId === selectedVault,
+  );
+
   return (
     <section className="studio-onboarding" aria-labelledby="onboarding-title">
       <p className="studio-onboarding__script" aria-hidden="true">
@@ -507,12 +594,32 @@ function Onboarding({
         >
           Create a Studio
         </button>
+        {!isNative && browserStudios.length > 1 && (
+          <label className="studio-onboarding__picker">
+            Local Studio
+            <select
+              onChange={(event) => setSelectedVault(event.target.value)}
+              value={selectedVault}
+            >
+              {browserStudios.map((studio) => (
+                <option key={studio.vaultId} value={studio.vaultId}>
+                  {studio.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <button
           className="studio-onboarding__button studio-onboarding__button--secondary"
-          onClick={onOpen}
+          disabled={!isNative && selected === undefined}
+          onClick={() => onOpen(selected)}
           type="button"
         >
-          Open this Studio
+          {isNative
+            ? 'Open this Studio'
+            : selected
+              ? `Open ${selected.name}`
+              : 'No local Studio to open'}
         </button>
       </div>
     </section>

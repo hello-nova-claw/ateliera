@@ -3,6 +3,7 @@ import './AppShell.css';
 
 export interface AppShellProps {
   activePath: string;
+  captureEnabled?: boolean;
   children: ReactNode;
   onCapture: (trigger: HTMLButtonElement) => void;
   onNavigate: (path: string) => void;
@@ -25,6 +26,7 @@ const utilities = [
 
 export function AppShell({
   activePath,
+  captureEnabled = true,
   children,
   onCapture,
   onNavigate,
@@ -97,6 +99,7 @@ export function AppShell({
         {studioLink('/foyer', 'Home', '⌂')}
         <button
           className="studio-app-shell__capture"
+          disabled={!captureEnabled}
           onClick={(event) => onCapture(event.currentTarget)}
           type="button"
         >

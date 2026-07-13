@@ -68,5 +68,7 @@ export function readActiveBrowserStudio(
   storage: Storage,
 ): BrowserStudioRecord | undefined {
   const active = storage.getItem(activeKey);
-  return readBrowserStudios(storage).find((record) => record.vaultId === active);
+  return readBrowserStudios(storage).find(
+    (record) => record.vaultId === active,
+  );
 }

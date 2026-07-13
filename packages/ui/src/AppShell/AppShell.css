@@ -82,6 +82,16 @@
   font-weight: 600;
 }
 
+.studio-app-shell__capture:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.studio-app-shell__capture:focus {
+  outline: var(--studio-focus-width) solid var(--studio-color-focus);
+  outline-offset: var(--studio-focus-offset);
+}
+
 .studio-app-shell__nav-mark {
   display: grid;
   place-items: center;
