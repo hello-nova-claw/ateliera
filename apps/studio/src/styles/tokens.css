@@ -43,7 +43,7 @@
   --studio-focus-width: 3px;
   --studio-focus-offset: 3px;
   --studio-motion-duration: 180ms;
-  --studio-motion-reduced-duration: 0.01ms;
+  --studio-motion-reduced-duration: 0s;
   --studio-motion-easing: ease-out;
   --studio-touch-target: 2.75rem;
   --studio-content-max: 90rem;

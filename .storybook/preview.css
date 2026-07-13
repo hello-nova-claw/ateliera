@@ -3,6 +3,15 @@
   background: var(--studio-color-canvas);
 }
 
+.primitive-preview {
+  max-inline-size: 36rem;
+}
+
+.semantic-mark-preview {
+  display: grid;
+  gap: var(--studio-space-4);
+}
+
 @media (width <= 30rem) {
   .sb-show-main.sb-main-fullscreen {
     padding: var(--studio-space-4);

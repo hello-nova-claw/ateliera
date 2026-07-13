@@ -15,7 +15,7 @@ export const Vision: Story = {};
 
 export const AllMeanings: Story = {
   render: () => (
-    <div style={{ display: 'grid', gap: '1rem' }}>
+    <div className="semantic-mark-preview">
       <SemanticMark labelMode="visible" type="foundations" />
       <SemanticMark labelMode="visible" type="vision" />
       <SemanticMark labelMode="visible" type="growth" />

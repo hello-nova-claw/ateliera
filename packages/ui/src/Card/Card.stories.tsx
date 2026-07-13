@@ -1,5 +1,28 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { useState } from 'react';
 import { Card } from './Card';
+
+function InteractiveReflection() {
+  const [status, setStatus] = useState('');
+
+  return (
+    <>
+      <Card
+        actions={
+          <button type="button" onClick={() => setStatus('Reflection opened')}>
+            Open reflection
+          </button>
+        }
+        excerpt="Small, attentive steps become visible evidence over time."
+        semanticType="reflection"
+        title="What I learned"
+      />
+      <p aria-live="polite" className="visually-hidden" role="status">
+        {status}
+      </p>
+    </>
+  );
+}
 
 const meta: Meta<typeof Card> = {
   title: 'Primitives/Card',
@@ -11,7 +34,7 @@ const meta: Meta<typeof Card> = {
   },
   decorators: [
     (Story) => (
-      <div style={{ maxWidth: '36rem' }}>
+      <div className="primitive-preview">
         <Story />
       </div>
     ),
@@ -23,9 +46,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Reflection: Story = {
-  args: {
-    actions: <button type="button">Open reflection</button>,
-  },
+  render: () => <InteractiveReflection />,
 };
 
 export const Uncharted: Story = {
