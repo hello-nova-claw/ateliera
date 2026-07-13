@@ -1,0 +1,32 @@
+export interface VaultEntry {
+  path: string;
+  kind: 'file' | 'directory';
+  size?: number;
+  modifiedAt?: string;
+  contentHash?: string;
+}
+
+export interface WriteCondition {
+  expectedHash?: string;
+}
+
+export type VaultChange =
+  | { kind: 'created' | 'modified'; path: string; hash: string }
+  | { kind: 'moved'; path: string; previousPath: string; hash: string }
+  | { kind: 'removed'; path: string };
+
+export interface VaultPort {
+  list(prefix?: string): Promise<VaultEntry[]>;
+  readText(path: string): Promise<{ text: string; hash: string }>;
+  writeTextAtomic(
+    path: string,
+    text: string,
+    condition?: WriteCondition,
+  ): Promise<{ hash: string }>;
+  readBinary(path: string): Promise<Uint8Array>;
+  writeBinaryAtomic(path: string, bytes: Uint8Array): Promise<{ hash: string }>;
+  move(from: string, to: string): Promise<void>;
+  remove(path: string): Promise<void>;
+  exists(path: string): Promise<boolean>;
+  watch(listener: (event: VaultChange) => void): Promise<() => void>;
+}
