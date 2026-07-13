@@ -4,7 +4,10 @@ import {
   type StoredBrowserFile,
 } from '@studio/storage/browser';
 import { selectTauriVault, type TauriVaultBridge } from '@studio/storage/tauri';
-import type { VaultPort } from '@studio/storage/portable';
+import {
+  createStudioControlVault,
+  type VaultPort,
+} from '@studio/storage/portable';
 import { describe, expect, it } from 'vitest';
 
 import { createSeasonTransactionStore } from './season-transaction-store';
@@ -106,6 +109,32 @@ async function expectExactActiveWinner(
   });
 }
 
+async function expectForgedActiveRejected(vault: VaultPort) {
+  await vault.writeTextAtomic('Current Season/winter.md', 'preserve me');
+  await createStudioControlVault(vault).writeTextAtomic(
+    '.studio/season/active.json',
+    `${JSON.stringify({
+      version: 1,
+      revision: 1,
+      activeNoteId: 'winter',
+      activePath: 'Current Season/winter.md',
+      operation: {
+        id: 'activate-spring',
+        kind: 'activating',
+        targetNoteId: 'spring',
+        targetPath: 'Current Season/spring.md',
+      },
+    })}\n`,
+  );
+
+  await expect(createSeasonTransactionStore(vault).readActive()).rejects.toThrow(
+    'active-season checkpoint',
+  );
+  expect(await vault.readText('Current Season/winter.md')).toMatchObject({
+    text: 'preserve me',
+  });
+}
+
 describe('season checkpoint production adapters', () => {
   it('coordinates independent browser vault instances and survives reopen', async () => {
     const store = browserStore();
@@ -122,5 +151,17 @@ describe('season checkpoint production adapters', () => {
     expect(first).not.toBeNull();
     expect(second).not.toBeNull();
     await expectExactActiveWinner(first!, second!);
+  });
+
+  it('fails closed on forged browser control data without changing user notes', async () => {
+    await expectForgedActiveRejected(
+      createBrowserVault('season-browser-forged', { store: browserStore() }),
+    );
+  });
+
+  it('fails closed on forged native control data without changing user notes', async () => {
+    const vault = await selectTauriVault(nativeBridge());
+    expect(vault).not.toBeNull();
+    await expectForgedActiveRejected(vault!);
   });
 });

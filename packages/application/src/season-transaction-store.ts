@@ -6,6 +6,11 @@ import {
 
 const ACTIVE_PATH = '.studio/season/active.json';
 const CLOSE_JOURNAL_PATH = '.studio/season/close-journal.json';
+const WINDOWS_DRIVE_PATH = /^[A-Za-z]:/u;
+const UNSAFE_IDENTIFIER_CHARACTER = new RegExp(
+  String.raw`[\u0000-\u001f\u007f-\u009f/\\]`,
+  'u',
+);
 
 export type SeasonActiveOperationKind = 'activating' | 'repairing' | 'closing';
 
@@ -57,44 +62,136 @@ export function emptySeasonActiveCheckpoint(): SeasonActiveCheckpoint {
   };
 }
 
-function isStringOrNull(value: unknown): value is string | null {
-  return value === null || typeof value === 'string';
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasExactKeys(
+  value: Record<string, unknown>,
+  keys: readonly string[],
+): boolean {
+  return (
+    keys.every((key) => Object.hasOwn(value, key)) &&
+    Object.keys(value).every((key) => keys.includes(key))
+  );
+}
+
+function isWellFormedUnicode(value: string): boolean {
+  try {
+    encodeURIComponent(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isCanonicalIdentifier(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= 128 &&
+    value === value.trim() &&
+    value === value.normalize('NFC') &&
+    value !== '.' &&
+    value !== '..' &&
+    !UNSAFE_IDENTIFIER_CHARACTER.test(value) &&
+    isWellFormedUnicode(value)
+  );
+}
+
+function isCanonicalUserPath(value: unknown): value is string {
+  if (
+    typeof value !== 'string' ||
+    value.length === 0 ||
+    value !== value.normalize('NFC') ||
+    value !== value.trim() ||
+    value.includes('\0') ||
+    value.includes('\\') ||
+    value.startsWith('/') ||
+    value.endsWith('/') ||
+    WINDOWS_DRIVE_PATH.test(value) ||
+    !isWellFormedUnicode(value)
+  ) {
+    return false;
+  }
+  return value.split('/').every((segment) => {
+    const folded = segment.toLocaleLowerCase('en');
+    return (
+      segment.length > 0 &&
+      segment === segment.trim() &&
+      segment !== '.' &&
+      segment !== '..' &&
+      folded !== '.studio' &&
+      !folded.startsWith('.studio-')
+    );
+  });
+}
+
+function isActiveOperation(
+  value: unknown,
+  activeNoteId: string,
+  activePath: string,
+): value is SeasonActiveOperation {
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, ['id', 'kind', 'targetNoteId', 'targetPath']) ||
+    !isCanonicalIdentifier(value.id) ||
+    !['activating', 'repairing', 'closing'].includes(String(value.kind)) ||
+    !isCanonicalIdentifier(value.targetNoteId) ||
+    !isCanonicalUserPath(value.targetPath)
+  ) {
+    return false;
+  }
+  return value.targetNoteId === activeNoteId && value.targetPath === activePath;
+}
+
+function isActiveCheckpoint(value: unknown): value is SeasonActiveCheckpoint {
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, [
+      'version',
+      'revision',
+      'activeNoteId',
+      'activePath',
+      'operation',
+    ]) ||
+    value.version !== 1 ||
+    typeof value.revision !== 'number' ||
+    !Number.isSafeInteger(value.revision) ||
+    value.revision < 0
+  ) {
+    return false;
+  }
+
+  const hasNoActiveSeason =
+    value.activeNoteId === null && value.activePath === null;
+  if (hasNoActiveSeason) return value.operation === null;
+  if (
+    !isCanonicalIdentifier(value.activeNoteId) ||
+    !isCanonicalUserPath(value.activePath)
+  ) {
+    return false;
+  }
+  return (
+    value.operation === null ||
+    isActiveOperation(value.operation, value.activeNoteId, value.activePath)
+  );
+}
+
+function invalidActiveCheckpoint(error?: unknown): Error {
+  return new Error(
+    'The active-season checkpoint is unreadable and needs explicit repair.',
+    error === undefined ? undefined : { cause: error },
+  );
 }
 
 function parseActive(text: string): SeasonActiveCheckpoint {
   try {
-    const value = JSON.parse(text) as Record<string, unknown>;
-    const operation = value.operation;
-    if (
-      value.version !== 1 ||
-      typeof value.revision !== 'number' ||
-      !Number.isSafeInteger(value.revision) ||
-      value.revision < 0 ||
-      !isStringOrNull(value.activeNoteId) ||
-      !isStringOrNull(value.activePath) ||
-      (value.activeNoteId === null) !== (value.activePath === null) ||
-      !(
-        operation === null ||
-        (typeof operation === 'object' &&
-          !Array.isArray(operation) &&
-          operation !== null &&
-          typeof (operation as Record<string, unknown>).id === 'string' &&
-          ['activating', 'repairing', 'closing'].includes(
-            String((operation as Record<string, unknown>).kind),
-          ) &&
-          typeof (operation as Record<string, unknown>).targetNoteId ===
-            'string' &&
-          typeof (operation as Record<string, unknown>).targetPath === 'string')
-      )
-    ) {
-      throw new Error('invalid shape');
-    }
-    return value as unknown as SeasonActiveCheckpoint;
+    const value = JSON.parse(text) as unknown;
+    if (!isActiveCheckpoint(value)) throw new Error('invalid shape');
+    return value;
   } catch (error) {
-    throw new Error(
-      'The active-season checkpoint is unreadable and needs explicit repair.',
-      { cause: error },
-    );
+    throw invalidActiveCheckpoint(error);
   }
 }
 
@@ -123,6 +220,8 @@ export function createSeasonTransactionStore(
     },
 
     async compareAndSetActive(observed, next) {
+      if (!isActiveCheckpoint(observed.value)) throw invalidActiveCheckpoint();
+      if (!isActiveCheckpoint(next)) throw invalidActiveCheckpoint();
       if (next.revision !== observed.value.revision + 1) {
         throw new Error(
           'The active-season checkpoint revision must advance once.',

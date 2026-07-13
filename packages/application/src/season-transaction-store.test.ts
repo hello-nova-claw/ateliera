@@ -121,6 +121,7 @@ describe('season transaction store', () => {
     '{"version":1,"revision":0,"activeNoteId":"winter","activePath":"Current Season/winter.md","operation":{"id":"activate-winter","kind":"activating","targetNoteId":"winter","targetPath":"Current Season/spring.md"}}',
     '{"version":1,"revision":0,"activeNoteId":"winter","activePath":"Current Season/winter.md","operation":null,"forged":true}',
     '{"version":1,"revision":0,"activeNoteId":"winter","activePath":"Current Season/winter.md","operation":{"id":"activate-winter","kind":"activating","targetNoteId":"winter","targetPath":"Current Season/winter.md","forged":true}}',
+    '{"version":1,"revision":0,"activeNoteId":"\\ud800","activePath":"Current Season/winter.md","operation":null}',
   ])('rejects malformed active checkpoint variant %#', async (text) => {
     const vault = createInMemoryVault();
     await createStudioControlVault(vault).writeTextAtomic(
@@ -189,9 +190,11 @@ describe('season transaction store', () => {
       },
     },
   ])('refuses to persist $name', async ({ checkpoint }) => {
-    const vault = createInMemoryVault({
-      'Current Season/winter.md': 'keep this user note',
-    });
+    const vault = createInMemoryVault();
+    await vault.writeTextAtomic(
+      'Current Season/winter.md',
+      'keep this user note',
+    );
     const store = createSeasonTransactionStore(vault);
     const observed = await store.readActive();
 
@@ -202,6 +205,33 @@ describe('season transaction store', () => {
     expect(await vault.readText('Current Season/winter.md')).toMatchObject({
       text: 'keep this user note',
     });
+    expect(
+      await createStudioControlVault(vault).exists(
+        '.studio/season/active.json',
+      ),
+    ).toBe(false);
+  });
+
+  it('rejects an unvalidated observed checkpoint before attempting CAS', async () => {
+    const vault = createInMemoryVault();
+    const store = createSeasonTransactionStore(vault);
+
+    await expect(
+      store.compareAndSetActive(
+        {
+          value: {
+            ...emptySeasonActiveCheckpoint(),
+            activeNoteId: 'winter',
+            activePath: '../winter.md',
+          },
+          hash: null,
+        },
+        {
+          ...emptySeasonActiveCheckpoint(),
+          revision: 1,
+        },
+      ),
+    ).rejects.toThrow('active-season checkpoint');
     expect(
       await createStudioControlVault(vault).exists(
         '.studio/season/active.json',
