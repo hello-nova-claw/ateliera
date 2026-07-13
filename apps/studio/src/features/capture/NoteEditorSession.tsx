@@ -90,7 +90,7 @@ function AutosaveEditor({
         }
       : undefined,
   );
-  const [recoveryUnavailable, setRecoveryUnavailable] = useState(false);
+  const [recoveryUnavailable, setRecoveryUnavailable] = useState(!recovery.available);
   const [actionState, setActionState] = useState<'idle' | 'busy' | 'error'>('idle');
   const [actionError, setActionError] = useState<string>();
   const [closeError, setCloseError] = useState<string>();
