@@ -4,7 +4,6 @@ import {
   createInMemoryVault,
   createRevisionStore,
   createStudioControlVault,
-  VaultConflictError,
   type StudioControlVault,
   type VaultPort,
 } from '@studio/storage';
