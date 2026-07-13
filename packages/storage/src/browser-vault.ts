@@ -186,6 +186,30 @@ function parentDirectories(path: string): string[] {
     .map((_, index) => segments.slice(0, index + 1).join('/'));
 }
 
+function isUserNotePath(path: string): boolean {
+  try {
+    validatePath(path);
+  } catch {
+    return false;
+  }
+  if (path.toLocaleLowerCase('en').startsWith('.studio/')) return false;
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  return name.toLocaleLowerCase('en').endsWith('.md') || !name.includes('.');
+}
+
+async function sameUserState(
+  store: BrowserVaultStore,
+  expected: NonNullable<MoveCondition['expectedUserState']>,
+): Promise<boolean> {
+  const current = (await store.entries())
+    .filter(([path]) => isUserNotePath(path))
+    .map(([path, file]) => ({ path, hash: file.hash }))
+    .sort((left, right) => left.path.localeCompare(right.path, 'en'));
+  const observed = [...expected].sort((left, right) => left.path.localeCompare(right.path, 'en'));
+  return current.length === observed.length && current.every((entry, index) =>
+    entry.path === observed[index]?.path && entry.hash === observed[index]?.hash);
+}
+
 async function withModuleLock<T>(key: string, action: () => Promise<T>): Promise<T> {
   const previous = locks.get(key) ?? Promise.resolve();
   let release: () => void = () => undefined;
@@ -288,6 +312,10 @@ class BrowserVault implements VaultPort {
       const file = await store.read(sourcePath);
       if (file === undefined) throw new VaultUnavailableError();
       if (condition?.expectedHash !== undefined && file.hash !== condition.expectedHash) {
+        throw new VaultConflictError();
+      }
+      if (condition?.expectedUserState !== undefined &&
+        !(await sameUserState(store, condition.expectedUserState))) {
         throw new VaultConflictError();
       }
       if ((await store.read(destinationPath)) !== undefined) {

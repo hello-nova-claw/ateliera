@@ -17,7 +17,7 @@ use cap_std::{
     fs::{Dir, MetadataExt, OpenOptions, OpenOptionsExt},
 };
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter, Runtime, State, WebviewWindow};
 use uuid::Uuid;
@@ -27,6 +27,14 @@ use crate::security::path_guard::{
 };
 
 const VAULT_RECOVERY_ID_PATH: &str = ".studio-vault-id";
+
+fn is_user_note_path(path: &str) -> bool {
+    if path.to_ascii_lowercase().starts_with(".studio/") {
+        return false;
+    }
+    let name = path.rsplit('/').next().unwrap_or(path);
+    name.to_ascii_lowercase().ends_with(".md") || !name.contains('.')
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum VaultError {
@@ -75,6 +83,13 @@ pub struct VaultEntry {
     pub size: Option<u64>,
     pub modified_at: Option<String>,
     pub content_hash: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExpectedUserState {
+    pub(crate) path: String,
+    pub(crate) hash: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -663,11 +678,28 @@ impl Vault {
         })
     }
 
+    fn user_note_state(&self) -> Result<Vec<ExpectedUserState>, VaultError> {
+        let mut state = self
+            .list(None)?
+            .into_iter()
+            .filter(|entry| entry.kind == "file" && is_user_note_path(&entry.path))
+            .map(|entry| {
+                Ok(ExpectedUserState {
+                    path: entry.path,
+                    hash: entry.content_hash.ok_or(VaultError::Unavailable)?,
+                })
+            })
+            .collect::<Result<Vec<_>, VaultError>>()?;
+        state.sort_by(|left, right| left.path.cmp(&right.path));
+        Ok(state)
+    }
+
     pub fn move_path(
         &self,
         from: &str,
         to: &str,
         expected_hash: Option<&str>,
+        expected_user_state: Option<&[ExpectedUserState]>,
     ) -> Result<(), VaultError> {
         let _write_guard = self.lock_writes()?;
         let from_parent = open_parent(&self.root, from, false)?;
@@ -680,6 +712,13 @@ impl Vault {
         }
         if let Some(expected) = expected_hash {
             Self::require_expected_hash(&from_parent.directory, &from_parent.basename, expected)?;
+        }
+        if let Some(expected) = expected_user_state {
+            let mut observed = expected.to_vec();
+            observed.sort_by(|left, right| left.path.cmp(&right.path));
+            if self.user_note_state()? != observed {
+                return Err(VaultError::Conflict);
+            }
         }
         let to_parent = open_parent(&self.root, to, true)?;
         rename_exclusive(
@@ -1177,8 +1216,14 @@ pub fn vault_move<R: Runtime>(
     from: String,
     to: String,
     expected_hash: Option<String>,
+    expected_user_state: Option<Vec<ExpectedUserState>>,
 ) -> Result<(), VaultError> {
-    selected_vault(&window, &state, &vault_token)?.move_path(&from, &to, expected_hash.as_deref())
+    selected_vault(&window, &state, &vault_token)?.move_path(
+        &from,
+        &to,
+        expected_hash.as_deref(),
+        expected_user_state.as_deref(),
+    )
 }
 
 #[tauri::command]

@@ -8,6 +8,25 @@ interface StoredFile {
   hash: string;
 }
 
+function isUserNotePath(path: string): boolean {
+  if (path.toLocaleLowerCase('en').startsWith('.studio/')) return false;
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  return name.toLocaleLowerCase('en').endsWith('.md') || !name.includes('.');
+}
+
+function sameUserState(
+  files: Map<string, StoredFile>,
+  expected: NonNullable<MoveCondition['expectedUserState']>,
+): boolean {
+  const current = [...files.entries()]
+    .filter(([path]) => isUserNotePath(path))
+    .map(([path, file]) => ({ path, hash: file.hash }))
+    .sort((left, right) => left.path.localeCompare(right.path, 'en'));
+  const observed = [...expected].sort((left, right) => left.path.localeCompare(right.path, 'en'));
+  return current.length === observed.length && current.every((entry, index) =>
+    entry.path === observed[index]?.path && entry.hash === observed[index]?.hash);
+}
+
 const WINDOWS_DRIVE_PATH = /^[A-Za-z]:/;
 
 function validatePath(path: string): string {
@@ -103,6 +122,10 @@ class InMemoryVault implements VaultPort {
     const destinationPath = validatePath(to);
     const file = this.#requiredFile(sourcePath);
     if (condition?.expectedHash !== undefined && file.hash !== condition.expectedHash) {
+      throw new VaultConflictError();
+    }
+    if (condition?.expectedUserState !== undefined &&
+      !sameUserState(this.#files, condition.expectedUserState)) {
       throw new VaultConflictError();
     }
     if (this.#files.has(destinationPath)) throw new VaultConflictError();

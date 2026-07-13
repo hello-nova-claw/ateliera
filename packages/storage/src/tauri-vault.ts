@@ -90,7 +90,12 @@ function createTauriVault(
         expectedMissing: condition?.expectedMissing,
       }),
     move: (from, to, condition) =>
-      call('vault_move', { from, to, expectedHash: condition?.expectedHash }),
+      call('vault_move', {
+        from,
+        to,
+        expectedHash: condition?.expectedHash,
+        expectedUserState: condition?.expectedUserState,
+      }),
     remove: (path, condition?: WriteCondition) =>
       call('vault_remove', {
         path,

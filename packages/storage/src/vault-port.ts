@@ -21,6 +21,8 @@ export interface WriteCondition {
 export interface MoveCondition {
   /** Move only when the source still has this content hash. */
   expectedHash?: string;
+  /** Exact public Markdown/extensionless note state observed before a guarded recovery move. */
+  expectedUserState?: ReadonlyArray<{ path: string; hash: string }>;
 }
 
 export type VaultChange =
