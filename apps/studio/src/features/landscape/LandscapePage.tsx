@@ -211,6 +211,7 @@ function NoteCard({
   const menuId = useId();
   const menuRef = useRef<HTMLDivElement>(null);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const failedActionFocusRef = useRef<HTMLButtonElement | undefined>(undefined);
   const { attributes, isDragging, listeners, setActivatorNodeRef, setNodeRef } =
     useDraggable({
       id: card.noteId,
@@ -243,6 +244,20 @@ function NoteCard({
     return () => document.removeEventListener('pointerdown', closeOutside);
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (busy || !failedActionFocusRef.current) return;
+    const failedAction = failedActionFocusRef.current;
+    failedActionFocusRef.current = undefined;
+    if (failedAction.isConnected && !failedAction.disabled) {
+      failedAction.focus();
+      return;
+    }
+    const fallback = menuRef.current?.querySelector<HTMLButtonElement>(
+      '[role="menuitem"]:not(:disabled)',
+    );
+    (fallback ?? menuTriggerRef.current)?.focus();
+  }, [busy]);
+
   function navigateMenu(event: ReactKeyboardEvent<HTMLDivElement>) {
     const items = [
       ...event.currentTarget.querySelectorAll<HTMLButtonElement>(
@@ -274,7 +289,11 @@ function NoteCard({
     items[next]?.focus();
   }
 
-  async function move(lifeAreas: string[], anchor: LandscapeAnchor) {
+  async function move(
+    lifeAreas: string[],
+    anchor: LandscapeAnchor,
+    actionTarget?: HTMLButtonElement,
+  ) {
     if (!onMove || busy) return;
     setBusy(true);
     setMoveError('');
@@ -287,6 +306,7 @@ function NoteCard({
       setAnnouncement(`${card.title} moved.`);
       closeMenu();
     } catch (reason) {
+      failedActionFocusRef.current = actionTarget;
       const message =
         reason instanceof Error
           ? reason.message
@@ -298,7 +318,7 @@ function NoteCard({
     }
   }
 
-  async function reorder(offset: -1 | 1) {
+  async function reorder(offset: -1 | 1, actionTarget?: HTMLButtonElement) {
     if (!onReorder || busy) return;
     const next = [...sectionCards];
     const target = position + offset;
@@ -318,6 +338,7 @@ function NoteCard({
       );
       closeMenu();
     } catch (reason) {
+      failedActionFocusRef.current = actionTarget;
       const message =
         reason instanceof Error
           ? reason.message
@@ -345,11 +366,11 @@ function NoteCard({
         onKeyDown={(event) => {
           if (event.key === 'ArrowUp') {
             event.preventDefault();
-            void reorder(-1);
+            void reorder(-1, event.currentTarget);
           }
           if (event.key === 'ArrowDown') {
             event.preventDefault();
-            void reorder(1);
+            void reorder(1, event.currentTarget);
           }
         }}
         ref={setActivatorNodeRef}
@@ -415,7 +436,7 @@ function NoteCard({
                 <p>Move within section</p>
                 <button
                   disabled={position === 0 || busy}
-                  onClick={() => void reorder(-1)}
+                  onClick={(event) => void reorder(-1, event.currentTarget)}
                   role="menuitem"
                   type="button"
                 >
@@ -423,7 +444,7 @@ function NoteCard({
                 </button>
                 <button
                   disabled={position === sectionCards.length - 1 || busy}
-                  onClick={() => void reorder(1)}
+                  onClick={(event) => void reorder(1, event.currentTarget)}
                   role="menuitem"
                   type="button"
                 >
@@ -438,7 +459,9 @@ function NoteCard({
                     <button
                       disabled={busy}
                       key={anchor.id}
-                      onClick={() => void move([currentArea], anchor.id)}
+                      onClick={(event) =>
+                        void move([currentArea], anchor.id, event.currentTarget)
+                      }
                       role="menuitem"
                       type="button"
                     >
@@ -463,7 +486,9 @@ function NoteCard({
                     >
                       <button
                         disabled={busy}
-                        onClick={() => void move([area.id], card.anchor)}
+                        onClick={(event) =>
+                          void move([area.id], card.anchor, event.currentTarget)
+                        }
                         role="menuitem"
                         type="button"
                       >
@@ -471,8 +496,12 @@ function NoteCard({
                       </button>
                       <button
                         disabled={busy}
-                        onClick={() =>
-                          void move([...card.lifeAreas, area.id], card.anchor)
+                        onClick={(event) =>
+                          void move(
+                            [...card.lifeAreas, area.id],
+                            card.anchor,
+                            event.currentTarget,
+                          )
                         }
                         role="menuitem"
                         type="button"

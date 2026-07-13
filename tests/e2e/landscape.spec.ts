@@ -269,6 +269,107 @@ test('keyboard menu restores focus after reorder, link, and reparented move', as
   await expect(movedTitle).toBeFocused();
 });
 
+test('restores the exact menu action after a concurrent move conflict', async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name === 'mobile-chromium',
+    'The production Chromium and WebKit desktop menus prove retry focus.',
+  );
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator.storage, 'getDirectory', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+  await createLocalStudio(page);
+  await page.getByRole('link', { name: 'Life Landscape' }).click();
+  await addHomeVision(page, 'Concurrent focus note');
+
+  const trigger = page.getByRole('button', {
+    name: 'Move Concurrent focus note',
+  });
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  const failedAction = page.getByRole('menuitem', {
+    name: /Move to Practices/,
+  });
+  await failedAction.focus();
+
+  await page.evaluate(async () => {
+    const active = localStorage.getItem('studio:active-browser-studio');
+    if (active === null) throw new Error('No active Studio');
+    const request = indexedDB.open('the-studio-browser-vaults', 2);
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.addEventListener('success', () => resolve(request.result), {
+        once: true,
+      });
+      request.addEventListener('error', () => reject(request.error), {
+        once: true,
+      });
+    });
+    const readTransaction = database.transaction('files', 'readonly');
+    const read = readTransaction
+      .objectStore('files')
+      .index('vault')
+      .getAll(active);
+    const records = await new Promise<
+      Array<{
+        key: string;
+        vault: string;
+        path: string;
+        bytes: ArrayBuffer;
+        hash: string;
+        modifiedAt: string;
+      }>
+    >((resolve, reject) => {
+      read.addEventListener('success', () => resolve(read.result), {
+        once: true,
+      });
+      read.addEventListener('error', () => reject(read.error), { once: true });
+    });
+    const record = records.find((item) =>
+      item.path.startsWith('Life Landscape/home/'),
+    );
+    if (record === undefined) throw new Error('No Landscape note found');
+    const text = new TextDecoder().decode(record.bytes);
+    const bytes = new TextEncoder().encode(
+      text.replace('Concurrent focus note', 'Concurrent durable version'),
+    );
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    record.bytes = bytes.buffer;
+    record.hash = [...new Uint8Array(digest)]
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('');
+    record.modifiedAt = new Date().toISOString();
+    const writeTransaction = database.transaction('files', 'readwrite');
+    writeTransaction.objectStore('files').put(record);
+    await new Promise<void>((resolve, reject) => {
+      writeTransaction.addEventListener('complete', () => resolve(), {
+        once: true,
+      });
+      writeTransaction.addEventListener(
+        'error',
+        () => reject(writeTransaction.error),
+        { once: true },
+      );
+    });
+    database.close();
+  });
+
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('alert')).toContainText(
+    'This note changed elsewhere. Both versions have been preserved for review.',
+  );
+  await expect(failedAction).toBeFocused();
+  await expect(page.getByRole('menu')).toBeVisible();
+  await expect(
+    page
+      .getByRole('region', { name: 'Vision' })
+      .getByRole('button', { name: 'Concurrent focus note', exact: true }),
+  ).toBeVisible();
+});
+
 test('mobile routes directly to one area and never renders the matrix', async ({
   page,
 }) => {
