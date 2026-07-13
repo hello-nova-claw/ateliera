@@ -1,0 +1,97 @@
+import { fireEvent, render, screen } from '@testing-library/react';
+import type { UnchartedProjection } from '@studio/application';
+import { vi } from 'vitest';
+
+import { UnchartedPage } from './UnchartedPage';
+
+const model: UnchartedProjection = {
+  cards: [
+    {
+      noteId: 'near',
+      path: 'Uncharted/near.md',
+      hash: 'near-hash',
+      title: 'A week beside the sea',
+      excerpt: 'I wonder what would become clear with more horizon.',
+      semanticType: 'uncharted',
+      cardType: 'possibility',
+      status: 'active',
+      updated: '2026-07-14T00:00:00.000Z',
+      horizon: 'near',
+      seasons: [],
+    },
+    {
+      noteId: 'beyond',
+      path: 'Uncharted/beyond.md',
+      hash: 'beyond-hash',
+      title: 'A place I cannot name yet',
+      excerpt: 'There is only a gate and a feeling of open country.',
+      semanticType: 'uncharted',
+      cardType: 'possibility',
+      status: 'active',
+      updated: '2026-07-13T00:00:00.000Z',
+      horizon: 'beyond',
+      seasons: [],
+    },
+  ],
+};
+
+it('keeps Uncharted spacious and free of execution pressure', () => {
+  render(<UnchartedPage model={model} />);
+  expect(screen.getByRole('heading', { name: 'What if…?' })).toBeVisible();
+  expect(screen.getByText('Near possibilities')).toBeVisible();
+  expect(screen.getByText('Beyond the gate')).toBeVisible();
+  expect(screen.getByText('A place I cannot name yet').closest('article')).toHaveClass(
+    'uncharted-card--beyond',
+  );
+  expect(document.body).not.toHaveTextContent(
+    /\b(?:due|overdue|progress|streak|deadline|status)\b/i,
+  );
+});
+
+it('captures a possibility and can leave it beyond the gate', async () => {
+  const onCapture = vi.fn(async () => undefined);
+  render(<UnchartedPage model={{ cards: [] }} onCapture={onCapture} />);
+  fireEvent.change(screen.getByLabelText('What if…'), {
+    target: { value: 'I made a place for a recurring childhood hill.' },
+  });
+  fireEvent.click(screen.getByLabelText('Leave this beyond the gate'));
+  fireEvent.click(screen.getByRole('button', { name: 'Keep this possibility' }));
+  expect(onCapture).toHaveBeenCalledWith(
+    'I made a place for a recurring childhood hill.',
+    'beyond',
+  );
+  expect(await screen.findByRole('status')).toHaveTextContent('Remembered');
+});
+
+it('invites by link while retaining the visible Uncharted meaning', async () => {
+  const onInvite = vi.fn(async () => undefined);
+  render(
+    <UnchartedPage
+      activeSeason={{ id: '2026-winter', title: 'Making room' }}
+      model={model}
+      onInvite={onInvite}
+    />,
+  );
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Invite A week beside the sea into Making room' }),
+  );
+  expect(onInvite).toHaveBeenCalledWith(model.cards[0]);
+  expect(screen.getAllByText('Uncharted').length).toBeGreaterThan(0);
+});
+
+it('preserves the room structure through loading, stale and repair states', () => {
+  const view = render(<UnchartedPage model={{ cards: [] }} state="loading" />);
+  expect(screen.getByRole('status')).toHaveTextContent('Gathering Uncharted');
+  view.rerender(<UnchartedPage model={model} state="stale" />);
+  expect(screen.getByRole('status')).toHaveTextContent('what is here');
+  view.rerender(
+    <UnchartedPage
+      error="One possibility needs metadata repair. Its words remain untouched."
+      model={model}
+      state="error"
+    />,
+  );
+  expect(screen.getByRole('alert')).toHaveTextContent('words remain untouched');
+  expect(screen.getByRole('heading', { name: 'What if…?' })).toBeVisible();
+});
+
