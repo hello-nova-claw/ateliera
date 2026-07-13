@@ -32,7 +32,7 @@
 
 .card-editor__save-state--conflict,
 .card-editor__save-state--error {
-  color: var(--studio-color-celebration);
+  color: var(--studio-color-ink-strong);
 }
 
 .card-editor__title-field,
@@ -143,6 +143,11 @@
 .card-editor__actions button {
   padding-inline: var(--studio-space-4);
   cursor: pointer;
+}
+
+.card-editor__actions button:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 @media (width <= 47.99rem) {
