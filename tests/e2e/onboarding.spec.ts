@@ -55,8 +55,42 @@ test('changes theme with a keyboard radio menu and remembers it', async ({
   await page.getByRole('button', { name: 'Open this Studio' }).click();
   const picker = page.getByRole('button', { name: /Theme/ });
   await picker.click();
-  await page.getByRole('menuitemradio', { name: /Deep Ocean.*dark/ }).focus();
-  await page.keyboard.press('Enter');
+  const chamomile = page.getByRole('menuitemradio', {
+    name: /Chamomile.*light/,
+  });
+  const figLeaf = page.getByRole('menuitemradio', { name: /Fig Leaf.*light/ });
+  await expect(chamomile).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(figLeaf).toBeFocused();
+  await expect(figLeaf).toHaveAttribute('aria-checked', 'true');
+  await page.keyboard.press('End');
+  await expect(
+    page.getByRole('menuitemradio', { name: /Forest.*dark/ }),
+  ).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(chamomile).toBeFocused();
+  await page.keyboard.press('ArrowUp');
+  await expect(
+    page.getByRole('menuitemradio', { name: /Forest.*dark/ }),
+  ).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(picker).toBeFocused();
+  await expect(page.getByRole('menu')).toHaveCount(0);
+
+  await picker.click();
+  await expect(chamomile).toBeFocused();
+  await picker.focus();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await expect(picker).toBeFocused();
+
+  await picker.click();
+  await expect(chamomile).toBeFocused();
+  await page.locator('.studio-room__eyebrow').click();
+  await expect(page.getByRole('menu')).toHaveCount(0);
+
+  await picker.click();
+  await page.getByRole('menuitemradio', { name: /Deep Ocean.*dark/ }).click();
   await expect(page.locator('.studio-app')).toHaveAttribute(
     'data-theme',
     'deep-ocean',
@@ -90,6 +124,10 @@ test('mobile shell keeps Capture one tap away without page overflow', async ({
   await expect(
     page.getByRole('navigation', { name: 'Mobile navigation' }),
   ).toBeVisible();
+  const search = page.getByRole('button', { name: 'Search' });
+  const searchBox = await search.boundingBox();
+  expect(searchBox?.width).toBeGreaterThanOrEqual(44);
+  expect(searchBox?.height).toBeGreaterThanOrEqual(44);
   await page.getByRole('button', { name: 'Capture' }).click();
   await expect(
     page.getByRole('dialog', { name: 'Hold this thought' }),
