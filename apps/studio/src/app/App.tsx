@@ -299,8 +299,8 @@ function StudioApplication({
     return () => removeEventListener('keydown', handler);
   }, []);
 
-  function go(next: string): void {
-    navigate(next);
+  function go(next: string, options?: { replace?: boolean }): void {
+    navigate(next, false, options?.replace ?? false);
     requestAnimationFrame(() =>
       document.querySelector<HTMLElement>('#studio-main')?.focus(),
     );

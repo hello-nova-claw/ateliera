@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
 import { useStudioRouter } from './router';
 
@@ -10,6 +10,16 @@ function RouterProbe() {
 function GuardedRouterProbe({ guard }: { guard: (next: string) => boolean }) {
   const { path, title } = useStudioRouter(guard);
   return <output>{`${path}|${title}`}</output>;
+}
+
+function ReplaceRouterProbe() {
+  const { navigate, path } = useStudioRouter();
+  return (
+    <>
+      <output>{path}</output>
+      <button onClick={() => navigate('/landscape/family', false, true)} type="button">Replace</button>
+    </>
+  );
 }
 
 afterEach(() => {
@@ -50,4 +60,17 @@ it('restores the current URL when a history destination is guarded', () => {
   expect(guard).toHaveBeenCalledWith('/landscape');
   expect(location.pathname).toBe('/foyer');
   expect(screen.getByText('/foyer|Foyer')).toBeVisible();
+});
+
+it('replaces the current history entry when requested', () => {
+  history.replaceState(null, '', '/landscape');
+  const replaceState = vi.spyOn(history, 'replaceState');
+  const pushState = vi.spyOn(history, 'pushState');
+  render(<ReplaceRouterProbe />);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Replace' }));
+
+  expect(replaceState).toHaveBeenCalledWith(null, '', '/landscape/family');
+  expect(pushState).not.toHaveBeenCalled();
+  expect(screen.getByText('/landscape/family')).toBeVisible();
 });

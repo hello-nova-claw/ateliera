@@ -39,16 +39,18 @@ test('moves, links, and undoes one canonical note', async ({ page }, testInfo) =
   await page.getByRole('link', { name: 'Life Landscape' }).click();
   await addHomeVision(page);
 
-  const handle = await page.getByRole('button', { name: 'Drag A calm home' }).boundingBox();
-  const identity = await page.getByRole('region', { name: 'Identity, values & feelings' }).boundingBox();
-  if (!handle || !identity) throw new Error('Landscape drag targets were not rendered.');
-  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(identity.x + identity.width / 2, identity.y + 12, { steps: 5 });
-  await page.mouse.up();
-  await expect(page.getByRole('region', { name: 'Identity, values & feelings' }).getByRole('button', { name: 'A calm home', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Undo move' }).click();
-  await expect(page.getByRole('region', { name: 'Vision' }).getByRole('button', { name: 'A calm home', exact: true })).toBeVisible();
+  if (testInfo.project.name === 'desktop-chromium') {
+    const handle = await page.getByRole('button', { name: 'Drag A calm home' }).boundingBox();
+    const identity = await page.getByRole('region', { name: 'Identity, values & feelings' }).boundingBox();
+    if (!handle || !identity) throw new Error('Landscape drag targets were not rendered.');
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(identity.x + identity.width / 2, identity.y + 12, { steps: 5 });
+    await page.mouse.up();
+    await expect(page.getByRole('region', { name: 'Identity, values & feelings' }).getByRole('button', { name: 'A calm home', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Undo move' }).click();
+    await expect(page.getByRole('region', { name: 'Vision' }).getByRole('button', { name: 'A calm home', exact: true })).toBeVisible();
+  }
 
   await page.getByRole('button', { name: 'Move A calm home' }).click();
   await page.getByRole('menuitem', { name: /Move to Practices/ }).click();

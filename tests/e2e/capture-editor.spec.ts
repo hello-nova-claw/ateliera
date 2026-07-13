@@ -148,7 +148,7 @@ test('flushes an edit made inside the debounce window before history navigation'
 
   await page.goForward();
 
-  await expect(page).toHaveURL(/\/landscape$/);
+  await expect(page).toHaveURL(/\/landscape(?:\/family)?$/);
   await expect(page.getByRole('dialog', { name: 'Edit note' })).toHaveCount(0);
   await page.goBack();
   await expect(page).toHaveURL(/\/foyer$/);

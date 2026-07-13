@@ -14,7 +14,7 @@ interface RoomProps {
   onOpenCapture?: (id: string, trigger: HTMLButtonElement) => void;
   onCreateFoyer?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
   onCreateLandscape?: (lifeArea: string, anchor: LandscapeAnchor, trigger: HTMLButtonElement) => void;
-  onNavigate?: (path: string) => void;
+  onNavigate?: (path: string, options?: { replace?: boolean }) => void;
   onOpenCard?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
   onRemoveFoyerImage?: (
     image: FoyerImageProjection,
@@ -60,7 +60,7 @@ export function RoomRoute({
   onOpenCapture?: (id: string, trigger: HTMLButtonElement) => void;
   onCreateFoyer?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
   onCreateLandscape?: (lifeArea: string, anchor: LandscapeAnchor, trigger: HTMLButtonElement) => void;
-  onNavigate?: (path: string) => void;
+  onNavigate?: (path: string, options?: { replace?: boolean }) => void;
   onOpenCard?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
   onRemoveFoyerImage?: (
     image: FoyerImageProjection,

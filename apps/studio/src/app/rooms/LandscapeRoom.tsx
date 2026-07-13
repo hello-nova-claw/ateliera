@@ -6,7 +6,7 @@ import { useLandscape } from '../../features/landscape/use-landscape';
 
 export default function LandscapeRoom({ onCreateLandscape, onNavigate, onOpenCard, path = '/landscape', projectionRevision = 0, service }: {
   onCreateLandscape?: (lifeArea: string, anchor: LandscapeAnchor, trigger: HTMLButtonElement) => void;
-  onNavigate?: (path: string) => void;
+  onNavigate?: (path: string, options?: { replace?: boolean }) => void;
   onOpenCard?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
   path?: string;
   projectionRevision?: number;
@@ -30,7 +30,7 @@ export default function LandscapeRoom({ onCreateLandscape, onNavigate, onOpenCar
       landscape.areas[0] !== undefined &&
       matchMedia('(width < 768px)').matches
     ) {
-      onNavigate?.(`/landscape/${landscape.areas[0].id}`);
+      onNavigate?.(`/landscape/${landscape.areas[0].id}`, { replace: true });
     }
   }, [landscape.areas, onNavigate, path]);
   return <LandscapePage areas={landscape.areas} board={landscape.board} {...(landscape.error ? { error: landscape.error } : {})} onAddArea={(id) => void landscape.addArea(id)} {...(onCreateLandscape ? { onCreate: onCreateLandscape } : {})} onMove={landscape.move} onNavigate={navigate} {...(onOpenCard ? { onOpen: onOpenCard } : {})} onRemoveArea={(id) => void landscape.removeArea(id)} onReorder={landscape.reorder} onReorderArea={(id, offset) => void landscape.reorderArea(id, offset)} path={path} state={landscape.state} />;

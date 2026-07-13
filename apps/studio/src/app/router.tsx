@@ -44,11 +44,11 @@ export function useStudioRouter(guard?: (next: StudioPath) => boolean) {
     addEventListener('popstate', onPop);
     return () => removeEventListener('popstate', onPop);
   }, []);
-  const navigate = useCallback((next: string, force = false) => {
+  const navigate = useCallback((next: string, force = false, replace = false) => {
     const normalized = normalizePath(next);
     if (!force && guardRef.current?.(normalized) === true) return;
-    if (normalized === next) history.pushState(null, '', normalized);
-    else history.replaceState(null, '', normalized);
+    if (replace || normalized !== next) history.replaceState(null, '', normalized);
+    else history.pushState(null, '', normalized);
     setPath(normalized);
   }, []);
   const title = path.startsWith('/landscape/')
