@@ -8,6 +8,7 @@ import {
 } from '@testing-library/react';
 import {
   StudioSaveConflictError,
+  type SavedNote,
   type StudioCardProjection,
   type StudioEventListener,
   type StudioService,

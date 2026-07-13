@@ -31,6 +31,36 @@ async function openEditor(page: Page, body: string): Promise<void> {
   await expect(page.getByRole('textbox', { name: 'Markdown body' })).toBeVisible();
 }
 
+async function replaceFirstOpfsCapture(
+  page: Page,
+  from: string,
+  to: string,
+): Promise<void> {
+  await page.evaluate(
+    async ({ from, to }) => {
+      const active = localStorage.getItem('studio:active-browser-studio');
+      if (active === null) throw new Error('No active Studio');
+      const root = await navigator.storage.getDirectory();
+      const studioRoot = await root.getDirectoryHandle('the-studio');
+      const vault = await studioRoot.getDirectoryHandle(encodeURIComponent(active));
+      const inbox = await vault.getDirectoryHandle('Inbox');
+      let fileHandle: FileSystemFileHandle | undefined;
+      for await (const [, handle] of inbox.entries()) {
+        if (handle.kind === 'file') {
+          fileHandle = handle as FileSystemFileHandle;
+          break;
+        }
+      }
+      if (fileHandle === undefined) throw new Error('No capture found');
+      const text = await (await fileHandle.getFile()).text();
+      const writable = await fileHandle.createWritable();
+      await writable.write(text.replace(from, to));
+      await writable.close();
+    },
+    { from, to },
+  );
+}
+
 test('captures in under 15 seconds and lazily opens an accessible editor', async ({
   page,
 }, testInfo) => {
@@ -55,7 +85,7 @@ test('captures in under 15 seconds and lazily opens an accessible editor', async
 
 test('offers an interrupted draft after reload and saves only after restore', async ({
   page,
-}) => {
+}, testInfo) => {
   await createLocalStudio(page);
   await capture(page, 'Durable beginning');
   await openEditor(page, 'Durable beginning');
@@ -67,6 +97,11 @@ test('offers an interrupted draft after reload and saves only after restore', as
   await openEditor(page, 'Durable beginning');
 
   await expect(page.getByText('Unsaved words are waiting.')).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await page.screenshot({
+    path: testInfo.outputPath('recovery-state.png'),
+    fullPage: true,
+  });
   await expect(page.getByRole('textbox', { name: 'Markdown body' })).toContainText(
     'Durable beginning',
   );
@@ -126,37 +161,24 @@ test('flushes an edit made inside the debounce window before history navigation'
 test('keeps local and external versions when exact-hash save conflicts', async ({
   page,
   browserName,
-}) => {
+}, testInfo) => {
   test.skip(browserName !== 'chromium', 'Direct OPFS mutation is a Chromium integration proof.');
   await createLocalStudio(page);
   await capture(page, 'Original words');
   await openEditor(page, 'Original words');
 
-  await page.evaluate(async () => {
-    const active = localStorage.getItem('studio:active-browser-studio');
-    if (active === null) throw new Error('No active Studio');
-    const root = await navigator.storage.getDirectory();
-    const studioRoot = await root.getDirectoryHandle('the-studio');
-    const vault = await studioRoot.getDirectoryHandle(encodeURIComponent(active));
-    const inbox = await vault.getDirectoryHandle('Inbox');
-    let fileHandle: FileSystemFileHandle | undefined;
-    for await (const [, handle] of inbox.entries()) {
-      if (handle.kind === 'file') {
-        fileHandle = handle as FileSystemFileHandle;
-        break;
-      }
-    }
-    if (fileHandle === undefined) throw new Error('No capture found');
-    const text = await (await fileHandle.getFile()).text();
-    const writable = await fileHandle.createWritable();
-    await writable.write(text.replace('Original words', 'The other version'));
-    await writable.close();
-  });
+  await replaceFirstOpfsCapture(page, 'Original words', 'The other version');
 
   await page
     .getByRole('textbox', { name: 'Markdown body' })
     .fill('My local version');
   await expect(page.getByRole('alert')).toContainText('Another version exists');
+  await expect(page.getByRole('alert')).toBeFocused();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await page.screenshot({
+    path: testInfo.outputPath('conflict-state.png'),
+    fullPage: true,
+  });
   await expect(page.getByRole('region', { name: 'Your version' })).toContainText(
     'My local version',
   );
@@ -175,6 +197,37 @@ test('keeps local and external versions when exact-hash save conflicts', async (
   await expect(page.getByRole('dialog', { name: 'Edit note' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'My local version' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'The other version' })).toBeVisible();
+});
+
+test('manually merges both versions and immediately saves through the browser vault', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== 'chromium', 'Direct OPFS mutation is a Chromium integration proof.');
+  await createLocalStudio(page);
+  await capture(page, 'Manual original');
+  await openEditor(page, 'Manual original');
+  await replaceFirstOpfsCapture(page, 'Manual original', 'Manual remote version');
+
+  await page
+    .getByRole('textbox', { name: 'Markdown body' })
+    .fill('Manual local version');
+  await expect(page.getByRole('alert')).toBeFocused();
+  await page.getByRole('button', { name: 'Merge manually' }).click();
+  await expect(page.locator('.card-editor__save-state')).toHaveText('Unsaved changes');
+  await page.getByRole('button', { name: 'Close editor' }).click();
+
+  await expect(page.getByRole('dialog', { name: 'Edit note' })).toHaveCount(0);
+  await page
+    .getByRole('button', { name: /Manual local version.*Manual remote version/ })
+    .click();
+  await expect(page.getByRole('dialog', { name: 'Edit note' })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'Markdown body' })).toContainText(
+    'Manual local version',
+  );
+  await expect(page.getByRole('textbox', { name: 'Markdown body' })).toContainText(
+    'Manual remote version',
+  );
 });
 
 test('keeps the durable IndexedDB version across browsers when choosing Keep other', async ({
@@ -238,6 +291,7 @@ test('keeps the durable IndexedDB version across browsers when choosing Keep oth
     .getByRole('textbox', { name: 'Markdown body' })
     .fill('IndexedDB local version');
   await expect(page.getByRole('alert')).toContainText('Another version exists');
+  await expect(page.getByRole('alert')).toBeFocused();
   await page.getByRole('button', { name: 'Keep other' }).click();
   await expect(page.getByRole('dialog', { name: 'Edit note' })).toHaveCount(0);
 
