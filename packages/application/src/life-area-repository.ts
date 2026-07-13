@@ -31,6 +31,14 @@ export interface LifeAreaRepository {
   ): Promise<LifeAreaSnapshot>;
 }
 
+export class UnsupportedLifeAreaConfigError extends Error {
+  override readonly name = 'UnsupportedLifeAreaConfigError';
+
+  constructor(readonly version: number) {
+    super(`Life area configuration version ${version} is newer than this Studio supports.`);
+  }
+}
+
 interface StoredLifeAreaConfig {
   version: 1;
   areas: LifeAreaPreference[];
@@ -111,8 +119,23 @@ function normalizeAreas(value: unknown): LifeAreaPreference[] {
 
 function parseStored(text: string): LifeAreaPreference[] | undefined {
   if (encoder.encode(text).byteLength > MAX_CONFIG_BYTES) return undefined;
+  let value: unknown;
   try {
-    const value: unknown = JSON.parse(text);
+    value = JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { version?: unknown }).version === 'number' &&
+    (value as { version: number }).version > 1
+  ) {
+    throw new UnsupportedLifeAreaConfigError(
+      (value as { version: number }).version,
+    );
+  }
+  try {
     if (
       typeof value !== 'object' ||
       value === null ||
