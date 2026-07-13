@@ -54,6 +54,39 @@ describe('StudioService note lifecycle', () => {
     expect(scheduled.length).toBeGreaterThan(0);
   });
 
+  it.each([
+    {
+      operation: 'archive',
+      mutate: (service: ReturnType<typeof createStudioService>) => service.archive('n1'),
+      expected: { note: { status: 'archived' } },
+      indexed: { note: { status: 'archived' } },
+    },
+    {
+      operation: 'trash',
+      mutate: (service: ReturnType<typeof createStudioService>) => service.trash('n1'),
+      expected: { id: 'n1' },
+      indexed: null,
+    },
+  ])('uses durable Markdown for $operation after the save index upsert fails', async ({
+    mutate,
+    expected,
+    indexed,
+  }) => {
+    const vault = createInMemoryVault();
+    const index = new RecordingIndex();
+    const service = createStudioService({ vault, index });
+    index.failUpsert = true;
+    await service.save({ note: note(), path: 'Notes/n1.md', expectedMissing: true });
+    await expect(index.getById('n1')).resolves.toBeNull();
+    index.failUpsert = false;
+
+    await expect(mutate(service)).resolves.toMatchObject(expected);
+    const rebuilt = await index.getById('n1');
+    if (indexed === null) expect(rebuilt).toBeNull();
+    else expect(rebuilt).toMatchObject(indexed);
+    expect(service.indexState()).toBe('ready');
+  });
+
   it('rejects lifecycle work after disposal', async () => {
     const service = createStudioService({ vault: createInMemoryVault(), index: new RecordingIndex() });
     await service.dispose();

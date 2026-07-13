@@ -820,11 +820,38 @@ describe('note lifecycle', () => {
     await expect(vault.exists(deleted.trashPath)).resolves.toBe(true);
   });
 
-  it('refuses to move a note whose indexed source version is stale', async () => {
-    const { service, vault } = await setup();
-    await vault.writeTextAtomic('Reflection Garden/n1.md', 'newer source');
+  it('uses the canonical Markdown version when the disposable index is stale', async () => {
+    const { service, vault, original } = await setup();
+    await vault.writeTextAtomic(
+      'Reflection Garden/n1.md',
+      serializeNote({ ...original, body: 'newer source' }),
+    );
 
-    await expect(service.trash('n1')).rejects.toBeInstanceOf(VaultConflictError);
-    expect(await vault.exists('Reflection Garden/n1.md')).toBe(true);
+    await expect(service.trash('n1')).resolves.toMatchObject({ id: 'n1' });
+    expect(await vault.exists('Reflection Garden/n1.md')).toBe(false);
+  });
+
+  it('requires an unambiguous readable canonical Markdown identity for lifecycle work', async () => {
+    const duplicate = await setup();
+    await duplicate.vault.writeTextAtomic('Elsewhere/duplicate.md', serializeNote(duplicate.original));
+    await expect(duplicate.service.archive('n1')).rejects.toThrow(
+      'Multiple Markdown notes use id n1',
+    );
+    expect((await duplicate.vault.readText('Reflection Garden/n1.md')).text).toContain(
+      'status: active',
+    );
+
+    const unavailable = await setup();
+    await unavailable.vault.writeTextAtomic('Elsewhere/unreadable.md', 'potential note');
+    const read = unavailable.vault.readText.bind(unavailable.vault);
+    unavailable.vault.readText = async (path) => {
+      if (path === 'Elsewhere/unreadable.md') throw new Error('read outage');
+      return read(path);
+    };
+    await expect(unavailable.service.archive('n1')).rejects.toMatchObject({
+      name: 'LifecycleStorageUnavailableError',
+      paths: ['Elsewhere/unreadable.md'],
+      cause: expect.any(Error),
+    });
   });
 });
