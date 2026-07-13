@@ -269,7 +269,10 @@ export function updateSeasonDraft<Step extends SeasonWizardStep>(
   assertAcceptedKeys(step, answers);
   const normalized = normalizeDates(answers);
   const next = { ...season, ...normalized } as SeasonState;
-  validateSeasonState(next, options);
+  validateSeasonState(next, {
+    priorityOverride:
+      step !== 'priorities' || options.priorityOverride === true,
+  });
   if (
     step === 'prior-reflection' &&
     next.priorReflection.trim() === '' &&
@@ -307,7 +310,10 @@ export function reviseSeasonState(
     ...normalizeDates(answers),
     updated: now,
   } as SeasonState;
-  validateSeasonState(next, {});
+  validateSeasonState(next, {
+    priorityOverride:
+      answers.priorities === undefined && season.priorities.length === 4,
+  });
   return next;
 }
 

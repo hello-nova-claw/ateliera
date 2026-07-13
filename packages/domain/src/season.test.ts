@@ -8,6 +8,7 @@ import {
   addSeasonPriority,
   createSeasonDraft,
   closeSeasonState,
+  reviseSeasonState,
   seasonWizardSteps,
   updateSeasonDraft,
 } from './season';
@@ -58,6 +59,10 @@ describe('season domain', () => {
         practices: ['Rest'],
       }),
     ).not.toThrow();
+    expect(
+      reviseSeasonState({ ...four, status: 'active' }, { statement: 'Rest' })
+        .priorities,
+    ).toHaveLength(4);
   });
 
   it('never carries notes forward automatically when closing', () => {
