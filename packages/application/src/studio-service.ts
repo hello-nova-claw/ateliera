@@ -12,7 +12,7 @@ import {
   VaultConflictError,
   VaultUnavailableError,
 } from '@studio/storage/portable';
-import type { VaultChange, VaultPort } from '@studio/storage/portable';
+import type { VaultPort } from '@studio/storage/portable';
 
 import {
   type ActiveSeasonProjection,
@@ -274,7 +274,7 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     });
   }
 
-  function scheduleReconciliation(_event: VaultChange): void {
+  function scheduleReconciliation(): void {
     if (reconcileTimer !== undefined) return;
     reconcileTimer = timers.setTimeout(async () => {
       reconcileTimer = undefined;

@@ -1,5 +1,4 @@
 import { serializeNote } from '@studio/content';
-import type { IndexEntry } from '@studio/index';
 import { createInMemoryVault } from '@studio/storage';
 import { describe, expect, it } from 'vitest';
 
@@ -56,7 +55,7 @@ describe('index mutation sequencing', () => {
     const rebuildGate = deferred();
     const upsertGate = deferred();
     const actions: string[] = [];
-    index.rebuild = async (_entries: IndexEntry[]) => {
+    index.rebuild = async () => {
       actions.push('rebuild-start');
       await rebuildGate.promise;
       actions.push('rebuild-end');
