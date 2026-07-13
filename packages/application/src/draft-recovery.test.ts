@@ -18,7 +18,8 @@ class MemoryStorage {
 }
 
 const record: DraftRecoveryRecord = {
-  key: 'Inbox/note.md',
+  studioId: 'studio:anna',
+  path: 'Inbox/note.md',
   title: 'A changed title',
   body: 'Unsaved words',
   expectedHash: 'durable-hash',
@@ -29,27 +30,28 @@ it('round-trips a recovery draft through injected session-like storage', () => {
   const storage = new MemoryStorage();
   const recovery = createDraftRecoveryStore(storage);
 
-  recovery.write(record);
+  expect(recovery.write(record)).toBe(true);
 
-  expect(recovery.read(record.key)).toEqual(record);
+  expect(recovery.read(record.studioId, record.path)).toEqual(record);
   expect([...storage.values.keys()]).toEqual([
-    'studio:draft-recovery:Inbox%2Fnote.md',
+    'studio:draft-recovery:studio%3Aanna:Inbox%2Fnote.md',
   ]);
 });
 
 it('isolates malformed recovery data and allows it to be discarded', () => {
   const storage = new MemoryStorage();
-  storage.setItem('studio:draft-recovery:Inbox%2Fnote.md', '{broken');
+  storage.setItem('studio:draft-recovery:studio%3Aanna:Inbox%2Fnote.md', '{broken');
   const recovery = createDraftRecoveryStore(storage);
 
-  expect(recovery.read(record.key)).toBeNull();
+  expect(recovery.read(record.studioId, record.path)).toBeNull();
   expect(storage.values.size).toBe(0);
 });
 
 it.each([
   null,
   {},
-  { ...record, key: 'another-note' },
+  { ...record, studioId: 'another-studio' },
+  { ...record, path: 'another-note' },
   { ...record, body: 1 },
   { ...record, expectedHash: 1 },
   { ...record, updatedAt: 1 },
@@ -58,12 +60,12 @@ it.each([
 ])('removes structurally invalid recovery data (%#)', (invalid) => {
   const storage = new MemoryStorage();
   storage.setItem(
-    'studio:draft-recovery:Inbox%2Fnote.md',
+    'studio:draft-recovery:studio%3Aanna:Inbox%2Fnote.md',
     JSON.stringify(invalid),
   );
   const recovery = createDraftRecoveryStore(storage);
 
-  expect(recovery.read(record.key)).toBeNull();
+  expect(recovery.read(record.studioId, record.path)).toBeNull();
   expect(storage.values.size).toBe(0);
 });
 
@@ -72,11 +74,11 @@ it('never treats a draft for a different durable hash as current text', () => {
   const recovery = createDraftRecoveryStore(storage);
   recovery.write(record);
 
-  expect(recovery.readForDurable(record.key, 'other-hash')).toEqual({
+  expect(recovery.readForDurable(record.studioId, record.path, 'other-hash')).toEqual({
     kind: 'stale',
     draft: record,
   });
-  expect(recovery.readForDurable(record.key, 'durable-hash')).toEqual({
+  expect(recovery.readForDurable(record.studioId, record.path, 'durable-hash')).toEqual({
     kind: 'recoverable',
     draft: record,
   });
@@ -85,7 +87,7 @@ it('never treats a draft for a different durable hash as current text', () => {
 it('reports when no recovery draft exists', () => {
   const recovery = createDraftRecoveryStore(new MemoryStorage());
 
-  expect(recovery.readForDurable(record.key, 'durable-hash')).toEqual({
+  expect(recovery.readForDurable(record.studioId, record.path, 'durable-hash')).toEqual({
     kind: 'none',
   });
 });
@@ -95,7 +97,27 @@ it('removes the recovery record only when explicitly cleared', () => {
   const recovery = createDraftRecoveryStore(storage);
   recovery.write(record);
 
-  recovery.remove(record.key);
+  expect(recovery.remove(record.studioId, record.path)).toBe(true);
 
-  expect(recovery.read(record.key)).toBeNull();
+  expect(recovery.read(record.studioId, record.path)).toBeNull();
+});
+
+it('never exposes a draft at the same path from another Studio', () => {
+  const recovery = createDraftRecoveryStore(new MemoryStorage());
+  recovery.write(record);
+
+  expect(recovery.read('studio:family', record.path)).toBeNull();
+});
+
+it('degrades safely when session storage is unavailable', () => {
+  const unavailable = {
+    getItem: () => { throw new DOMException('blocked', 'SecurityError'); },
+    setItem: () => { throw new DOMException('full', 'QuotaExceededError'); },
+    removeItem: () => { throw new DOMException('blocked', 'SecurityError'); },
+  };
+  const recovery = createDraftRecoveryStore(unavailable);
+
+  expect(recovery.read(record.studioId, record.path)).toBeNull();
+  expect(recovery.write(record)).toBe(false);
+  expect(recovery.remove(record.studioId, record.path)).toBe(false);
 });

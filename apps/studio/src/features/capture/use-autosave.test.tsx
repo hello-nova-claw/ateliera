@@ -151,3 +151,26 @@ it('holds an ordinary save error until a later edit asks to retry', async () => 
   expect(save).toHaveBeenCalledTimes(2);
   expect(result.current.state).toBe('saved');
 });
+
+it('flushes a dirty draft when the editor unmounts before the debounce', async () => {
+  vi.useFakeTimers();
+  const save = vi.fn(async (value: StudioNote) => saved(value, 'unmount-hash'));
+  const { result, unmount } = renderHook(() =>
+    useAutosave({
+      initial: saved(note, 'durable-hash'),
+      save,
+      writeRecovery: vi.fn(),
+      removeRecovery: vi.fn(),
+    }),
+  );
+  act(() => result.current.update({ ...note, body: 'Leave safely' }));
+
+  unmount();
+  await act(async () => Promise.resolve());
+
+  expect(save).toHaveBeenCalledOnce();
+  expect(save).toHaveBeenCalledWith(
+    expect.objectContaining({ body: 'Leave safely' }),
+    'durable-hash',
+  );
+});
