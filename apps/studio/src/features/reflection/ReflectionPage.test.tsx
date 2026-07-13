@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReflectionGardenProjection } from '@studio/application';
 import { vi } from 'vitest';
 
@@ -47,10 +47,11 @@ it('offers Garden, Reflection, Celebration and Themes without a heatmap', () => 
   render(<ReflectionPage model={model} />);
   expect(screen.getByRole('tablist', { name: 'Reflection Garden view' })).toBeVisible();
   expect(screen.getAllByRole('tab')).toHaveLength(4);
-  expect(screen.getByText('I returned without making it a failure').closest('article')).toHaveClass(
+  const stream = screen.getByRole('region', { name: 'Garden entries' });
+  expect(within(stream).getByText('I returned without making it a failure').closest('article')).toHaveClass(
     'reflection-entry--reflection',
   );
-  expect(screen.getByText('A morning that held').closest('article')).toHaveClass(
+  expect(within(stream).getByText('A morning that held').closest('article')).toHaveClass(
     'reflection-entry--celebration',
   );
   expect(screen.queryByText(/heatmap|streak/i)).not.toBeInTheDocument();
@@ -74,24 +75,24 @@ it('captures a one-sentence reflection and supports opening the full editor', as
     target: { value: 'I noticed that five quiet minutes changed the afternoon.' },
   });
   fireEvent.click(screen.getByRole('button', { name: 'Keep reflection' }));
-  expect(onCapture).toHaveBeenCalledWith(
+  await waitFor(() => expect(onCapture).toHaveBeenCalledWith(
     'reflection',
     'I noticed that five quiet minutes changed the afternoon.',
     false,
     expect.any(HTMLButtonElement),
-  );
+  ));
   expect(await screen.findByRole('status')).toHaveTextContent('Remembered');
 
   fireEvent.change(screen.getByLabelText('A sentence to keep'), {
     target: { value: 'There is more I want to explore.' },
   });
   fireEvent.click(screen.getByRole('button', { name: 'Continue in the editor' }));
-  expect(onCapture).toHaveBeenLastCalledWith(
+  await waitFor(() => expect(onCapture).toHaveBeenLastCalledWith(
     'reflection',
     'There is more I want to explore.',
     true,
     expect.any(HTMLButtonElement),
-  );
+  ));
 });
 
 it('shows linked evidence and an optional Then & now pair', () => {
@@ -120,4 +121,3 @@ it('keeps recoverable loading, offline, stale and malformed states calm', () => 
   );
   expect(screen.getByRole('alert')).toHaveTextContent('words remain untouched');
 });
-

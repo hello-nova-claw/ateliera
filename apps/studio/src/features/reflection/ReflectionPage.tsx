@@ -1,0 +1,349 @@
+import type {
+  ReflectionCardProjection,
+  ReflectionGardenProjection,
+} from '@studio/application';
+import { SemanticMark } from '@studio/ui';
+import { useMemo, useRef, useState } from 'react';
+
+import './ReflectionPage.css';
+
+type ReflectionView = 'garden' | 'reflection' | 'celebration' | 'themes';
+export type ReflectionConnection = {
+  id: string;
+  kind: 'note' | 'season' | 'life-area';
+  label: string;
+};
+
+export interface ReflectionPageProps {
+  connections?: ReflectionConnection[];
+  error?: string;
+  imageUrls?: Readonly<Record<string, string>>;
+  model: ReflectionGardenProjection;
+  onCapture?: (
+    type: 'reflection' | 'celebration',
+    body: string,
+    openAfter: boolean,
+    trigger: HTMLButtonElement,
+  ) => Promise<void> | void;
+  onConnect?: (
+    card: ReflectionCardProjection,
+    connection: ReflectionConnection,
+  ) => Promise<void> | void;
+  onOpen?: (card: ReflectionCardProjection, trigger: HTMLButtonElement) => void;
+  state?: 'ready' | 'loading' | 'offline' | 'stale' | 'error';
+}
+
+const views: Array<{ id: ReflectionView; label: string }> = [
+  { id: 'garden', label: 'Garden' },
+  { id: 'reflection', label: 'Reflection' },
+  { id: 'celebration', label: 'Celebration' },
+  { id: 'themes', label: 'Themes' },
+];
+
+function displayLabel(value: string): string {
+  return value
+    .split('-')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toLocaleUpperCase('en') + part.slice(1))
+    .join(' ');
+}
+
+function EntryCard({
+  card,
+  connections,
+  imageUrl,
+  onConnect,
+  onOpen,
+}: {
+  card: ReflectionCardProjection;
+  connections: ReflectionConnection[];
+  imageUrl?: string;
+  onConnect?: ReflectionPageProps['onConnect'];
+  onOpen?: ReflectionPageProps['onOpen'];
+}) {
+  const [connectionId, setConnectionId] = useState('');
+  const [message, setMessage] = useState<string>();
+  const available = connections.filter((candidate) => {
+    if (candidate.kind === 'life-area') return !card.lifeAreas.includes(candidate.id);
+    if (candidate.kind === 'season') return !card.seasons.includes(candidate.id);
+    return !card.linkedNoteIds.includes(candidate.id) && candidate.id !== card.noteId;
+  });
+  const labels = [
+    ...card.lifeAreas.map(displayLabel),
+    ...card.seasons.map(displayLabel),
+    ...card.linkedNoteIds.map((id) =>
+      connections.find((candidate) => candidate.kind === 'note' && candidate.id === id)?.label ?? 'Linked note',
+    ),
+  ];
+  return (
+    <article
+      aria-labelledby={`reflection-${card.noteId}`}
+      className={`reflection-entry reflection-entry--${card.semanticType}`}
+    >
+      {imageUrl && (
+        <figure className="reflection-entry__image">
+          <span aria-hidden="true" className="reflection-entry__tape" />
+          <img alt={card.title} src={imageUrl} />
+        </figure>
+      )}
+      <div className="reflection-entry__meaning">
+        <SemanticMark labelMode="visible" type={card.semanticType} />
+      </div>
+      <h3 id={`reflection-${card.noteId}`}>{card.title}</h3>
+      {card.excerpt && <p>{card.excerpt}</p>}
+      {labels.length > 0 && (
+        <ul
+          aria-label={`Connections for ${card.title}`}
+          className="reflection-entry__connections"
+        >
+          {[...new Set(labels)].map((label) => <li key={label}>{label}</li>)}
+        </ul>
+      )}
+      <div className="reflection-entry__actions">
+        {onOpen && (
+          <button onClick={(event) => onOpen(card, event.currentTarget)} type="button">
+            Open entry
+          </button>
+        )}
+        {onConnect && available.length > 0 && (
+          <form
+            className="reflection-entry__connect"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const connection = available.find(
+                (candidate) => `${candidate.kind}:${candidate.id}` === connectionId,
+              );
+              if (!connection) return;
+              setMessage(undefined);
+              void Promise.resolve(onConnect(card, connection)).then(
+                () => {
+                  setMessage(`Connected with ${connection.label}.`);
+                  setConnectionId('');
+                },
+                (reason: unknown) => setMessage(
+                  reason instanceof Error
+                    ? reason.message
+                    : 'This connection could not be kept.',
+                ),
+              );
+            }}
+          >
+            <label htmlFor={`connect-${card.noteId}`}>Connect evidence</label>
+            <select
+              id={`connect-${card.noteId}`}
+              onChange={(event) => setConnectionId(event.target.value)}
+              value={connectionId}
+            >
+              <option value="">Choose a connection</option>
+              {available.map((connection) => (
+                <option key={`${connection.kind}:${connection.id}`} value={`${connection.kind}:${connection.id}`}>
+                  {connection.label}
+                </option>
+              ))}
+            </select>
+            <button disabled={connectionId === ''} type="submit">Connect</button>
+          </form>
+        )}
+      </div>
+      {message && <p className="reflection-entry__message" role="status">{message}</p>}
+    </article>
+  );
+}
+
+function ThenAndNow({ cards }: { cards: ReflectionCardProjection[] }) {
+  const byId = new Map(cards.map((card) => [card.noteId, card]));
+  const pair = cards
+    .map((now) => ({ now, then: now.thenNoteId ? byId.get(now.thenNoteId) : undefined }))
+    .find((item) => item.then !== undefined);
+  if (!pair?.then) return null;
+  return (
+    <section aria-label="Then and now" className="reflection-then-now">
+      <p className="reflection-page__eyebrow">Then &amp; now</p>
+      <div className="reflection-then-now__pair">
+        <article>
+          <span>Then</span>
+          <h3>{pair.then.title}</h3>
+          <p>{pair.then.excerpt}</p>
+        </article>
+        <span aria-hidden="true" className="reflection-then-now__line" />
+        <article>
+          <span>Now</span>
+          <h3>{pair.now.title}</h3>
+          <p>{pair.now.excerpt}</p>
+        </article>
+      </div>
+    </section>
+  );
+}
+
+export function ReflectionPage({
+  connections = [],
+  error,
+  imageUrls = {},
+  model,
+  onCapture,
+  onConnect,
+  onOpen,
+  state = 'ready',
+}: ReflectionPageProps) {
+  const [view, setView] = useState<ReflectionView>('garden');
+  const [theme, setTheme] = useState<string>();
+  const [body, setBody] = useState('');
+  const [type, setType] = useState<'reflection' | 'celebration'>('reflection');
+  const [message, setMessage] = useState<string>();
+  const [saving, setSaving] = useState(false);
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const filtered = useMemo(() => {
+    if (view === 'reflection' || view === 'celebration') {
+      return model.cards.filter((card) => card.semanticType === view);
+    }
+    if (view === 'themes' && theme) {
+      return model.cards.filter((card) => card.tags.includes(theme));
+    }
+    return model.cards;
+  }, [model.cards, theme, view]);
+
+  async function capture(openAfter: boolean, trigger: HTMLButtonElement): Promise<void> {
+    if (!onCapture || body.trim() === '') return;
+    setSaving(true);
+    setMessage(undefined);
+    try {
+      await onCapture(type, body.trim(), openAfter, trigger);
+      setBody('');
+      setMessage('Remembered.');
+    } catch (reason) {
+      setMessage(
+        reason instanceof Error ? reason.message : 'This entry could not be kept.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="reflection-page">
+      <header className="reflection-page__header">
+        <p className="reflection-page__script">notice what is changing</p>
+        <h1>Reflection Garden</h1>
+        <p>A quiet path through what you learned, what worked, and what surprised you.</p>
+      </header>
+
+      {state === 'loading' && <p className="reflection-page__state" role="status">Gathering the garden…</p>}
+      {state === 'offline' && <p className="reflection-page__state" role="status">Stored locally. The garden remains available offline.</p>}
+      {state === 'stale' && <p className="reflection-page__state" role="status">Showing what is here while the Studio catches up.</p>}
+      {state === 'error' && <p className="reflection-page__state reflection-page__state--error" role="alert">{error ?? 'The garden could not be gathered. Your entries remain in the Studio.'}</p>}
+
+      <div aria-label="Reflection Garden view" className="reflection-switch" role="tablist">
+        {views.map((item, index) => (
+          <button
+            aria-selected={view === item.id}
+            className="reflection-switch__tab"
+            key={item.id}
+            onClick={() => {
+              setView(item.id);
+              if (item.id !== 'themes') setTheme(undefined);
+            }}
+            onKeyDown={(event) => {
+              let next = index;
+              if (event.key === 'ArrowRight') next = (index + 1) % views.length;
+              else if (event.key === 'ArrowLeft') next = (index - 1 + views.length) % views.length;
+              else if (event.key === 'Home') next = 0;
+              else if (event.key === 'End') next = views.length - 1;
+              else return;
+              event.preventDefault();
+              setView(views[next]!.id);
+              tabRefs.current[next]?.focus();
+            }}
+            ref={(element) => { tabRefs.current[index] = element; }}
+            role="tab"
+            tabIndex={view === item.id ? 0 : -1}
+            type="button"
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      <form
+        className="reflection-capture"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void capture(false, event.nativeEvent.submitter as HTMLButtonElement);
+        }}
+      >
+        <div className="reflection-capture__heading">
+          <label htmlFor="reflection-sentence">A sentence to keep</label>
+          <select
+            aria-label="Entry meaning"
+            onChange={(event) => setType(event.target.value as typeof type)}
+            value={type}
+          >
+            <option value="reflection">Reflection</option>
+            <option value="celebration">Celebration</option>
+          </select>
+        </div>
+        <textarea
+          id="reflection-sentence"
+          onChange={(event) => setBody(event.target.value)}
+          placeholder="What did you notice?"
+          rows={2}
+          value={body}
+        />
+        <div className="reflection-capture__actions">
+          <button disabled={saving || body.trim() === '' || !onCapture} type="submit">
+            {saving ? 'Keeping…' : `Keep ${type}`}
+          </button>
+          <button
+            disabled={saving || body.trim() === '' || !onCapture}
+            onClick={(event) => void capture(true, event.currentTarget)}
+            type="button"
+          >
+            Continue in the editor
+          </button>
+        </div>
+        {message && <p className="reflection-capture__message" role="status">{message}</p>}
+      </form>
+
+      {view === 'themes' && (
+        <section className="reflection-themes" aria-label="Themes">
+          {model.themes.length === 0 ? (
+            <p>Recurring ideas will gather here gently.</p>
+          ) : model.themes.map((item) => (
+            <button
+              aria-pressed={theme === item.name}
+              key={item.name}
+              onClick={() => setTheme(item.name)}
+              type="button"
+              aria-label={`${item.name}, ${item.count} ${item.count === 1 ? 'entry' : 'entries'}`}
+            >
+              {item.name} <span>{item.count}</span>
+            </button>
+          ))}
+        </section>
+      )}
+
+      {view === 'garden' && <ThenAndNow cards={model.cards} />}
+
+      <section aria-label="Garden entries" className="reflection-stream">
+        {filtered.length === 0 ? (
+          <p className="reflection-stream__empty">There is room to notice something small.</p>
+        ) : filtered.map((card) => (
+          <div className="reflection-stream__row" key={card.noteId}>
+            <time dateTime={card.created}>
+              {new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(card.created))}
+            </time>
+            <EntryCard
+              card={card}
+              connections={connections}
+              {...(imageUrls[card.noteId] === undefined
+                ? {}
+                : { imageUrl: imageUrls[card.noteId] })}
+              {...(onConnect === undefined ? {} : { onConnect })}
+              {...(onOpen === undefined ? {} : { onOpen })}
+            />
+          </div>
+        ))}
+      </section>
+    </div>
+  );
+}

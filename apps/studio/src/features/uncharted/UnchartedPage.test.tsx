@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { UnchartedProjection } from '@studio/application';
 import { vi } from 'vitest';
 
@@ -75,7 +75,7 @@ it('invites by link while retaining the visible Uncharted meaning', async () => 
   fireEvent.click(
     screen.getByRole('button', { name: 'Invite A week beside the sea into Making room' }),
   );
-  expect(onInvite).toHaveBeenCalledWith(model.cards[0]);
+  await waitFor(() => expect(onInvite).toHaveBeenCalledWith(model.cards[0]));
   expect(screen.getAllByText('Uncharted').length).toBeGreaterThan(0);
 });
 
@@ -94,4 +94,3 @@ it('preserves the room structure through loading, stale and repair states', () =
   expect(screen.getByRole('alert')).toHaveTextContent('words remain untouched');
   expect(screen.getByRole('heading', { name: 'What if…?' })).toBeVisible();
 });
-
