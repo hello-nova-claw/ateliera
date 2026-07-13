@@ -9,7 +9,7 @@ const empty: FoyerProjection = {
 
 it('projects the Foyer and refreshes when the application revision changes', async () => {
   const projectFoyer = vi.fn(async () => empty);
-  const service = { projectFoyer, indexState: () => 'ready' } as StudioService;
+  const service = { projectFoyer, indexState: () => 'ready' } as unknown as StudioService;
   const view = renderHook(({ revision }) => useFoyer(service, revision), { initialProps: { revision: 0 } });
   await waitFor(() => expect(view.result.current.state).toBe('ready'));
   view.rerender({ revision: 1 });

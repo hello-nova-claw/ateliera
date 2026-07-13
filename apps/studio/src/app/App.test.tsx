@@ -60,6 +60,7 @@ function projection(excerpt: string): StudioCardProjection {
     title: note.title!,
     excerpt,
     semanticType: note.semanticType,
+    cardType: note.cardType,
     status: note.status,
     updated: note.updated,
   };
@@ -92,7 +93,16 @@ function studioService(overrides: Partial<StudioService> = {}) {
     projectLandscape: vi.fn(async () => []),
     projectCurrentSeason: vi.fn(async () => ({ current: null, conflicts: [] })),
     projectStream: vi.fn(async () => []),
-    projectFoyer: vi.fn(async () => ({ currentSeason: null, featured: [] })),
+    projectFoyer: vi.fn(async () => ({
+      currentSeason: null,
+      featured: [],
+      becoming: null,
+      feelings: [],
+      principles: [],
+      priorities: [],
+      returning: null,
+      image: null,
+    })),
     ...overrides,
   };
   return { emit: (event: Parameters<StudioEventListener>[0]) => listener?.(event), service, unsubscribe };

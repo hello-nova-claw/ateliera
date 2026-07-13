@@ -46,7 +46,7 @@ export function FoyerPage({ error, model, onCreate, onOpen, state = 'ready' }: F
       <div className="foyer-page__spread">
         <div className="foyer-page__wide">
           <Becoming card={model.becoming} {...(onCreate ? { onCreate: () => onCreate('becoming') } : {})} {...(onOpen ? { onOpen } : {})} />
-          <SeasonPreview onOpen={onOpen} priorities={model.priorities} season={model.currentSeason} />
+          <SeasonPreview priorities={model.priorities} season={model.currentSeason} {...(onOpen ? { onOpen } : {})} />
           <Principles principles={model.principles} {...(onCreate ? { onCreate: () => onCreate('principle') } : {})} {...(onOpen ? { onOpen } : {})} />
         </div>
         <aside className="foyer-page__narrow" aria-label="Feeling and return">
