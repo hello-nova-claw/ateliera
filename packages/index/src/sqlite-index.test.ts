@@ -54,4 +54,33 @@ describe('SQLite IndexPort', () => {
     expect(await index.getById(original.id)).toBeNull();
     expect(await index.search('Renamed')).toEqual([]);
   });
+
+  it('keeps the previous index visible when a rebuild transaction fails', async () => {
+    const existing = note();
+    await index.upsert(existing, 'Foyer/existing.md', 'existing');
+    await expect(index.rebuild([
+      { note: note({ id: 'one' }), path: 'duplicate.md', hash: 'one' },
+      { note: note({ id: 'two' }), path: 'duplicate.md', hash: 'two' },
+    ])).rejects.toThrow();
+    expect(await index.getById(existing.id)).toMatchObject({ path: 'Foyer/existing.md' });
+  });
+
+  it('returns identical results after clear and deterministic rebuild', async () => {
+    const entry = { note: note({ rooms: ['foyer'], seasons: ['winter'], updated: '2026-07-10T00:00:00.000Z' }), path: 'Foyer/calm.md', hash: 'calm' };
+    await index.rebuild([entry]);
+    const before = await index.search('calm', { rooms: ['foyer'], seasons: ['winter'], dateTo: '2026-07-11T00:00:00.000Z' });
+    await index.clear();
+    expect(await index.search('calm')).toEqual([]);
+    await index.rebuild([entry]);
+    expect(await index.search('calm', { rooms: ['foyer'], seasons: ['winter'], dateTo: '2026-07-11T00:00:00.000Z' })).toEqual(before);
+  });
+
+  it('re-resolves an existing broken link when its target is indexed later', async () => {
+    const source = note({ id: 'source', title: 'Source' });
+    await index.upsert(source, 'Reflection/source.md', 'source', [{ kind: 'wiki', target: 'Later', label: 'Later' }]);
+    expect((await index.forwardLinks(source.id))[0]?.targetId).toBeUndefined();
+    const target = note({ id: 'target', title: 'Later' });
+    await index.upsert(target, 'Identity/later.md', 'target');
+    expect(await index.backlinks(target.id)).toEqual([source.id]);
+  });
 });

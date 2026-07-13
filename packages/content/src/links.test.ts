@@ -13,7 +13,7 @@ describe('extractLinks', () => {
   });
 
   it('ignores images, external URLs, code spans, and fenced code', () => {
-    expect(extractLinks('![cover](image.jpg) [site](https://example.com) `[[not a link]]`\n```md\n[[also ignored]]\n```\n[[kept]]')).toEqual([
+    expect(extractLinks('![cover](image.jpg) [site](https://example.com) [network](//example.com) [text](note.txt) `[[not a link]]`\n```md\n[[also ignored]]\n```\n[[kept]]')).toEqual([
       { kind: 'wiki', target: 'kept', label: 'kept' },
     ]);
   });
@@ -22,6 +22,12 @@ describe('extractLinks', () => {
     expect(extractLinks('[[One]] [[One|again]] [one](One.md)')).toEqual([
       { kind: 'wiki', target: 'One', label: 'One' },
       { kind: 'path', target: 'One.md', label: 'one' },
+    ]);
+  });
+
+  it('preserves malformed URI paths for repair and ignores empty wiki targets', () => {
+    expect(extractLinks('[[   ]] [broken](%E0%A4%A.md)')).toEqual([
+      { kind: 'path', target: '%E0%A4%A.md', label: 'broken' },
     ]);
   });
 });

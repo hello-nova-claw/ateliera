@@ -40,7 +40,7 @@ describe('rebuildIndex', () => {
     });
     expect(index.snapshot()).toEqual(['a.md', 'z.md']);
     expect(result).toEqual({ indexed: 2, repairs: [{ path: 'bad.md', errors: [{ code: 'invalid-frontmatter', message: 'broken' }], rawBody: 'bad' }] });
-    expect(progress).toEqual([0, 1, 2, 3, 3]);
+    expect(progress).toEqual([0, 1, 2, 3, 3, 3]);
   });
 
   it('does not publish a partial rebuild when reading unexpectedly fails', async () => {
