@@ -37,3 +37,27 @@ it('describes best-effort local storage without an alarm', async () => {
   ).toBeVisible();
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 });
+
+it.each(['Not now', 'Remember'])(
+  'returns focus to Capture after %s closes the composer',
+  async (action) => {
+    render(
+      <App
+        captureService={{
+          capture: async (text) => ({ id: 'test', text }),
+          list: async () => [],
+        }}
+      />,
+    );
+    const capture = screen.getByRole('button', { name: 'Capture' });
+    fireEvent.click(capture);
+    if (action === 'Remember') {
+      fireEvent.change(
+        screen.getByRole('textbox', { name: 'What would you like remembered?' }),
+        { target: { value: 'The hill' } },
+      );
+    }
+    fireEvent.click(screen.getByRole('button', { name: action }));
+    expect(await screen.findByRole('button', { name: 'Capture' })).toHaveFocus();
+  },
+);

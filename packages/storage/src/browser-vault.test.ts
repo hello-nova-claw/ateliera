@@ -3,7 +3,8 @@ import {
   createBrowserVault,
   ensureBrowserPersistence,
   exportBrowserVault,
-  importBrowserVault,
+  applyBrowserVaultImport,
+  prepareBrowserVaultImport,
   type BrowserVaultEnvironment,
   type BrowserVaultStore,
   type StoredBrowserFile,
@@ -61,7 +62,14 @@ describe('browser vault ZIP portability boundary', () => {
     const target = createBrowserVault('export-target', {
       store: createTestStore(),
     });
-    await expect(importBrowserVault(target, archive)).resolves.toEqual({
+    const plan = await prepareBrowserVaultImport(target, archive);
+    expect(plan.items).toEqual([
+      expect.objectContaining({ action: 'create', path: 'Attachments/garden.bin' }),
+      expect.objectContaining({ action: 'create', path: 'Inbox/hill.md' }),
+    ]);
+    await expect(
+      applyBrowserVaultImport(target, plan, { confirm: true }),
+    ).resolves.toEqual({
       imported: 2,
     });
     await expect(target.readText('Inbox/hill.md')).resolves.toMatchObject({
@@ -91,13 +99,75 @@ describe('browser vault ZIP portability boundary', () => {
       store: createTestStore(),
     });
     await target.writeTextAtomic('Inbox/existing.md', 'keep');
-    await expect(importBrowserVault(target, archive)).rejects.toThrow(
+    await expect(prepareBrowserVaultImport(target, archive)).rejects.toThrow(
       'checksum',
     );
     await expect(target.list()).resolves.toEqual([
       expect.objectContaining({ path: 'Inbox', kind: 'directory' }),
       expect.objectContaining({ path: 'Inbox/existing.md', kind: 'file' }),
     ]);
+  });
+
+  it('requires explicit confirmation and previews replacement collisions', async () => {
+    const source = createBrowserVault('collision-source', {
+      store: createTestStore(),
+    });
+    await source.writeTextAtomic('Inbox/hill.md', 'new');
+    const target = createBrowserVault('collision-target', {
+      store: createTestStore(),
+    });
+    await target.writeTextAtomic('Inbox/hill.md', 'old');
+
+    const plan = await prepareBrowserVaultImport(
+      target,
+      await exportBrowserVault(source),
+    );
+    expect(plan.items).toEqual([
+      expect.objectContaining({ action: 'replace', path: 'Inbox/hill.md' }),
+    ]);
+    await expect(
+      applyBrowserVaultImport(target, plan, { confirm: false }),
+    ).rejects.toThrow('confirmation');
+    await expect(target.readText('Inbox/hill.md')).resolves.toMatchObject({
+      text: 'old',
+    });
+  });
+
+  it('rolls back every target when an import write fails', async () => {
+    const base = createTestStore();
+    let targetWrites = 0;
+    const failingStore: BrowserVaultStore = {
+      ...base,
+      async write(path, file) {
+        if (!path.startsWith('.studio/import-') && ++targetWrites === 2) {
+          throw new DOMException('quota reached', 'QuotaExceededError');
+        }
+        await base.write(path, file);
+      },
+    };
+    const source = createBrowserVault('rollback-source', {
+      store: createTestStore(),
+    });
+    await source.writeTextAtomic('Inbox/a.md', 'new a');
+    await source.writeTextAtomic('Inbox/b.md', 'new b');
+    const target = createBrowserVault('rollback-target', { store: failingStore });
+    await base.write('Inbox/a.md', {
+      bytes: new TextEncoder().encode('old a'),
+      hash: 'old',
+      modifiedAt: new Date().toISOString(),
+    });
+
+    const plan = await prepareBrowserVaultImport(
+      target,
+      await exportBrowserVault(source),
+    );
+    await expect(
+      applyBrowserVaultImport(target, plan, { confirm: true }),
+    ).rejects.toThrow('quota reached');
+    await expect(target.readText('Inbox/a.md')).resolves.toMatchObject({
+      text: 'old a',
+    });
+    await expect(target.exists('Inbox/b.md')).resolves.toBe(false);
   });
 });
 
