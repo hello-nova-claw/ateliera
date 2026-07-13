@@ -14,6 +14,7 @@ This report describes the current implementation. It intentionally does not clai
 - `646d485` — keep generated Rust toolchains and build output outside lint scope
 - `c0fb671` — reserve internal control paths, prove two-selection concurrency, and verify watcher identity through registration
 - `0e56612` — reserve control paths case-insensitively for default macOS filesystems
+- `4b37301` — reject blocking special-file reads and add capability-based periodic watcher reconciliation
 
 All commits are authored solely by Anna McPhee and contain no attribution trailers.
 
@@ -23,7 +24,8 @@ All commits are authored solely by Anna McPhee and contain no attribution traile
 - Rust immediately opens and retains the selected directory as a `cap_std::fs::Dir`.
 - The webview receives a random opaque token scoped to its owning window label; it never receives a reusable native path capability.
 - Public operations validate normalized relative paths, open every parent component relative to retained directory descriptors, and do not follow symlinks.
-- Absolute paths, parent traversal, NULs, Windows separators/drives, symlink components, special files, invalid tokens, and every ASCII case variant of a path component beginning `.studio-` are rejected with the typed `path_escape` or `unavailable` error. Case-insensitive reservation is required for default macOS volumes.
+- Direct text and binary reads add `O_NONBLOCK`, then inspect metadata from the opened descriptor and reject anything that is not a regular file before reading. FIFOs and devices therefore cannot block a read command.
+- Absolute paths, parent traversal, NULs, Windows separators/drives, symlink components, invalid tokens, and every ASCII case variant of a path component beginning `.studio-` are rejected with the typed `path_escape` or `unavailable` error. Case-insensitive reservation is required for default macOS volumes.
 - `.studio-*` is a reserved internal namespace. Public text/binary read and write, move source and destination, remove, exists, and prefixed list calls cannot address it. Unprefixed list, snapshots, and logical watcher output omit it.
 
 ## Mutation and conflict model
@@ -50,17 +52,18 @@ A failed candidate is never swapped into the public destination. Conflict cleanu
 
 An arbitrary external tool that ignores `.studio-write.lock` can race the final validation and rename. Such tools are outside the exact CAS guarantee. The second validation detects ordinary non-cooperating changes that occur before publication and preserves them, but this is best-effort detection rather than an impossible universal content-hash CAS claim.
 
-## Watch architecture and identity proof
+## Watch architecture and capability reconciliation
 
 - `notify` events never supply trusted file paths to storage operations. They only mark the watcher dirty and trigger a fresh capability-relative snapshot.
 - Snapshot diffs emit coalesced logical `created`, `modified`, `moved`, and `removed` events. `.studio-*` lock and temporary artifacts cannot enter snapshots or payloads.
 - macOS `notify` requires a pathname even though the vault authority is a descriptor. Registration obtains the descriptor's current path with `F_GETPATH`, starts the watcher, then compares the registered path's device and inode with `Dir::dir_metadata()`.
 - If the pathname was replaced between `F_GETPATH` and `watch()`, or before verification, the watcher is dropped and registration retries from the retained descriptor's new current path. Registration fails closed after eight unsuccessful identity attempts.
-- An adversarial test hook performs the replacement precisely after the first native `watch()` call and before identity verification. The mismatched watcher is rejected; the retry observes only the retained directory. A later replacement of the verified pathname does not retarget the established watcher to the replacement.
+- This device/inode check detects ordinary one-way replacement but cannot prove which directory `notify` attached to if a non-cooperating local process performs replace → watch → restore (an ABA) during registration.
+- Correctness therefore does not trust native watcher identity. Both raw-event reconciliation and an independent two-second periodic reconciliation read only through the retained `Dir` and compare capability-relative snapshots. A native event from an outside/replacement directory can at most schedule a retained-vault rescan; it cannot put outside filenames or content in a logical event.
 
-### Watch availability limitation
+### Accepted watch limitation
 
-The macOS `notify` backend does not continue delivering recursive events after the already-verified watched directory is subsequently renamed. The implementation remains fail-closed—it does not begin watching a replacement directory—but watch availability is lost until a new watcher is registered. The test and this report make that limitation explicit.
+A non-cooperating local process can use pathname ABA or a later directory rename to leave the native watcher attached to the wrong directory or no live directory. This can remove immediate event delivery and add up to the periodic reconciliation interval before a retained-vault change is surfaced. It does not disclose outside content or change the authority used for snapshots. The implementation does not claim that pathname device/inode verification closes ABA.
 
 ## Watch and capability lifecycle
 
@@ -79,11 +82,13 @@ RED was observed for each remediation before production changes:
 - cooperative locking and retained-watcher test helpers did not exist;
 - `.studio-write.lock` was publicly readable/writable/removable;
 - two independently selected vault instances had no explicit shared-concurrency proof; and
-- watcher registration had no adversarial replacement hook or identity verification.
+- watcher registration had no adversarial replacement hook or identity verification;
+- direct FIFO reads could block before target-type validation; and
+- pathname ABA had no independent retained-capability reconciliation path.
 
 GREEN:
 
-- `pnpm tauri:test`: 14 passed.
+- `pnpm tauri:test`: 16 passed.
   - production builder lifecycle callback wiring assertion;
   - `WindowEvent::Destroyed` capability revocation branch;
   - case-insensitive reserved `.studio-*` component validation;
@@ -91,12 +96,14 @@ GREEN:
   - retained capability survives selected pathname replacement;
   - forged ambient pathname token rejection;
   - traversal and symlink component rejection;
+  - nonblocking rejection of FIFO text and binary reads;
   - cooperative external writer serialization and preservation;
   - exactly one winner across two independent selections using the same expected hash;
   - non-cooperating pre-publication change detection without swap/rollback;
   - atomic no-clobber move behavior;
   - adversarial `F_GETPATH`/`watch()` replacement detection and retry;
-  - no watcher retargeting to a later replacement pathname;
+  - ABA outside-content non-disclosure;
+  - retained-vault event recovery after the native watcher is deliberately dropped;
   - logical rename coalescing.
 - `pnpm --filter @studio/storage test:tauri`: 8 passed, including native watcher cleanup when event subscription fails.
 - `pnpm test`: 312 passed at the prior remediation checkpoint; rerun after the current task's concurrent Task 6 changes belongs to the integration owner.
@@ -114,7 +121,7 @@ The security properties claimed here are:
 - atomic completed-file publication;
 - exact conditional-write serialization among writers that honor `.studio-write.lock`;
 - no-clobber moves;
-- fail-closed watcher identity verification through registration; and
+- logical watcher events derived only from retained-capability snapshots, with independent periodic reconciliation; and
 - explicit capability/watcher cleanup paths.
 
-The implementation does **not** claim universal CAS against non-cooperating external tools, uninterrupted watch availability after the retained directory is renamed post-registration, or a real macOS window-close E2E test in Tauri's mock runtime.
+The implementation does **not** claim universal CAS against non-cooperating external tools, ABA-proof native watcher attachment, immediate watch delivery after pathname manipulation, or a real macOS window-close E2E test in Tauri's mock runtime.
