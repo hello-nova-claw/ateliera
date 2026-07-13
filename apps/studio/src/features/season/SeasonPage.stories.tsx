@@ -79,6 +79,7 @@ const record: SeasonRecord = {
 const priorityCandidates = state.priorities.map((title, index) => ({
   noteId: `priority-${index + 1}`,
   title,
+  hash: `priority-hash-${index + 1}`,
 }));
 
 const canonicalRecord: SeasonRecord = {
@@ -135,6 +136,7 @@ export const LongText: Story = {
         noteId: 'priority-1',
         title:
           'Donaudampfschifffahrtselektrizitätenhauptbetriebswerkbauunterbeamtengesellschaft',
+        hash: 'priority-hash-1',
       },
       ...priorityCandidates.slice(1),
     ],

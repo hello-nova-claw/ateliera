@@ -17,6 +17,8 @@ import './SeasonPage.css';
 export interface SeasonPriorityCandidate {
   noteId: string;
   title: string;
+  hash: string;
+  path?: string;
 }
 
 export interface SeasonPageProps {
@@ -760,11 +762,30 @@ export function SeasonPage({
               );
               return;
             }
-            const settled = season.priorities.map((noteId) => ({
-              noteId,
-              title: priorityTitle(noteId),
-              disposition: dispositions[noteId] as SeasonDisposition,
-            }));
+            const unavailable = season.priorities.find(
+              (noteId) =>
+                !priorityCandidates.some(
+                  (candidate) =>
+                    candidate.noteId === noteId && candidate.hash !== '',
+                ),
+            );
+            if (unavailable) {
+              setCloseError(
+                `Refresh this season before closing; ${priorityTitle(unavailable)} changed or is unavailable.`,
+              );
+              return;
+            }
+            const settled = season.priorities.map((noteId) => {
+              const candidate = priorityCandidates.find(
+                (item) => item.noteId === noteId,
+              )!;
+              return {
+                noteId,
+                title: candidate.title,
+                expectedHash: candidate.hash,
+                disposition: dispositions[noteId] as SeasonDisposition,
+              };
+            });
             closeBusyRef.current = true;
             setCloseBusy(true);
             setCloseError('');

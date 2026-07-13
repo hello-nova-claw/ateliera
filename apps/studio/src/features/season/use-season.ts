@@ -78,8 +78,19 @@ export function useSeason(
           studio.projectRoom('life-landscape'),
           studio.lifeAreas.load().catch(() => undefined),
         ]);
+        const candidates = await Promise.all(
+          cards.map(async (card) => {
+            const saved = await studio.load(card.path);
+            return {
+              noteId: saved.note.id,
+              title: saved.note.title?.trim() || card.title,
+              hash: saved.hash,
+              path: saved.path,
+            };
+          }),
+        );
         return {
-          candidates: cards.map(({ noteId, title }) => ({ noteId, title })),
+          candidates,
           lifeArea:
             areas?.areas.find((area) => !area.hidden)?.id ??
             areas?.areas[0]?.id ??
@@ -130,6 +141,8 @@ export function useSeason(
       const candidate = {
         noteId: saved.note.id,
         title: saved.note.title?.trim() || normalized,
+        hash: saved.hash,
+        path: saved.path,
       };
       setPriorityCandidates((items) => [
         ...items.filter((item) => item.noteId !== candidate.noteId),
