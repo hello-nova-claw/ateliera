@@ -8,9 +8,7 @@ export interface QuickCaptureProps {
   onRemembered: (saved: SavedNote) => void;
 }
 
-export interface QuickCaptureInput extends CaptureNoteInput {
-  semanticType?: SemanticType;
-}
+export type QuickCaptureInput = CaptureNoteInput;
 
 export function QuickCapture({
   capture,

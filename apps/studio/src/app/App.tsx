@@ -389,20 +389,12 @@ function StudioApplication({
   async function captureThought(input: QuickCaptureInput): Promise<SavedNote> {
     if (service === null) throw new Error('Choose a Studio before remembering a thought.');
     if (isStudioService(service)) {
-      const captured = await service.capture({
+      return service.capture({
         body: input.body,
         ...(input.title === undefined ? {} : { title: input.title }),
-      });
-      if (
-        input.semanticType === undefined ||
-        input.semanticType === captured.note.semanticType
-      ) {
-        return captured;
-      }
-      return service.save({
-        note: { ...captured.note, semanticType: input.semanticType },
-        path: captured.path,
-        expectedHash: captured.hash,
+        ...(input.semanticType === undefined
+          ? {}
+          : { semanticType: input.semanticType }),
       });
     }
     const captured = await service.capture(input.body);

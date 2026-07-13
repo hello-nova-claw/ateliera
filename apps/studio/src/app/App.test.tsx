@@ -266,7 +266,7 @@ it('reprojects the durable card after keeping the other version', async () => {
   expect(await screen.findByRole('button', { name: 'Other words' })).toBeVisible();
 });
 
-it('applies an optional capture meaning through a conditional Studio save', async () => {
+it('applies optional capture meaning in the single atomic capture operation', async () => {
   const fixture = studioService();
   render(<App studioId="studio:first" studioService={fixture.service} />);
 
@@ -281,12 +281,12 @@ it('applies an optional capture meaning through a conditional Studio save', asyn
   fireEvent.click(screen.getByRole('button', { name: 'Remember' }));
 
   await waitFor(() =>
-    expect(fixture.service.save).toHaveBeenCalledWith({
-      note: expect.objectContaining({ semanticType: 'uncharted' }),
-      path: 'Inbox/a-remembered-note.md',
-      expectedHash: 'hash-1',
+    expect(fixture.service.capture).toHaveBeenCalledWith({
+      body: 'A possible retreat',
+      semanticType: 'uncharted',
     }),
   );
+  expect(fixture.service.save).not.toHaveBeenCalled();
 });
 
 it('lets editor cleanup enqueue its final save before unmount disposal drains the service', async () => {

@@ -1,6 +1,6 @@
 import { parseNote } from '@studio/content';
 import { createInMemoryVault } from '@studio/storage';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createStudioService } from './studio-service';
 import { RecordingIndex } from './test-helpers';
@@ -38,5 +38,36 @@ describe('capture', () => {
     const service = createStudioService({ vault, index: new RecordingIndex() });
     await expect(service.capture({ body: ' \n ' })).rejects.toThrow('Write something');
     expect(await vault.list()).toEqual([]);
+  });
+
+  it('creates a classified capture in one durable write', async () => {
+    const vault = createInMemoryVault();
+    const write = vi.spyOn(vault, 'writeTextAtomic');
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    const captured = await service.capture({
+      body: 'A possible retreat',
+      semanticType: 'uncharted',
+    });
+
+    expect(captured.note.semanticType).toBe('uncharted');
+    expect(write).toHaveBeenCalledOnce();
+    expect((await vault.list()).filter((entry) => entry.kind === 'file')).toHaveLength(1);
+  });
+
+  it('leaves no partial note when classified capture fails and retry creates only one', async () => {
+    const vault = createInMemoryVault();
+    const durableWrite = vault.writeTextAtomic.bind(vault);
+    vi.spyOn(vault, 'writeTextAtomic')
+      .mockRejectedValueOnce(new Error('disk unavailable'))
+      .mockImplementation(durableWrite);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    const input = { body: 'One atomic thought', semanticType: 'vision' as const };
+
+    await expect(service.capture(input)).rejects.toThrow('disk unavailable');
+    expect(await vault.list()).toEqual([]);
+
+    await service.capture(input);
+    expect((await vault.list()).filter((entry) => entry.kind === 'file')).toHaveLength(1);
   });
 });

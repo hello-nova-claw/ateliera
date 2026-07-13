@@ -6,7 +6,7 @@ import {
   serializeNote,
   suggestFilename,
 } from '@studio/content';
-import type { ParseError, StudioNote } from '@studio/domain';
+import type { ParseError, SemanticType, StudioNote } from '@studio/domain';
 import type { IndexEntry, IndexPort } from '@studio/index';
 import {
   VaultConflictError,
@@ -62,6 +62,7 @@ export interface SaveNoteInput {
 
 export interface CaptureNoteInput {
   body: string;
+  semanticType?: SemanticType;
   title?: string;
 }
 
@@ -533,7 +534,7 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
           ...(input.title?.trim() ? { title: input.title.trim() } : {}),
           body,
           cardType: 'capture',
-          semanticType: 'reflection',
+          semanticType: input.semanticType ?? 'reflection',
           status: 'draft',
           rooms: ['inbox'],
           lifeAreas: [],
