@@ -42,6 +42,8 @@ import {
 } from './projections';
 import { createViewStateRepository } from './view-state';
 import type { ViewStateRepository } from './view-state';
+import { createLifeAreaRepository } from './life-area-repository';
+import type { LifeAreaRepository } from './life-area-repository';
 import {
   createNoteLifecycleService,
   type RestoreNoteResult,
@@ -135,10 +137,12 @@ export interface StudioServiceDependencies {
   scheduleIndexRebuild?: (rebuild: () => Promise<void>) => void;
   timers?: StudioTimers;
   revisions?: RevisionStore;
+  lifeAreas?: LifeAreaRepository;
 }
 
 export interface StudioService {
   readonly views: ViewStateRepository;
+  readonly lifeAreas: LifeAreaRepository;
   start(): Promise<void>;
   dispose(): Promise<void>;
   subscribe(listener: StudioEventListener): () => void;
@@ -239,6 +243,8 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   const generateId = dependencies.generateId ?? (() => createNoteId(clock().valueOf()));
   const timers = dependencies.timers ?? defaultTimers;
   const views = createViewStateRepository(dependencies.vault);
+  const lifeAreas =
+    dependencies.lifeAreas ?? createLifeAreaRepository(dependencies.vault);
   const revisions = dependencies.revisions ?? createRevisionStore(dependencies.vault, { clock });
   const noteLifecycle = createNoteLifecycleService({
     vault: dependencies.vault,
@@ -574,6 +580,7 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
 
   const service: StudioService = {
     views,
+    lifeAreas,
 
     start() {
       if (disposed) return Promise.reject(new Error('This Studio service has been disposed.'));
