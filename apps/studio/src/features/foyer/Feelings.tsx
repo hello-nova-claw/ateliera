@@ -7,7 +7,7 @@ export function Feelings({ feelings, onCreate }: { feelings: StudioCardProjectio
       <h2 className="studio-visually-hidden" id="foyer-feelings-title">Desired feelings</h2>
       {feelings.length === 0 ? (
         <div className="foyer-feelings__empty">
-          <p>What feeling would you like to make room for?</p>
+          <p className="foyer-feelings__prompt">What feeling would you like to make room for?</p>
           {onCreate && <button className="foyer-action" onClick={(event) => onCreate(event.currentTarget)} type="button">Add a desired feeling</button>}
         </div>
       ) : (

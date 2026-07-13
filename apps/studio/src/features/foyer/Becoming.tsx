@@ -20,7 +20,7 @@ export function Becoming({ card, onCreate, onOpen }: BecomingProps) {
     <article className="foyer-becoming" aria-labelledby={`foyer-becoming-${card.noteId}`}>
       <p className="foyer-section-label">Currently becoming</p>
       <h2 id={`foyer-becoming-${card.noteId}`}>{card.title}</h2>
-      {card.excerpt && card.excerpt !== card.title && <p>{card.excerpt}</p>}
+      {card.excerpt && card.excerpt !== card.title && <p className="foyer-becoming__excerpt">{card.excerpt}</p>}
       {onOpen && <button className="foyer-text-action" onClick={(event) => onOpen(card, event.currentTarget)} type="button">Edit becoming</button>}
     </article>
   );

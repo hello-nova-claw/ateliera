@@ -103,7 +103,7 @@
   text-wrap: balance;
 }
 
-.foyer-becoming > p:not(.foyer-section-label) {
+.foyer-becoming__excerpt {
   max-inline-size: 58ch;
   margin: var(--studio-space-4) 0 0;
   color: var(--studio-color-ink-muted);
@@ -207,7 +207,7 @@
   border-radius: var(--studio-radius-card);
 }
 
-.foyer-feelings__empty p {
+.foyer-feelings__prompt {
   margin: 0;
 }
 
@@ -255,7 +255,7 @@
   overflow-wrap: anywhere;
 }
 
-.foyer-principle p {
+.foyer-principle__excerpt {
   color: var(--studio-color-ink-muted);
   font-size: 0.92rem;
   overflow-wrap: anywhere;
@@ -409,10 +409,15 @@
   }
 
   .foyer-becoming { order: 1; }
+
   .foyer-season { order: 2; }
+
   .foyer-feelings { order: 3; }
+
   .foyer-principles { order: 4; }
+
   .foyer-return { order: 5; }
+
   .foyer-polaroid,
   .foyer-polaroid__missing { order: 6; }
 }

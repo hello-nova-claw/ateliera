@@ -17,7 +17,7 @@ export function Principles({ principles, onCreate, onOpen }: {
             <article className="foyer-principle" key={principle.noteId}>
               <span aria-hidden="true" className="foyer-principle__mark">♥</span>
               <h3>{principle.title}</h3>
-              {principle.excerpt && principle.excerpt !== principle.title && <p>{principle.excerpt}</p>}
+              {principle.excerpt && principle.excerpt !== principle.title && <p className="foyer-principle__excerpt">{principle.excerpt}</p>}
               {onOpen && <button className="foyer-text-action" onClick={(event) => onOpen(principle, event.currentTarget)} type="button">Edit principle</button>}
             </article>
           ))}
