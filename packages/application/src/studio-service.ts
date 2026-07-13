@@ -80,7 +80,30 @@ export interface CaptureNoteInput {
   body: string;
   semanticType?: SemanticType;
   title?: string;
+  placement?: CapturePlacement;
 }
+
+export type CapturePlacement =
+  | 'foyer-becoming'
+  | 'foyer-feeling'
+  | 'foyer-principle';
+
+const capturePlacements = {
+  'foyer-becoming': {
+    cardType: 'identity', semanticType: 'foundations', rooms: ['foyer', 'identity-studio'], folder: 'Foyer',
+  },
+  'foyer-feeling': {
+    cardType: 'feeling', semanticType: 'vision', rooms: ['foyer', 'identity-studio'], folder: 'Foyer',
+  },
+  'foyer-principle': {
+    cardType: 'principle', semanticType: 'foundations', rooms: ['foyer', 'identity-studio'], folder: 'Foyer',
+  },
+} as const satisfies Record<CapturePlacement, {
+  cardType: string;
+  semanticType: SemanticType;
+  rooms: readonly string[];
+  folder: string;
+}>;
 
 export interface StudioServiceDependencies {
   vault: VaultPort;
@@ -578,6 +601,9 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
       const body = input.body.trim();
       if (body === '') throw new Error('Write something to remember first.');
       const created = iso(clock);
+      const placement = input.placement === undefined
+        ? undefined
+        : capturePlacements[input.placement];
       let lastConflict: StudioSaveConflictError | undefined;
       for (let attempt = 0; attempt < CAPTURE_ATTEMPTS; attempt += 1) {
         const note: StudioNote = {
@@ -585,17 +611,17 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
           id: generateId(),
           ...(input.title?.trim() ? { title: input.title.trim() } : {}),
           body,
-          cardType: 'capture',
-          semanticType: input.semanticType ?? 'reflection',
-          status: 'draft',
-          rooms: ['inbox'],
+          cardType: placement?.cardType ?? 'capture',
+          semanticType: placement?.semanticType ?? input.semanticType ?? 'reflection',
+          status: placement === undefined ? 'draft' : 'active',
+          rooms: placement === undefined ? ['inbox'] : [...placement.rooms],
           lifeAreas: [],
           seasons: [],
           tags: [],
           created,
           updated: created,
           attachments: [],
-          display: { featured: false },
+          display: { featured: placement !== undefined },
           privacy: { sensitivity: 'private', aiAccess: 'ask' },
           extraFrontmatter: {},
           lineEnding: '\n',
@@ -603,7 +629,7 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
         try {
           return await save({
             note,
-            path: `Inbox/${suggestFilename(note)}`,
+            path: `${placement?.folder ?? 'Inbox'}/${suggestFilename(note)}`,
             expectedMissing: true,
           });
         } catch (error) {
