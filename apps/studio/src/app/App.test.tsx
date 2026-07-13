@@ -327,3 +327,47 @@ it('does not terminally dispose a Studio during the Strict Mode lifecycle probe'
   view.unmount();
   await waitFor(() => expect(fixture.service.dispose).toHaveBeenCalledOnce());
 });
+
+it('holds navigation until the dirty editor flush completes', async () => {
+  let finish: (() => void) | undefined;
+  const fixture = studioService({
+    save: vi.fn(
+      ({ note: saved }) =>
+        new Promise<SavedNote>((resolve) => {
+          finish = () =>
+            resolve({ note: saved, path: 'Inbox/a-remembered-note.md', hash: 'hash-2' });
+        }),
+    ),
+  });
+  render(<App studioId="studio:first" studioService={fixture.service} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Original words' }));
+  fireEvent.change(await screen.findByRole('textbox', { name: 'Title' }), {
+    target: { value: 'Changed before navigating' },
+  });
+
+  fireEvent.click(screen.getByRole('link', { name: 'Life Landscape' }));
+
+  expect(location.pathname).toBe('/foyer');
+  expect(screen.getByRole('dialog', { name: 'Edit note' })).toBeVisible();
+  expect(fixture.service.save).toHaveBeenCalledOnce();
+  await act(async () => finish?.());
+  await waitFor(() => expect(location.pathname).toBe('/landscape'));
+  expect(screen.queryByRole('dialog', { name: 'Edit note' })).not.toBeInTheDocument();
+});
+
+it('keeps failed navigation and the dirty editor in place', async () => {
+  const fixture = studioService({
+    save: vi.fn().mockRejectedValue(new Error('Disk unavailable')),
+  });
+  render(<App studioId="studio:first" studioService={fixture.service} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Original words' }));
+  fireEvent.change(await screen.findByRole('textbox', { name: 'Title' }), {
+    target: { value: 'Changed before navigating' },
+  });
+
+  fireEvent.click(screen.getByRole('link', { name: 'Life Landscape' }));
+
+  expect(await screen.findByText(/could not be saved.*Retry before closing/i)).toBeVisible();
+  expect(location.pathname).toBe('/foyer');
+  expect(screen.getByRole('dialog', { name: 'Edit note' })).toBeVisible();
+});

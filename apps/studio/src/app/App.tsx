@@ -28,7 +28,7 @@ import {
 import { useTheme } from './theme-context';
 import { RoomRoute } from './RoomRoute';
 import { createAppStudioService } from './studio-service-factory';
-import { useStudioRouter } from './router';
+import { useStudioRouter, type StudioPath } from './router';
 import { themes, type ThemeId } from './themes';
 import { QuickCapture } from '../features/capture/QuickCapture';
 import type { QuickCaptureInput } from '../features/capture/QuickCapture';
@@ -124,6 +124,7 @@ function StudioApplication({
   studioId,
   studioService,
 }: AppProps) {
+  const navigationGuard = useRef<((next: StudioPath) => boolean) | undefined>(undefined);
   const injectedStudioId = useRef(studioId ?? `session:${crypto.randomUUID()}`);
   const [service, setService] = useState<CaptureService | StudioService | null>(
     () => studioService ?? captureService ?? null,
@@ -131,7 +132,9 @@ function StudioApplication({
   const [activeStudioId, setActiveStudioId] = useState(() =>
     studioId ?? injectedStudioId.current,
   );
-  const { navigate, path, title } = useStudioRouter();
+  const { navigate, path, title } = useStudioRouter(
+    (next) => navigationGuard.current?.(next) ?? false,
+  );
   const { announce: themeAnnouncement, setTheme, theme } = useTheme();
   const [captures, setCaptures] = useState<CaptureEntry[]>([]);
   const [opened, setOpened] = useState(
@@ -169,6 +172,14 @@ function StudioApplication({
   );
   const capturePaths = useRef(new Map<string, string>());
   const activeLifecycleService = useRef<StudioService | undefined>(undefined);
+  const pendingNavigation = useRef<StudioPath | undefined>(undefined);
+
+  navigationGuard.current = (next) => {
+    if (editor === undefined) return false;
+    pendingNavigation.current = next;
+    setEditorCloseRequest((request) => request + 1);
+    return true;
+  };
 
   useEffect(() => {
     if (studioService !== undefined) {
@@ -404,8 +415,17 @@ function StudioApplication({
   }
 
   function closeEditor(): void {
+    const destination = pendingNavigation.current;
+    pendingNavigation.current = undefined;
     setEditor(undefined);
     setProjectionRevision((revision) => revision + 1);
+    if (destination !== undefined) {
+      navigate(destination, true);
+      requestAnimationFrame(() =>
+        document.querySelector<HTMLElement>('#studio-main')?.focus(),
+      );
+      return;
+    }
     queueMicrotask(() => {
       requestAnimationFrame(() => {
         requestAnimationFrame(() => editorTrigger.current?.focus());

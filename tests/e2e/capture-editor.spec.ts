@@ -94,6 +94,27 @@ test('flushes the latest words on blur and Escape, then restores focus', async (
   );
 });
 
+test('flushes an edit made inside the debounce window before history navigation', async ({
+  page,
+}) => {
+  await createLocalStudio(page);
+  await capture(page, 'Before history navigation');
+  await page.getByRole('link', { name: 'Inbox' }).click();
+  await openEditor(page, 'Before history navigation');
+  await page
+    .getByRole('textbox', { name: 'Markdown body' })
+    .fill('Saved before history navigation');
+
+  await page.goBack();
+
+  await expect(page).toHaveURL(/\/foyer$/);
+  await expect(page.getByRole('dialog', { name: 'Edit note' })).toHaveCount(0);
+  await openEditor(page, 'Saved before history navigation');
+  await expect(page.getByRole('textbox', { name: 'Markdown body' })).toContainText(
+    'Saved before history navigation',
+  );
+});
+
 test('keeps local and external versions when exact-hash save conflicts', async ({
   page,
   browserName,

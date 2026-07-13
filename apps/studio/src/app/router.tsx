@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export const studioRoutes = {
   '/foyer': 'Foyer',
@@ -26,15 +26,27 @@ function canonicalLocationPath(): StudioPath {
   return normalized;
 }
 
-export function useStudioRouter() {
+export function useStudioRouter(guard?: (next: StudioPath) => boolean) {
   const [path, setPath] = useState<StudioPath>(canonicalLocationPath);
+  const pathRef = useRef(path);
+  const guardRef = useRef(guard);
+  pathRef.current = path;
+  guardRef.current = guard;
   useEffect(() => {
-    const onPop = () => setPath(canonicalLocationPath());
+    const onPop = () => {
+      const next = canonicalLocationPath();
+      if (guardRef.current?.(next) === true) {
+        history.pushState(null, '', pathRef.current);
+        return;
+      }
+      setPath(next);
+    };
     addEventListener('popstate', onPop);
     return () => removeEventListener('popstate', onPop);
   }, []);
-  const navigate = useCallback((next: string) => {
+  const navigate = useCallback((next: string, force = false) => {
     const normalized = normalizePath(next);
+    if (!force && guardRef.current?.(normalized) === true) return;
     if (normalized === next) history.pushState(null, '', normalized);
     else history.replaceState(null, '', normalized);
     setPath(normalized);

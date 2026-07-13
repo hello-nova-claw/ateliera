@@ -7,6 +7,11 @@ function RouterProbe() {
   return <output>{`${path}|${title}`}</output>;
 }
 
+function GuardedRouterProbe({ guard }: { guard: (next: string) => boolean }) {
+  const { path, title } = useStudioRouter(guard);
+  return <output>{`${path}|${title}`}</output>;
+}
+
 afterEach(() => {
   history.replaceState(null, '', '/foyer');
   vi.restoreAllMocks();
@@ -31,6 +36,18 @@ it('canonically replaces an unknown history destination with the Foyer', () => {
   dispatchEvent(new PopStateEvent('popstate'));
 
   expect(replaceState).toHaveBeenCalledWith(null, '', '/foyer');
+  expect(location.pathname).toBe('/foyer');
+  expect(screen.getByText('/foyer|Foyer')).toBeVisible();
+});
+
+it('restores the current URL when a history destination is guarded', () => {
+  const guard = vi.fn(() => true);
+  render(<GuardedRouterProbe guard={guard} />);
+
+  history.pushState(null, '', '/landscape');
+  dispatchEvent(new PopStateEvent('popstate'));
+
+  expect(guard).toHaveBeenCalledWith('/landscape');
   expect(location.pathname).toBe('/foyer');
   expect(screen.getByText('/foyer|Foyer')).toBeVisible();
 });
