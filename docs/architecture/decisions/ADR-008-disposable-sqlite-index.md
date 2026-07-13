@@ -15,7 +15,9 @@ Rebuild reads and parses all Markdown before opening the index transaction. Reco
 
 Links remain visible when unresolved and are re-resolved whenever notes change. Relative paths may not traverse above the vault root and absolute paths remain unresolved. Titles and paths compare in NFC. Duplicate wiki titles remain unresolved with deterministic candidate IDs rather than selecting an arbitrary note.
 
-Search text and links are derived from the same CommonMark AST. Destinations, code blocks, and HTML comments cannot create invisible matches. Search snippets are plain text with numeric highlight ranges. Diacritic-folded FTS matches omit highlights when there is no exact source offset. Tag- and source-only hits expose their metadata match context. Punctuation/emoji-only input returns no results, and filters include card type.
+Search text and links are derived from the same CommonMark + GFM AST. Reference-style links resolve through definitions; tables contribute readable cell text without delimiter syntax. Destinations, code blocks, and HTML comments cannot create invisible matches. Titles are literal plain text in both FTS and snippets and must be rendered as text, never imported HTML.
+
+Search snippets are plain text with numeric highlight ranges. Grapheme-aware folding maps normalized search positions back to original UTF-16 offsets, and every proposed range is emitted only when folding its original source slice equals the intended token. This handles length-changing folds such as Turkish dotted `İ`; a range is omitted rather than guessed when validation fails. Tag- and source-only hits expose their metadata match context. Punctuation/emoji-only input returns no results, and filters include card type.
 
 The PRD's typo-tolerant title/tag search remains deferred to Task 16. Task 7's executable interface specifies deterministic keyword search, and silently expanding terms here would make ranking and the 200 ms acceptance boundary ambiguous. Task 16 must add an explicit fuzzy strategy, ranking tests, and visible result rationale before shipping the Search UI.
 
@@ -25,4 +27,4 @@ The PRD's typo-tolerant title/tag search remains deferred to Task 16. Task 7's e
 - Desktop/native and future browser-worker adapters share schema and behavior.
 - `node:sqlite` currently emits an experimental API warning, so it remains an adapter rather than a domain dependency.
 - SQLite must provide FTS5. Adapter construction fails visibly when it does not.
-- The remediated 10,000-note fixture on the reference development Mac rebuilt in 8.071 seconds and returned the warmed two-term filtered search in 3.60 ms, comfortably below the 200 ms target. The benchmark is reproducible with `pnpm benchmark:index -- --notes=10000` and fails when warmed search reaches 200 ms.
+- The final remediated 10,000-note fixture on the reference development Mac rebuilt in 7.928 seconds and returned the warmed two-term filtered search in 11.00 ms, comfortably below the 200 ms target. The benchmark is reproducible with `pnpm benchmark:index -- --notes=10000` and fails when warmed search reaches 200 ms.
