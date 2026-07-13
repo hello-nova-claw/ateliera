@@ -13,8 +13,13 @@ import {
   type SeasonWizardStep,
 } from '@studio/domain';
 import type { StudioNote } from '@studio/domain';
+import { VaultConflictError } from '@studio/storage/portable';
 
-import type { SavedNote, StudioService } from './studio-service';
+import {
+  StudioSaveConflictError,
+  type SavedNote,
+  type StudioService,
+} from './studio-service';
 
 export interface SeasonRecord extends SavedNote {
   state: SeasonState;
@@ -323,8 +328,120 @@ export function createSeasonService(
     return { record, conflicts };
   }
 
+  async function completeActiveOperation(
+    checkpoint: Awaited<
+      ReturnType<StudioService['seasonTransactions']['readActive']>
+    >,
+  ): Promise<void> {
+    try {
+      await studio.seasonTransactions.compareAndSetActive(checkpoint, {
+        ...checkpoint.value,
+        revision: checkpoint.value.revision + 1,
+        operation: null,
+      });
+    } catch (error) {
+      if (!(error instanceof VaultConflictError)) throw error;
+      const current = await studio.seasonTransactions.readActive();
+      if (
+        current.value.activeNoteId === checkpoint.value.activeNoteId &&
+        current.value.operation === null
+      ) {
+        return;
+      }
+      throw error;
+    }
+  }
+
+  async function resumeActiveOperation(): Promise<SeasonRecord | null> {
+    const checkpoint = await studio.seasonTransactions.readActive();
+    const operation = checkpoint.value.operation;
+    if (operation === null || operation.kind === 'closing') return null;
+
+    if (operation.kind === 'activating') {
+      let target = await loadProjection(operation.targetPath);
+      if (target.note.id !== operation.targetNoteId) {
+        throw new Error(
+          'The reserved active season no longer matches its checkpoint.',
+        );
+      }
+      if (target.state.status === 'draft') {
+        try {
+          target = await saveState(
+            target,
+            activateSeasonState(target.state, now()),
+          );
+        } catch (error) {
+          if (!(error instanceof StudioSaveConflictError)) throw error;
+          target = await loadProjection(operation.targetPath);
+          if (target.state.status !== 'active') throw error;
+        }
+      }
+      if (target.state.status !== 'active') {
+        throw new Error('The reserved season cannot be activated.');
+      }
+      await completeActiveOperation(checkpoint);
+      return target;
+    }
+
+    const projection = await studio.projectCurrentSeason();
+    const active = [projection.current, ...projection.conflicts].filter(
+      (candidate): candidate is NonNullable<typeof candidate> =>
+        candidate !== null,
+    );
+    const target = active.find(
+      (candidate) => candidate.noteId === operation.targetNoteId,
+    );
+    if (target === undefined) {
+      throw new Error('The selected active season no longer exists.');
+    }
+    for (const candidate of active) {
+      if (candidate.noteId !== operation.targetNoteId) {
+        await studio.archive(candidate.noteId);
+      }
+    }
+    const kept = await loadProjection(target.path);
+    await completeActiveOperation(checkpoint);
+    return kept;
+  }
+
+  async function reserveActiveOperation(
+    kind: 'activating' | 'repairing',
+    target: SeasonRecord,
+  ) {
+    const observed = await studio.seasonTransactions.readActive();
+    if (
+      observed.value.activeNoteId !== null &&
+      observed.value.activeNoteId !== target.note.id
+    ) {
+      throw new Error('Another active season needs attention first.');
+    }
+    try {
+      return await studio.seasonTransactions.compareAndSetActive(observed, {
+        version: 1,
+        revision: observed.value.revision + 1,
+        activeNoteId: target.note.id,
+        activePath: target.path,
+        operation: {
+          id: `${kind}-${target.note.id}-${observed.value.revision + 1}`,
+          kind,
+          targetNoteId: target.note.id,
+          targetPath: target.path,
+        },
+      });
+    } catch (error) {
+      if (!(error instanceof VaultConflictError)) throw error;
+      throw new Error('Another active season needs attention first.', {
+        cause: error,
+      });
+    }
+  }
+
   return {
     async beginSeason(input) {
+      await resumeActiveOperation();
+      const checkpoint = await studio.seasonTransactions.readActive();
+      if (checkpoint.value.activeNoteId !== null)
+        throw new Error('Close the active season before beginning another.');
       const active = await studio.projectCurrentSeason();
       if (active.current !== null)
         throw new Error('Close the active season before beginning another.');
@@ -357,6 +474,7 @@ export function createSeasonService(
     },
 
     async loadCurrent() {
+      await resumeActiveOperation();
       return loadCurrentRecords();
     },
 
@@ -377,11 +495,12 @@ export function createSeasonService(
         'conflict-resolution',
         candidates.map((candidate) => candidate.path),
       );
-      for (const candidate of candidates) {
-        if (candidate.note.id !== keepNoteId)
-          await studio.archive(candidate.note.id);
+      await reserveActiveOperation('repairing', keep);
+      const repaired = await resumeActiveOperation();
+      if (repaired === null) {
+        throw new Error('The active-season repair could not be resumed.');
       }
-      return toRecord(await studio.load(keep.path));
+      return repaired;
     },
 
     async saveStep(record, step, answers, options = {}) {
@@ -392,11 +511,21 @@ export function createSeasonService(
     },
 
     async activateSeason(record) {
+      const resumed = await resumeActiveOperation();
+      if (resumed !== null) {
+        if (resumed.note.id === record.note.id) return resumed;
+        throw new Error('Another active season needs attention first.');
+      }
       const active = await studio.projectCurrentSeason();
       if (active.current !== null && active.current.noteId !== record.note.id) {
         throw new Error('Another active season needs attention first.');
       }
-      return saveState(record, activateSeasonState(record.state, now()));
+      await reserveActiveOperation('activating', record);
+      const activated = await resumeActiveOperation();
+      if (activated === null) {
+        throw new Error('The active-season activation could not be resumed.');
+      }
+      return activated;
     },
 
     async updateSeason(record, answers) {
