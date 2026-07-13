@@ -85,11 +85,14 @@ function isWellFormedUnicode(value: string): boolean {
   }
 }
 
-function isCanonicalIdentifier(value: unknown): value is string {
+function isCanonicalIdentifier(
+  value: unknown,
+  maximumLength = 128,
+): value is string {
   return (
     typeof value === 'string' &&
     value.length > 0 &&
-    value.length <= 128 &&
+    value.length <= maximumLength &&
     value === value.trim() &&
     value === value.normalize('NFC') &&
     value !== '.' &&
@@ -135,7 +138,7 @@ function isActiveOperation(
   if (
     !isRecord(value) ||
     !hasExactKeys(value, ['id', 'kind', 'targetNoteId', 'targetPath']) ||
-    !isCanonicalIdentifier(value.id) ||
+    !isCanonicalIdentifier(value.id, 256) ||
     !['activating', 'repairing', 'closing'].includes(String(value.kind)) ||
     !isCanonicalIdentifier(value.targetNoteId) ||
     !isCanonicalUserPath(value.targetPath)
