@@ -49,6 +49,12 @@ export function useAutosave({
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const inFlight = useRef<Promise<void> | undefined>(undefined);
   const stopped = useRef(false);
+  const saveRef = useRef(save);
+  const writeRecoveryRef = useRef(writeRecovery);
+  const removeRecoveryRef = useRef(removeRecovery);
+  saveRef.current = save;
+  writeRecoveryRef.current = writeRecovery;
+  removeRecoveryRef.current = removeRecovery;
 
   const persist = useCallback(async (): Promise<void> => {
     if (
@@ -71,15 +77,15 @@ export function useAutosave({
     setState('saving');
     const operation = (async () => {
       try {
-        const result = await save(value, durableHash.current);
+        const result = await saveRef.current(value, durableHash.current);
         durableHash.current = result.hash;
         savedRevision.current = revision;
         failedRevision.current = undefined;
         if (savedRevision.current === editRevision.current) {
-          removeRecovery();
+          removeRecoveryRef.current();
           setState('saved');
         } else {
-          writeRecovery(latest.current, durableHash.current);
+          writeRecoveryRef.current(latest.current, durableHash.current);
           setState('dirty');
         }
       } catch (reason) {
@@ -100,7 +106,7 @@ export function useAutosave({
     if (!stopped.current && savedRevision.current !== editRevision.current) {
       await persist();
     }
-  }, [removeRecovery, save, writeRecovery]);
+  }, []);
 
   const flush = useCallback(async (): Promise<void> => {
     if (timer.current !== undefined) clearTimeout(timer.current);
@@ -114,7 +120,7 @@ export function useAutosave({
       latest.current = next;
       setNote(next);
       editRevision.current += 1;
-      writeRecovery(next, durableHash.current);
+      writeRecoveryRef.current(next, durableHash.current);
       setError(undefined);
       setState('dirty');
       if (timer.current !== undefined) clearTimeout(timer.current);
@@ -123,14 +129,14 @@ export function useAutosave({
         void persist();
       }, delayMs);
     },
-    [delayMs, persist, writeRecovery],
+    [delayMs, persist],
   );
 
   useEffect(
     () => () => {
-      if (timer.current !== undefined) clearTimeout(timer.current);
+      void flush();
     },
-    [],
+    [flush],
   );
 
   return {

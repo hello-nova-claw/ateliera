@@ -1,10 +1,15 @@
 import type { CaptureNoteInput, SavedNote } from '@studio/application';
+import type { SemanticType } from '@studio/domain';
 import { useState } from 'react';
 
 export interface QuickCaptureProps {
-  capture: (input: CaptureNoteInput) => Promise<SavedNote>;
+  capture: (input: QuickCaptureInput) => Promise<SavedNote>;
   onCancel: () => void;
   onRemembered: (saved: SavedNote) => void;
+}
+
+export interface QuickCaptureInput extends CaptureNoteInput {
+  semanticType?: SemanticType;
 }
 
 export function QuickCapture({
@@ -15,12 +20,15 @@ export function QuickCapture({
   const [body, setBody] = useState('');
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
+  const [semanticType, setSemanticType] = useState<'' | SemanticType>('');
 
   async function remember(): Promise<void> {
     setSaving(true);
     setError(undefined);
     try {
-      const saved = await capture({ body });
+      const saved = await capture(
+        semanticType === '' ? { body } : { body, semanticType },
+      );
       onRemembered(saved);
     } catch (reason) {
       setError(
@@ -49,6 +57,22 @@ export function QuickCapture({
         rows={6}
         value={body}
       />
+      <label htmlFor="capture-meaning">Meaning (optional)</label>
+      <select
+        id="capture-meaning"
+        onChange={(event) =>
+          setSemanticType(event.target.value as '' | SemanticType)
+        }
+        value={semanticType}
+      >
+        <option value="">Place later</option>
+        <option value="foundation">Foundation</option>
+        <option value="vision">Vision</option>
+        <option value="growth">Growth</option>
+        <option value="reflection">Reflection</option>
+        <option value="celebration">Celebration</option>
+        <option value="uncharted">Uncharted</option>
+      </select>
       {error !== undefined && <p role="alert">{error}</p>}
       <div className="studio-form__actions">
         <button
