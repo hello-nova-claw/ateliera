@@ -79,3 +79,29 @@ it('keeps Place later as the default and optionally captures semantic meaning', 
     }),
   );
 });
+
+it('authors a decision horizon when capturing into a Landscape decision', async () => {
+  const capture = vi.fn().mockResolvedValue({
+    note: { id: 'decision', body: 'Choose childcare support' },
+    path: 'Life Landscape/family/choose-childcare-support.md',
+    hash: 'decision-hash',
+  });
+  render(
+    <QuickCapture
+      capture={capture}
+      decisionHorizon
+      onCancel={vi.fn()}
+      onRemembered={vi.fn()}
+    />,
+  );
+  fireEvent.change(screen.getByLabelText('Decision horizon'), { target: { value: '60d' } });
+  fireEvent.change(screen.getByRole('textbox', { name: 'What would you like remembered?' }), {
+    target: { value: 'Choose childcare support' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Remember' }));
+
+  await waitFor(() => expect(capture).toHaveBeenCalledWith({
+    body: 'Choose childcare support',
+    decisionHorizon: '60d',
+  }));
+});
