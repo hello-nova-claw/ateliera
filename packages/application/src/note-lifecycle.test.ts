@@ -303,10 +303,12 @@ describe('note lifecycle', () => {
     }
   });
 
-  it('refuses to create a Trash manifest from a non-canonical durable note id', async () => {
+  it.each([
+    ['surrounding whitespace', ' n1'],
+    ['an unpaired Unicode surrogate', 'n\ud800'],
+  ])('refuses to create a Trash manifest from a durable note id with %s', async (_, invalidId) => {
     const vault = createInMemoryVault();
     const index = new RecordingIndex();
-    const invalidId = ' n1';
     const source = note({ id: invalidId });
     const written = await vault.writeTextAtomic('Notes/n1.md', serializeNote(source));
     await index.upsert(source, 'Notes/n1.md', written.hash);
@@ -315,7 +317,7 @@ describe('note lifecycle', () => {
     await expect(service.trash(invalidId)).rejects.toMatchObject({ name: 'TrashManifestError' });
     await expect(vault.exists('Notes/n1.md')).resolves.toBe(true);
     await expect(vault.exists('.studio/Trash/manifest.json')).resolves.toBe(false);
-    await expect(vault.exists('.studio/Trash/items/%20n1/n1.md')).resolves.toBe(false);
+    await expect(vault.list('.studio/Trash/items')).resolves.toEqual([]);
   });
 
   it('reconciles journal states and reports ambiguous transactions for review', async () => {
