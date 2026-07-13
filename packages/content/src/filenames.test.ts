@@ -29,6 +29,25 @@ it('does not throw for unusual created values', () => {
   ).toBe('1970-01-01--note--abcdef.md');
 });
 
+it.each(['2026-99-99', '2026-02-30junk'])(
+  'uses the epoch fallback for an invalid calendar prefix: %s',
+  (created) => {
+    expect(
+      suggestFilename({ created, cardType: 'note', id: '01JTESTABCDEF' }),
+    ).toBe('1970-01-01--note--abcdef.md');
+  },
+);
+
+it('uses a valid leap-day prefix', () => {
+  expect(
+    suggestFilename({
+      created: '2024-02-29T12:00:00Z',
+      cardType: 'note',
+      id: '01JTESTABCDEF',
+    }),
+  ).toBe('2024-02-29--note--abcdef.md');
+});
+
 it('uses safe fallbacks for unusual metadata', () => {
   expect(
     suggestFilename({

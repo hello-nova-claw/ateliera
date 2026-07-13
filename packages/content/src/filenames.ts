@@ -27,14 +27,27 @@ function slugify(value: string): string {
   );
 }
 
+function validDatePrefix(value: string): string | null | undefined {
+  const prefix = /^\d{4}-\d{2}-\d{2}/.exec(value)?.[0];
+  if (prefix === undefined) return undefined;
+  const date = new Date(`${prefix}T00:00:00Z`);
+  return !Number.isNaN(date.valueOf()) &&
+    date.toISOString().slice(0, 10) === prefix
+    ? prefix
+    : null;
+}
+
 export function suggestFilename(
   note: Pick<StudioNote, 'created' | 'title' | 'cardType' | 'id'>,
 ): string {
   const parsedDate = new Date(note.created);
+  const prefix = validDatePrefix(note.created);
   const date =
-    /^\d{4}-\d{2}-\d{2}/.exec(note.created)?.[0] ??
-    (Number.isNaN(parsedDate.valueOf())
+    prefix === null
       ? '1970-01-01'
-      : parsedDate.toISOString().slice(0, 10));
+      : (prefix ??
+        (Number.isNaN(parsedDate.valueOf())
+          ? '1970-01-01'
+          : parsedDate.toISOString().slice(0, 10)));
   return `${date}--${slugify(note.title ?? note.cardType)}--${note.id.slice(-6).toLowerCase()}.md`;
 }

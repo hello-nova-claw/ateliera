@@ -192,9 +192,13 @@ describe('parseNote', () => {
 
   it.each([
     ['created', 'not-a-date'],
+    ['created', '2026-07-13'],
     ['created', '2026-99-99'],
     ['created', '2026-07-13 10:00'],
+    ['created', '2026-07-13T10:00:00'],
     ['updated', 'tomorrow'],
+    ['updated', '2026-07-13'],
+    ['updated', '2026-07-13T10:00:00'],
   ])('rejects invalid %s timestamp: %s', (field, timestamp) => {
     const parsed = parseNote(
       input.replace(
@@ -205,6 +209,16 @@ describe('parseNote', () => {
     expect(parsed).toMatchObject({ ok: false, rawBody: '\n# Hello\n' });
     if (!parsed.ok)
       expect(parsed.errors.some((error) => error.path === field)).toBe(true);
+  });
+
+  it('accepts timestamps with numeric offsets and Z', () => {
+    const parsed = parseNote(
+      input.replace(
+        'updated: 2026-07-13T10:00:00+10:00',
+        'updated: 2026-07-13T00:00:00Z',
+      ),
+    );
+    expect(parsed).toMatchObject({ ok: true });
   });
 
   it('round trips generated valid notes with semantic equality', () => {

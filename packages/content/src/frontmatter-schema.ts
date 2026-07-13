@@ -28,7 +28,7 @@ export const recognizedFrontmatterKeys = [
 ] as const;
 
 const optionalText = z.string().nullish();
-const timestamp = z.union([z.iso.date(), z.iso.datetime({ offset: true })]);
+const timestamp = z.iso.datetime({ offset: true });
 
 export const frontmatterSchema = z.object({
   schema_version: z.literal(1),
