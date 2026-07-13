@@ -1,5 +1,9 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { defaultLifeAreas, landscapeAnchors } from '@studio/domain';
+import {
+  defaultLifeAreas,
+  landscapeAnchors,
+  type LandscapeAnchor,
+} from '@studio/domain';
 import type { LandscapeBoardProjection } from '@studio/application';
 import { describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
@@ -197,15 +201,19 @@ describe('LandscapePage', () => {
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Move First note' }));
-    fireEvent.click(
-      screen.getByRole('menuitem', { name: /Move to Practices/ }),
-    );
+    const failedItem = screen.getByRole('menuitem', {
+      name: /Move to Practices/,
+    });
+    failedItem.focus();
+    fireEvent.click(failedItem);
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Another version exists.',
     );
     expect(
       screen.getByRole('button', { name: 'First note' }),
     ).toBeInTheDocument();
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(failedItem).toHaveFocus();
   });
 
   it('uses complete keyboard menu semantics and restores focus on dismissal', async () => {
@@ -443,12 +451,16 @@ describe('LandscapePage', () => {
       />,
     );
 
-    expect(screen.getByRole('status')).toHaveTextContent(
-      'newer version of The Studio',
-    );
+    expect(
+      screen.getByRole('status', { name: 'Life area compatibility' }),
+    ).toHaveTextContent('newer version of The Studio');
     expect(screen.queryByText('Manage life areas')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Rename/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Hide/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Rename/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /Hide/ }),
+    ).not.toBeInTheDocument();
   });
 
   it('restores focus to a surviving menu trigger after link and reorder', async () => {
@@ -465,11 +477,20 @@ describe('LandscapePage', () => {
       lifeAreas: ['home'],
       anchor: 'vision' as const,
     };
-    const second = { ...first, noteId: 'focus-two', title: 'Second focus note' };
+    const second = {
+      ...first,
+      noteId: 'focus-two',
+      title: 'Second focus note',
+    };
     const board: LandscapeBoardProjection = {
       cells: emptyBoard.cells.map((item) =>
         item.lifeArea === 'home' && item.anchor === 'vision'
-          ? { ...item, featured: first, cards: [first, second], noteIds: [first.noteId, second.noteId] }
+          ? {
+              ...item,
+              featured: first,
+              cards: [first, second],
+              noteIds: [first.noteId, second.noteId],
+            }
           : item,
       ),
     };
@@ -483,14 +504,22 @@ describe('LandscapePage', () => {
         path="/landscape/home"
       />,
     );
-    const trigger = screen.getByRole('button', { name: 'Move Second focus note' });
+    const trigger = screen.getByRole('button', {
+      name: 'Move Second focus note',
+    });
 
     fireEvent.click(trigger);
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Move earlier' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Move earlier' }));
+    });
     await vi.waitFor(() => expect(trigger).toHaveFocus());
 
     fireEvent.click(trigger);
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Also show in Family' }));
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('menuitem', { name: 'Also show in Family' }),
+      );
+    });
     await vi.waitFor(() => expect(trigger).toHaveFocus());
   });
 
@@ -509,7 +538,7 @@ describe('LandscapePage', () => {
       anchor: 'vision' as const,
     };
     function Harness() {
-      const [anchor, setAnchor] = useState(card.anchor);
+      const [anchor, setAnchor] = useState<LandscapeAnchor>(card.anchor);
       const board: LandscapeBoardProjection = {
         cells: emptyBoard.cells.map((item) =>
           item.lifeArea === 'home' && item.anchor === anchor
@@ -537,9 +566,15 @@ describe('LandscapePage', () => {
     }
     render(<Harness />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Move A reparented note' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: /Move to Practices/ }));
-    const title = await screen.findByRole('button', { name: 'A reparented note' });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Move A reparented note' }),
+    );
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: /Move to Practices/ }),
+    );
+    const title = await screen.findByRole('button', {
+      name: 'A reparented note',
+    });
     await vi.waitFor(() => expect(title).toHaveFocus());
   });
 });

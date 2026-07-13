@@ -23,6 +23,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import {
+  useCallback,
   useEffect,
   useId,
   useRef,
@@ -43,6 +44,7 @@ export interface LandscapeMove {
 export interface LandscapePageProps {
   areas: LifeArea[];
   board: LandscapeBoardProjection;
+  configUnavailable?: 'unsupported' | 'unavailable';
   error?: string;
   onAddArea?: (area: { id?: string; title: string }) => void;
   onCreate?: (
@@ -186,9 +188,18 @@ function NoteCard({
   areas: LifeArea[];
   card: LandscapeCardProjection;
   currentArea: string;
-  onMove?: (move: LandscapeMove) => Promise<void>;
+  onMove?: (
+    move: LandscapeMove,
+    focusTarget?: HTMLButtonElement,
+  ) => Promise<void>;
   onOpen?: LandscapePageProps['onOpen'];
-  onReorder?: LandscapePageProps['onReorder'];
+  onReorder?: (
+    lifeArea: string,
+    anchor: LandscapeAnchor,
+    noteIds: string[],
+    focusCard: LandscapeCardProjection,
+    focusTarget?: HTMLButtonElement,
+  ) => Promise<void>;
   position: number;
   sectionCards: LandscapeCardProjection[];
 }) {
@@ -269,7 +280,10 @@ function NoteCard({
     setMoveError('');
     setAnnouncement(`Moving ${card.title}…`);
     try {
-      await onMove({ card, lifeAreas, anchor });
+      await onMove(
+        { card, lifeAreas, anchor },
+        menuTriggerRef.current ?? undefined,
+      );
       setAnnouncement(`${card.title} moved.`);
       closeMenu();
     } catch (reason) {
@@ -296,6 +310,8 @@ function NoteCard({
         currentArea,
         card.anchor,
         next.map((item) => item.noteId),
+        card,
+        menuTriggerRef.current ?? undefined,
       );
       setAnnouncement(
         `${card.title} moved ${offset < 0 ? 'earlier' : 'later'}.`,
@@ -318,6 +334,7 @@ function NoteCard({
       className={`life-landscape-card life-landscape-card--${card.semanticType}${isDragging ? ' life-landscape-card--dragging' : ''}`}
       data-drop-anchor={card.anchor}
       data-drop-area={currentArea}
+      data-landscape-note-id={card.noteId}
       ref={setNodeRef}
     >
       <button
@@ -533,6 +550,7 @@ function AreaSwitcher({
 export function LandscapePage({
   areas,
   board,
+  configUnavailable,
   error,
   onAddArea,
   onCreate,
@@ -563,6 +581,16 @@ export function LandscapePage({
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [recoveryError, setRecoveryError] = useState('');
+  const pendingFocus = useRef<
+    | {
+        card: LandscapeCardProjection;
+        preferred?: HTMLButtonElement;
+      }
+    | undefined
+  >(undefined);
+  const focusTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, {
@@ -570,7 +598,38 @@ export function LandscapePage({
     }),
   );
 
-  async function performMove(move: LandscapeMove) {
+  const settlePendingFocus = useCallback((clear: boolean) => {
+    const pending = pendingFocus.current;
+    if (!pending) return;
+    if (pending.preferred?.isConnected) {
+      pending.preferred.focus();
+      if (clear) pendingFocus.current = undefined;
+      return;
+    }
+    const title = document.querySelector<HTMLButtonElement>(
+      `[data-landscape-note-id="${CSS.escape(pending.card.noteId)}"] .life-landscape-card__title`,
+    );
+    const fallback =
+      title ??
+      document.querySelector<HTMLButtonElement>('.life-landscape__undo button');
+    fallback?.focus();
+    if (fallback || clear) pendingFocus.current = undefined;
+  }, []);
+
+  function restoreFocusAfterMutation(
+    card: LandscapeCardProjection,
+    preferred?: HTMLButtonElement,
+  ) {
+    pendingFocus.current = { card, ...(preferred ? { preferred } : {}) };
+    requestAnimationFrame(() => settlePendingFocus(false));
+    if (focusTimer.current) clearTimeout(focusTimer.current);
+    focusTimer.current = setTimeout(() => settlePendingFocus(true), 1_000);
+  }
+
+  async function performMove(
+    move: LandscapeMove,
+    focusTarget?: HTMLButtonElement,
+  ) {
     if (!onMove) return;
     const saved = await onMove(move);
     setUndoError('');
@@ -582,12 +641,15 @@ export function LandscapePage({
         anchor: move.card.anchor,
       },
     });
+    restoreFocusAfterMutation(move.card, focusTarget);
   }
 
   async function performReorder(
     lifeArea: string,
     anchor: LandscapeAnchor,
     noteIds: string[],
+    focusCard: LandscapeCardProjection,
+    focusTarget?: HTMLButtonElement,
   ) {
     if (!onReorder) return;
     const previous = cell(board, lifeArea, anchor)?.noteIds ?? [];
@@ -602,6 +664,7 @@ export function LandscapePage({
       noteIds: previous,
       title: moved?.title ?? 'this note',
     });
+    restoreFocusAfterMutation(focusCard, focusTarget);
   }
 
   function beginDrag(event: DragStartEvent) {
@@ -706,6 +769,18 @@ export function LandscapePage({
   }
 
   useEffect(() => {
+    const frame = requestAnimationFrame(() => settlePendingFocus(true));
+    return () => cancelAnimationFrame(frame);
+  }, [board, settlePendingFocus]);
+
+  useEffect(
+    () => () => {
+      if (focusTimer.current) clearTimeout(focusTimer.current);
+    },
+    [],
+  );
+
+  useEffect(() => {
     if (
       !areas.length ||
       view.kind !== 'focus' ||
@@ -780,6 +855,20 @@ export function LandscapePage({
               </div>
             )}
             {recoveryError && <p role="alert">{recoveryError}</p>}
+          </section>
+        )}
+        {configUnavailable && (
+          <section
+            aria-label="Life area compatibility"
+            className="life-landscape__recovery"
+            role="status"
+          >
+            <h2>Life area settings are read-only</h2>
+            <p>
+              {configUnavailable === 'unsupported'
+                ? 'These life areas were saved by a newer version of The Studio. Update the app before managing them. The configuration file is untouched.'
+                : 'Life area settings are unavailable right now. Nothing can be changed, and the configuration file remains untouched.'}
+            </p>
           </section>
         )}
         {interactionError && (
@@ -1015,6 +1104,7 @@ export function LandscapePage({
         )}
 
         {!repairRequired &&
+          !configUnavailable &&
           (onAddArea || onRemoveArea || onRenameArea || onReorderArea) && (
             <details className="life-landscape__manage">
               <summary>Manage life areas</summary>

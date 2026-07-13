@@ -1,7 +1,8 @@
-import type {
-  LandscapeBoardProjection,
-  LifeAreaPreference,
-  StudioService,
+import {
+  UnsupportedLifeAreaConfigError,
+  type LandscapeBoardProjection,
+  type LifeAreaPreference,
+  type StudioService,
 } from '@studio/application';
 import {
   defaultLifeAreas,
@@ -57,6 +58,9 @@ export function useLandscape(
     useState<LifeAreaPreference[]>(defaultPreferences);
   const [areaRevision, setAreaRevision] = useState<string | null>(null);
   const [repairRequired, setRepairRequired] = useState(false);
+  const [configUnavailable, setConfigUnavailable] = useState<
+    'unsupported' | 'unavailable'
+  >();
   const [board, setBoard] = useState<LandscapeBoardProjection>(emptyBoard);
   const [localRevision, setLocalRevision] = useState(0);
   const [state, setState] = useState<'ready' | 'loading' | 'stale' | 'error'>(
@@ -71,15 +75,31 @@ export function useLandscape(
       setPreferences(defaultPreferences());
       setAreaRevision(null);
       setRepairRequired(false);
+      setConfigUnavailable(undefined);
       setBoard(emptyBoard);
       setState('ready');
       return undefined;
     }
     let current = true;
     setState('loading');
-    void service.lifeAreas
-      .load()
-      .then(async (snapshot) => {
+    setConfigUnavailable(undefined);
+    void (async () => {
+      let snapshot: Awaited<ReturnType<typeof service.lifeAreas.load>>;
+      try {
+        snapshot = await service.lifeAreas.load();
+      } catch (reason) {
+        if (!current) return;
+        setConfigUnavailable(
+          reason instanceof UnsupportedLifeAreaConfigError
+            ? 'unsupported'
+            : 'unavailable',
+        );
+        setRepairRequired(false);
+        setError(undefined);
+        setState('ready');
+        return;
+      }
+      try {
         const selected = activeAreas(snapshot.areas);
         const next = await service.projectLandscapeBoard(
           selected.map((area) => area.id),
@@ -88,12 +108,12 @@ export function useLandscape(
         setPreferences(snapshot.areas);
         setAreaRevision(snapshot.revision);
         setRepairRequired(snapshot.repairRequired);
+        setConfigUnavailable(undefined);
         setAreas(selected);
         setBoard(next);
         setError(undefined);
         setState(service.indexState() === 'ready' ? 'ready' : 'stale');
-      })
-      .catch((reason: unknown) => {
+      } catch (reason) {
         if (!current) return;
         setState('error');
         setError(
@@ -101,7 +121,8 @@ export function useLandscape(
             ? reason.message
             : 'The Landscape could not be gathered.',
         );
-      });
+      }
+    })();
     return () => {
       current = false;
     };
@@ -113,6 +134,13 @@ export function useLandscape(
   ) {
     if (!service)
       throw new Error('Choose a Studio before changing life areas.');
+    if (configUnavailable) {
+      throw new Error(
+        configUnavailable === 'unsupported'
+          ? 'These life areas were saved by a newer version and cannot be changed here.'
+          : 'Life area settings are unavailable and cannot be changed right now.',
+      );
+    }
     if (repairRequired && !allowRepair) {
       throw new Error(
         'Review the life area recovery before changing this setup.',
@@ -144,6 +172,7 @@ export function useLandscape(
     areas,
     board,
     error,
+    configUnavailable,
     repairRequired,
     state,
     refresh,

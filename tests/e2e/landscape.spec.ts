@@ -164,8 +164,7 @@ test('moves, links, and undoes one canonical note', async ({
     const handle = await page
       .getByRole('button', { name: 'Drag A calm home' })
       .boundingBox();
-    if (!handle)
-      throw new Error('Landscape drag targets were not rendered.');
+    if (!handle) throw new Error('Landscape drag targets were not rendered.');
     await page.mouse.move(
       handle.x + handle.width / 2,
       handle.y + handle.height / 2,
@@ -223,6 +222,51 @@ test('moves, links, and undoes one canonical note', async ({
       .getByRole('region', { name: 'Vision' })
       .getByRole('button', { name: 'A calm home', exact: true }),
   ).toBeVisible();
+});
+
+test('keyboard menu restores focus after reorder, link, and reparented move', async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name === 'mobile-chromium',
+    'The same menu is covered through the desktop keyboard path.',
+  );
+  await createLocalStudio(page);
+  await page.getByRole('link', { name: 'Life Landscape' }).click();
+  await addHomeVision(page, 'First keyboard note');
+  const vision = page.getByRole('region', { name: 'Vision' });
+  await vision.getByRole('button', { name: '+ Add' }).click();
+  await page
+    .getByRole('textbox', { name: 'What would you like remembered?' })
+    .fill('Second keyboard note');
+  await page.getByRole('button', { name: 'Remember' }).click();
+
+  const trigger = page.getByRole('button', {
+    name: 'Move Second keyboard note',
+  });
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    page.getByRole('menuitem', { name: 'Move later' }),
+  ).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(trigger).toBeFocused();
+
+  await page.keyboard.press('Enter');
+  const link = page.getByRole('menuitem', { name: 'Also show in Family' });
+  await link.focus();
+  await page.keyboard.press('Enter');
+  await expect(trigger).toBeFocused();
+
+  await page.keyboard.press('Enter');
+  const move = page.getByRole('menuitem', { name: /Move to Practices/ });
+  await move.focus();
+  await page.keyboard.press('Enter');
+  const movedTitle = page
+    .getByRole('region', { name: 'Practices' })
+    .getByRole('button', { name: 'Second keyboard note', exact: true });
+  await expect(movedTitle).toBeVisible();
+  await expect(movedTitle).toBeFocused();
 });
 
 test('mobile routes directly to one area and never renders the matrix', async ({

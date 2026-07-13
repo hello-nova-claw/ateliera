@@ -55,6 +55,9 @@ export default function LandscapeRoom({
     <LandscapePage
       areas={landscape.areas}
       board={landscape.board}
+      {...(landscape.configUnavailable
+        ? { configUnavailable: landscape.configUnavailable }
+        : {})}
       {...(landscape.error ? { error: landscape.error } : {})}
       onAddArea={(area) => void landscape.addArea(area).catch(() => undefined)}
       {...(onCreateLandscape ? { onCreate: onCreateLandscape } : {})}
