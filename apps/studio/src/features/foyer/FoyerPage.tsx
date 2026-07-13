@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type {
+  FoyerImageProjection,
   FoyerProjection,
   StudioCardProjection,
 } from '@studio/application';
@@ -9,37 +10,42 @@ import { Legend } from './Legend';
 import { Principles } from './Principles';
 import { ReturnCard } from './ReturnCard';
 import { SeasonPreview } from './SeasonPreview';
+import type { FoyerCoverView } from './use-foyer-cover';
 import './FoyerPage.css';
 
 export type FoyerSlot = 'becoming' | 'feeling' | 'principle';
 
 export interface FoyerPageProps {
+  cover?: FoyerCoverView;
   error?: string;
   model: FoyerProjection;
   onCreate?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
   onOpen?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
-  onRemoveImage?: (noteId: string, trigger: HTMLButtonElement) => void;
+  onRemoveImage?: (
+    image: FoyerImageProjection,
+    trigger: HTMLButtonElement,
+  ) => void;
   state?: 'ready' | 'loading' | 'offline' | 'stale' | 'error';
 }
 
-function imageSource(source: string): string | null {
-  const value = source.trim();
-  if (value.startsWith('data:image/') || value.startsWith('blob:'))
-    return value;
-  if (/^[a-z][a-z\d+.-]*:/i.test(value) || value.startsWith('//')) return null;
-  return value;
-}
-
 function FoyerImage({
+  cover,
   image,
   onRemove,
 }: {
+  cover: FoyerCoverView;
   image: NonNullable<FoyerProjection['image']>;
   onRemove?: (trigger: HTMLButtonElement) => void;
 }) {
   const [missing, setMissing] = useState(false);
-  const source = imageSource(image.source);
-  if (missing || source === null)
+  if (cover.state === 'loading') {
+    return (
+      <div className="foyer-polaroid__missing" role="status">
+        Preparing this image…
+      </div>
+    );
+  }
+  if (missing || cover.state !== 'ready')
     return (
       <div className="foyer-polaroid__missing">
         <p>This image is not available here.</p>
@@ -57,7 +63,7 @@ function FoyerImage({
   return (
     <figure className="foyer-polaroid">
       <span aria-hidden="true" className="foyer-polaroid__tape" />
-      <img alt={image.alt} onError={() => setMissing(true)} src={source} />
+      <img alt={image.alt} onError={() => setMissing(true)} src={cover.url} />
       {image.caption && <figcaption>{image.caption}</figcaption>}
       {onRemove && (
         <button
@@ -95,6 +101,7 @@ function FoyerSkeleton() {
 }
 
 export function FoyerPage({
+  cover = { state: 'none' },
   error,
   model,
   onCreate,
@@ -177,11 +184,12 @@ export function FoyerPage({
           <aside className="foyer-page__narrow" aria-label="Feeling and return">
             {model.image && (
               <FoyerImage
+                cover={cover}
                 image={model.image}
                 {...(onRemoveImage
                   ? {
                       onRemove: (trigger: HTMLButtonElement) =>
-                        onRemoveImage(model.image!.noteId, trigger),
+                        onRemoveImage(model.image!, trigger),
                     }
                   : {})}
               />

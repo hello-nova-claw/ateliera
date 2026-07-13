@@ -32,6 +32,9 @@ const empty: FoyerProjection = {
   image: null,
 };
 
+const previewImage =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 600'%3E%3Cdefs%3E%3ClinearGradient id='s' x2='0' y2='1'%3E%3Cstop stop-color='%23dce8ed'/%3E%3Cstop offset='1' stop-color='%23f6e9c6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='800' height='600' fill='url(%23s)'/%3E%3Cpath d='M0 430 Q250 280 520 390 T800 330 V600 H0Z' fill='%2392aa7c'/%3E%3Cpath d='M0 500 Q300 350 800 460 V600 H0Z' fill='%236f8d64'/%3E%3C/svg%3E";
+
 const full: FoyerProjection = {
   currentSeason: card({
     noteId: 'season',
@@ -101,17 +104,22 @@ const full: FoyerProjection = {
   image: {
     noteId: 'image',
     path: 'Foyer/image.md',
+    hash: 'image-hash',
     alt: 'Soft morning light across a green hillside',
     caption: 'the childhood hill',
-    source:
-      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 600'%3E%3Cdefs%3E%3ClinearGradient id='s' x2='0' y2='1'%3E%3Cstop stop-color='%23dce8ed'/%3E%3Cstop offset='1' stop-color='%23f6e9c6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='800' height='600' fill='url(%23s)'/%3E%3Cpath d='M0 430 Q250 280 520 390 T800 330 V600 H0Z' fill='%2392aa7c'/%3E%3Cpath d='M0 500 Q300 350 800 460 V600 H0Z' fill='%236f8d64'/%3E%3C/svg%3E",
+    source: '../Attachments/childhood-hill.png',
   },
 };
 
 const meta: Meta<typeof FoyerPage> = {
   title: 'Rooms/Foyer',
   component: FoyerPage,
-  args: { model: full, onCreate: () => undefined, onOpen: () => undefined },
+  args: {
+    cover: { state: 'ready', url: previewImage },
+    model: full,
+    onCreate: () => undefined,
+    onOpen: () => undefined,
+  },
   decorators: [
     (Story) => (
       <div style={{ margin: '0 auto', maxWidth: '1180px' }}>
@@ -162,6 +170,7 @@ export const Error: Story = {
 };
 export const MissingImage: Story = {
   args: {
+    cover: { state: 'unavailable', reason: 'missing' },
     model: {
       ...full,
       image: { ...full.image!, source: '/missing-foyer-image.jpg' },

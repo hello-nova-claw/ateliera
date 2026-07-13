@@ -1,5 +1,6 @@
 import type {
   CaptureEntry,
+  FoyerImageProjection,
   StudioCardProjection,
   StudioService,
 } from '@studio/application';
@@ -12,7 +13,10 @@ interface RoomProps {
   onOpenCapture?: (id: string, trigger: HTMLButtonElement) => void;
   onCreateFoyer?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
   onOpenCard?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
-  onRemoveFoyerImage?: (noteId: string, trigger: HTMLButtonElement) => void;
+  onRemoveFoyerImage?: (
+    image: FoyerImageProjection,
+    trigger: HTMLButtonElement,
+  ) => void;
   projectionRevision?: number;
   service?: StudioService;
 }
@@ -50,7 +54,10 @@ export function RoomRoute({
   onOpenCapture?: (id: string, trigger: HTMLButtonElement) => void;
   onCreateFoyer?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
   onOpenCard?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
-  onRemoveFoyerImage?: (noteId: string, trigger: HTMLButtonElement) => void;
+  onRemoveFoyerImage?: (
+    image: FoyerImageProjection,
+    trigger: HTMLButtonElement,
+  ) => void;
   path: StudioPath;
   projectionRevision?: number;
   service?: StudioService;

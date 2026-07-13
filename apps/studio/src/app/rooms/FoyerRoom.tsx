@@ -1,10 +1,12 @@
 import type {
   CaptureEntry,
+  FoyerImageProjection,
   StudioCardProjection,
   StudioService,
 } from '@studio/application';
 import { FoyerPage, type FoyerSlot } from '../../features/foyer/FoyerPage';
 import { useFoyer } from '../../features/foyer/use-foyer';
+import { useFoyerCover } from '../../features/foyer/use-foyer-cover';
 
 export default function FoyerRoom({
   onCreateFoyer,
@@ -18,15 +20,20 @@ export default function FoyerRoom({
   captures?: CaptureEntry[];
   onCreateFoyer?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
   onOpenCapture?: (id: string, trigger: HTMLButtonElement) => void;
-  onRemoveFoyerImage?: (noteId: string, trigger: HTMLButtonElement) => void;
+  onRemoveFoyerImage?: (
+    image: FoyerImageProjection,
+    trigger: HTMLButtonElement,
+  ) => void;
   onOpenCard?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
   projectionRevision?: number;
   service?: StudioService;
 }) {
   const view = useFoyer(service, projectionRevision);
+  const cover = useFoyerCover(service, view.model.image);
   return (
     <>
       <FoyerPage
+        cover={cover}
         {...(view.error === undefined ? {} : { error: view.error })}
         model={view.model}
         {...(onCreateFoyer === undefined ? {} : { onCreate: onCreateFoyer })}

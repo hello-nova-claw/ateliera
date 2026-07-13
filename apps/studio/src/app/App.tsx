@@ -2,6 +2,7 @@ import {
   type CaptureEntry,
   type CapturePlacement,
   type CaptureService,
+  type FoyerImageProjection,
   type SavedNote,
   type StudioService,
 } from '@studio/application';
@@ -457,13 +458,13 @@ function StudioApplication({
       });
   }
 
-  function removeFoyerImage(noteId: string): void {
+  function removeFoyerImage(image: FoyerImageProjection): void {
     if (!isStudioService(service)) return;
     void service
-      .trash(noteId)
+      .clearCover(image.path, image.hash)
       .then(() => {
         setProjectionRevision((revision) => revision + 1);
-        setToast('Moved to Trash.');
+        setToast('Image removed.');
         requestAnimationFrame(() =>
           document.querySelector<HTMLElement>('#studio-main')?.focus(),
         );
@@ -472,7 +473,7 @@ function StudioApplication({
         setError(
           reason instanceof Error
             ? reason.message
-            : 'This image could not be moved to Trash.',
+            : 'This image could not be removed.',
         );
       });
   }

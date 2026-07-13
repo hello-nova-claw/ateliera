@@ -6,6 +6,7 @@ import { useFoyerCover } from './use-foyer-cover';
 const image: FoyerImageProjection = {
   noteId: 'image',
   path: 'Foyer/image.md',
+  hash: 'image-hash',
   source: '../Attachments/morning.png',
   alt: 'Morning light',
 };
@@ -42,7 +43,8 @@ it('creates a private object URL from vault bytes and revokes it on cleanup', as
     }),
   );
   expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
-  expect(createObjectURL.mock.calls[0]?.[0].type).toBe('image/png');
+  expect(createObjectURL.mock.calls[0]?.[0]).toBeInstanceOf(Blob);
+  expect((createObjectURL.mock.calls[0]?.[0] as Blob).type).toBe('image/png');
   view.unmount();
   expect(revokeObjectURL).toHaveBeenCalledWith('blob:studio-cover');
 });

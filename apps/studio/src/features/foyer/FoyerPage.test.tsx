@@ -104,12 +104,19 @@ it('composes populated editorial slots without turning cards into giant buttons'
     image: {
       noteId: 'image',
       path: 'Foyer/image.md',
+      hash: 'image-hash',
       source: '/morning.jpg',
       alt: 'Morning light',
       caption: 'Morning light in the kitchen',
     },
   };
-  render(<FoyerPage model={model} onOpen={onOpen} />);
+  render(
+    <FoyerPage
+      cover={{ state: 'ready', url: 'blob:morning' }}
+      model={model}
+      onOpen={onOpen}
+    />,
+  );
 
   expect(screen.getByRole('heading', { name: 'The Studio' })).toBeVisible();
   expect(screen.getAllByRole('article').length).toBeGreaterThanOrEqual(4);
@@ -132,17 +139,18 @@ it('collapses a missing optional image into a calm repair note', () => {
         image: {
           noteId: 'image',
           path: 'Foyer/image.md',
+          hash: 'image-hash',
           source: '/missing.jpg',
           alt: 'A hillside',
         },
       }}
+      cover={{ state: 'unavailable', reason: 'missing' }}
     />,
   );
-  fireEvent.error(screen.getByRole('img', { name: 'A hillside' }));
   expect(screen.getByText('This image is not available here.')).toBeVisible();
 });
 
-it('does not contact an external image host and offers recoverable removal', () => {
+it('never renders a raw cover reference and offers non-destructive removal', () => {
   const onRemoveImage = vi.fn();
   render(
     <FoyerPage
@@ -151,17 +159,19 @@ it('does not contact an external image host and offers recoverable removal', () 
         image: {
           noteId: 'image',
           path: 'Foyer/image.md',
+          hash: 'image-hash',
           source: 'https://tracker.example/image.jpg',
           alt: 'A hillside',
         },
       }}
+      cover={{ state: 'unavailable', reason: 'unsafe-reference' }}
       onRemoveImage={onRemoveImage}
     />,
   );
   expect(screen.queryByRole('img')).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Remove this image' }));
   expect(onRemoveImage).toHaveBeenCalledWith(
-    'image',
+    expect.objectContaining({ noteId: 'image', hash: 'image-hash' }),
     expect.any(HTMLButtonElement),
   );
 });
