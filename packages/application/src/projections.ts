@@ -54,7 +54,8 @@ export interface LandscapeProjectionQuery {
 }
 
 function visible(item: LoadedNote, viewKey: string): boolean {
-  return item.note.status !== 'archived' &&
+  return (
+    item.note.status !== 'archived' &&
     item.note.status !== 'trashed' &&
     item.note.extraFrontmatter.excluded_from_views !== true &&
     item.note.extraFrontmatter.excluded !== true &&
@@ -62,14 +63,17 @@ function visible(item: LoadedNote, viewKey: string): boolean {
       item.note.status === 'draft' &&
       item.note.rooms.includes('inbox') &&
       viewKey !== 'room:inbox'
-    );
+    )
+  );
 }
 
 function fallbackCompare(left: LoadedNote, right: LoadedNote): number {
-  return Date.parse(right.note.updated) - Date.parse(left.note.updated) ||
+  return (
+    Date.parse(right.note.updated) - Date.parse(left.note.updated) ||
     Date.parse(right.note.created) - Date.parse(left.note.created) ||
     (left.note.title ?? '').localeCompare(right.note.title ?? '', 'en') ||
-    left.note.id.localeCompare(right.note.id, 'en');
+    left.note.id.localeCompare(right.note.id, 'en')
+  );
 }
 
 function toCard(item: LoadedNote): StudioCardProjection {
@@ -100,7 +104,9 @@ export async function orderedProjection(
   viewKey: string,
   views?: ViewStateRepository,
 ): Promise<StudioCardProjection[]> {
-  const sorted = dedupe(items.filter((item) => visible(item, viewKey)).sort(fallbackCompare));
+  const sorted = dedupe(
+    items.filter((item) => visible(item, viewKey)).sort(fallbackCompare),
+  );
   const manual = views === undefined ? [] : await views.load(viewKey);
   const byId = new Map(sorted.map((item) => [item.note.id, item]));
   const manualItems = manual.flatMap((id) => {
@@ -108,14 +114,19 @@ export async function orderedProjection(
     return item === undefined ? [] : [item];
   });
   const manuallyPlaced = new Set(manualItems.map((item) => item.note.id));
-  return [...manualItems, ...sorted.filter((item) => !manuallyPlaced.has(item.note.id))].map(toCard);
+  return [
+    ...manualItems,
+    ...sorted.filter((item) => !manuallyPlaced.has(item.note.id)),
+  ].map(toCard);
 }
 
 function belongsToRoom(note: StudioNote, room: string): boolean {
   if (note.rooms.includes(room)) return true;
   if (room === 'uncharted') return note.semanticType === 'uncharted';
   if (room === 'reflection-garden') {
-    return note.semanticType === 'reflection' || note.semanticType === 'celebration';
+    return (
+      note.semanticType === 'reflection' || note.semanticType === 'celebration'
+    );
   }
   return false;
 }
@@ -139,9 +150,12 @@ export async function projectLandscape(
 ): Promise<StudioCardProjection[]> {
   const suffix = query.anchor === undefined ? '' : `:${query.anchor}`;
   return orderedProjection(
-    notes.filter((item) =>
-      item.note.lifeAreas.includes(query.lifeArea) &&
-      (query.anchor === undefined || item.note.landscapeAnchor === query.anchor)),
+    notes.filter(
+      (item) =>
+        item.note.lifeAreas.includes(query.lifeArea) &&
+        (query.anchor === undefined ||
+          item.note.landscapeAnchor === query.anchor),
+    ),
     `landscape:${query.lifeArea}${suffix}`,
     views,
   );
@@ -163,10 +177,12 @@ export async function projectCurrentSeason(
   notes: LoadedNote[],
 ): Promise<ActiveSeasonProjection> {
   const candidates = await orderedProjection(
-    notes.filter((item) =>
-      item.note.cardType === 'season' &&
-      item.note.status === 'active' &&
-      item.note.rooms.includes('current-season')),
+    notes.filter(
+      (item) =>
+        item.note.cardType === 'season' &&
+        item.note.status === 'active' &&
+        item.note.rooms.includes('current-season'),
+    ),
     'current-season:active',
   );
   const current = candidates[0] ?? null;
@@ -192,36 +208,73 @@ export async function projectFoyer(
   const [activeSeason, featuredCandidates] = await Promise.all([
     projectCurrentSeason(notes),
     orderedProjection(
-      notes.filter((item) => item.note.display.featured || item.note.rooms.includes('foyer')),
+      notes.filter(
+        (item) =>
+          item.note.display.featured || item.note.rooms.includes('foyer'),
+      ),
       'foyer:featured',
       views,
     ),
   ]);
   const eligible = notes.filter((item) => visible(item, 'foyer:featured'));
-  const foyerNotes = eligible.filter((item) =>
-    item.note.rooms.includes('foyer') || item.note.display.featured,
+  const foyerNotes = eligible.filter(
+    (item) => item.note.rooms.includes('foyer') || item.note.display.featured,
   );
-  const orderedFoyer = await orderedProjection(foyerNotes, 'foyer:featured', views);
+  const orderedFoyer = await orderedProjection(
+    foyerNotes,
+    'foyer:featured',
+    views,
+  );
   const card = (predicate: (item: LoadedNote) => boolean) =>
     orderedFoyer.find((candidate) => {
-      const source = foyerNotes.find((item) => item.note.id === candidate.noteId);
+      const source = foyerNotes.find(
+        (item) => item.note.id === candidate.noteId,
+      );
       return source !== undefined && predicate(source);
     }) ?? null;
   const cards = (predicate: (item: LoadedNote) => boolean, limit: number) =>
-    orderedFoyer.filter((candidate) => {
-      const source = foyerNotes.find((item) => item.note.id === candidate.noteId);
-      return source !== undefined && predicate(source);
-    }).slice(0, limit);
-  const currentSeasonId = activeSeason.current?.noteId;
-  const priorities = currentSeasonId === undefined
-    ? []
-    : await orderedProjection(
-        eligible.filter((item) =>
-          item.note.seasons.includes(currentSeasonId) && item.note.cardType === 'priority'),
-        `foyer:season:${currentSeasonId}:priorities`,
-        views,
-      );
-  const imageNote = foyerNotes.find((item) => item.note.display.cover !== undefined);
+    orderedFoyer
+      .filter((candidate) => {
+        const source = foyerNotes.find(
+          (item) => item.note.id === candidate.noteId,
+        );
+        return source !== undefined && predicate(source);
+      })
+      .slice(0, limit);
+  const activeSeasonNote =
+    activeSeason.current === null
+      ? undefined
+      : eligible.find((item) => item.note.id === activeSeason.current?.noteId)
+          ?.note;
+  const canonicalSeasonId =
+    typeof activeSeasonNote?.extraFrontmatter.season_id === 'string'
+      ? activeSeasonNote.extraFrontmatter.season_id.trim()
+      : '';
+  const declaredPriorityIds = new Set(
+    Array.isArray(activeSeasonNote?.extraFrontmatter.priorities)
+      ? activeSeasonNote.extraFrontmatter.priorities.filter(
+          (value): value is string =>
+            typeof value === 'string' && value.trim() !== '',
+        )
+      : [],
+  );
+  const priorities =
+    activeSeasonNote === undefined
+      ? []
+      : await orderedProjection(
+          eligible.filter(
+            (item) =>
+              item.note.cardType === 'priority' &&
+              (declaredPriorityIds.has(item.note.id) ||
+                (canonicalSeasonId !== '' &&
+                  item.note.seasons.includes(canonicalSeasonId))),
+          ),
+          `foyer:season:${canonicalSeasonId || activeSeasonNote.id}:priorities`,
+          views,
+        );
+  const imageNote = foyerNotes.find(
+    (item) => item.note.display.cover !== undefined,
+  );
   return {
     currentSeason: activeSeason.current,
     featured: featuredCandidates.filter(
@@ -231,18 +284,27 @@ export async function projectFoyer(
     feelings: cards((item) => item.note.cardType === 'feeling', 8),
     principles: cards((item) => item.note.cardType === 'principle', 3),
     priorities: priorities.slice(0, 3),
-    returning: card((item) =>
-      item.note.semanticType === 'reflection' || item.note.semanticType === 'celebration'),
-    image: imageNote?.note.display.cover === undefined
-      ? null
-      : {
-          noteId: imageNote.note.id,
-          path: imageNote.path,
-          source: imageNote.note.display.cover,
-          alt: imageNote.note.title?.trim() || 'A chosen Studio image',
-          ...(imageNote.note.body.trim() === ''
-            ? {}
-            : { caption: markdownToPlainText(imageNote.note.body).slice(0, 120) }),
-        },
+    returning: card(
+      (item) =>
+        item.note.semanticType === 'reflection' ||
+        item.note.semanticType === 'celebration',
+    ),
+    image:
+      imageNote?.note.display.cover === undefined
+        ? null
+        : {
+            noteId: imageNote.note.id,
+            path: imageNote.path,
+            source: imageNote.note.display.cover,
+            alt: imageNote.note.title?.trim() || 'A chosen Studio image',
+            ...(imageNote.note.body.trim() === ''
+              ? {}
+              : {
+                  caption: markdownToPlainText(imageNote.note.body).slice(
+                    0,
+                    120,
+                  ),
+                }),
+          },
   };
 }
