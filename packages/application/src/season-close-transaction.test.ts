@@ -194,6 +194,30 @@ describe('season close transaction', () => {
     ).toHaveLength(1);
   });
 
+  it('closes a season with no priorities after preserving its letter and snapshot', async () => {
+    const { vault, revisions, closeRequest } = await setup();
+    const service = createSeasonCloseTransactionService({
+      vault,
+      control: createStudioControlVault(vault),
+      revisions,
+      clock: () => new Date(now),
+    });
+
+    const result = await service.close({
+      ...closeRequest,
+      priorityIds: [],
+      dispositions: [],
+    });
+
+    expect(result.season.note.status).toBe('archived');
+    expect(result.snapshot.manifest.files).toHaveLength(1);
+    expect(
+      (await notesIn(vault, 'Reflection Garden')).filter(
+        (item) => item.cardType === 'season-letter',
+      ),
+    ).toHaveLength(1);
+  });
+
   it.each([
     ['missing', async (vault: VaultPort) => vault.remove('Ideas/idea.md')],
     [

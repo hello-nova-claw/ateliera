@@ -121,7 +121,7 @@ function normalizedReflection(
 }
 
 function isPotentialNotePath(path: string): boolean {
-  const name = path.split('/').at(-1) ?? '';
+  const name = path.slice(path.lastIndexOf('/') + 1);
   return name.toLocaleLowerCase('en').endsWith('.md') || !name.includes('.');
 }
 
@@ -575,6 +575,10 @@ export function createSeasonCloseTransactionService({
       journal.stage === 'letter-written' ||
       journal.stage === 'applying-targets'
     ) {
+      if (journal.stage === 'letter-written' && journal.targets.length === 0) {
+        journal = { ...journal, stage: 'applying-targets' };
+        loaded = await checkpoint(loaded, journal);
+      }
       for (let index = 0; index < journal.targets.length; index += 1) {
         const target = journal.targets[index]!;
         if (target.state === 'complete') continue;
