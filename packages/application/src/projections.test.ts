@@ -98,6 +98,27 @@ describe('room projections', () => {
     }));
   });
 
+  it('keeps an untitled empty Foyer image useful without inventing a caption', async () => {
+    const image = note({
+      id: 'image',
+      body: '',
+      rooms: ['foyer'],
+      display: { featured: true, cover: '../Attachments/quiet.jpg' },
+    });
+    delete image.title;
+    const service = createStudioService({
+      vault: await seed([{ path: 'Foyer/image.md', note: image }]),
+      index: new RecordingIndex(),
+    });
+
+    expect((await service.projectFoyer()).image).toEqual({
+      noteId: 'image',
+      path: 'Foyer/image.md',
+      source: '../Attachments/quiet.jpg',
+      alt: 'A chosen Studio image',
+    });
+  });
+
   it('supports empty, excluded, generic-room, and untitled projections', async () => {
     const bodyTitle = note({ id: 'explicit', body: 'Body becomes title', rooms: ['identity-studio'] });
     const emptyTitle = note({ id: 'empty', body: '', rooms: ['identity-studio'] });

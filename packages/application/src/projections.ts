@@ -15,13 +15,28 @@ export interface StudioCardProjection {
   title: string;
   excerpt: string;
   semanticType: SemanticType;
+  cardType: string;
   status: StudioNote['status'];
   updated: string;
+}
+
+export interface FoyerImageProjection {
+  noteId: string;
+  path: string;
+  source: string;
+  alt: string;
+  caption?: string;
 }
 
 export interface FoyerProjection {
   currentSeason: StudioCardProjection | null;
   featured: StudioCardProjection[];
+  becoming: StudioCardProjection | null;
+  feelings: StudioCardProjection[];
+  principles: StudioCardProjection[];
+  priorities: StudioCardProjection[];
+  returning: StudioCardProjection | null;
+  image: FoyerImageProjection | null;
 }
 
 export interface ActiveSeasonProjection {
@@ -65,6 +80,7 @@ function toCard(item: LoadedNote): StudioCardProjection {
     title: item.note.title?.trim() || plain.slice(0, 80) || 'Untitled',
     excerpt: plain.slice(0, 240),
     semanticType: item.note.semanticType,
+    cardType: item.note.cardType,
     status: item.note.status,
     updated: item.note.updated,
   };
@@ -181,10 +197,52 @@ export async function projectFoyer(
       views,
     ),
   ]);
+  const eligible = notes.filter((item) => visible(item, 'foyer:featured'));
+  const foyerNotes = eligible.filter((item) =>
+    item.note.rooms.includes('foyer') || item.note.display.featured,
+  );
+  const orderedFoyer = await orderedProjection(foyerNotes, 'foyer:featured', views);
+  const card = (predicate: (item: LoadedNote) => boolean) =>
+    orderedFoyer.find((candidate) => {
+      const source = foyerNotes.find((item) => item.note.id === candidate.noteId);
+      return source !== undefined && predicate(source);
+    }) ?? null;
+  const cards = (predicate: (item: LoadedNote) => boolean, limit: number) =>
+    orderedFoyer.filter((candidate) => {
+      const source = foyerNotes.find((item) => item.note.id === candidate.noteId);
+      return source !== undefined && predicate(source);
+    }).slice(0, limit);
+  const currentSeasonId = activeSeason.current?.noteId;
+  const priorities = currentSeasonId === undefined
+    ? []
+    : await orderedProjection(
+        eligible.filter((item) =>
+          item.note.seasons.includes(currentSeasonId) && item.note.cardType === 'priority'),
+        `foyer:season:${currentSeasonId}:priorities`,
+        views,
+      );
+  const imageNote = foyerNotes.find((item) => item.note.display.cover !== undefined);
   return {
     currentSeason: activeSeason.current,
     featured: featuredCandidates.filter(
       (item) => item.noteId !== activeSeason.current?.noteId,
     ),
+    becoming: card((item) => item.note.cardType === 'identity'),
+    feelings: cards((item) => item.note.cardType === 'feeling', 8),
+    principles: cards((item) => item.note.cardType === 'principle', 3),
+    priorities: priorities.slice(0, 3),
+    returning: card((item) =>
+      item.note.semanticType === 'reflection' || item.note.semanticType === 'celebration'),
+    image: imageNote?.note.display.cover === undefined
+      ? null
+      : {
+          noteId: imageNote.note.id,
+          path: imageNote.path,
+          source: imageNote.note.display.cover,
+          alt: imageNote.note.title?.trim() || 'A chosen Studio image',
+          ...(imageNote.note.body.trim() === ''
+            ? {}
+            : { caption: markdownToPlainText(imageNote.note.body).slice(0, 120) }),
+        },
   };
 }
