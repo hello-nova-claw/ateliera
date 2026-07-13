@@ -119,4 +119,16 @@ describe('capture', () => {
     })).rejects.toThrow('Decision horizons');
     expect(await vault.list()).toEqual([]);
   });
+
+  it('rejects an unknown decision horizon before writing', async () => {
+    const vault = createInMemoryVault();
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    await expect(service.capture({
+      body: 'Choose childcare support',
+      decisionHorizon: 'later' as never,
+      landscape: { lifeArea: 'family', anchor: 'decisions' },
+    })).rejects.toThrow('Decision horizons');
+    expect(await vault.list()).toEqual([]);
+  });
 });

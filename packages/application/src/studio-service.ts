@@ -7,11 +7,13 @@ import {
   suggestFilename,
 } from '@studio/content';
 import type {
+  DecisionHorizon,
   LandscapeAnchor,
   ParseError,
   SemanticType,
   StudioNote,
 } from '@studio/domain';
+import { isDecisionHorizon } from '@studio/domain';
 import type { IndexEntry, IndexPort } from '@studio/index';
 import {
   VaultConflictError,
@@ -101,6 +103,7 @@ export interface CaptureNoteInput {
   title?: string;
   placement?: CapturePlacement;
   landscape?: { lifeArea: string; anchor: LandscapeAnchor };
+  decisionHorizon?: DecisionHorizon;
 }
 
 export type CapturePlacement =
@@ -663,6 +666,10 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
       assertActive();
       const body = input.body.trim();
       if (body === '') throw new Error('Write something to remember first.');
+      if (input.decisionHorizon !== undefined &&
+        (!isDecisionHorizon(input.decisionHorizon) || input.landscape?.anchor !== 'decisions')) {
+        throw new Error('Decision horizons can only be used with the Decisions anchor.');
+      }
       const created = iso(clock);
       const placement = input.placement === undefined
         ? undefined
@@ -694,7 +701,9 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
           attachments: [],
           display: { featured: placement !== undefined },
           privacy: { sensitivity: 'private', aiAccess: 'ask' },
-          extraFrontmatter: {},
+          extraFrontmatter: input.decisionHorizon === undefined
+            ? {}
+            : { decision_horizon: input.decisionHorizon },
           lineEnding: '\n',
         };
         try {
