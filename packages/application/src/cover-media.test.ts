@@ -243,7 +243,11 @@ describe('clear cover lifecycle', () => {
     const { service, vault, index, hash } = await setupCover(undefined);
     const write = vi.spyOn(vault, 'writeTextAtomic');
 
-    await expect(service.clearCover('Foyer/cover.md', hash)).resolves.toMatchObject({ hash });
+    await expect(service.clearCover('Foyer/cover.md', hash)).resolves.toEqual({
+      note: expect.objectContaining({ display: { featured: true } }),
+      path: 'Foyer/cover.md',
+      hash,
+    });
     expect(write).not.toHaveBeenCalled();
     expect(index.upserts).toEqual([]);
   });
