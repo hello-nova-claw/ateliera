@@ -351,6 +351,9 @@
 @media (width <= 47.99rem) {
   .studio-topbar__search {
     inline-size: auto;
+    min-inline-size: var(--studio-touch-target);
+    justify-content: center;
+    padding-inline: 0;
     border-color: transparent;
     background: transparent;
   }

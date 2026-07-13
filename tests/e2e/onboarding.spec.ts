@@ -78,14 +78,15 @@ test('changes theme with a keyboard radio menu and remembers it', async ({
   await expect(page.getByRole('menu')).toHaveCount(0);
 
   await picker.click();
-  await expect(chamomile).toBeFocused();
+  const forest = page.getByRole('menuitemradio', { name: /Forest.*dark/ });
+  await expect(forest).toBeFocused();
   await picker.focus();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('menu')).toHaveCount(0);
   await expect(picker).toBeFocused();
 
   await picker.click();
-  await expect(chamomile).toBeFocused();
+  await expect(forest).toBeFocused();
   await page.locator('.studio-room__eyebrow').click();
   await expect(page.getByRole('menu')).toHaveCount(0);
 

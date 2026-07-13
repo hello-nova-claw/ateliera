@@ -304,6 +304,13 @@ function StudioApplication({
             aria-expanded={themeOpen}
             aria-haspopup="menu"
             className="studio-topbar__button"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape' && themeOpen) {
+                event.preventDefault();
+                setThemeOpen(false);
+                requestAnimationFrame(() => themeButton.current?.focus());
+              }
+            }}
             onClick={() => setThemeOpen((open) => !open)}
             ref={themeButton}
             type="button"
@@ -317,11 +324,12 @@ function StudioApplication({
           {themeOpen && (
             <ThemeMenu
               current={theme}
+              onChange={setTheme}
               onClose={() => {
                 setThemeOpen(false);
                 requestAnimationFrame(() => themeButton.current?.focus());
               }}
-              onSelect={(next) => {
+              onCommit={(next) => {
                 setTheme(next);
                 setThemeOpen(false);
                 requestAnimationFrame(() => themeButton.current?.focus());
@@ -513,17 +521,26 @@ function Onboarding({
 
 function ThemeMenu({
   current,
+  onChange,
   onClose,
-  onSelect,
+  onCommit,
 }: {
   current: ThemeId;
+  onChange: (theme: ThemeId) => void;
   onClose: () => void;
-  onSelect: (theme: ThemeId) => void;
+  onCommit: (theme: ThemeId) => void;
 }) {
   const menu = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    menu.current
+      ?.querySelector<HTMLButtonElement>('[aria-checked="true"]')
+      ?.focus();
+  }, []);
+
   useEffect(() => {
     const outside = (event: PointerEvent) => {
-      if (!menu.current?.contains(event.target as Node)) onClose();
+      if (!(event.target as Element).closest('.studio-theme-picker')) onClose();
     };
     addEventListener('pointerdown', outside);
     return () => removeEventListener('pointerdown', outside);
@@ -532,7 +549,38 @@ function ThemeMenu({
     <div
       className="studio-theme-picker__menu"
       onKeyDown={(event) => {
-        if (event.key === 'Escape') onClose();
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          onClose();
+          return;
+        }
+
+        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key))
+          return;
+
+        event.preventDefault();
+        const choices = Array.from(
+          menu.current?.querySelectorAll<HTMLButtonElement>(
+            '[role="menuitemradio"]',
+          ) ?? [],
+        );
+        const focused = choices.indexOf(
+          document.activeElement as HTMLButtonElement,
+        );
+        const nextIndex =
+          event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? choices.length - 1
+              : event.key === 'ArrowDown'
+                ? (focused + 1) % choices.length
+                : (focused - 1 + choices.length) % choices.length;
+        const next = choices[nextIndex];
+        if (next === undefined) return;
+        const id = next.dataset.theme as ThemeId | undefined;
+        if (id === undefined) return;
+        onChange(id);
+        next.focus();
       }}
       ref={menu}
       role="menu"
@@ -545,7 +593,7 @@ function ThemeMenu({
             current={current}
             item={item}
             key={item.id}
-            onSelect={onSelect}
+            onSelect={onCommit}
           />
         ))}
       <p>Dark</p>
@@ -556,7 +604,7 @@ function ThemeMenu({
             current={current}
             item={item}
             key={item.id}
-            onSelect={onSelect}
+            onSelect={onCommit}
           />
         ))}
     </div>
@@ -575,8 +623,10 @@ function ThemeChoice({
   return (
     <button
       aria-checked={current === item.id}
+      data-theme={item.id}
       onClick={() => onSelect(item.id)}
       role="menuitemradio"
+      tabIndex={current === item.id ? 0 : -1}
       type="button"
     >
       <span
