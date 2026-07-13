@@ -26,6 +26,17 @@ export interface BrowserVaultStore {
 export interface BrowserVaultOptions {
   store?: BrowserVaultStore;
   storage?: 'auto' | 'opfs' | 'indexeddb';
+  environment?: BrowserVaultEnvironment;
+}
+
+export type BrowserVaultBackend = 'opfs' | 'indexeddb';
+
+export interface BrowserVaultEnvironment {
+  opfsSupported: boolean;
+  readSelection(name: string): Promise<BrowserVaultBackend | undefined>;
+  writeSelection(name: string, backend: BrowserVaultBackend): Promise<void>;
+  openOpfs(name: string): Promise<BrowserVaultStore>;
+  openIndexedDb(name: string): Promise<BrowserVaultStore>;
 }
 
 interface FileSystemDirectoryHandleLike {
@@ -62,6 +73,37 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder('utf-8', { fatal: true });
 const WINDOWS_DRIVE_PATH = /^[A-Za-z]:/;
 const locks = new Map<string, Promise<void>>();
+interface WatchHub {
+  channel?: BroadcastChannel;
+  listeners: Set<(event: VaultChange) => void>;
+}
+const watchHubs = new Map<string, WatchHub>();
+
+function deliver(hub: WatchHub, event: VaultChange): void {
+  for (const listener of [...hub.listeners]) {
+    try {
+      listener(event);
+    } catch {
+      // Durable writes are never rejected by observers.
+    }
+  }
+}
+
+function watchHub(name: string): WatchHub {
+  const existing = watchHubs.get(name);
+  if (existing !== undefined) return existing;
+  const hub: WatchHub = { listeners: new Set() };
+  if (typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined') {
+    hub.channel = new BroadcastChannel(`the-studio:vault:${name}`);
+    hub.channel.addEventListener('message', (message: MessageEvent<VaultChange>) => {
+      if (message.data !== null && typeof message.data === 'object') {
+        deliver(hub, message.data);
+      }
+    });
+  }
+  watchHubs.set(name, hub);
+  return hub;
+}
 
 function validatePath(path: string): string {
   if (
@@ -131,8 +173,6 @@ async function withVaultLock<T>(name: string, action: () => Promise<T>): Promise
 }
 
 class BrowserVault implements VaultPort {
-  readonly #listeners = new Set<(event: VaultChange) => void>();
-
   constructor(
     private readonly name: string,
     private readonly storePromise: Promise<BrowserVaultStore>,
@@ -232,8 +272,9 @@ class BrowserVault implements VaultPort {
   }
 
   async watch(listener: (event: VaultChange) => void): Promise<() => void> {
-    this.#listeners.add(listener);
-    return () => this.#listeners.delete(listener);
+    const hub = watchHub(this.name);
+    hub.listeners.add(listener);
+    return () => hub.listeners.delete(listener);
   }
 
   async #requiredFile(path: string): Promise<StoredBrowserFile> {
@@ -273,13 +314,9 @@ class BrowserVault implements VaultPort {
   }
 
   #emit(event: VaultChange): void {
-    for (const listener of [...this.#listeners]) {
-      try {
-        listener(event);
-      } catch {
-        // A durable mutation cannot be rejected by an observer failure.
-      }
-    }
+    const hub = watchHub(this.name);
+    deliver(hub, event);
+    hub.channel?.postMessage(event);
   }
 }
 
@@ -322,14 +359,39 @@ interface IndexedDbRecord {
 }
 
 async function openVaultDatabase(): Promise<IDBDatabase> {
-  const request = indexedDB.open('the-studio-browser-vaults', 1);
+  const request = indexedDB.open('the-studio-browser-vaults', 2);
   request.addEventListener('upgradeneeded', () => {
     if (!request.result.objectStoreNames.contains('files')) {
       const store = request.result.createObjectStore('files', { keyPath: 'key' });
       store.createIndex('vault', 'vault', { unique: false });
     }
+    if (!request.result.objectStoreNames.contains('backends')) {
+      request.result.createObjectStore('backends');
+    }
   });
   return requestResult(request);
+}
+
+async function readBackendSelection(
+  name: string,
+): Promise<BrowserVaultBackend | undefined> {
+  const db = await openVaultDatabase();
+  const transaction = db.transaction('backends', 'readonly');
+  const result = (await requestResult(
+    transaction.objectStore('backends').get(name),
+  )) as BrowserVaultBackend | undefined;
+  await transactionComplete(transaction);
+  return result;
+}
+
+async function writeBackendSelection(
+  name: string,
+  backend: BrowserVaultBackend,
+): Promise<void> {
+  const db = await openVaultDatabase();
+  const transaction = db.transaction('backends', 'readwrite');
+  transaction.objectStore('backends').put(backend, name);
+  await transactionComplete(transaction);
 }
 
 function createIndexedDbStore(name: string): BrowserVaultStore {
@@ -498,22 +560,42 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
   };
 }
 
+function defaultEnvironment(): BrowserVaultEnvironment {
+  const storage =
+    typeof navigator === 'undefined'
+      ? undefined
+      : (navigator.storage as unknown as StorageManagerWithOpfs | undefined);
+  return {
+    opfsSupported: storage?.getDirectory !== undefined,
+    readSelection: readBackendSelection,
+    writeSelection: writeBackendSelection,
+    openOpfs: createOpfsStore,
+    openIndexedDb: async (name) => createIndexedDbStore(name),
+  };
+}
+
 async function selectStore(
   name: string,
   storage: BrowserVaultOptions['storage'],
+  environment: BrowserVaultEnvironment,
 ): Promise<BrowserVaultStore> {
-  if (storage === 'indexeddb') return createIndexedDbStore(name);
-  const opfsAvailable =
-    (navigator.storage as unknown as StorageManagerWithOpfs).getDirectory !==
-    undefined;
-  if (storage === 'opfs' || opfsAvailable) {
-    try {
-      return await createOpfsStore(name);
-    } catch (error) {
-      if (storage === 'opfs') throw error;
-    }
+  if (storage === 'indexeddb') return environment.openIndexedDb(name);
+  if (storage === 'opfs') return environment.openOpfs(name);
+  const selected = await environment.readSelection(name);
+  if (selected !== undefined) {
+    return selected === 'opfs'
+      ? environment.openOpfs(name)
+      : environment.openIndexedDb(name);
   }
-  return createIndexedDbStore(name);
+  const backend: BrowserVaultBackend = environment.opfsSupported
+    ? 'opfs'
+    : 'indexeddb';
+  const store =
+    backend === 'opfs'
+      ? await environment.openOpfs(name)
+      : await environment.openIndexedDb(name);
+  await environment.writeSelection(name, backend);
+  return store;
 }
 
 export function createBrowserVault(
@@ -523,15 +605,59 @@ export function createBrowserVault(
   if (name.trim() === '') throw new VaultUnavailableError('A vault name is required.');
   const storePromise =
     options.store === undefined
-      ? selectStore(name, options.storage ?? 'auto')
+      ? selectStore(
+          name,
+          options.storage ?? 'auto',
+          options.environment ?? defaultEnvironment(),
+        )
       : Promise.resolve(options.store);
   return new BrowserVault(name, storePromise);
+}
+
+export type BrowserPersistenceStatus = 'persistent' | 'best-effort';
+
+type PersistenceManager = Pick<StorageManager, 'persist' | 'persisted'> | {
+  persist?: () => Promise<boolean>;
+  persisted?: () => Promise<boolean>;
+};
+
+export async function ensureBrowserPersistence(
+  manager: PersistenceManager =
+    typeof navigator === 'undefined' ? {} : navigator.storage,
+): Promise<BrowserPersistenceStatus> {
+  if (manager.persisted === undefined || manager.persist === undefined) {
+    return 'best-effort';
+  }
+  try {
+    if (await manager.persisted()) return 'persistent';
+    return (await manager.persist()) ? 'persistent' : 'best-effort';
+  } catch {
+    return 'best-effort';
+  }
 }
 
 interface PortableManifest {
   schemaVersion: 1;
   exportedAt: string;
   files: Array<{ path: string; sha256: string; size: number }>;
+}
+
+export type VaultArchiveErrorCode =
+  | 'invalid-archive'
+  | 'unsupported-archive'
+  | 'archive-too-large'
+  | 'invalid-manifest'
+  | 'checksum-failed'
+  | 'confirmation-required'
+  | 'target-changed';
+
+export class VaultArchiveError extends VaultUnavailableError {
+  constructor(
+    readonly code: VaultArchiveErrorCode,
+    message: string,
+  ) {
+    super(message);
+  }
 }
 
 function crc32(bytes: Uint8Array): number {
@@ -631,42 +757,140 @@ function createZip(files: ReadonlyArray<readonly [string, Uint8Array]>): Uint8Ar
   ]);
 }
 
-function parseZip(bytes: Uint8Array): Map<string, Uint8Array> {
+const MAX_ARCHIVE_BYTES = 512 * 1024 * 1024;
+const MAX_ENTRY_BYTES = 64 * 1024 * 1024;
+const MAX_TOTAL_BYTES = 512 * 1024 * 1024;
+const MAX_ENTRY_COUNT = 10_000;
+
+function requireRange(
+  bytes: Uint8Array,
+  offset: number,
+  length: number,
+  label: string,
+): void {
+  if (
+    !Number.isSafeInteger(offset) ||
+    !Number.isSafeInteger(length) ||
+    offset < 0 ||
+    length < 0 ||
+    offset + length > bytes.byteLength
+  ) {
+    throw new VaultArchiveError('invalid-archive', `${label} is outside the ZIP archive.`);
+  }
+}
+
+async function inflateRaw(bytes: Uint8Array): Promise<Uint8Array> {
+  if (typeof DecompressionStream === 'undefined') {
+    throw new VaultArchiveError(
+      'unsupported-archive',
+      'Compressed ZIP entries are not supported by this browser.',
+    );
+  }
+  try {
+    const stream = new Blob([bytes.slice().buffer]).stream().pipeThrough(
+      new DecompressionStream('deflate-raw' as CompressionFormat),
+    );
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  } catch {
+    throw new VaultArchiveError('invalid-archive', 'A compressed ZIP entry is invalid.');
+  }
+}
+
+async function parseZip(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
+  if (bytes.byteLength > MAX_ARCHIVE_BYTES) {
+    throw new VaultArchiveError('archive-too-large', 'The ZIP archive is too large.');
+  }
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   let endOffset = bytes.byteLength - 22;
-  while (endOffset >= 0 && view.getUint32(endOffset, true) !== 0x06054b50) {
+  const searchFloor = Math.max(0, bytes.byteLength - 65_557);
+  while (endOffset >= searchFloor && view.getUint32(endOffset, true) !== 0x06054b50) {
     endOffset -= 1;
   }
-  if (endOffset < 0) throw new VaultUnavailableError('The ZIP archive is invalid.');
+  if (endOffset < searchFloor) {
+    throw new VaultArchiveError('invalid-archive', 'The ZIP archive is invalid.');
+  }
+  requireRange(bytes, endOffset, 22, 'The ZIP end record');
+  const commentLength = view.getUint16(endOffset + 20, true);
+  if (endOffset + 22 + commentLength !== bytes.byteLength) {
+    throw new VaultArchiveError('invalid-archive', 'The ZIP end record is invalid.');
+  }
   const count = view.getUint16(endOffset + 10, true);
+  if (count > MAX_ENTRY_COUNT || view.getUint16(endOffset + 8, true) !== count) {
+    throw new VaultArchiveError('archive-too-large', 'The ZIP contains too many entries.');
+  }
+  const centralSize = view.getUint32(endOffset + 12, true);
   let offset = view.getUint32(endOffset + 16, true);
+  const centralEnd = offset + centralSize;
+  requireRange(bytes, offset, centralSize, 'The ZIP directory');
+  if (centralEnd !== endOffset) {
+    throw new VaultArchiveError('invalid-archive', 'The ZIP directory length is invalid.');
+  }
   const files = new Map<string, Uint8Array>();
+  let totalSize = 0;
   for (let index = 0; index < count; index += 1) {
+    requireRange(bytes, offset, 46, 'A ZIP directory entry');
     if (view.getUint32(offset, true) !== 0x02014b50) {
-      throw new VaultUnavailableError('The ZIP directory is invalid.');
+      throw new VaultArchiveError('invalid-archive', 'The ZIP directory is invalid.');
     }
+    const flags = view.getUint16(offset + 8, true);
     const method = view.getUint16(offset + 10, true);
     const expectedCrc = view.getUint32(offset + 16, true);
     const compressedSize = view.getUint32(offset + 20, true);
+    const uncompressedSize = view.getUint32(offset + 24, true);
     const nameLength = view.getUint16(offset + 28, true);
     const extraLength = view.getUint16(offset + 30, true);
-    const commentLength = view.getUint16(offset + 32, true);
+    const entryCommentLength = view.getUint16(offset + 32, true);
     const localOffset = view.getUint32(offset + 42, true);
-    if (method !== 0) {
-      throw new VaultUnavailableError('Only uncompressed portable ZIP entries are supported.');
+    const entryLength = 46 + nameLength + extraLength + entryCommentLength;
+    requireRange(bytes, offset, entryLength, 'A ZIP directory entry');
+    if ((flags & 0x0001) !== 0 || (flags & ~0x0808) !== 0 || ![0, 8].includes(method)) {
+      throw new VaultArchiveError(
+        'unsupported-archive',
+        'The ZIP uses unsupported encryption, flags, or compression.',
+      );
+    }
+    if (uncompressedSize > MAX_ENTRY_BYTES) {
+      throw new VaultArchiveError('archive-too-large', 'A ZIP entry is too large.');
     }
     const path = decoder.decode(bytes.slice(offset + 46, offset + 46 + nameLength));
     validatePath(path);
+    requireRange(bytes, localOffset, 30, 'A ZIP local entry');
+    if (view.getUint32(localOffset, true) !== 0x04034b50) {
+      throw new VaultArchiveError('invalid-archive', 'A ZIP local entry is invalid.');
+    }
+    const localFlags = view.getUint16(localOffset + 6, true);
+    const localMethod = view.getUint16(localOffset + 8, true);
     const localNameLength = view.getUint16(localOffset + 26, true);
     const localExtraLength = view.getUint16(localOffset + 28, true);
     const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
-    const content = bytes.slice(dataOffset, dataOffset + compressedSize);
-    if (crc32(content) !== expectedCrc) {
-      throw new VaultUnavailableError(`ZIP checksum failed for ${path}.`);
+    requireRange(bytes, localOffset + 30, localNameLength + localExtraLength, 'A ZIP local header');
+    requireRange(bytes, dataOffset, compressedSize, 'ZIP entry data');
+    const localName = decoder.decode(
+      bytes.slice(localOffset + 30, localOffset + 30 + localNameLength),
+    );
+    if (localName !== path || localFlags !== flags || localMethod !== method) {
+      throw new VaultArchiveError('invalid-archive', 'ZIP headers do not agree.');
     }
-    if (files.has(path)) throw new VaultUnavailableError('The ZIP contains duplicate paths.');
+    const compressed = bytes.slice(dataOffset, dataOffset + compressedSize);
+    const content = method === 0 ? compressed : await inflateRaw(compressed);
+    if (content.byteLength !== uncompressedSize) {
+      throw new VaultArchiveError('invalid-archive', `ZIP size validation failed for ${path}.`);
+    }
+    if (crc32(content) !== expectedCrc) {
+      throw new VaultArchiveError('checksum-failed', `ZIP checksum failed for ${path}.`);
+    }
+    if (files.has(path)) {
+      throw new VaultArchiveError('invalid-archive', 'The ZIP contains duplicate paths.');
+    }
     files.set(path, content);
-    offset += 46 + nameLength + extraLength + commentLength;
+    totalSize += content.byteLength;
+    if (totalSize > MAX_TOTAL_BYTES) {
+      throw new VaultArchiveError('archive-too-large', 'The expanded ZIP is too large.');
+    }
+    offset += entryLength;
+  }
+  if (offset !== centralEnd) {
+    throw new VaultArchiveError('invalid-archive', 'The ZIP directory is malformed.');
   }
   return files;
 }
@@ -697,48 +921,198 @@ export async function exportBrowserVault(vault: VaultPort): Promise<Blob> {
   return new Blob([archive.buffer as ArrayBuffer], { type: 'application/zip' });
 }
 
-export async function importBrowserVault(
+export interface BrowserVaultImportItem {
+  action: 'create' | 'replace';
+  path: string;
+  size: number;
+  sha256: string;
+  expectedHash?: string;
+}
+
+export interface BrowserVaultImportPlan {
+  id: string;
+  archiveHash: string;
+  items: readonly BrowserVaultImportItem[];
+  readonly files: ReadonlyMap<string, Uint8Array>;
+}
+
+function validManifest(value: unknown): value is PortableManifest {
+  if (value === null || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    candidate.schemaVersion === 1 &&
+    typeof candidate.exportedAt === 'string' &&
+    !Number.isNaN(Date.parse(candidate.exportedAt)) &&
+    Array.isArray(candidate.files) &&
+    candidate.files.every((descriptor) => {
+      if (descriptor === null || typeof descriptor !== 'object') return false;
+      const file = descriptor as Record<string, unknown>;
+      return (
+        typeof file.path === 'string' &&
+        typeof file.sha256 === 'string' &&
+        /^[a-f0-9]{64}$/.test(file.sha256) &&
+        typeof file.size === 'number' &&
+        Number.isSafeInteger(file.size) &&
+        file.size >= 0 &&
+        file.size <= MAX_ENTRY_BYTES
+      );
+    })
+  );
+}
+
+export async function prepareBrowserVaultImport(
   vault: VaultPort,
   source: Blob | Uint8Array,
-): Promise<{ imported: number }> {
+): Promise<BrowserVaultImportPlan> {
   const bytes =
     source instanceof Blob
       ? new Uint8Array(await source.arrayBuffer())
       : source.slice();
-  const files = parseZip(bytes);
+  const files = await parseZip(bytes);
   const manifestBytes = files.get(MANIFEST_PATH);
   if (manifestBytes === undefined) {
-    throw new VaultUnavailableError('The ZIP export manifest is missing.');
+    throw new VaultArchiveError('invalid-manifest', 'The ZIP export manifest is missing.');
   }
-  let manifest: PortableManifest;
+  let parsed: unknown;
   try {
-    manifest = JSON.parse(decoder.decode(manifestBytes)) as PortableManifest;
+    parsed = JSON.parse(decoder.decode(manifestBytes));
   } catch {
-    throw new VaultUnavailableError('The ZIP export manifest is invalid.');
+    throw new VaultArchiveError('invalid-manifest', 'The ZIP export manifest is invalid.');
   }
-  if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.files)) {
-    throw new VaultUnavailableError('The ZIP export schema is unsupported.');
+  if (!validManifest(parsed)) {
+    throw new VaultArchiveError('invalid-manifest', 'The ZIP export schema is unsupported.');
   }
-  const validated: Array<readonly [string, Uint8Array]> = [];
+  const manifest = parsed;
+  const validated = new Map<string, Uint8Array>();
+  const items: BrowserVaultImportItem[] = [];
+  const manifestPaths = new Set<string>();
   for (const descriptor of manifest.files) {
     validatePath(descriptor.path);
+    if (descriptor.path === MANIFEST_PATH || manifestPaths.has(descriptor.path)) {
+      throw new VaultArchiveError('invalid-manifest', 'The manifest contains duplicate paths.');
+    }
+    manifestPaths.add(descriptor.path);
     const content = files.get(descriptor.path);
     if (
       content === undefined ||
       content.byteLength !== descriptor.size ||
       (await digest(content)) !== descriptor.sha256
     ) {
-      throw new VaultUnavailableError(
+      throw new VaultArchiveError(
+        'checksum-failed',
         `Archive checksum validation failed for ${descriptor.path}.`,
       );
     }
-    validated.push([descriptor.path, content]);
+    validated.set(descriptor.path, content.slice());
+    const existing = (await vault.list(descriptor.path)).find(
+      (entry) => entry.kind === 'file' && entry.path === descriptor.path,
+    );
+    items.push({
+      action: existing === undefined ? 'create' : 'replace',
+      path: descriptor.path,
+      size: descriptor.size,
+      sha256: descriptor.sha256,
+      ...(existing?.contentHash === undefined
+        ? {}
+        : { expectedHash: existing.contentHash }),
+    });
   }
-  if (files.size !== validated.length + 1) {
-    throw new VaultUnavailableError('The ZIP contains files outside its manifest.');
+  if (files.size !== validated.size + 1) {
+    throw new VaultArchiveError('invalid-manifest', 'The ZIP contains files outside its manifest.');
   }
-  for (const [path, content] of validated) {
-    await vault.writeBinaryAtomic(path, content);
+  items.sort((left, right) => left.path.localeCompare(right.path, 'en'));
+  return {
+    id: crypto.randomUUID(),
+    archiveHash: await digest(bytes),
+    items,
+    files: validated,
+  };
+}
+
+export async function applyBrowserVaultImport(
+  vault: VaultPort,
+  plan: BrowserVaultImportPlan,
+  options: { confirm: boolean },
+): Promise<{ imported: number }> {
+  if (!options.confirm) {
+    throw new VaultArchiveError(
+      'confirmation-required',
+      'Import confirmation is required before the vault can change.',
+    );
   }
-  return { imported: validated.length };
+  for (const item of plan.items) {
+    const current = (await vault.list(item.path)).find(
+      (entry) => entry.kind === 'file' && entry.path === item.path,
+    );
+    if (
+      (item.action === 'create' && current !== undefined) ||
+      (item.action === 'replace' && current?.contentHash !== item.expectedHash)
+    ) {
+      throw new VaultArchiveError(
+        'target-changed',
+        `The import target changed after preview: ${item.path}.`,
+      );
+    }
+  }
+
+  const stageRoot = `.studio/import-stage/${plan.id}`;
+  const backupRoot = `.studio/import-backup/${plan.id}`;
+  const staged: string[] = [];
+  const backups = new Map<string, Uint8Array>();
+  const applied: BrowserVaultImportItem[] = [];
+  const cleanup = async () => {
+    for (const path of [...staged].reverse()) {
+      if (await vault.exists(path)) await vault.remove(path);
+    }
+  };
+  try {
+    for (const item of plan.items) {
+      const content = plan.files.get(item.path);
+      if (content === undefined || (await digest(content)) !== item.sha256) {
+        throw new VaultArchiveError('checksum-failed', `Import plan checksum failed for ${item.path}.`);
+      }
+      const stagePath = `${stageRoot}/${item.path}`;
+      await vault.writeBinaryAtomic(stagePath, content);
+      staged.push(stagePath);
+      if (item.action === 'replace') {
+        const oldBytes = await vault.readBinary(item.path);
+        backups.set(item.path, oldBytes);
+        const backupPath = `${backupRoot}/${item.path}`;
+        await vault.writeBinaryAtomic(backupPath, oldBytes);
+        staged.push(backupPath);
+      }
+    }
+    for (const item of plan.items) {
+      await vault.writeBinaryAtomic(item.path, await vault.readBinary(`${stageRoot}/${item.path}`));
+      applied.push(item);
+    }
+  } catch (error) {
+    for (const item of [...applied].reverse()) {
+      const previous = backups.get(item.path);
+      try {
+        if (previous === undefined) {
+          if (await vault.exists(item.path)) await vault.remove(item.path);
+        } else {
+          await vault.writeBinaryAtomic(item.path, previous);
+        }
+      } catch {
+        throw new VaultUnavailableError(
+          `Import failed and rollback could not restore ${item.path}. Backups remain in ${backupRoot}.`,
+        );
+      }
+    }
+    await cleanup();
+    throw error;
+  }
+  await cleanup();
+  return { imported: plan.items.length };
+}
+
+export async function importBrowserVault(
+  vault: VaultPort,
+  source: Blob | Uint8Array,
+  options: { confirm: boolean },
+): Promise<{ imported: number }> {
+  const plan = await prepareBrowserVaultImport(vault, source);
+  return applyBrowserVaultImport(vault, plan, options);
 }
