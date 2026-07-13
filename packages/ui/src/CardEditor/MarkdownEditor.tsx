@@ -1,5 +1,4 @@
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import { markdown } from '@codemirror/lang-markdown';
 import { EditorState } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { useEffect, useRef } from 'react';
@@ -34,7 +33,6 @@ export function MarkdownEditor({
         doc: value,
         extensions: [
           history(),
-          markdown(),
           keymap.of([...defaultKeymap, ...historyKeymap]),
           EditorView.lineWrapping,
           EditorView.editable.of(!readOnly),
