@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractLinks, markdownToPlainText } from './links';
+import type { Root } from 'mdast';
+import { extractLinks, extractLinksFromAst, markdownToPlainText } from './links';
 
 describe('extractLinks', () => {
   it('extracts wiki links, aliases, stable Studio links, and local Markdown notes in source order', () => {
@@ -60,5 +61,32 @@ describe('extractLinks', () => {
 
   it('includes image alt text while omitting empty images and thematic markup', () => {
     expect(markdownToPlainText('![cover](cover.jpg) ![](quiet.jpg)\n\n---')).toBe('cover');
+  });
+
+  it('collects reference definitions recursively from blockquotes and lists', () => {
+    expect(extractLinks('> [inside-quote]: quote.md\n>\n> [quote proof][inside-quote]\n\n- [inside-list]: list.md\n- [list proof][inside-list]')).toEqual([
+      { kind: 'path', target: 'quote.md', label: 'quote proof' },
+      { kind: 'path', target: 'list.md', label: 'list proof' },
+    ]);
+  });
+
+  it('uses the first normalized reference definition in document order', () => {
+    expect(extractLinks('[proof][SHARED]\n\n[shared]: first.md\n[SHARED]: second.md')).toEqual([
+      { kind: 'path', target: 'first.md', label: 'proof' },
+    ]);
+  });
+
+  it('leaves an unmatched linkReference unresolved without throwing', () => {
+    const root: Root = {
+      type: 'root',
+      children: [{
+        type: 'paragraph',
+        children: [{
+          type: 'linkReference', identifier: 'missing', label: 'missing', referenceType: 'full',
+          children: [{ type: 'text', value: 'missing' }],
+        }],
+      }],
+    };
+    expect(extractLinksFromAst(root)).toEqual([]);
   });
 });
