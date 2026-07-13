@@ -164,11 +164,13 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   let reconcileTimer: unknown;
   let stopWatching: (() => void) | undefined;
   let startPromise: Promise<void> | undefined;
+  let disposePromise: Promise<void> | undefined;
   let lifecycleGeneration = 0;
   let disposed = false;
-  const pendingWatchEvents: Array<{ event: VaultChange; needsClassification: boolean }> = [];
-  const selfPublications = new Map<string, Map<string, { count: number; expiresAt: number }>>();
-  const pendingWritePaths = new Map<string, number>();
+  const pendingWatchEvents: Array<{ event: VaultChange; writeGeneration?: number }> = [];
+  const selfPublications = new Map<string, { hash: string; generation: number; expiresAt: number }>();
+  const pathWriteGenerations = new Map<string, number>();
+  const activeWriteGenerations = new Map<string, Set<number>>();
   const pendingSaves = new Set<Promise<SavedNote>>();
 
   function assertActive(): void {
@@ -313,33 +315,33 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     });
   }
 
-  function recordSelfPublication(path: string, hash: string): void {
-    const hashes = selfPublications.get(path) ?? new Map();
-    const current = hashes.get(hash);
-    hashes.set(hash, {
-      count: (current?.count ?? 0) + 1,
-      expiresAt: Date.now() + SELF_EVENT_TTL,
-    });
-    selfPublications.set(path, hashes);
+  function recordSelfPublication(path: string, hash: string, generation: number): void {
+    if (pathWriteGenerations.get(path) !== generation) return;
+    selfPublications.set(path, { hash, generation, expiresAt: Date.now() + SELF_EVENT_TTL });
   }
 
-  function consumeSelfPublication(event: VaultChange): boolean {
+  function consumeSelfPublication(event: VaultChange, generation?: number): boolean {
     if (event.kind !== 'created' && event.kind !== 'modified') return false;
-    const hashes = selfPublications.get(event.path);
-    if (hashes === undefined) return false;
-    const now = Date.now();
-    for (const [hash, publication] of hashes) {
-      if (publication.expiresAt < now) hashes.delete(hash);
-    }
-    const publication = hashes.get(event.hash);
-    if (publication === undefined) {
-      if (hashes.size === 0) selfPublications.delete(event.path);
+    const publication = selfPublications.get(event.path);
+    if (publication === undefined) return false;
+    if (publication.expiresAt < Date.now()) {
+      selfPublications.delete(event.path);
       return false;
     }
-    if (publication.count === 1) hashes.delete(event.hash);
-    else publication.count -= 1;
-    if (hashes.size === 0) selfPublications.delete(event.path);
+    if (
+      publication.hash !== event.hash ||
+      publication.generation !== pathWriteGenerations.get(event.path) ||
+      (generation !== undefined && publication.generation !== generation)
+    ) return false;
+    selfPublications.delete(event.path);
     return true;
+  }
+
+  function canReturnToReady(): boolean {
+    return !rebuildRequired &&
+      pendingWatchEvents.length === 0 &&
+      indexedGeneration === durableGeneration &&
+      reconciledExternalGeneration === externalGeneration;
   }
 
   function scheduleReconciliation(): void {
@@ -349,15 +351,25 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
       if (disposed) return;
       const pending = pendingWatchEvents.splice(0);
       let hasExternalEvent = false;
+      let hasDeferredEvent = false;
       for (const item of pending) {
-        if (item.needsClassification) {
-          if (consumeSelfPublication(item.event)) continue;
+        if (item.writeGeneration !== undefined) {
+          if (activeWriteGenerations.get(item.event.path)?.has(item.writeGeneration)) {
+            pendingWatchEvents.push(item);
+            hasDeferredEvent = true;
+            continue;
+          }
+          if (consumeSelfPublication(item.event, item.writeGeneration)) continue;
           externalGeneration += 1;
           state = 'stale';
         }
         hasExternalEvent = true;
       }
-      if (!hasExternalEvent) return;
+      if (hasDeferredEvent) scheduleReconciliation();
+      if (!hasExternalEvent) {
+        if (canReturnToReady()) state = 'ready';
+        return;
+      }
       try {
         await rebuildIndex();
       } catch {
@@ -369,8 +381,13 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   async function performSave(input: SaveNoteInput): Promise<SavedNote> {
     const savedNote: StudioNote = { ...input.note, updated: iso(clock) };
     const serialized = validateAndSerialize(savedNote);
+    const writeGeneration = (pathWriteGenerations.get(input.path) ?? 0) + 1;
+    pathWriteGenerations.set(input.path, writeGeneration);
+    selfPublications.delete(input.path);
+    const active = activeWriteGenerations.get(input.path) ?? new Set<number>();
+    active.add(writeGeneration);
+    activeWriteGenerations.set(input.path, active);
     let written: { hash: string };
-    pendingWritePaths.set(input.path, (pendingWritePaths.get(input.path) ?? 0) + 1);
     try {
       written = await dependencies.vault.writeTextAtomic(input.path, serialized, {
         ...(input.expectedHash === undefined ? {} : { expectedHash: input.expectedHash }),
@@ -386,12 +403,11 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
       }
       throw new StudioSaveConflictError(savedNote, durableText, { cause: error });
     } finally {
-      const count = pendingWritePaths.get(input.path) ?? 1;
-      if (count === 1) pendingWritePaths.delete(input.path);
-      else pendingWritePaths.set(input.path, count - 1);
+      active.delete(writeGeneration);
+      if (active.size === 0) activeWriteGenerations.delete(input.path);
     }
 
-    recordSelfPublication(input.path, written.hash);
+    recordSelfPublication(input.path, written.hash, writeGeneration);
     durableGeneration += 1;
     const generation = durableGeneration;
     state = 'stale';
@@ -404,11 +420,7 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
           indexedContent(savedNote),
         );
         indexedGeneration = Math.max(indexedGeneration, generation);
-        if (
-          !rebuildRequired &&
-          indexedGeneration === durableGeneration &&
-          reconciledExternalGeneration === externalGeneration
-        ) state = 'ready';
+        if (canReturnToReady()) state = 'ready';
       } catch {
         markIndexStale();
       }
@@ -444,13 +456,21 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
         if (touchesUserContent) {
           const canBeSelfPublished =
             (event.kind === 'created' || event.kind === 'modified') &&
-            pendingWritePaths.has(event.path);
+            (activeWriteGenerations.get(event.path)?.size ?? 0) > 0;
           if (!canBeSelfPublished && consumeSelfPublication(event)) return;
-          if (!canBeSelfPublished) {
+          const writeGeneration = canBeSelfPublished
+            ? pathWriteGenerations.get(event.path)
+            : undefined;
+          if (canBeSelfPublished) {
+            state = 'stale';
+          } else {
             externalGeneration += 1;
             state = 'stale';
           }
-          pendingWatchEvents.push({ event, needsClassification: canBeSelfPublished });
+          pendingWatchEvents.push({
+            event,
+            ...(writeGeneration === undefined ? {} : { writeGeneration }),
+          });
           scheduleReconciliation();
         }
       }).then((stop) => {
@@ -468,11 +488,8 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
       return pending;
     },
 
-    async dispose() {
-      if (disposed) {
-        await mutationTail;
-        return;
-      }
+    dispose() {
+      if (disposePromise !== undefined) return disposePromise;
       disposed = true;
       lifecycleGeneration += 1;
       const pendingStart = startPromise;
@@ -482,14 +499,19 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
       reconcileTimer = undefined;
       pendingWatchEvents.length = 0;
       selfPublications.clear();
-      pendingWritePaths.clear();
+      pathWriteGenerations.clear();
+      activeWriteGenerations.clear();
       cancelRecovery();
       listeners.clear();
-      await pendingStart?.catch(() => undefined);
-      await Promise.allSettled([...pendingSaves]);
-      await mutationTail;
-      selfPublications.clear();
-      pendingWritePaths.clear();
+      disposePromise = (async () => {
+        await pendingStart?.catch(() => undefined);
+        await Promise.allSettled([...pendingSaves]);
+        await mutationTail;
+        selfPublications.clear();
+        pathWriteGenerations.clear();
+        activeWriteGenerations.clear();
+      })();
+      return disposePromise;
     },
 
     subscribe(listener) {

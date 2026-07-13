@@ -294,7 +294,7 @@ describe('service lifecycle and reconciliation', () => {
     await service.start();
 
     const saved = await service.save({ note: note({ id: 'self' }), path: 'Notes/self.md', expectedMissing: true });
-    expect(service.indexState()).toBe('ready');
+    expect(service.indexState()).toBe('stale');
     expect(rebuild).not.toHaveBeenCalled();
     await timers.runNext();
     expect(rebuild).not.toHaveBeenCalled();
@@ -441,6 +441,9 @@ describe('service lifecycle and reconciliation', () => {
     });
     listener?.({ kind: 'modified', path: 'Notes/same.md', hash: restoredA.hash });
     expect(service.indexState()).toBe('stale');
+    await timers.runNext();
+    expect(service.indexState()).toBe('stale');
+    expect(timers.tasks).toHaveLength(1);
 
     releaseSecondWrite();
     await savingB;
@@ -477,7 +480,7 @@ describe('service lifecycle and reconciliation', () => {
     await service.start();
 
     await service.save({ note: note(), path: 'Notes/n.md' });
-    expect(service.indexState()).toBe('ready');
+    expect(service.indexState()).toBe('stale');
     await timers.runNext();
     expect(service.indexState()).toBe('ready');
     expect(rebuild).toHaveBeenCalledOnce();
