@@ -57,8 +57,42 @@ describe('season transaction store', () => {
       seasonNoteId: 'winter',
     });
     expect(written.value).toMatchObject({ operationId: 'close-winter' });
-    await store.removeCloseJournal(written);
+    const loaded = await store.readCloseJournal();
+    expect(loaded.value).toEqual(written.value);
+    if (loaded.value === null) throw new Error('Expected the close journal.');
+    const replaced = await store.compareAndSetCloseJournal(loaded, {
+      ...loaded.value,
+      phase: 'completed',
+    });
+    await store.removeCloseJournal(replaced);
     expect((await store.readCloseJournal()).value).toBeNull();
+  });
+
+  it('replaces an existing active checkpoint only at the next revision', async () => {
+    const vault = createInMemoryVault();
+    const store = createSeasonTransactionStore(vault);
+    const missing = await store.readActive();
+    const first = await store.compareAndSetActive(missing, {
+      version: 1,
+      revision: 1,
+      activeNoteId: 'winter',
+      activePath: 'Current Season/winter.md',
+      operation: null,
+    });
+    await expect(
+      store.compareAndSetActive(first, { ...first.value, revision: 3 }),
+    ).rejects.toThrow('advance once');
+    const second = await store.compareAndSetActive(first, {
+      ...first.value,
+      revision: 2,
+      operation: {
+        id: 'close-winter',
+        kind: 'closing',
+        targetNoteId: 'winter',
+        targetPath: 'Current Season/winter.md',
+      },
+    });
+    expect((await store.readActive()).value).toEqual(second.value);
   });
 
   it('rejects malformed durable active checkpoints instead of guessing', async () => {
@@ -70,5 +104,45 @@ describe('season transaction store', () => {
     await expect(
       createSeasonTransactionStore(vault).readActive(),
     ).rejects.toThrow('active-season checkpoint');
+  });
+
+  it.each([
+    'not json',
+    '[]',
+    '{}',
+    '{"version":1,"revision":-1,"activeNoteId":null,"activePath":null,"operation":null}',
+    '{"version":1,"revision":0,"activeNoteId":"winter","activePath":null,"operation":null}',
+    '{"version":1,"revision":0,"activeNoteId":null,"activePath":null,"operation":[]}',
+    '{"version":1,"revision":0,"activeNoteId":null,"activePath":null,"operation":{"id":1,"kind":"bad","targetNoteId":false,"targetPath":null}}',
+  ])('rejects malformed active checkpoint variant %#', async (text) => {
+    const vault = createInMemoryVault();
+    await createStudioControlVault(vault).writeTextAtomic(
+      '.studio/season/active.json',
+      text,
+    );
+    await expect(
+      createSeasonTransactionStore(vault).readActive(),
+    ).rejects.toThrow('active-season checkpoint');
+  });
+
+  it.each(['not json', '[]', 'null'])(
+    'rejects malformed close journal variant %#',
+    async (text) => {
+      const vault = createInMemoryVault();
+      await createStudioControlVault(vault).writeTextAtomic(
+        '.studio/season/close-journal.json',
+        text,
+      );
+      await expect(
+        createSeasonTransactionStore(vault).readCloseJournal(),
+      ).rejects.toThrow('season-close journal');
+    },
+  );
+
+  it('requires an observed close-journal revision before removal', async () => {
+    const store = createSeasonTransactionStore(createInMemoryVault());
+    await expect(
+      store.removeCloseJournal({ value: {}, hash: null }),
+    ).rejects.toThrow('revision is missing');
   });
 });
