@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from './App';
 
 it('renders the Studio landmark', async () => {
@@ -10,6 +10,9 @@ it('renders the Studio landmark', async () => {
       }}
     />,
   );
+  await act(async () => {
+    await Promise.resolve();
+  });
   expect(screen.getByRole('main', { name: 'The Studio' })).toBeVisible();
   expect(screen.queryByText('Ready offline')).not.toBeInTheDocument();
 });

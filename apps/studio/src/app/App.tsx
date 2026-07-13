@@ -10,13 +10,13 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import './app.css';
 
-async function prepareOfflineShell(): Promise<void> {
-  if (!('serviceWorker' in navigator)) return;
+async function prepareOfflineShell(): Promise<boolean> {
+  if (!('serviceWorker' in navigator)) return false;
   if (
     navigator.serviceWorker.controller !== null &&
     (await caches.match('/')) !== undefined
   ) {
-    return;
+    return true;
   }
   const registration = await navigator.serviceWorker.register('/service-worker.js', {
     type: 'module',
@@ -83,6 +83,7 @@ async function prepareOfflineShell(): Promise<void> {
   }
   const cache = await caches.open(cacheName);
   await cache.addAll([...new Set(urls)]);
+  return true;
 }
 
 export interface AppProps {
@@ -127,8 +128,8 @@ export function App({
           setError(reason instanceof Error ? reason.message : 'The Studio could not open.');
       });
     void prepareOfflineShell()
-      .then(() => {
-        if (active) setOfflineReady(true);
+      .then((ready) => {
+        if (active) setOfflineReady(ready);
       })
       .catch(() => {
         if (active) setOfflineUnavailable(true);
