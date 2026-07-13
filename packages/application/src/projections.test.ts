@@ -73,6 +73,31 @@ describe('room projections', () => {
     expect(foyer.featured.map((item) => item.noteId)).toEqual(['f']);
   });
 
+  it('composes named Foyer slots from canonical note metadata', async () => {
+    const vault = await seed([
+      { path: 'Season/winter.md', note: note({ id: 'winter', title: 'Wintering well', cardType: 'season', semanticType: 'growth', rooms: ['current-season'], status: 'active' }) },
+      { path: 'Season/create.md', note: note({ id: 'create', title: 'Create before consuming', cardType: 'priority', semanticType: 'growth', seasons: ['winter'] }) },
+      { path: 'Foyer/becoming.md', note: note({ id: 'becoming', title: 'A woman who creates from calm', cardType: 'identity', semanticType: 'foundations', rooms: ['foyer'], display: { featured: true } }) },
+      { path: 'Foyer/feeling.md', note: note({ id: 'feeling', title: 'Spacious', cardType: 'feeling', semanticType: 'vision', rooms: ['foyer'] }) },
+      { path: 'Foyer/principle.md', note: note({ id: 'principle', title: 'Structure and surprise', body: 'Create enough structure that imagination can surprise you.', cardType: 'principle', semanticType: 'foundations', rooms: ['foyer'] }) },
+      { path: 'Reflection/return.md', note: note({ id: 'return', title: 'A small return', cardType: 'reflection', semanticType: 'celebration', rooms: ['foyer'], updated: '2026-07-14T10:00:00+10:00' }) },
+      { path: 'Attachments/cover.md', note: note({ id: 'cover', title: 'Morning light', cardType: 'image', semanticType: 'reflection', rooms: ['foyer'], display: { featured: true, cover: '../Attachments/morning-light.jpg' } }) },
+    ]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    const foyer = await service.projectFoyer();
+    expect(foyer.becoming?.noteId).toBe('becoming');
+    expect(foyer.feelings.map((item) => item.noteId)).toEqual(['feeling']);
+    expect(foyer.principles.map((item) => item.noteId)).toEqual(['principle']);
+    expect(foyer.priorities.map((item) => item.noteId)).toEqual(['create']);
+    expect(foyer.returning?.noteId).toBe('return');
+    expect(foyer.image).toEqual(expect.objectContaining({
+      noteId: 'cover',
+      source: '../Attachments/morning-light.jpg',
+      alt: 'Morning light',
+    }));
+  });
+
   it('supports empty, excluded, generic-room, and untitled projections', async () => {
     const bodyTitle = note({ id: 'explicit', body: 'Body becomes title', rooms: ['identity-studio'] });
     const emptyTitle = note({ id: 'empty', body: '', rooms: ['identity-studio'] });
