@@ -227,6 +227,15 @@ describe('season close transaction', () => {
 
   it('closes a season with no priorities after preserving its letter and snapshot', async () => {
     const { vault, revisions, closeRequest } = await setup();
+    const emptySeason = await seed(
+      vault,
+      'Current Season/empty.md',
+      {
+        ...seasonNote([]),
+        id: 'season-empty',
+        extraFrontmatter: { season_id: 'season-empty', priorities: [] },
+      },
+    );
     const service = createSeasonCloseTransactionService({
       vault,
       control: createStudioControlVault(vault),
@@ -236,8 +245,16 @@ describe('season close transaction', () => {
 
     const result = await service.close({
       ...closeRequest,
+      transactionId: 'close-empty',
+      season: emptySeason,
+      closedSeasonNote: { ...emptySeason.note, status: 'archived' },
       priorityIds: [],
       dispositions: [],
+      letter: {
+        ...closeRequest.letter,
+        id: 'letter-empty',
+        seasons: ['season-empty'],
+      },
     });
 
     expect(result.season.note.status).toBe('archived');
@@ -247,6 +264,72 @@ describe('season close transaction', () => {
         (item) => item.cardType === 'season-letter',
       ),
     ).toHaveLength(1);
+  });
+
+  it.each([
+    ['omits canonical priorities', []],
+    ['adds a noncanonical priority', ['home', 'book', 'rest', 'future', 'idea', 'outside']],
+  ])('rejects a request that %s', async (_, priorityIds) => {
+    const { vault, revisions, closeRequest } = await setup();
+    const dispositions = closeRequest.dispositions.filter((item) =>
+      priorityIds.includes(item.noteId),
+    );
+    if (priorityIds.includes('outside')) {
+      dispositions.push({
+        noteId: 'outside',
+        disposition: 'archive',
+        expectedHash: '0'.repeat(64),
+      });
+    }
+    const service = createSeasonCloseTransactionService({
+      vault,
+      control: createStudioControlVault(vault),
+      revisions,
+      clock: () => new Date(now),
+    });
+
+    await expect(
+      service.close({ ...closeRequest, priorityIds, dispositions }),
+    ).rejects.toThrow('canonical season priorities');
+    await expect(
+      vault.exists('.studio/season/close-journal.json'),
+    ).resolves.toBe(false);
+  });
+
+  it.each([
+    ['missing', undefined],
+    ['malformed', ['home', 1]],
+    ['duplicated', ['home', 'home']],
+  ])('rejects %s durable season priority metadata', async (_, priorities) => {
+    const { vault, revisions, closeRequest } = await setup();
+    const durable = await vault.readText(closeRequest.season.path);
+    const parsed = parseNote(durable.text);
+    if (!parsed.ok) throw new Error('fixture');
+    const extraFrontmatter = { ...parsed.note.extraFrontmatter };
+    if (priorities === undefined) delete extraFrontmatter.priorities;
+    else extraFrontmatter.priorities = priorities;
+    const changed = { ...parsed.note, extraFrontmatter };
+    const written = await vault.writeTextAtomic(
+      closeRequest.season.path,
+      serializeNote(changed),
+      { expectedHash: durable.hash },
+    );
+    closeRequest.season = {
+      note: changed,
+      path: closeRequest.season.path,
+      hash: written.hash,
+    };
+    closeRequest.closedSeasonNote = { ...changed, status: 'archived' };
+    const service = createSeasonCloseTransactionService({
+      vault,
+      control: createStudioControlVault(vault),
+      revisions,
+      clock: () => new Date(now),
+    });
+
+    await expect(service.close(closeRequest)).rejects.toThrow(
+      'canonical season priorities',
+    );
   });
 
   it.each([
@@ -834,8 +917,159 @@ describe('season close transaction', () => {
       clock: () => new Date(now),
     });
 
-    await expect(service.close(closeRequest)).rejects.toThrow('unknown state');
+    await expect(service.close(closeRequest)).rejects.toThrow(
+      'revision snapshot could not be verified',
+    );
   });
+
+  it.each(['wrong-path-set', 'incomplete', 'missing-copy', 'changed-copy'] as const)(
+    'verifies the durable revision snapshot before the first user-note mutation: %s',
+    async (failure) => {
+      const { vault, revisions, closeRequest } = await setup();
+      const base = createStudioControlVault(vault);
+      const adversarial: RevisionStore = {
+        ...revisions,
+        async create(reason, paths) {
+          const snapshot = await revisions.create(
+            reason,
+            failure === 'wrong-path-set' ? paths.slice(0, 1) : paths,
+          );
+          if (failure === 'incomplete') {
+            const manifest = await base.readText(snapshot.manifestPath);
+            const value = JSON.parse(manifest.text) as { state: string };
+            value.state = 'incomplete';
+            await base.writeTextAtomic(
+              snapshot.manifestPath,
+              `${JSON.stringify(value, null, 2)}\n`,
+              { expectedHash: manifest.hash },
+            );
+          } else if (failure === 'missing-copy') {
+            await base.remove(snapshot.manifest.files[0]!.snapshotPath);
+          } else if (failure === 'changed-copy') {
+            const copy = await base.readBinary(
+              snapshot.manifest.files[0]!.snapshotPath,
+            );
+            await base.writeBinaryAtomic(
+              snapshot.manifest.files[0]!.snapshotPath,
+              new Uint8Array([...copy, 1]),
+            );
+          }
+          return snapshot;
+        },
+      };
+      const writes: string[] = [];
+      const recordingVault = new Proxy(vault, {
+        get(target, property, receiver) {
+          if (property !== 'writeTextAtomic') {
+            const value = Reflect.get(target, property, receiver) as unknown;
+            return typeof value === 'function' ? value.bind(target) : value;
+          }
+          return async (
+            path: string,
+            text: string,
+            condition?: Parameters<VaultPort['writeTextAtomic']>[2],
+          ) => {
+            const written = await vault.writeTextAtomic(path, text, condition);
+            if (!path.startsWith('.studio/')) writes.push(path);
+            return written;
+          };
+        },
+      });
+      const service = createSeasonCloseTransactionService({
+        vault: recordingVault,
+        control: createStudioControlVault(recordingVault),
+        revisions: adversarial,
+        clock: () => new Date(now),
+      });
+
+      await expect(service.close(closeRequest)).rejects.toThrow(
+        'revision snapshot could not be verified',
+      );
+      expect(writes).toEqual([]);
+      expect((await load(vault, closeRequest.season.path)).status).toBe(
+        'active',
+      );
+    },
+  );
+
+  it('reuses one verified snapshot when its success checkpoint initially fails', async () => {
+    const { vault, revisions, closeRequest } = await setup();
+    const create = vi.spyOn(revisions, 'create');
+    const base = createStudioControlVault(vault);
+    let failed = false;
+    const control: StudioControlVault = {
+      ...base,
+      async writeTextAtomic(path, text, condition) {
+        const value = JSON.parse(text) as { stage?: string };
+        if (!failed && value.stage === 'snapshotted') {
+          failed = true;
+          throw new Error('checkpoint unavailable');
+        }
+        return base.writeTextAtomic(path, text, condition);
+      },
+    };
+    const interrupted = createSeasonCloseTransactionService({
+      vault,
+      control,
+      revisions,
+      clock: () => new Date(now),
+    });
+    await expect(interrupted.close(closeRequest)).rejects.toThrow(
+      'checkpoint unavailable',
+    );
+
+    const restarted = createSeasonCloseTransactionService({
+      vault,
+      control: base,
+      revisions,
+      clock: () => new Date(now),
+    });
+    await expect(restarted.resume()).resolves.toMatchObject({
+      season: { note: { status: 'archived' } },
+    });
+    expect(create).toHaveBeenCalledTimes(1);
+    const manifests = (await base.list('.studio/backups')).filter(
+      (entry) => entry.kind === 'file' && entry.path.endsWith('/manifest.json'),
+    );
+    expect(manifests).toHaveLength(1);
+  });
+
+  it.each(['target-output', 'season-bytes', 'season-status'] as const)(
+    'fails closed when completed durable %s no longer matches its journal',
+    async (failure) => {
+      const { vault, revisions, closeRequest } = await setup();
+      const service = createSeasonCloseTransactionService({
+        vault,
+        control: createStudioControlVault(vault),
+        revisions,
+        clock: () => new Date(now),
+      });
+      await service.close(closeRequest);
+      const control = createStudioControlVault(vault);
+      const journal = JSON.parse(
+        (await control.readText('.studio/season/close-journal.json')).text,
+      ) as {
+        season: { path: string };
+        targets: Array<{ outputPath: string }>;
+      };
+      const path =
+        failure === 'target-output'
+          ? journal.targets[0]!.outputPath
+          : journal.season.path;
+      const current = await vault.readText(path);
+      const parsed = parseNote(current.text);
+      if (!parsed.ok) throw new Error('fixture');
+      const changed =
+        failure === 'season-status'
+          ? { ...parsed.note, status: 'active' as const }
+          : { ...parsed.note, body: `${parsed.note.body}\nchanged elsewhere` };
+      await vault.writeTextAtomic(path, serializeNote(changed), {
+        expectedHash: current.hash,
+      });
+
+      await expect(service.resume()).rejects.toThrow('no longer matches');
+    },
+  );
 
   it('reports an archived season corrupted before the final result read', async () => {
     const { vault, revisions, closeRequest } = await setup();
