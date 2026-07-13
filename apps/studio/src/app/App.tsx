@@ -12,11 +12,7 @@ import {
   Dialog,
   type StudioCommand,
 } from '@studio/ui';
-import {
-  createBrowserVault,
-  ensureBrowserPersistence,
-  type BrowserPersistenceStatus,
-} from '@studio/storage/browser';
+import type { BrowserPersistenceStatus } from '@studio/storage/browser';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { StudioProviders } from './providers';
 import {
@@ -41,6 +37,11 @@ const NoteEditorSession = lazy(() =>
     default: module.NoteEditorSession,
   })),
 );
+
+async function requestBrowserPersistence(): Promise<BrowserPersistenceStatus> {
+  const { ensureBrowserPersistence } = await import('@studio/storage/browser');
+  return ensureBrowserPersistence();
+}
 
 function isNativeShell(): boolean {
   return '__TAURI_INTERNALS__' in window;
@@ -122,7 +123,7 @@ export function App(props: AppProps = {}) {
 
 function StudioApplication({
   captureService,
-  requestPersistence = ensureBrowserPersistence,
+  requestPersistence = requestBrowserPersistence,
   studioId,
   studioService,
 }: AppProps) {
@@ -326,6 +327,7 @@ function StudioApplication({
         return;
       }
       if (record === undefined) return;
+      const { createBrowserVault } = await import('@studio/storage/browser');
       activateBrowserStudio(localStorage, record.vaultId);
       setEditor(undefined);
       setActiveStudioId(record.vaultId);
@@ -365,6 +367,7 @@ function StudioApplication({
         return;
       }
 
+      const { createBrowserVault } = await import('@studio/storage/browser');
       const vault = createBrowserVault(record.vaultId);
       if ((await vault.list()).length > 0) {
         registerBrowserStudio(localStorage, record);
