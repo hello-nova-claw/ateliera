@@ -48,9 +48,7 @@ async function seed(
   return { note: value, path, hash: written.hash };
 }
 
-function request(
-  season: Awaited<ReturnType<typeof seed>>,
-): SeasonCloseRequest {
+function request(season: Awaited<ReturnType<typeof seed>>): SeasonCloseRequest {
   return {
     transactionId: 'close-winter',
     season,
@@ -125,7 +123,11 @@ describe('season close transaction', () => {
           const value = Reflect.get(target, property, receiver) as unknown;
           return typeof value === 'function' ? value.bind(target) : value;
         }
-        return async (path: string, text: string, condition?: Parameters<VaultPort['writeTextAtomic']>[2]) => {
+        return async (
+          path: string,
+          text: string,
+          condition?: Parameters<VaultPort['writeTextAtomic']>[2],
+        ) => {
           const result = await vault.writeTextAtomic(path, text, condition);
           writes.push(path);
           return result;
@@ -149,31 +151,48 @@ describe('season close transaction', () => {
     const snapshot = await vault.readText(
       '.studio/backups/2026-07-14/2026-07-14T00-00-00-000Z--snapshot-winter-1/manifest.json',
     );
-    expect(JSON.parse(snapshot.text).files.map((file: { originalPath: string }) => file.originalPath))
-      .toEqual([
-        'Current Season/winter.md',
-        'Home/home.md',
-        'Projects/book.md',
-        'Inbox/rest.md',
-        'Wisdom/future.md',
-        'Ideas/idea.md',
-      ]);
+    expect(
+      JSON.parse(snapshot.text).files.map(
+        (file: { originalPath: string }) => file.originalPath,
+      ),
+    ).toEqual([
+      'Current Season/winter.md',
+      'Home/home.md',
+      'Projects/book.md',
+      'Inbox/rest.md',
+      'Wisdom/future.md',
+      'Ideas/idea.md',
+    ]);
     expect((await load(vault, 'Projects/book.md')).status).toBe('archived');
     expect(await load(vault, 'Inbox/rest.md')).toMatchObject({
       status: 'active',
       rooms: expect.arrayContaining(['life-landscape']),
     });
-    expect(await load(vault, 'Ideas/idea.md')).toMatchObject({ status: 'resting' });
-    const reflection = await notesIn(vault, 'Reflection Garden/Season Outcomes');
+    expect(await load(vault, 'Ideas/idea.md')).toMatchObject({
+      status: 'resting',
+    });
+    const reflection = await notesIn(
+      vault,
+      'Reflection Garden/Season Outcomes',
+    );
     expect(reflection).toEqual([
-      expect.objectContaining({ semanticType: 'celebration', seasons: ['season-winter'] }),
+      expect.objectContaining({
+        semanticType: 'celebration',
+        seasons: ['season-winter'],
+      }),
     ]);
     const invitations = await notesIn(vault, 'Current Season/Invitations');
     expect(invitations).toEqual([
-      expect.objectContaining({ cardType: 'season-invitation', status: 'resting' }),
+      expect.objectContaining({
+        cardType: 'season-invitation',
+        status: 'resting',
+      }),
     ]);
-    expect((await notesIn(vault, 'Reflection Garden')).filter((item) => item.cardType === 'season-letter'))
-      .toHaveLength(1);
+    expect(
+      (await notesIn(vault, 'Reflection Garden')).filter(
+        (item) => item.cardType === 'season-letter',
+      ),
+    ).toHaveLength(1);
   });
 
   it.each([
@@ -190,22 +209,27 @@ describe('season close transaction', () => {
           expectedMissing: true,
         }),
     ],
-  ])('rejects an explicit %s canonical preflight without any snapshot or journal', async (_, arrange) => {
-    const { vault, revisions, closeRequest } = await setup();
-    await arrange(vault);
-    const create = vi.spyOn(revisions, 'create');
-    const service = createSeasonCloseTransactionService({
-      vault,
-      control: createStudioControlVault(vault),
-      revisions,
-      clock: () => new Date(now),
-    });
-    await expect(service.close(closeRequest)).rejects.toBeInstanceOf(
-      SeasonClosePreflightError,
-    );
-    expect(create).not.toHaveBeenCalled();
-    await expect(vault.exists('.studio/season/close-journal.json')).resolves.toBe(false);
-  });
+  ])(
+    'rejects an explicit %s canonical preflight without any snapshot or journal',
+    async (_, arrange) => {
+      const { vault, revisions, closeRequest } = await setup();
+      await arrange(vault);
+      const create = vi.spyOn(revisions, 'create');
+      const service = createSeasonCloseTransactionService({
+        vault,
+        control: createStudioControlVault(vault),
+        revisions,
+        clock: () => new Date(now),
+      });
+      await expect(service.close(closeRequest)).rejects.toBeInstanceOf(
+        SeasonClosePreflightError,
+      );
+      expect(create).not.toHaveBeenCalled();
+      await expect(
+        vault.exists('.studio/season/close-journal.json'),
+      ).resolves.toBe(false);
+    },
+  );
 
   it('requires trimmed reflection fields and exactly one disposition for every priority', async () => {
     const { vault, revisions, closeRequest } = await setup();
@@ -227,10 +251,51 @@ describe('season close transaction', () => {
         dispositions: closeRequest.dispositions.slice(1),
       }),
     ).rejects.toThrow('every priority');
-    await expect(vault.exists('.studio/season/close-journal.json')).resolves.toBe(false);
+    await expect(
+      vault.exists('.studio/season/close-journal.json'),
+    ).resolves.toBe(false);
   });
 
-  it.each(['snapshot', 'letter', 'target:2', 'season'] as const)(
+  it('rejects a forged cold-start journal without touching user notes', async () => {
+    const { vault, revisions } = await setup();
+    await createStudioControlVault(vault).writeTextAtomic(
+      '.studio/season/close-journal.json',
+      JSON.stringify({
+        version: 1,
+        transactionId: 'forged',
+        stage: 'applying-targets',
+        targets: [
+          {
+            noteId: 'idea',
+            path: '../Ideas/idea.md',
+            disposition: 'archive',
+            state: 'pending',
+          },
+        ],
+      }),
+      { expectedMissing: true },
+    );
+    const service = createSeasonCloseTransactionService({
+      vault,
+      control: createStudioControlVault(vault),
+      revisions,
+      clock: () => new Date(now),
+    });
+    await expect(service.resume()).rejects.toThrow('checkpoint is unreadable');
+    expect((await load(vault, 'Ideas/idea.md')).status).toBe('active');
+  });
+
+  it.each([
+    'snapshot',
+    'letter',
+    'target:1',
+    'target:2',
+    'target:3',
+    'target:4',
+    'target:5',
+    'season',
+    'completed',
+  ] as const)(
     'resumes idempotently after a restart immediately after the %s durable boundary',
     async (boundary) => {
       const { vault, revisions, closeRequest } = await setup();
@@ -243,12 +308,16 @@ describe('season close transaction', () => {
             stage?: string;
             targets?: Array<{ state?: string }>;
           };
-          const completedTargets = parsed.targets?.filter((item) => item.state === 'complete').length ?? 0;
+          const completedTargets =
+            parsed.targets?.filter((item) => item.state === 'complete')
+              .length ?? 0;
           const matches =
             (boundary === 'snapshot' && parsed.stage === 'snapshotted') ||
             (boundary === 'letter' && parsed.stage === 'letter-written') ||
-            (boundary === 'target:2' && completedTargets === 2) ||
-            (boundary === 'season' && parsed.stage === 'season-archived');
+            (boundary.startsWith('target:') &&
+              completedTargets === Number(boundary.split(':')[1])) ||
+            (boundary === 'season' && parsed.stage === 'season-archived') ||
+            (boundary === 'completed' && parsed.stage === 'completed');
           if (!failed && matches) {
             failed = true;
             throw new Error(`injected after ${boundary}`);
@@ -270,13 +339,20 @@ describe('season close transaction', () => {
         revisions,
         clock: () => new Date(now),
       });
-      await expect(restarted.close(closeRequest)).resolves.toMatchObject({
+      await expect(restarted.resume()).resolves.toMatchObject({
         season: { note: { status: 'archived' } },
       });
-      expect((await notesIn(vault, 'Reflection Garden')).filter((item) => item.cardType === 'season-letter'))
-        .toHaveLength(1);
-      expect(await notesIn(vault, 'Reflection Garden/Season Outcomes')).toHaveLength(1);
-      expect(await notesIn(vault, 'Current Season/Invitations')).toHaveLength(1);
+      expect(
+        (await notesIn(vault, 'Reflection Garden')).filter(
+          (item) => item.cardType === 'season-letter',
+        ),
+      ).toHaveLength(1);
+      expect(
+        await notesIn(vault, 'Reflection Garden/Season Outcomes'),
+      ).toHaveLength(1);
+      expect(await notesIn(vault, 'Current Season/Invitations')).toHaveLength(
+        1,
+      );
     },
   );
 
@@ -299,7 +375,9 @@ describe('season close transaction', () => {
     await expect(service.close(closeRequest)).rejects.toBeInstanceOf(
       SeasonClosePreflightError,
     );
-    expect((await load(vault, 'Current Season/winter.md')).status).toBe('active');
+    expect((await load(vault, 'Current Season/winter.md')).status).toBe(
+      'active',
+    );
   });
 
   it('serializes the complete close transaction with ordinary Studio mutations', async () => {
@@ -352,7 +430,9 @@ describe('season close transaction', () => {
     await expect(closing).resolves.toMatchObject({
       season: { note: { status: 'archived' } },
     });
-    await expect(saving).resolves.toMatchObject({ note: { id: 'after-close' } });
+    await expect(saving).resolves.toMatchObject({
+      note: { id: 'after-close' },
+    });
   });
 });
 
@@ -362,7 +442,10 @@ async function load(vault: VaultPort, path: string): Promise<StudioNote> {
   return parsed.note;
 }
 
-async function notesIn(vault: VaultPort, prefix: string): Promise<StudioNote[]> {
+async function notesIn(
+  vault: VaultPort,
+  prefix: string,
+): Promise<StudioNote[]> {
   const entries = await vault.list(prefix);
   const values: StudioNote[] = [];
   for (const entry of entries) {

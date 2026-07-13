@@ -76,6 +76,29 @@ it('starts gently from the empty state', () => {
   expect(onBegin).toHaveBeenCalledOnce();
 });
 
+it('persists explicit date clearing when revising the name and dates step', () => {
+  const onSaveStep = vi.fn();
+  render(
+    <SeasonPage
+      record={record({ status: 'draft' })}
+      state="ready"
+      wizardStep="name-dates"
+      onSaveStep={onSaveStep}
+    />,
+  );
+  fireEvent.change(screen.getByLabelText('Starts'), {
+    target: { value: '' },
+  });
+  fireEvent.change(screen.getByLabelText('Ends'), {
+    target: { value: '' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+  expect(onSaveStep).toHaveBeenCalledWith(
+    'name-dates',
+    expect.objectContaining({ startsOn: null, endsOn: null }),
+  );
+});
+
 it('shows interruptible wizard progress, validates step errors, and saves a step', () => {
   const onSaveStep = vi.fn();
   const draft = record({

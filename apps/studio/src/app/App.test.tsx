@@ -87,6 +87,22 @@ function studioService(overrides: Partial<StudioService> = {}) {
         revision: revision ?? 'hash-1',
       }),
     },
+    seasonTransactions: {
+      readActive: vi.fn(async () => ({
+        value: {
+          version: 1 as const,
+          revision: 0,
+          activeNoteId: null,
+          activePath: null,
+          operation: null,
+        },
+        hash: null,
+      })),
+      compareAndSetActive: vi.fn(),
+      readCloseJournal: vi.fn(async () => ({ value: null, hash: null })),
+      compareAndSetCloseJournal: vi.fn(),
+      removeCloseJournal: vi.fn(),
+    },
     start: vi.fn(async () => undefined),
     dispose: vi.fn(async () => undefined),
     subscribe: vi.fn((next) => {
@@ -114,6 +130,8 @@ function studioService(overrides: Partial<StudioService> = {}) {
     restore: vi.fn(),
     reconcileTrash: vi.fn(async () => []),
     snapshot: vi.fn(),
+    closeSeasonTransaction: vi.fn(),
+    resumeSeasonCloseTransaction: vi.fn(async () => null),
     repairs: vi.fn(async () => []),
     rebuildIndex: vi.fn(async () => undefined),
     indexState: vi.fn(() => 'ready' as const),
