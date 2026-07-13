@@ -4,6 +4,11 @@ import { PathEscapeError, VaultConflictError, VaultUnavailableError } from './co
 import { selectTauriVault, type TauriVaultBridge } from './tauri-vault';
 
 const token = '0123456789abcdef0123456789abcdef';
+const recoveryIdentity = 'fedcba9876543210fedcba9876543210';
+
+function selection(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return { vaultToken: token, recoveryIdentity, ...overrides };
+}
 
 function bridge(
   invoke: TauriVaultBridge['invoke'],
@@ -21,11 +26,12 @@ describe('Tauri vault IPC adapter', () => {
 
   it('uses only the opaque native token for subsequent commands', async () => {
     const invoke = vi.fn(async (command: string) => {
-      if (command === 'vault_select') return { vaultToken: token };
+      if (command === 'vault_select') return selection();
       if (command === 'vault_read_text') return { text: 'hello', hash: 'hash' };
       throw new Error(`Unexpected command: ${command}`);
     });
     const vault = await selectTauriVault(bridge(invoke));
+    expect(vault?.recoveryIdentity).toBe(recoveryIdentity);
     await expect(vault?.readText('note.md')).resolves.toEqual({ text: 'hello', hash: 'hash' });
     expect(invoke).toHaveBeenLastCalledWith('vault_read_text', {
       vaultToken: token,
@@ -36,13 +42,16 @@ describe('Tauri vault IPC adapter', () => {
 
   it('rejects malformed selection responses', async () => {
     await expect(
-      selectTauriVault(bridge(async () => ({ vaultToken: '/Users/forged' }))),
+      selectTauriVault(bridge(async () => selection({ vaultToken: '/Users/forged' }))),
+    ).rejects.toBeInstanceOf(VaultUnavailableError);
+    await expect(
+      selectTauriVault(bridge(async () => selection({ recoveryIdentity: '/Users/forged' }))),
     ).rejects.toBeInstanceOf(VaultUnavailableError);
   });
 
   it('transmits conditional text, binary, and remove operations', async () => {
     const invoke = vi.fn(async (command: string) => {
-      if (command === 'vault_select') return { vaultToken: token };
+      if (command === 'vault_select') return selection();
       if (command.startsWith('vault_write_')) return { hash: 'next' };
       if (command === 'vault_remove') return undefined;
       throw new Error(`Unexpected command: ${command}`);
@@ -86,7 +95,7 @@ describe('Tauri vault IPC adapter', () => {
     ['unavailable', VaultUnavailableError],
   ] as const)('maps native %s errors', async (code, ErrorType) => {
     const vault = await selectTauriVault(bridge(async (command) => {
-      if (command === 'vault_select') return { vaultToken: token };
+      if (command === 'vault_select') return selection();
       throw code;
     }));
     await expect(vault?.readText('note.md')).rejects.toBeInstanceOf(ErrorType);
@@ -94,7 +103,7 @@ describe('Tauri vault IPC adapter', () => {
 
   it('subscribes to the opaque event and unregisters the native watcher', async () => {
     const invoke = vi.fn(async (command: string) => {
-      if (command === 'vault_select') return { vaultToken: token };
+      if (command === 'vault_select') return selection();
       if (command === 'vault_watch') return { id: 'watch-id', event: 'studio-vault-random' };
       if (command === 'vault_unwatch') return undefined;
       throw new Error(`Unexpected command: ${command}`);
@@ -120,7 +129,7 @@ describe('Tauri vault IPC adapter', () => {
 
   it('unregisters the native watcher when event subscription fails', async () => {
     const invoke = vi.fn(async (command: string) => {
-      if (command === 'vault_select') return { vaultToken: token };
+      if (command === 'vault_select') return selection();
       if (command === 'vault_watch') return { id: 'watch-id', event: 'studio-vault-random' };
       if (command === 'vault_unwatch') return undefined;
       throw new Error(`Unexpected command: ${command}`);

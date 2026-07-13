@@ -80,6 +80,46 @@ fn ipc_uses_an_opaque_retained_directory_capability() {
 }
 
 #[test]
+fn native_recovery_identity_survives_reselection_without_disclosing_the_vault_path() {
+    let first_vault = tempfile::tempdir().unwrap();
+    let second_vault = tempfile::tempdir().unwrap();
+
+    let first_process = VaultRegistry::default();
+    let first_selection = first_process
+        .register_selected_path_selection_for_test("main", first_vault.path())
+        .unwrap();
+    drop(first_process);
+
+    let reloaded_process = VaultRegistry::default();
+    let reselected = reloaded_process
+        .register_selected_path_selection_for_test("main", first_vault.path())
+        .unwrap();
+    let different = reloaded_process
+        .register_selected_path_selection_for_test("main", second_vault.path())
+        .unwrap();
+
+    assert_eq!(first_selection.recovery_identity, reselected.recovery_identity);
+    assert_ne!(first_selection.vault_token, reselected.vault_token);
+    assert_ne!(reselected.recovery_identity, different.recovery_identity);
+    assert_eq!(reselected.recovery_identity.len(), 32);
+    assert!(
+        reselected
+            .recovery_identity
+            .chars()
+            .all(|character| character.is_ascii_hexdigit())
+    );
+    for selection in [&first_selection, &reselected, &different] {
+        let encoded = serde_json::to_string(selection).unwrap();
+        assert!(!encoded.contains(first_vault.path().to_str().unwrap()));
+        assert!(!encoded.contains(second_vault.path().to_str().unwrap()));
+    }
+    assert_eq!(
+        fs::read_to_string(first_vault.path().join(".studio-vault-id")).unwrap(),
+        reselected.recovery_identity
+    );
+}
+
+#[test]
 fn ipc_rejects_symlink_components_and_traversal() {
     use std::os::unix::fs::symlink;
 
