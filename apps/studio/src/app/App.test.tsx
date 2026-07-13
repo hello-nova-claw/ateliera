@@ -11,7 +11,7 @@ it('renders the Studio landmark', async () => {
     />,
   );
   expect(screen.getByRole('main', { name: 'The Studio' })).toBeVisible();
-  expect(await screen.findByText('Ready offline')).toBeVisible();
+  expect(screen.queryByText('Ready offline')).not.toBeInTheDocument();
 });
 
 it('describes best-effort local storage without an alarm', async () => {

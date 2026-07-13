@@ -1,4 +1,5 @@
 import { vaultContract } from './__contract__/vault-contract';
+import { VaultConflictError } from './conflict';
 import {
   createBrowserVault,
   ensureBrowserPersistence,
@@ -288,6 +289,99 @@ describe('browser vault ZIP portability boundary', () => {
       prepareBrowserVaultImport(target, oversized),
     ).rejects.toMatchObject({ code: 'archive-too-large' });
   });
+
+  it('rejects an oversized Blob before requesting its bytes', async () => {
+    const arrayBuffer = vi.fn(async () => new ArrayBuffer(0));
+    const source = new Blob([]);
+    Object.defineProperties(source, {
+      size: { value: 513 * 1024 * 1024 },
+      arrayBuffer: { value: arrayBuffer },
+    });
+    const target = createBrowserVault('blob-limit-target', {
+      store: createTestStore(),
+    });
+
+    await expect(
+      prepareBrowserVaultImport(target, source),
+    ).rejects.toMatchObject({ code: 'archive-too-large' });
+    expect(arrayBuffer).not.toHaveBeenCalled();
+  });
+
+  it('refuses to export more user entries than its importer can accept', async () => {
+    const store = createTestStore();
+    for (let index = 0; index < 10_000; index += 1) {
+      await store.write(`Inbox/${index}.md`, {
+        bytes: new Uint8Array(),
+        hash: 'empty',
+        modifiedAt: new Date().toISOString(),
+      });
+    }
+    const source = createBrowserVault('export-limit-source', { store });
+
+    await expect(exportBrowserVault(source)).rejects.toMatchObject({
+      code: 'archive-too-large',
+    });
+  });
+
+  it('does not overwrite an edit made while an import is staging', async () => {
+    const base = createTestStore();
+    let releaseStage: () => void = () => undefined;
+    let announceStage: () => void = () => undefined;
+    const stageStarted = new Promise<void>((resolve) => {
+      announceStage = resolve;
+    });
+    const stageGate = new Promise<void>((resolve) => {
+      releaseStage = resolve;
+    });
+    let paused = false;
+    const store: BrowserVaultStore = {
+      ...base,
+      async write(path, file) {
+        await base.write(path, file);
+        if (!paused && path.startsWith('.studio/import-stage/')) {
+          paused = true;
+          announceStage();
+          await stageGate;
+        }
+      },
+    };
+    const source = createBrowserVault('race-source', { store: createTestStore() });
+    await source.writeTextAtomic('Inbox/hill.md', 'imported');
+    const target = createBrowserVault('race-target', { store });
+    const otherTab = createBrowserVault('race-target', { store });
+    await target.writeTextAtomic('Inbox/hill.md', 'original');
+    const plan = await prepareBrowserVaultImport(target, await exportBrowserVault(source));
+
+    const applying = applyBrowserVaultImport(target, plan, { confirm: true });
+    await stageStarted;
+    const outsideEdit = otherTab.writeTextAtomic('Inbox/hill.md', 'outside edit');
+    releaseStage();
+    await outsideEdit;
+
+    await expect(applying).rejects.toBeInstanceOf(VaultConflictError);
+    await expect(target.readText('Inbox/hill.md')).resolves.toMatchObject({
+      text: 'outside edit',
+    });
+  });
+});
+
+it('rolls back a partial browser move when source removal fails', async () => {
+  const base = createTestStore();
+  const store: BrowserVaultStore = {
+    ...base,
+    async remove(path) {
+      if (path === 'Inbox/a.md') throw new DOMException('remove failed', 'UnknownError');
+      await base.remove(path);
+    },
+  };
+  const vault = createBrowserVault('move-rollback', { store });
+  await vault.writeTextAtomic('Inbox/a.md', 'one');
+
+  await expect(vault.move('Inbox/a.md', 'Archive/a.md')).rejects.toThrow(
+    'remove failed',
+  );
+  await expect(vault.exists('Inbox/a.md')).resolves.toBe(true);
+  await expect(vault.exists('Archive/a.md')).resolves.toBe(false);
 });
 
 describe('browser vault backend selection', () => {
