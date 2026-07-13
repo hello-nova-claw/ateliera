@@ -166,6 +166,14 @@ function indexedContent(note: StudioNote) {
   return { links: extractLinks(note.body), searchText: markdownToPlainText(note.body) };
 }
 
+async function updateDisposableIndex(operation: () => Promise<void>): Promise<void> {
+  try {
+    await operation();
+  } catch {
+    // Markdown is authoritative. StudioService immediately rebuilds this disposable projection.
+  }
+}
+
 export function createNoteLifecycleService({
   vault,
   index,
@@ -199,7 +207,8 @@ export function createNoteLifecycleService({
     const written = await vault.writeTextAtomic(current.path, serializeNote(changed), {
       expectedHash: current.hash,
     });
-    await index.upsert(changed, current.path, written.hash, indexedContent(changed));
+    await updateDisposableIndex(() =>
+      index.upsert(changed, current.path, written.hash, indexedContent(changed)));
     return { note: changed, path: current.path, hash: written.hash };
   }
 
@@ -302,7 +311,7 @@ export function createNoteLifecycleService({
           { cause: error },
         );
       }
-      await index.remove(id);
+      await updateDisposableIndex(() => index.remove(id));
       return { id, trashPath, attachments };
     }),
 
@@ -356,7 +365,8 @@ export function createNoteLifecycleService({
           { cause: error },
         );
       }
-      await index.upsert(parsed.note, destination, restored.hash, indexedContent(parsed.note));
+      await updateDisposableIndex(() =>
+        index.upsert(parsed.note, destination, restored.hash, indexedContent(parsed.note)));
       const missingAttachments: string[] = [];
       for (const attachment of entry.attachments) {
         if (!(await available(vault, attachment.path))) missingAttachments.push(attachment.path);
