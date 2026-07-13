@@ -74,6 +74,7 @@ type StorageManagerWithOpfs = Omit<StorageManager, 'getDirectory'> & {
 const encoder = new TextEncoder();
 const decoder = new TextDecoder('utf-8', { fatal: true });
 const WINDOWS_DRIVE_PATH = /^[A-Za-z]:/;
+const SHA256_HASH = /^[a-f0-9]{64}$/;
 const locks = new Map<string, Promise<void>>();
 interface WatchHub {
   channel?: BroadcastChannel;
@@ -91,14 +92,49 @@ function deliver(hub: WatchHub, event: VaultChange): void {
   }
 }
 
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  return actual.length === keys.length &&
+    actual.every((key, index) => key === expected[index]);
+}
+
+function validEventPath(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  try {
+    return validatePath(value) === value;
+  } catch {
+    return false;
+  }
+}
+
+function validBroadcastChange(value: unknown): value is VaultChange {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  if (candidate.kind === 'removed') {
+    return hasExactKeys(candidate, ['kind', 'path']) && validEventPath(candidate.path);
+  }
+  if (candidate.kind === 'created' || candidate.kind === 'modified') {
+    return hasExactKeys(candidate, ['hash', 'kind', 'path']) &&
+      validEventPath(candidate.path) &&
+      typeof candidate.hash === 'string' && SHA256_HASH.test(candidate.hash);
+  }
+  if (candidate.kind === 'moved') {
+    return hasExactKeys(candidate, ['hash', 'kind', 'path', 'previousPath']) &&
+      validEventPath(candidate.path) && validEventPath(candidate.previousPath) &&
+      typeof candidate.hash === 'string' && SHA256_HASH.test(candidate.hash);
+  }
+  return false;
+}
+
 function watchHub(name: string): WatchHub {
   const existing = watchHubs.get(name);
   if (existing !== undefined) return existing;
   const hub: WatchHub = { listeners: new Set() };
   if (typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined') {
     hub.channel = new BroadcastChannel(`the-studio:vault:${name}`);
-    hub.channel.addEventListener('message', (message: MessageEvent<VaultChange>) => {
-      if (message.data !== null && typeof message.data === 'object') {
+    hub.channel.addEventListener('message', (message: MessageEvent<unknown>) => {
+      if (validBroadcastChange(message.data)) {
         deliver(hub, message.data);
       }
     });
@@ -187,6 +223,11 @@ class BrowserVault implements VaultPort {
     const store = await this.storePromise;
     const entries = new Map<string, VaultEntry>();
     for (const [path, file] of await store.entries()) {
+      try {
+        validatePath(path);
+      } catch {
+        continue;
+      }
       for (const directory of parentDirectories(path)) {
         entries.set(directory, { path: directory, kind: 'directory' });
       }
