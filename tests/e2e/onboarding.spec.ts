@@ -24,6 +24,30 @@ test('opens an existing browser Studio', async ({ page }) => {
   await expect(page).toHaveURL(/\/foyer$/);
 });
 
+test('native relaunch requires a fresh session-scoped folder selection', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('studio:opened', 'true');
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: {
+        invoke: async (command: string) =>
+          command === 'vault_select' ? null : undefined,
+      },
+    });
+  });
+
+  await page.goto('/');
+  await expect(
+    page.getByRole('heading', { name: 'Make this space yours.' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Open this Studio' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Make this space yours.' }),
+  ).toBeVisible();
+});
+
 test('changes theme with a keyboard radio menu and remembers it', async ({
   page,
 }) => {
