@@ -7,5 +7,6 @@ describe('application package exports', () => {
     expect(application.createCaptureService).toBeTypeOf('function');
     expect(application.projectRoom).toBeTypeOf('function');
     expect(application.createViewStateRepository).toBeTypeOf('function');
+    expect(application.createLifeAreaRepository).toBeTypeOf('function');
   });
 });
