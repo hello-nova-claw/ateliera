@@ -51,10 +51,27 @@ function lifeAreaTauriBridge(paths: string[]): TauriVaultBridge {
           recoveryIdentity: 'fedcba9876544abc8edcba9876543210',
         };
       }
-      const path = args.path;
-      if (typeof path === 'string') {
-        paths.push(path);
-        if (path !== LIFE_AREA_CONFIG_PATH) throw new Error('path_escape');
+      const selectedPath =
+        typeof args.path === 'string'
+          ? args.path
+          : typeof args.prefix === 'string'
+            ? args.prefix
+            : undefined;
+      if (selectedPath !== undefined) {
+        paths.push(selectedPath);
+        if (selectedPath !== LIFE_AREA_CONFIG_PATH) throw new Error('path_escape');
+      }
+      if (command === 'vault_list') {
+        return stored === undefined
+          ? []
+          : [
+              {
+                path: LIFE_AREA_CONFIG_PATH,
+                kind: 'file',
+                size: new TextEncoder().encode(stored.text).byteLength,
+                contentHash: stored.hash,
+              },
+            ];
       }
       if (command === 'vault_read_text') {
         if (stored === undefined) throw new Error('unavailable');

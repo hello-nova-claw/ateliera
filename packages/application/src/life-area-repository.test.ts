@@ -179,6 +179,30 @@ describe('life area repository', () => {
     });
   });
 
+  it('keeps oversized bytes recoverable when metadata becomes stale before read', async () => {
+    const vault = createInMemoryVault();
+    const text = ' '.repeat(65_537);
+    const original = await vault.writeTextAtomic(LIFE_AREA_CONFIG_PATH, text);
+    vi.spyOn(vault, 'list').mockResolvedValueOnce([
+      {
+        path: LIFE_AREA_CONFIG_PATH,
+        kind: 'file',
+        size: 1,
+        contentHash: original.hash,
+      },
+    ]);
+
+    const snapshot = await createLifeAreaRepository(vault).load();
+
+    expect(snapshot).toMatchObject({
+      revision: original.hash,
+      repairRequired: true,
+    });
+    await expect(vault.readText(LIFE_AREA_CONFIG_PATH)).resolves.toMatchObject({
+      text,
+    });
+  });
+
   it('preserves configuration written by a newer schema version', async () => {
     const vault = createInMemoryVault();
     const text = '{"version":2,"areas":[],"future":true}\n';
@@ -196,6 +220,7 @@ describe('life area repository', () => {
   it('does not hide real read failures behind the missing-config fallback', async () => {
     const vault = createInMemoryVault();
     const repository = createLifeAreaRepository(vault);
+    await repository.save(customAreas, null);
     vi.spyOn(vault, 'readText').mockRejectedValueOnce(
       new VaultUnavailableError('storage unavailable'),
     );
@@ -207,11 +232,72 @@ describe('life area repository', () => {
   it('propagates unexpected adapter errors without probing for absence', async () => {
     const vault = createInMemoryVault();
     const repository = createLifeAreaRepository(vault);
+    await repository.save(customAreas, null);
     const exists = vi.spyOn(vault, 'exists');
     vi.spyOn(vault, 'readText').mockRejectedValueOnce(new TypeError('adapter bug'));
 
     await expect(repository.load()).rejects.toThrow('adapter bug');
     expect(exists).not.toHaveBeenCalled();
+  });
+
+  it('uses the missing fallback when metadata lookup reports an absent path', async () => {
+    const vault = createInMemoryVault();
+    vi.spyOn(vault, 'list').mockRejectedValueOnce(new VaultUnavailableError());
+    vi.spyOn(vault, 'exists').mockResolvedValueOnce(false);
+
+    await expect(createLifeAreaRepository(vault).load()).resolves.toMatchObject({
+      revision: null,
+      repairRequired: false,
+    });
+  });
+
+  it('does not hide metadata outages when the config path exists', async () => {
+    const vault = createInMemoryVault();
+    const repository = createLifeAreaRepository(vault);
+    await repository.save(customAreas, null);
+    vi.spyOn(vault, 'list').mockRejectedValueOnce(
+      new VaultUnavailableError('metadata unavailable'),
+    );
+
+    await expect(repository.load()).rejects.toThrow('metadata unavailable');
+  });
+
+  it('propagates unexpected metadata errors without probing for absence', async () => {
+    const vault = createInMemoryVault();
+    const exists = vi.spyOn(vault, 'exists');
+    vi.spyOn(vault, 'list').mockRejectedValueOnce(new TypeError('metadata bug'));
+
+    await expect(createLifeAreaRepository(vault).load()).rejects.toThrow(
+      'metadata bug',
+    );
+    expect(exists).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { path: LIFE_AREA_CONFIG_PATH, kind: 'directory' as const },
+    { path: LIFE_AREA_CONFIG_PATH, kind: 'file' as const },
+  ])('rejects unusable config metadata for a $kind entry', async (entry) => {
+    const vault = createInMemoryVault();
+    vi.spyOn(vault, 'list').mockResolvedValueOnce([entry]);
+
+    await expect(createLifeAreaRepository(vault).load()).rejects.toThrow(
+      'metadata is unavailable',
+    );
+  });
+
+  it('falls back safely when config disappears after metadata preflight', async () => {
+    const vault = createInMemoryVault();
+    const repository = createLifeAreaRepository(vault);
+    await repository.save(customAreas, null);
+    vi.spyOn(vault, 'readText').mockImplementationOnce(async () => {
+      await vault.remove(LIFE_AREA_CONFIG_PATH);
+      throw new VaultUnavailableError();
+    });
+
+    await expect(repository.load()).resolves.toMatchObject({
+      revision: null,
+      repairRequired: false,
+    });
   });
 });
 
