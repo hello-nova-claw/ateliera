@@ -23,7 +23,10 @@ test('archives, trashes, and safely restores through the persistent browser adap
     ({ handle, path }) => window.studioVaultTest.exists(handle, path),
     { handle: id, path: 'Reflection Garden/n1.md' },
   )).toBe(false);
-  expect(trashed.attachments).toEqual([{ path: 'Attachments/missing.jpg', available: false }]);
+  expect(trashed.attachments).toEqual([{
+    path: 'Attachments/missing.jpg',
+    availability: 'missing',
+  }]);
 
   await page.evaluate((handle) => window.studioVaultTest.write(
     handle,
@@ -35,6 +38,7 @@ test('archives, trashes, and safely restores through the persistent browser adap
     path: 'Reflection Garden/n1--restored.md',
     relocated: true,
     missingAttachments: ['Attachments/missing.jpg'],
+    unknownAttachments: [],
   });
   expect(await page.evaluate(
     ({ handle, path }) => window.studioVaultTest.exists(handle, path),

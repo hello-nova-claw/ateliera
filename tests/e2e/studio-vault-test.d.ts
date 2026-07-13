@@ -22,12 +22,16 @@ interface StudioVaultTestHarness {
   unarchive(id: string, noteId: string): Promise<{ status: string }>;
   trash(id: string, noteId: string): Promise<{
     trashPath: string;
-    attachments: Array<{ path: string; available: boolean }>;
+    attachments: Array<{
+      path: string;
+      availability: 'available' | 'missing' | 'unknown';
+    }>;
   }>;
   restore(id: string, noteId: string): Promise<{
     path: string;
     relocated: boolean;
     missingAttachments: string[];
+    unknownAttachments: string[];
   }>;
   reconcileTrash(id: string): Promise<string[]>;
 }

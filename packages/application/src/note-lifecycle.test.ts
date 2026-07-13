@@ -2,7 +2,10 @@ import { parseNote, serializeNote } from '@studio/content';
 import { VaultConflictError, createInMemoryVault } from '@studio/storage';
 import { describe, expect, it } from 'vitest';
 
-import { createNoteLifecycleService } from './note-lifecycle';
+import {
+  LifecycleStorageUnavailableError,
+  createNoteLifecycleService,
+} from './note-lifecycle';
 import { RecordingIndex, note } from './test-helpers';
 
 const NOW = new Date('2026-07-13T01:02:03.000Z');
@@ -46,8 +49,8 @@ describe('note lifecycle', () => {
     expect((await vault.readText(trashed.trashPath)).text).toBe(before.text);
     expect(await index.getById('n1')).toBeNull();
     expect(trashed.attachments).toEqual([
-      { path: 'Attachments/present.jpg', available: true },
-      { path: 'Attachments/missing.jpg', available: false },
+      { path: 'Attachments/present.jpg', availability: 'available' },
+      { path: 'Attachments/missing.jpg', availability: 'missing' },
     ]);
 
     const restored = await service.restore('n1');
@@ -242,7 +245,7 @@ describe('note lifecycle', () => {
     await expect(service.reconcile()).resolves.toEqual([]);
   });
 
-  it('treats attachment lookup failures as visible missing attachment state', async () => {
+  it('keeps attachment lookup failures distinct from confirmed missing attachments', async () => {
     const { service, vault } = await setup();
     const exists = vault.exists.bind(vault);
     vault.exists = async (path) => {
@@ -250,7 +253,233 @@ describe('note lifecycle', () => {
       return exists(path);
     };
     const trashed = await service.trash('n1');
-    expect(trashed.attachments[0]).toEqual({ path: 'Attachments/present.jpg', available: false });
+    expect(trashed.attachments[0]).toEqual({
+      path: 'Attachments/present.jpg',
+      availability: 'unknown',
+    });
+  });
+
+  it('reports attachment availability that remains unknown during restore', async () => {
+    const { service, vault } = await setup();
+    await service.trash('n1');
+    const exists = vault.exists.bind(vault);
+    vault.exists = async (path) => {
+      if (path === 'Attachments/present.jpg') throw new Error('attachment store unavailable');
+      return exists(path);
+    };
+
+    await expect(service.restore('n1')).resolves.toMatchObject({
+      missingAttachments: ['Attachments/missing.jpg'],
+      unknownAttachments: ['Attachments/present.jpg'],
+    });
+  });
+
+  it('rejects Trash when its destination availability cannot be confirmed', async () => {
+    const { service, vault } = await setup();
+    const exists = vault.exists.bind(vault);
+    vault.exists = async (path) => {
+      if (path === '.studio/Trash/items/n1/n1.md') throw new Error('Trash store unavailable');
+      return exists(path);
+    };
+
+    await expect(service.trash('n1')).rejects.toMatchObject({
+      name: 'LifecycleStorageUnavailableError',
+      paths: ['.studio/Trash/items/n1/n1.md'],
+      cause: expect.any(Error),
+    });
+    await expect(vault.exists('Reflection Garden/n1.md')).resolves.toBe(true);
+  });
+
+  it('leaves the Trash journal unchanged when storage presence is unavailable', async () => {
+    const { service, vault } = await setup();
+    await service.trash('n1');
+    const manifestFile = await vault.readText('.studio/Trash/manifest.json');
+    const manifest = JSON.parse(manifestFile.text) as { entries: Array<{ state: string }> };
+    manifest.entries[0]!.state = 'prepared';
+    const prepared = await vault.writeTextAtomic(
+      '.studio/Trash/manifest.json',
+      `${JSON.stringify(manifest)}\n`,
+      { expectedHash: manifestFile.hash },
+    );
+    const before = await vault.readText('.studio/Trash/manifest.json');
+    const exists = vault.exists.bind(vault);
+    vault.exists = async (path) => {
+      if (path === 'Reflection Garden/n1.md' || path === '.studio/Trash/items/n1/n1.md') {
+        throw new Error('device unavailable');
+      }
+      return exists(path);
+    };
+
+    await expect(service.reconcile()).rejects.toBeInstanceOf(LifecycleStorageUnavailableError);
+    await expect(vault.readText('.studio/Trash/manifest.json')).resolves.toEqual({
+      text: before.text,
+      hash: prepared.hash,
+    });
+  });
+
+  it('leaves prepared and restoring transactions retryable when content reads or destinations fail', async () => {
+    const prepared = await setup();
+    const preparedDeleted = await prepared.service.trash('n1');
+    await prepared.vault.move(preparedDeleted.trashPath, 'Reflection Garden/n1.md');
+    const source = await prepared.vault.readText('Reflection Garden/n1.md');
+    await prepared.vault.writeTextAtomic('Reflection Garden/n1.md', 'unexpected source', {
+      expectedHash: source.hash,
+    });
+    const preparedFile = await prepared.vault.readText('.studio/Trash/manifest.json');
+    const preparedManifest = JSON.parse(preparedFile.text) as { entries: Array<{ state: string }> };
+    preparedManifest.entries[0]!.state = 'prepared';
+    await prepared.vault.writeTextAtomic(
+      '.studio/Trash/manifest.json',
+      `${JSON.stringify(preparedManifest)}\n`,
+      { expectedHash: preparedFile.hash },
+    );
+    await expect(prepared.service.reconcile()).resolves.toEqual([
+      'Trash transaction for n1 has unexpected content and needs review.',
+    ]);
+
+    const unreadableSource = await setup();
+    const unreadableDeleted = await unreadableSource.service.trash('n1');
+    await unreadableSource.vault.move(unreadableDeleted.trashPath, 'Reflection Garden/n1.md');
+    const unreadableFile = await unreadableSource.vault.readText('.studio/Trash/manifest.json');
+    const unreadableManifest = JSON.parse(unreadableFile.text) as { entries: Array<{ state: string }> };
+    unreadableManifest.entries[0]!.state = 'prepared';
+    await unreadableSource.vault.writeTextAtomic(
+      '.studio/Trash/manifest.json',
+      `${JSON.stringify(unreadableManifest)}\n`,
+      { expectedHash: unreadableFile.hash },
+    );
+    const readText = unreadableSource.vault.readText.bind(unreadableSource.vault);
+    unreadableSource.vault.readText = async (path) => {
+      if (path === 'Reflection Garden/n1.md') throw new Error('source temporarily unreadable');
+      return readText(path);
+    };
+    await expect(unreadableSource.service.reconcile()).rejects.toBeInstanceOf(
+      LifecycleStorageUnavailableError,
+    );
+
+    const restoring = await setup();
+    await restoring.service.trash('n1');
+    const restoringFile = await restoring.vault.readText('.studio/Trash/manifest.json');
+    const restoringManifest = JSON.parse(restoringFile.text) as {
+      entries: Array<{ state: string; restorePath?: string }>;
+    };
+    restoringManifest.entries[0]!.state = 'restoring';
+    restoringManifest.entries[0]!.restorePath = 'Reflection Garden/recovered.md';
+    await restoring.vault.writeTextAtomic(
+      '.studio/Trash/manifest.json',
+      `${JSON.stringify(restoringManifest)}\n`,
+      { expectedHash: restoringFile.hash },
+    );
+    const restoringExists = restoring.vault.exists.bind(restoring.vault);
+    restoring.vault.exists = async (path) => {
+      if (path === 'Reflection Garden/recovered.md') throw new Error('destination unavailable');
+      return restoringExists(path);
+    };
+    await expect(restoring.service.reconcile()).rejects.toBeInstanceOf(
+      LifecycleStorageUnavailableError,
+    );
+
+    const unreadableTrash = await setup();
+    const unreadableTrashDeleted = await unreadableTrash.service.trash('n1');
+    const unreadableTrashFile = await unreadableTrash.vault.readText('.studio/Trash/manifest.json');
+    const unreadableTrashManifest = JSON.parse(unreadableTrashFile.text) as {
+      entries: Array<{ state: string }>;
+    };
+    unreadableTrashManifest.entries[0]!.state = 'prepared';
+    await unreadableTrash.vault.writeTextAtomic(
+      '.studio/Trash/manifest.json',
+      `${JSON.stringify(unreadableTrashManifest)}\n`,
+      { expectedHash: unreadableTrashFile.hash },
+    );
+    const trashRead = unreadableTrash.vault.readText.bind(unreadableTrash.vault);
+    unreadableTrash.vault.readText = async (path) => {
+      if (path === unreadableTrashDeleted.trashPath) throw new Error('Trash bytes unavailable');
+      return trashRead(path);
+    };
+    await expect(unreadableTrash.service.reconcile()).rejects.toBeInstanceOf(
+      LifecycleStorageUnavailableError,
+    );
+
+    const unreadableRestore = await setup();
+    const unreadableRestoreDeleted = await unreadableRestore.service.trash('n1');
+    const unreadableRestoreFile = await unreadableRestore.vault.readText('.studio/Trash/manifest.json');
+    const unreadableRestoreManifest = JSON.parse(unreadableRestoreFile.text) as {
+      entries: Array<{ state: string; restorePath?: string }>;
+    };
+    unreadableRestoreManifest.entries[0]!.state = 'restoring';
+    unreadableRestoreManifest.entries[0]!.restorePath = 'Reflection Garden/recovered.md';
+    await unreadableRestore.vault.writeTextAtomic(
+      '.studio/Trash/manifest.json',
+      `${JSON.stringify(unreadableRestoreManifest)}\n`,
+      { expectedHash: unreadableRestoreFile.hash },
+    );
+    await unreadableRestore.vault.move(
+      unreadableRestoreDeleted.trashPath,
+      'Reflection Garden/recovered.md',
+    );
+    const restoreRead = unreadableRestore.vault.readText.bind(unreadableRestore.vault);
+    unreadableRestore.vault.readText = async (path) => {
+      if (path === 'Reflection Garden/recovered.md') throw new Error('restored bytes unavailable');
+      return restoreRead(path);
+    };
+    await expect(unreadableRestore.service.reconcile()).rejects.toBeInstanceOf(
+      LifecycleStorageUnavailableError,
+    );
+  });
+
+  it('does not reconcile prepared or restoring entries whose surviving bytes have the wrong hash', async () => {
+    const preparedCase = await setup();
+    const deleted = await preparedCase.service.trash('n1');
+    const trash = await preparedCase.vault.readText(deleted.trashPath);
+    await preparedCase.vault.writeTextAtomic(deleted.trashPath, 'wrong bytes', {
+      expectedHash: trash.hash,
+    });
+    const preparedFile = await preparedCase.vault.readText('.studio/Trash/manifest.json');
+    const preparedManifest = JSON.parse(preparedFile.text) as { entries: Array<{ state: string }> };
+    preparedManifest.entries[0]!.state = 'prepared';
+    await preparedCase.vault.writeTextAtomic(
+      '.studio/Trash/manifest.json',
+      `${JSON.stringify(preparedManifest)}\n`,
+      { expectedHash: preparedFile.hash },
+    );
+    const preparedBefore = await preparedCase.vault.readText('.studio/Trash/manifest.json');
+
+    await expect(preparedCase.service.reconcile()).resolves.toEqual([
+      'Trash transaction for n1 has unexpected content and needs review.',
+    ]);
+    await expect(preparedCase.vault.readText('.studio/Trash/manifest.json')).resolves.toEqual(
+      preparedBefore,
+    );
+
+    const restoringCase = await setup();
+    const restoringDeleted = await restoringCase.service.trash('n1');
+    const restoringFile = await restoringCase.vault.readText('.studio/Trash/manifest.json');
+    const restoringManifest = JSON.parse(restoringFile.text) as {
+      entries: Array<{ state: string; restorePath?: string }>;
+    };
+    restoringManifest.entries[0]!.state = 'restoring';
+    restoringManifest.entries[0]!.restorePath = 'Reflection Garden/recovered.md';
+    await restoringCase.vault.writeTextAtomic(
+      '.studio/Trash/manifest.json',
+      `${JSON.stringify(restoringManifest)}\n`,
+      { expectedHash: restoringFile.hash },
+    );
+    await restoringCase.vault.move(
+      restoringDeleted.trashPath,
+      'Reflection Garden/recovered.md',
+    );
+    const destination = await restoringCase.vault.readText('Reflection Garden/recovered.md');
+    await restoringCase.vault.writeTextAtomic('Reflection Garden/recovered.md', 'wrong bytes', {
+      expectedHash: destination.hash,
+    });
+    const restoringBefore = await restoringCase.vault.readText('.studio/Trash/manifest.json');
+
+    await expect(restoringCase.service.reconcile()).resolves.toEqual([
+      'Restore transaction for n1 has unexpected content and needs review.',
+    ]);
+    await expect(restoringCase.vault.readText('.studio/Trash/manifest.json')).resolves.toEqual(
+      restoringBefore,
+    );
   });
 
   it('keeps independent Trash entries intact while another entry changes state', async () => {
