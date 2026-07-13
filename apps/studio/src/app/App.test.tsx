@@ -142,6 +142,42 @@ it('renders the Studio landmark', async () => {
   expect(screen.queryByText('Ready offline')).not.toBeInTheDocument();
 });
 
+it('projects the Foyer through the active Studio and opens its canonical note', async () => {
+  const becoming = { ...projection('I am practicing creating from calm.'), cardType: 'identity', title: 'A woman who creates from calm', path: 'Foyer/becoming.md' };
+  const fixture = studioService({
+    projectFoyer: vi.fn(async () => ({
+      currentSeason: null, featured: [becoming], becoming, feelings: [], principles: [], priorities: [], returning: null, image: null,
+    })),
+    load: vi.fn(async () => ({ note: { ...note, id: becoming.noteId, title: becoming.title, body: becoming.excerpt }, path: becoming.path, hash: 'hash-1' })),
+  });
+  render(<App studioId="studio:first" studioService={fixture.service} />);
+
+  expect(await screen.findByText('A woman who creates from calm')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Edit becoming' }));
+  expect(fixture.service.load).toHaveBeenCalledWith('Foyer/becoming.md');
+  expect(await screen.findByRole('dialog', { name: 'Edit note' })).toBeVisible();
+});
+
+it('turns an empty Foyer invitation into a canonical featured note', async () => {
+  const fixture = studioService();
+  render(<App studioId="studio:first" studioService={fixture.service} />);
+  expect(await screen.findByText('What are you currently becoming?')).toBeVisible();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Add a becoming sentence' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'What would you like remembered?' }), { target: { value: 'A woman who creates from calm' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Remember' }));
+
+  await waitFor(() => expect(fixture.service.save).toHaveBeenCalledWith(expect.objectContaining({
+    expectedHash: 'hash-1',
+    note: expect.objectContaining({
+      cardType: 'identity',
+      semanticType: 'foundations',
+      rooms: expect.arrayContaining(['foyer', 'identity-studio']),
+      display: expect.objectContaining({ featured: true }),
+    }),
+  })));
+});
+
 it('describes best-effort local storage without an alarm', async () => {
   render(
     <App
