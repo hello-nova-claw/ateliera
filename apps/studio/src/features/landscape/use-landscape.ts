@@ -236,14 +236,21 @@ export function useLandscape(
     },
     move: async (move: LandscapeMove) => {
       if (!service) throw new Error('Choose a Studio before moving this note.');
-      const saved = await service.updateLandscapePlacement({
-        path: move.card.path,
-        expectedHash: move.card.hash,
-        lifeAreas: move.lifeAreas,
-        anchor: move.anchor,
-      });
-      refresh();
-      return { hash: saved.hash };
+      try {
+        const saved = await service.updateLandscapePlacement({
+          path: move.card.path,
+          expectedHash: move.card.hash,
+          lifeAreas: move.lifeAreas,
+          anchor: move.anchor,
+        });
+        refresh();
+        return { hash: saved.hash };
+      } catch (reason) {
+        // A compare-and-swap conflict leaves the other durable version intact.
+        // Reproject it while the menu remains open for an accessible retry.
+        refresh();
+        throw reason;
+      }
     },
     reorder: async (
       lifeArea: string,
