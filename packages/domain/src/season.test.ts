@@ -46,6 +46,18 @@ describe('season domain', () => {
     expect(
       addSeasonPriority(base, 'four', { override: true }).priorities,
     ).toHaveLength(4);
+    const four = updateSeasonDraft(
+      { ...base, title: 'Winter' },
+      'priorities',
+      { priorities: ['one', 'two', 'three', 'four'] },
+      base.updated,
+      { priorityOverride: true },
+    );
+    expect(() =>
+      updateSeasonDraft(four, 'decisions-practices', {
+        practices: ['Rest'],
+      }),
+    ).not.toThrow();
   });
 
   it('never carries notes forward automatically when closing', () => {
