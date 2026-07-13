@@ -369,6 +369,29 @@ impl Vault {
         }
     }
 
+    fn require_missing(directory: &Dir, basename: &str) -> Result<(), VaultError> {
+        match directory.symlink_metadata(basename) {
+            Ok(_) => Err(VaultError::Conflict),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(map_path_error(error)),
+        }
+    }
+
+    fn require_write_condition(
+        directory: &Dir,
+        basename: &str,
+        expected_hash: Option<&str>,
+        expected_missing: bool,
+    ) -> Result<(), VaultError> {
+        if expected_missing {
+            Self::require_missing(directory, basename)?;
+        }
+        if let Some(expected) = expected_hash {
+            Self::require_expected_hash(directory, basename, expected)?;
+        }
+        Ok(())
+    }
+
     #[cfg(target_os = "macos")]
     fn retained_root_path(&self) -> Result<PathBuf, VaultError> {
         let descriptor = self
@@ -465,6 +488,7 @@ impl Vault {
         path: &str,
         bytes: &[u8],
         expected_hash: Option<&str>,
+        expected_missing: bool,
         before_commit: F,
     ) -> Result<String, VaultError>
     where
@@ -472,9 +496,12 @@ impl Vault {
     {
         let _write_guard = self.lock_writes()?;
         let parent = open_parent(&self.root, path, true)?;
-        if let Some(expected) = expected_hash {
-            Self::require_expected_hash(&parent.directory, &parent.basename, expected)?;
-        }
+        Self::require_write_condition(
+            &parent.directory,
+            &parent.basename,
+            expected_hash,
+            expected_missing,
+        )?;
         let temporary = format!(".studio-{}.tmp", Uuid::new_v4().simple());
         let mut options = OpenOptions::new();
         options
@@ -492,13 +519,25 @@ impl Vault {
             drop(file);
             before_commit();
 
-            if let Some(expected) = expected_hash {
-                Self::require_expected_hash(&parent.directory, &parent.basename, expected)?;
+            Self::require_write_condition(
+                &parent.directory,
+                &parent.basename,
+                expected_hash,
+                expected_missing,
+            )?;
+            if expected_missing {
+                rename_exclusive(
+                    &parent.directory,
+                    &temporary,
+                    &parent.directory,
+                    &parent.basename,
+                )?;
+            } else {
+                parent
+                    .directory
+                    .rename(&temporary, &parent.directory, &parent.basename)
+                    .map_err(map_path_error)?;
             }
-            parent
-                .directory
-                .rename(&temporary, &parent.directory, &parent.basename)
-                .map_err(map_path_error)?;
             sync_directory(&parent.directory)?;
             Ok(hash(bytes))
         })();
@@ -513,15 +552,28 @@ impl Vault {
         path: &str,
         text: &str,
         expected_hash: Option<&str>,
+        expected_missing: bool,
     ) -> Result<HashResult, VaultError> {
         Ok(HashResult {
-            hash: self.write_atomic(path, text.as_bytes(), expected_hash, || {})?,
+            hash: self.write_atomic(
+                path,
+                text.as_bytes(),
+                expected_hash,
+                expected_missing,
+                || {},
+            )?,
         })
     }
 
-    fn write_binary_atomic(&self, path: &str, bytes: &[u8]) -> Result<HashResult, VaultError> {
+    fn write_binary_atomic(
+        &self,
+        path: &str,
+        bytes: &[u8],
+        expected_hash: Option<&str>,
+        expected_missing: bool,
+    ) -> Result<HashResult, VaultError> {
         Ok(HashResult {
-            hash: self.write_atomic(path, bytes, None, || {})?,
+            hash: self.write_atomic(path, bytes, expected_hash, expected_missing, || {})?,
         })
     }
 
@@ -546,7 +598,12 @@ impl Vault {
         sync_directory(&to_parent.directory)
     }
 
-    fn remove(&self, path: &str) -> Result<(), VaultError> {
+    fn remove(
+        &self,
+        path: &str,
+        expected_hash: Option<&str>,
+        expected_missing: bool,
+    ) -> Result<(), VaultError> {
         let _write_guard = self.lock_writes()?;
         let parent = open_parent(&self.root, path, false)?;
         let metadata = parent
@@ -555,6 +612,12 @@ impl Vault {
             .map_err(map_path_error)?;
         if metadata.file_type().is_symlink() {
             return Err(VaultError::PathEscape);
+        }
+        if expected_missing {
+            return Err(VaultError::Conflict);
+        }
+        if let Some(expected) = expected_hash {
+            Self::require_expected_hash(&parent.directory, &parent.basename, expected)?;
         }
         parent
             .directory
@@ -743,7 +806,7 @@ impl Vault {
     where
         F: FnOnce(),
     {
-        self.write_atomic(path, text.as_bytes(), expected_hash, before_commit)
+        self.write_atomic(path, text.as_bytes(), expected_hash, false, before_commit)
     }
 
     #[cfg(test)]
@@ -753,7 +816,18 @@ impl Vault {
         text: &str,
         expected_hash: Option<&str>,
     ) -> Result<String, VaultError> {
-        self.write_atomic(path, text.as_bytes(), expected_hash, || {})
+        self.write_atomic(path, text.as_bytes(), expected_hash, false, || {})
+    }
+
+    #[cfg(test)]
+    pub fn write_binary_atomic_for_test(
+        &self,
+        path: &str,
+        bytes: &[u8],
+        expected_hash: Option<&str>,
+        expected_missing: bool,
+    ) -> Result<String, VaultError> {
+        self.write_atomic(path, bytes, expected_hash, expected_missing, || {})
     }
 
     #[cfg(test)]
@@ -955,11 +1029,13 @@ pub fn vault_write_text_atomic<R: Runtime>(
     path: String,
     text: String,
     expected_hash: Option<String>,
+    expected_missing: Option<bool>,
 ) -> Result<HashResult, VaultError> {
     selected_vault(&window, &state, &vault_token)?.write_text_atomic(
         &path,
         &text,
         expected_hash.as_deref(),
+        expected_missing.unwrap_or(false),
     )
 }
 
@@ -970,8 +1046,15 @@ pub fn vault_write_binary_atomic<R: Runtime>(
     vault_token: String,
     path: String,
     bytes: Vec<u8>,
+    expected_hash: Option<String>,
+    expected_missing: Option<bool>,
 ) -> Result<HashResult, VaultError> {
-    selected_vault(&window, &state, &vault_token)?.write_binary_atomic(&path, &bytes)
+    selected_vault(&window, &state, &vault_token)?.write_binary_atomic(
+        &path,
+        &bytes,
+        expected_hash.as_deref(),
+        expected_missing.unwrap_or(false),
+    )
 }
 
 #[tauri::command]
@@ -1011,8 +1094,14 @@ pub fn vault_remove<R: Runtime>(
     state: State<'_, VaultRegistry>,
     vault_token: String,
     path: String,
+    expected_hash: Option<String>,
+    expected_missing: Option<bool>,
 ) -> Result<(), VaultError> {
-    selected_vault(&window, &state, &vault_token)?.remove(&path)
+    selected_vault(&window, &state, &vault_token)?.remove(
+        &path,
+        expected_hash.as_deref(),
+        expected_missing.unwrap_or(false),
+    )
 }
 
 #[tauri::command]

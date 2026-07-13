@@ -110,6 +110,9 @@ class InMemoryVault implements VaultPort {
   async remove(path: string, condition?: WriteCondition): Promise<void> {
     const validPath = validatePath(path);
     const current = this.#files.get(validPath);
+    if (current !== undefined && condition?.expectedMissing) {
+      throw new VaultConflictError();
+    }
     if (
       current !== undefined &&
       condition?.expectedHash !== undefined &&

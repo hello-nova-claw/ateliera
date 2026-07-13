@@ -313,6 +313,188 @@ fn two_selections_of_one_vault_allow_only_one_expected_hash_writer() {
 }
 
 #[test]
+fn ipc_enforces_conditional_text_binary_and_remove_operations() {
+    let selected = tempfile::tempdir().unwrap();
+    let app = app();
+    let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+        .build()
+        .unwrap();
+    let token = app
+        .state::<VaultRegistry>()
+        .register_selected_path_for_test("main", selected.path())
+        .unwrap();
+
+    invoke_mock(
+        &webview,
+        "vault_write_text_atomic",
+        json!({
+            "vaultToken": token,
+            "path": "note.md",
+            "text": "first",
+            "expectedHash": null,
+            "expectedMissing": true
+        }),
+    )
+    .unwrap();
+    assert_eq!(
+        invoke_mock(
+            &webview,
+            "vault_write_text_atomic",
+            json!({
+                "vaultToken": token,
+                "path": "note.md",
+                "text": "clobber",
+                "expectedHash": null,
+                "expectedMissing": true
+            }),
+        )
+        .unwrap_err(),
+        json!("conflict")
+    );
+
+    let created = invoke_mock(
+        &webview,
+        "vault_write_binary_atomic",
+        json!({
+            "vaultToken": token,
+            "path": "asset.bin",
+            "bytes": [1, 2, 3],
+            "expectedHash": null,
+            "expectedMissing": true
+        }),
+    )
+    .unwrap();
+    assert_eq!(
+        invoke_mock(
+            &webview,
+            "vault_write_binary_atomic",
+            json!({
+                "vaultToken": token,
+                "path": "asset.bin",
+                "bytes": [9],
+                "expectedHash": null,
+                "expectedMissing": true
+            }),
+        )
+        .unwrap_err(),
+        json!("conflict")
+    );
+    assert_eq!(
+        invoke_mock(
+            &webview,
+            "vault_read_binary",
+            json!({ "vaultToken": token, "path": "asset.bin" }),
+        )
+        .unwrap(),
+        json!([1, 2, 3])
+    );
+
+    let replaced = invoke_mock(
+        &webview,
+        "vault_write_binary_atomic",
+        json!({
+            "vaultToken": token,
+            "path": "asset.bin",
+            "bytes": [4, 5, 6],
+            "expectedHash": created["hash"],
+            "expectedMissing": false
+        }),
+    )
+    .unwrap();
+    assert_eq!(
+        invoke_mock(
+            &webview,
+            "vault_remove",
+            json!({
+                "vaultToken": token,
+                "path": "asset.bin",
+                "expectedHash": null,
+                "expectedMissing": true
+            }),
+        )
+        .unwrap_err(),
+        json!("conflict")
+    );
+    assert_eq!(
+        invoke_mock(
+            &webview,
+            "vault_remove",
+            json!({
+                "vaultToken": token,
+                "path": "asset.bin",
+                "expectedHash": created["hash"],
+                "expectedMissing": false
+            }),
+        )
+        .unwrap_err(),
+        json!("conflict")
+    );
+    assert_eq!(
+        invoke_mock(
+            &webview,
+            "vault_read_binary",
+            json!({ "vaultToken": token, "path": "asset.bin" }),
+        )
+        .unwrap(),
+        json!([4, 5, 6])
+    );
+    invoke_mock(
+        &webview,
+        "vault_remove",
+        json!({
+            "vaultToken": token,
+            "path": "asset.bin",
+            "expectedHash": replaced["hash"],
+            "expectedMissing": false
+        }),
+    )
+    .unwrap();
+    assert!(!selected.path().join("asset.bin").exists());
+}
+
+#[test]
+fn two_selections_allow_only_one_conditional_binary_create() {
+    let selected = tempfile::tempdir().unwrap();
+    let registry = VaultRegistry::default();
+    let first_token = registry
+        .register_selected_path_for_test("first", selected.path())
+        .unwrap();
+    let second_token = registry
+        .register_selected_path_for_test("second", selected.path())
+        .unwrap();
+    let first = registry.vault_for_test("first", &first_token).unwrap();
+    let second = registry.vault_for_test("second", &second_token).unwrap();
+    let barrier = Arc::new(Barrier::new(3));
+
+    let spawn_writer = |vault: Arc<Vault>, bytes: &'static [u8]| {
+        let barrier = Arc::clone(&barrier);
+        std::thread::spawn(move || {
+            barrier.wait();
+            vault.write_binary_atomic_for_test("asset.bin", bytes, None, true)
+        })
+    };
+    let first_writer = spawn_writer(first, &[1, 2, 3]);
+    let second_writer = spawn_writer(second, &[4, 5, 6]);
+    barrier.wait();
+    let results = [first_writer.join().unwrap(), second_writer.join().unwrap()];
+
+    assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+    assert_eq!(
+        results
+            .iter()
+            .filter(|result| matches!(result, Err(crate::commands::vault::VaultError::Conflict)))
+            .count(),
+        1
+    );
+    assert!(matches!(
+        fs::read(selected.path().join("asset.bin"))
+            .unwrap()
+            .as_slice(),
+        [1, 2, 3] | [4, 5, 6]
+    ));
+}
+
+#[test]
 fn uncooperative_external_writer_before_publish_is_detected_without_a_swap() {
     let selected = tempfile::tempdir().unwrap();
     fs::write(selected.path().join("note.md"), "original").unwrap();

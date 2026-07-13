@@ -149,6 +149,52 @@ export function vaultContract(name: string, createVault: () => Promise<VaultPort
       await expect(vault.readBinary('Attachments/a.bin')).resolves.toEqual(new Uint8Array([0, 1, 255]));
     });
 
+    it('enforces conditional binary create and replace without losing the winner', async () => {
+      const vault = await createVault();
+      const first = new Uint8Array([1, 2, 3]);
+      const second = new Uint8Array([4, 5, 6]);
+      const created = await vault.writeBinaryAtomic('Attachments/conditional.bin', first, {
+        expectedMissing: true,
+      });
+
+      await expect(
+        vault.writeBinaryAtomic('Attachments/conditional.bin', second, {
+          expectedMissing: true,
+        }),
+      ).rejects.toBeInstanceOf(VaultConflictError);
+      await expect(vault.readBinary('Attachments/conditional.bin')).resolves.toEqual(first);
+
+      const replaced = await vault.writeBinaryAtomic('Attachments/conditional.bin', second, {
+        expectedHash: created.hash,
+      });
+      await expect(
+        vault.writeBinaryAtomic('Attachments/conditional.bin', first, {
+          expectedHash: created.hash,
+        }),
+      ).rejects.toBeInstanceOf(VaultConflictError);
+      await expect(vault.readBinary('Attachments/conditional.bin')).resolves.toEqual(second);
+      expect(replaced.hash).not.toBe(created.hash);
+    });
+
+    it('removes only the expected file version', async () => {
+      const vault = await createVault();
+      const current = await vault.writeBinaryAtomic(
+        'Attachments/remove.bin',
+        new Uint8Array([7, 8, 9]),
+      );
+
+      await expect(
+        vault.remove('Attachments/remove.bin', { expectedMissing: true }),
+      ).rejects.toBeInstanceOf(VaultConflictError);
+      await expect(
+        vault.remove('Attachments/remove.bin', { expectedHash: 'stale' }),
+      ).rejects.toBeInstanceOf(VaultConflictError);
+      await expect(vault.exists('Attachments/remove.bin')).resolves.toBe(true);
+
+      await vault.remove('Attachments/remove.bin', { expectedHash: current.hash });
+      await expect(vault.exists('Attachments/remove.bin')).resolves.toBe(false);
+    });
+
     it('lists entries deterministically by path and filters by prefix', async () => {
       const vault = await createVault();
       await vault.writeTextAtomic('Inbox/z.md', 'z');

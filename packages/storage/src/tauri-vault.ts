@@ -34,11 +34,11 @@ function createTauriVault(vaultToken: VaultToken, bridge: TauriVaultBridge): Vau
   return {
     list: (prefix) => call<VaultEntry[]>('vault_list', { prefix }),
     readText: (path) => call('vault_read_text', { path }),
-    writeTextAtomic: (path, text, condition?: WriteCondition) => call('vault_write_text_atomic', { path, text, expectedHash: condition?.expectedHash }),
+    writeTextAtomic: (path, text, condition?: WriteCondition) => call('vault_write_text_atomic', { path, text, expectedHash: condition?.expectedHash, expectedMissing: condition?.expectedMissing }),
     readBinary: async (path) => new Uint8Array(await call<number[]>('vault_read_binary', { path })),
-    writeBinaryAtomic: (path, bytes) => call('vault_write_binary_atomic', { path, bytes: [...bytes] }),
+    writeBinaryAtomic: (path, bytes, condition?: WriteCondition) => call('vault_write_binary_atomic', { path, bytes: [...bytes], expectedHash: condition?.expectedHash, expectedMissing: condition?.expectedMissing }),
     move: (from, to) => call('vault_move', { from, to }),
-    remove: (path) => call('vault_remove', { path }),
+    remove: (path, condition?: WriteCondition) => call('vault_remove', { path, expectedHash: condition?.expectedHash, expectedMissing: condition?.expectedMissing }),
     exists: (path) => call('vault_exists', { path }),
     watch: async (listener) => {
       const registration = await call<{ id: string; event: string }>('vault_watch', {});

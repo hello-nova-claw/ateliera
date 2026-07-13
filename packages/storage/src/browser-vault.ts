@@ -270,6 +270,9 @@ class BrowserVault implements VaultPort {
       if (previous === undefined) {
         throw new VaultUnavailableError();
       }
+      if (condition?.expectedMissing) {
+        throw new VaultConflictError();
+      }
       if (
         condition?.expectedHash !== undefined &&
         previous.hash !== condition.expectedHash

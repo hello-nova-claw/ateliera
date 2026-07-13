@@ -40,6 +40,46 @@ describe('Tauri vault IPC adapter', () => {
     ).rejects.toBeInstanceOf(VaultUnavailableError);
   });
 
+  it('transmits conditional text, binary, and remove operations', async () => {
+    const invoke = vi.fn(async (command: string) => {
+      if (command === 'vault_select') return { vaultToken: token };
+      if (command.startsWith('vault_write_')) return { hash: 'next' };
+      if (command === 'vault_remove') return undefined;
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    const vault = await selectTauriVault(bridge(invoke));
+
+    await vault?.writeTextAtomic('note.md', 'text', { expectedMissing: true });
+    expect(invoke).toHaveBeenLastCalledWith('vault_write_text_atomic', {
+      vaultToken: token,
+      path: 'note.md',
+      text: 'text',
+      expectedHash: undefined,
+      expectedMissing: true,
+    });
+    await vault?.writeBinaryAtomic('asset.bin', new Uint8Array([1, 2]), {
+      expectedHash: 'binary-hash',
+      expectedMissing: true,
+    });
+    expect(invoke).toHaveBeenLastCalledWith('vault_write_binary_atomic', {
+      vaultToken: token,
+      path: 'asset.bin',
+      bytes: [1, 2],
+      expectedHash: 'binary-hash',
+      expectedMissing: true,
+    });
+    await vault?.remove('asset.bin', {
+      expectedHash: 'remove-hash',
+      expectedMissing: true,
+    });
+    expect(invoke).toHaveBeenLastCalledWith('vault_remove', {
+      vaultToken: token,
+      path: 'asset.bin',
+      expectedHash: 'remove-hash',
+      expectedMissing: true,
+    });
+  });
+
   it.each([
     ['path_escape', PathEscapeError],
     ['conflict', VaultConflictError],
