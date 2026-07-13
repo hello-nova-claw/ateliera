@@ -15,6 +15,7 @@ This report describes the current implementation. It intentionally does not clai
 - `c0fb671` — reserve internal control paths, prove two-selection concurrency, and verify watcher identity through registration
 - `0e56612` — reserve control paths case-insensitively for default macOS filesystems
 - `4b37301` — reject blocking special-file reads and add capability-based periodic watcher reconciliation
+- `ddf44c0` — enforce conditional text, binary, and remove mutations across the shared vault contract
 
 All commits are authored solely by Anna McPhee and contain no attribution trailers.
 
@@ -46,7 +47,9 @@ Conditional writes:
 5. atomically rename the completed temporary over the destination; and
 6. sync the containing directory.
 
-A failed candidate is never swapped into the public destination. Conflict cleanup removes only the writer's own temporary file, so it cannot roll back over a winning cooperative writer. Moves use macOS `renameatx_np(RENAME_EXCL)` and therefore do not clobber an existing destination.
+A condition may require a matching `expectedHash`, an absent destination with `expectedMissing`, or both. Text and binary writes use the same native path. An `expectedMissing` create publishes with macOS `renameatx_np(RENAME_EXCL)`, so even a non-cooperating destination creator cannot be overwritten. If both conditions are supplied, the destination cannot satisfy both and the write conflicts.
+
+Conditional remove acquires the same locks, opens through the retained capability, and validates `expectedHash` or `expectedMissing` before unlink. An existing file with `expectedMissing` conflicts; an absent file remains unavailable, matching the shared adapters. A failed candidate is never swapped into the public destination. Conflict cleanup removes only the writer's own temporary file, so it cannot roll back over a winning cooperative writer. Moves use `RENAME_EXCL` and therefore do not clobber an existing destination.
 
 ### Explicit limitation
 
@@ -85,10 +88,11 @@ RED was observed for each remediation before production changes:
 - watcher registration had no adversarial replacement hook or identity verification;
 - direct FIFO reads could block before target-type validation; and
 - pathname ABA had no independent retained-capability reconciliation path.
+- the renderer bridge discarded binary/remove conditions and native commands did not enforce shared conditional mutation semantics.
 
 GREEN:
 
-- `pnpm tauri:test`: 16 passed.
+- `pnpm tauri:test`: 18 passed.
   - production builder lifecycle callback wiring assertion;
   - `WindowEvent::Destroyed` capability revocation branch;
   - case-insensitive reserved `.studio-*` component validation;
@@ -99,14 +103,17 @@ GREEN:
   - nonblocking rejection of FIFO text and binary reads;
   - cooperative external writer serialization and preservation;
   - exactly one winner across two independent selections using the same expected hash;
+  - exactly one winner across two selections conditionally creating the same binary path;
+  - IPC enforcement and conflict preservation for conditional text, binary, and remove operations;
   - non-cooperating pre-publication change detection without swap/rollback;
   - atomic no-clobber move behavior;
   - adversarial `F_GETPATH`/`watch()` replacement detection and retry;
   - ABA outside-content non-disclosure;
   - retained-vault event recovery after the native watcher is deliberately dropped;
   - logical rename coalescing.
-- `pnpm --filter @studio/storage test:tauri`: 8 passed, including native watcher cleanup when event subscription fails.
-- `pnpm test`: 312 passed at the prior remediation checkpoint; rerun after the current task's concurrent Task 6 changes belongs to the integration owner.
+- `pnpm --filter @studio/storage test:tauri`: 9 passed, including conditional argument transport and native watcher cleanup when event subscription fails.
+- `pnpm --filter @studio/storage test`: 290 passed, including shared conditional binary create/replace and remove contracts.
+- `pnpm test`: 337 passed.
 - `cargo clippy --all-targets -- -D warnings`: passed for the current Rust changes.
 - `cargo fmt --check`: passed for the current Rust changes.
 - `pnpm tauri:build`, TypeScript typecheck, ESLint, and Stylelint passed at the prior remediation checkpoint.
@@ -120,6 +127,7 @@ The security properties claimed here are:
 - complete public reservation of internal `.studio-*` controls;
 - atomic completed-file publication;
 - exact conditional-write serialization among writers that honor `.studio-write.lock`;
+- consistent conditional text, binary, and remove behavior across in-memory, browser, and desktop adapters;
 - no-clobber moves;
 - logical watcher events derived only from retained-capability snapshots, with independent periodic reconciliation; and
 - explicit capability/watcher cleanup paths.
