@@ -34,6 +34,8 @@ export default tseslint.config(
     ignores: [
       '**/dist/**',
       '**/node_modules/**',
+      '**/.toolchains/**',
+      'apps/studio/src-tauri/target/**',
       'artifacts/**',
       'playwright-report/**',
       'test-results/**',
