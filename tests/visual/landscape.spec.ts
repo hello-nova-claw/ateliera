@@ -36,6 +36,7 @@ for (const viewport of [
 test('Landscape respects reduced motion and forced colors', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce', forcedColors: 'active' });
   await page.goto('/iframe.html?id=rooms-life-landscape--focus&viewMode=story');
+  await expect(page.getByRole('heading', { name: 'Life Landscape' })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({ path: path.join(output, 'focus-forced-reduced.png'), fullPage: true });
 });

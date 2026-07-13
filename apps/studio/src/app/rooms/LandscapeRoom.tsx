@@ -33,5 +33,5 @@ export default function LandscapeRoom({ onCreateLandscape, onNavigate, onOpenCar
       onNavigate?.(`/landscape/${landscape.areas[0].id}`);
     }
   }, [landscape.areas, onNavigate, path]);
-  return <LandscapePage areas={landscape.areas} board={landscape.board} {...(landscape.error ? { error: landscape.error } : {})} onAddArea={(id) => void landscape.addArea(id)} {...(onCreateLandscape ? { onCreate: onCreateLandscape } : {})} onMove={landscape.move} onNavigate={navigate} {...(onOpenCard ? { onOpen: onOpenCard } : {})} onRemoveArea={(id) => void landscape.removeArea(id)} onReorder={landscape.reorder} path={path} state={landscape.state} />;
+  return <LandscapePage areas={landscape.areas} board={landscape.board} {...(landscape.error ? { error: landscape.error } : {})} onAddArea={(id) => void landscape.addArea(id)} {...(onCreateLandscape ? { onCreate: onCreateLandscape } : {})} onMove={landscape.move} onNavigate={navigate} {...(onOpenCard ? { onOpen: onOpenCard } : {})} onRemoveArea={(id) => void landscape.removeArea(id)} onReorder={landscape.reorder} onReorderArea={(id, offset) => void landscape.reorderArea(id, offset)} path={path} state={landscape.state} />;
 }

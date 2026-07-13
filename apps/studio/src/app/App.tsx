@@ -308,7 +308,7 @@ function StudioApplication({
 
   function finishOnboarding(): void {
     setOpened(true);
-    go('/foyer');
+    go(path);
   }
 
   async function selectNativeService(): Promise<boolean> {

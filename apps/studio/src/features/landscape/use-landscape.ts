@@ -67,6 +67,14 @@ export function useLandscape(service: StudioService | undefined, revision: numbe
       if (areas.length <= 1) return;
       await saveAreas(areas.filter((area) => area.id !== id));
     },
+    reorderArea: async (id: string, offset: -1 | 1) => {
+      const index = areas.findIndex((area) => area.id === id);
+      const target = index + offset;
+      if (index < 0 || target < 0 || target >= areas.length) return;
+      const next = [...areas];
+      [next[index], next[target]] = [next[target]!, next[index]!];
+      await saveAreas(next);
+    },
     move: async (move: LandscapeMove) => {
       if (!service) return;
       await service.updateLandscapePlacement({ path: move.card.path, lifeAreas: move.lifeAreas, anchor: move.anchor });

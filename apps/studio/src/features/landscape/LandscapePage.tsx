@@ -35,6 +35,7 @@ export interface LandscapePageProps {
     trigger: HTMLButtonElement,
   ) => void;
   onRemoveArea?: (id: string) => void;
+  onReorderArea?: (id: string, offset: -1 | 1) => void;
   onReorder?: (
     lifeArea: string,
     anchor: LandscapeAnchor,
@@ -179,7 +180,7 @@ function NoteCard({
 
   return (
     <article
-      className="life-landscape-card"
+      className={`life-landscape-card life-landscape-card--${card.semanticType}`}
       data-drop-anchor={card.anchor}
       data-drop-area={currentArea}
     >
@@ -260,7 +261,7 @@ function AreaSwitcher({ areas, current, onNavigate }: { areas: LifeArea[]; curre
   );
 }
 
-export function LandscapePage({ areas, board, error, onAddArea, onCreate, onMove, onNavigate, onOpen, onRemoveArea, onReorder, path, state = 'ready' }: LandscapePageProps) {
+export function LandscapePage({ areas, board, error, onAddArea, onCreate, onMove, onNavigate, onOpen, onRemoveArea, onReorder, onReorderArea, path, state = 'ready' }: LandscapePageProps) {
   const view = viewFromPath(path);
   const [undo, setUndo] = useState<UndoAction>();
   const [undoBusy, setUndoBusy] = useState(false);
@@ -326,7 +327,7 @@ export function LandscapePage({ areas, board, error, onAddArea, onCreate, onMove
                   const projected = cell(board, area.id, anchor.id);
                   return (
                     <div className="life-landscape__cell" data-drop-anchor={anchor.id} data-drop-area={area.id} key={area.id}>
-                      {projected?.featured ? <button aria-label={projected.featured.title} className="life-landscape__cell-title" onClick={(event) => onOpen?.(projected.featured!, event.currentTarget)} title={projected.featured.title} type="button">{projected.featured.title}</button> : <span>There is room here.</span>}
+                      {projected?.featured ? <button aria-label={projected.featured.title} className={`life-landscape__cell-title life-landscape__cell-title--${projected.featured.semanticType}`} onClick={(event) => onOpen?.(projected.featured!, event.currentTarget)} title={projected.featured.title} type="button">{projected.featured.title}</button> : <span>There is room here.</span>}
                       {(projected?.additionalCount ?? 0) > 0 && <button className="life-landscape__additional" onClick={() => onNavigate(`/landscape/${area.id}`)} type="button">+{projected!.additionalCount} more</button>}
                     </div>
                   );
@@ -358,7 +359,7 @@ export function LandscapePage({ areas, board, error, onAddArea, onCreate, onMove
         </div>
       )}
 
-      {(onAddArea || onRemoveArea) && <details className="life-landscape__manage"><summary>Manage life areas</summary><p>{areas.length} active. Five to ten usually keeps the Landscape spacious.</p><div>{areas.map((area) => <button disabled={areas.length <= 1} key={area.id} onClick={() => onRemoveArea?.(area.id)} type="button">Hide {area.title}</button>)}</div>{onAddArea && <div>{defaultLifeAreas.filter((area) => !areas.some((active) => active.id === area.id)).map((area) => <button key={area.id} onClick={() => onAddArea(area.id)} type="button">Add {area.title}</button>)}</div>}</details>}
+      {(onAddArea || onRemoveArea || onReorderArea) && <details className="life-landscape__manage"><summary>Manage life areas</summary><p>{areas.length} active. Five to ten usually keeps the Landscape spacious.</p><ol>{areas.map((area, index) => <li key={area.id}><span>{area.title}</span>{onReorderArea && <><button aria-label={`Move ${area.title} earlier`} disabled={index === 0} onClick={() => onReorderArea(area.id, -1)} type="button">↑</button><button aria-label={`Move ${area.title} later`} disabled={index === areas.length - 1} onClick={() => onReorderArea(area.id, 1)} type="button">↓</button></>}<button disabled={areas.length <= 1} onClick={() => onRemoveArea?.(area.id)} type="button">Hide</button></li>)}</ol>{onAddArea && <div>{defaultLifeAreas.filter((area) => !areas.some((active) => active.id === area.id)).map((area) => <button key={area.id} onClick={() => onAddArea(area.id)} type="button">Add {area.title}</button>)}</div>}</details>}
 
       {undo && <div className="life-landscape__undo" role="status"><span>Moved {undo.kind === 'move' ? undo.move.card.title : undo.title}.</span><button disabled={undoBusy} onClick={() => { setUndoBusy(true); const operation = undo.kind === 'move' ? onMove?.(undo.move) : onReorder?.(undo.lifeArea, undo.anchor, undo.noteIds); void Promise.resolve(operation).then(() => setUndo(undefined)).finally(() => setUndoBusy(false)); }} type="button">Undo move</button></div>}
     </div>

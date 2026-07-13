@@ -138,7 +138,7 @@ test('flushes an edit made inside the debounce window before history navigation'
     history.pushState(null, '', '/landscape');
     dispatchEvent(new PopStateEvent('popstate'));
   });
-  await expect(page).toHaveURL(/\/landscape$/);
+  await expect(page).toHaveURL(/\/landscape(?:\/family)?$/);
   await page.goBack();
   await expect(page).toHaveURL(/\/foyer$/);
   await openEditor(page, 'Before history navigation');

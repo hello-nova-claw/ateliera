@@ -3,6 +3,7 @@
   margin-inline: auto;
   padding: var(--studio-space-10) var(--studio-space-8) var(--studio-space-20);
   color: var(--studio-color-ink);
+  background: var(--studio-color-canvas);
 }
 
 .life-landscape__header {
@@ -143,7 +144,7 @@
   padding: var(--studio-space-3);
   border-block-end: 1px solid var(--studio-color-line);
   border-inline-start: 1px solid color-mix(in srgb, var(--studio-color-line) 65%, transparent);
-  color: var(--studio-color-ink-faint);
+  color: var(--studio-color-ink-muted);
   font-size: 0.75rem;
 }
 
@@ -152,10 +153,10 @@
   inline-size: 100%;
   padding: var(--studio-space-3);
   overflow: hidden;
-  border: 1px solid var(--studio-stock-vision-edge);
+  border: 1px solid var(--landscape-card-edge, var(--studio-stock-vision-edge));
   border-radius: var(--studio-radius-note);
   color: var(--studio-color-ink-strong);
-  background: var(--studio-stock-vision);
+  background: var(--landscape-card-stock, var(--studio-stock-vision));
   box-shadow: var(--studio-shadow-note);
   font-family: var(--studio-font-display);
   line-height: 1.25;
@@ -164,11 +165,42 @@
   -webkit-line-clamp: 3;
 }
 
+.life-landscape__cell-title--foundations,
+.life-landscape-card--foundations {
+  --landscape-card-edge: var(--studio-stock-foundation-edge);
+  --landscape-card-stock: var(--studio-stock-foundation);
+}
+
+.life-landscape__cell-title--growth,
+.life-landscape-card--growth {
+  --landscape-card-edge: var(--studio-stock-growth-edge);
+  --landscape-card-stock: var(--studio-stock-growth);
+}
+
+.life-landscape__cell-title--reflection,
+.life-landscape-card--reflection {
+  --landscape-card-edge: var(--studio-stock-reflection-edge);
+  --landscape-card-stock: var(--studio-stock-reflection);
+}
+
+.life-landscape__cell-title--celebration,
+.life-landscape-card--celebration {
+  --landscape-card-edge: var(--studio-stock-celebration-edge);
+  --landscape-card-stock: var(--studio-stock-celebration);
+}
+
+.life-landscape__cell-title--uncharted,
+.life-landscape-card--uncharted {
+  --landscape-card-edge: var(--studio-stock-uncharted-edge);
+  --landscape-card-stock: var(--studio-stock-uncharted);
+}
+
 .life-landscape__additional {
   min-block-size: var(--studio-touch-target);
   border: 0;
-  color: var(--studio-color-link);
+  color: var(--studio-color-ink-1);
   background: transparent;
+  text-decoration: underline;
 }
 
 .life-landscape__focus,
@@ -180,8 +212,10 @@
 .life-landscape__back {
   min-block-size: var(--studio-touch-target);
   border: 0;
-  color: var(--studio-color-link);
+  color: var(--studio-color-ink-1);
   background: transparent;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }
 
 .life-landscape__area-switcher,
@@ -258,7 +292,7 @@
   place-items: center;
   border: 1px dashed var(--studio-color-line-strong);
   border-radius: var(--studio-radius-card);
-  color: var(--studio-color-ink-soft);
+  color: var(--studio-color-ink-1);
   background: var(--studio-color-sunken);
 }
 
@@ -266,9 +300,9 @@
   position: relative;
   min-inline-size: 0;
   padding: var(--studio-space-5);
-  border: 1px solid var(--studio-stock-vision-edge);
+  border: 1px solid var(--landscape-card-edge, var(--studio-stock-vision-edge));
   border-radius: var(--studio-radius-note);
-  background: var(--studio-stock-vision);
+  background: var(--landscape-card-stock, var(--studio-stock-vision));
   box-shadow: var(--studio-shadow-note);
 }
 
@@ -391,6 +425,21 @@
   gap: var(--studio-space-2);
 }
 
+.life-landscape__manage ol {
+  display: grid;
+  gap: var(--studio-space-2);
+  max-inline-size: 32rem;
+  padding: 0;
+  list-style: none;
+}
+
+.life-landscape__manage li {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: var(--studio-space-2);
+}
+
 .life-landscape__undo {
   position: fixed;
   z-index: 10;
@@ -434,7 +483,8 @@
   }
 
   .life-landscape__views button:first-child,
-  .life-landscape__matrix-region {
+  .life-landscape__matrix-region,
+  .life-landscape__back {
     display: none;
   }
 
