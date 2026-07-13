@@ -92,6 +92,7 @@ function AutosaveEditor({
   );
   const [recoveryUnavailable, setRecoveryUnavailable] = useState(!recovery.available);
   const [actionState, setActionState] = useState<'idle' | 'busy' | 'error'>('idle');
+  const actionInFlight = useRef(false);
   const [actionError, setActionError] = useState<string>();
   const [closeError, setCloseError] = useState<string>();
   const autosave = useAutosave({
@@ -132,7 +133,8 @@ function AutosaveEditor({
   const saveError = closeError ?? autosave.error?.message;
 
   async function keepMine(): Promise<void> {
-    if (conflictLocal === undefined || actionState === 'busy') return;
+    if (conflictLocal === undefined || actionInFlight.current) return;
+    actionInFlight.current = true;
     setActionState('busy');
     setActionError(undefined);
     try {
@@ -140,6 +142,7 @@ function AutosaveEditor({
       recovery.remove(studioId, initial.path);
       onClose();
     } catch (reason) {
+      actionInFlight.current = false;
       setActionState('error');
       setActionError(
         reason instanceof Error
@@ -150,13 +153,14 @@ function AutosaveEditor({
   }
 
   function keepOther(): void {
-    if (actionState === 'busy') return;
+    if (actionInFlight.current) return;
     recovery.remove(studioId, initial.path);
     onClose();
   }
 
   async function mergeManually(): Promise<void> {
-    if (conflictLocal === undefined || actionState === 'busy') return;
+    if (conflictLocal === undefined || actionInFlight.current) return;
+    actionInFlight.current = true;
     setActionState('busy');
     setActionError(undefined);
     try {
@@ -166,11 +170,13 @@ function AutosaveEditor({
           ...conflictRemote,
           body: `${recoveryConflict.body}\n\n---\n\n${conflictRemote.body}`,
         });
+        actionInFlight.current = false;
         setActionState('idle');
       } else {
         await onManualMerge(conflictLocal);
       }
     } catch (reason) {
+      actionInFlight.current = false;
       setActionState('error');
       setActionError(
         reason instanceof Error

@@ -137,6 +137,35 @@ it('keeps mine as a unique complete sibling without touching the durable note', 
   expect(createDraftRecoveryStore(sessionStorage).read('studio-a', initial.path)).toBeNull();
 });
 
+it('turns rapid duplicate Keep mine activation into exactly one durable write', async () => {
+  seedStaleDraft();
+  let finish: (() => void) | undefined;
+  const save = vi.fn(
+    ({ note: savedNote, path }) =>
+      new Promise<SavedNote>((resolve) => {
+        finish = () => resolve({ note: savedNote, path, hash: 'sibling-hash' });
+      }),
+  );
+  const service = mockService({ save });
+  render(
+    <NoteEditorSession
+      initial={initial}
+      onClose={vi.fn()}
+      requestClose={0}
+      service={service}
+      studioId="studio-a"
+    />,
+  );
+  const action = screen.getByRole('button', { name: 'Keep mine as a sibling' });
+
+  fireEvent.click(action);
+  fireEvent.click(action);
+
+  expect(save).toHaveBeenCalledOnce();
+  expect(screen.getByRole('button', { name: 'Keeping mine…' })).toBeDisabled();
+  await act(async () => finish?.());
+});
+
 it('preserves recovery and enables retry when sibling creation fails', async () => {
   seedStaleDraft();
   const service = mockService({ save: vi.fn().mockRejectedValue(new Error('Storage offline')) });
