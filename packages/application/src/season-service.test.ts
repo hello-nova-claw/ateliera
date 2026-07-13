@@ -706,6 +706,33 @@ describe('season service', () => {
     });
   });
 
+  it.each([
+    ['unexpected', new Error('checkpoint unavailable')],
+    ['competing', new VaultConflictError()],
+  ] as const)(
+    'preserves a %s failure while completing activation',
+    async (_kind, completionError) => {
+      const { studio, seasons } = setup();
+      const draft = await completeWizard(
+        seasons,
+        await seasons.beginSeason({ title: 'Winter' }),
+      );
+      const compare = studio.seasonTransactions.compareAndSetActive.bind(
+        studio.seasonTransactions,
+      );
+      let calls = 0;
+      vi.spyOn(
+        studio.seasonTransactions,
+        'compareAndSetActive',
+      ).mockImplementation(async (observed, next) => {
+        calls += 1;
+        if (calls === 2) throw completionError;
+        return compare(observed, next);
+      });
+      await expect(seasons.activateSeason(draft)).rejects.toBe(completionError);
+    },
+  );
+
   it('preserves unexpected checkpoint and note-save failures', async () => {
     const first = setup();
     const firstDraft = await completeWizard(
