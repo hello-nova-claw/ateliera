@@ -74,6 +74,8 @@ test('captured note survives reload while offline', async ({
   await page.reload();
 
   await expect(page.getByText('The hill')).toBeVisible();
+  await expect(page.getByText('Ready offline')).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
 test('falls back to IndexedDB when OPFS is unavailable', async ({ page }) => {
