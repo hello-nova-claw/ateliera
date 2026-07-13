@@ -661,7 +661,11 @@ The quick composer asks only for content. Context pre-fills metadata. The full e
 - Autosave after 500–1,000ms of inactivity and on blur/navigation.
 - Use optimistic UI with conflict-aware file writes.
 - Show non-blocking save state.
-- Keep a recovery buffer in local storage for unsaved editor text.
+- Keep a recovery buffer in local storage for unsaved editor title/body text. In
+  the MVP, structured metadata edits are protected by durable autosave but are
+  not duplicated into the session recovery record; expanding recovery fidelity
+  requires a versioned recovery schema and migration before claiming full-note
+  crash recovery.
 - Preserve user formatting as CommonMark/GFM-compatible Markdown.
 
 ### 9.4 Drag and drop
