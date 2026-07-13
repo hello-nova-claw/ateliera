@@ -6,18 +6,14 @@ import {
   type RevisionStore,
   type StudioControlVault,
   type VaultPort,
-} from '@studio/storage';
+} from '@studio/storage/portable';
 
 import type { SavedNote } from './studio-service';
 
 const JOURNAL_PATH = '.studio/season/close-journal.json';
 
 export type SeasonDisposition =
-  | 'celebrate'
-  | 'archive'
-  | 'return-landscape'
-  | 'invite-forward'
-  | 'release';
+  'celebrate' | 'archive' | 'return-landscape' | 'invite-forward' | 'release';
 
 export interface SeasonCloseRequest {
   transactionId: string;
@@ -44,6 +40,7 @@ export interface SeasonCloseResult {
 
 export interface SeasonCloseTransactionService {
   close(request: SeasonCloseRequest): Promise<SeasonCloseResult>;
+  resume(): Promise<SeasonCloseResult | null>;
 }
 
 export interface SeasonCloseTransactionDependencies {
@@ -202,21 +199,147 @@ function journalText(journal: CloseJournal): string {
   return `${JSON.stringify(journal, null, 2)}\n`;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isSafeUserPath(path: unknown): path is string {
+  if (
+    typeof path !== 'string' ||
+    path === '' ||
+    path.startsWith('/') ||
+    path.endsWith('/') ||
+    path.includes('\\') ||
+    path.includes('\0') ||
+    /^[A-Za-z]:/u.test(path)
+  ) {
+    return false;
+  }
+  return path.split('/').every((segment) => {
+    const folded = segment.toLocaleLowerCase('en');
+    return (
+      segment !== '' &&
+      segment !== '.' &&
+      segment !== '..' &&
+      folded !== '.studio' &&
+      !folded.startsWith('.studio-')
+    );
+  });
+}
+
+function isHash(value: unknown): value is string {
+  return typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
+}
+
+function isTimestamp(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) && new Date(parsed).toISOString() === value;
+}
+
+function isStudioNote(value: unknown): value is StudioNote {
+  if (!isRecord(value)) return false;
+  try {
+    return parseNote(serializeNote(value as unknown as StudioNote)).ok;
+  } catch {
+    return false;
+  }
+}
+
+function validJournal(value: unknown): value is CloseJournal {
+  if (!isRecord(value)) return false;
+  const stages = new Set<CloseJournal['stage']>([
+    'prepared',
+    'snapshotted',
+    'letter-written',
+    'applying-targets',
+    'season-archived',
+    'completed',
+  ]);
+  const dispositions = new Set<SeasonDisposition>([
+    'celebrate',
+    'archive',
+    'return-landscape',
+    'invite-forward',
+    'release',
+  ]);
+  if (
+    value.version !== 1 ||
+    typeof value.transactionId !== 'string' ||
+    value.transactionId === '' ||
+    !stages.has(value.stage as CloseJournal['stage']) ||
+    !isTimestamp(value.preparedAt) ||
+    !isRecord(value.season) ||
+    !isStudioNote(value.season.note) ||
+    !isSafeUserPath(value.season.path) ||
+    !isHash(value.season.hash) ||
+    !isStudioNote(value.closedSeasonNote) ||
+    value.closedSeasonNote.id !== value.season.note.id ||
+    value.closedSeasonNote.status !== 'archived' ||
+    !isRecord(value.reflection) ||
+    typeof value.reflection.celebration !== 'string' ||
+    typeof value.reflection.learning !== 'string' ||
+    typeof value.reflection.identity !== 'string' ||
+    !Array.isArray(value.priorityIds) ||
+    !value.priorityIds.every((id) => typeof id === 'string' && id !== '') ||
+    new Set(value.priorityIds).size !== value.priorityIds.length ||
+    !Array.isArray(value.targets) ||
+    !isRecord(value.letter) ||
+    !isStudioNote(value.letter.note) ||
+    !isSafeUserPath(value.letter.path)
+  ) {
+    return false;
+  }
+  const journal = value as unknown as CloseJournal;
+  if (
+    journal.targets.length !== journal.priorityIds.length ||
+    journal.targets.some(
+      (target) =>
+        !isRecord(target) ||
+        typeof target.noteId !== 'string' ||
+        target.noteId === '' ||
+        !isSafeUserPath(target.path) ||
+        !isHash(target.hash) ||
+        !isStudioNote(target.note) ||
+        target.note.id !== target.noteId ||
+        !dispositions.has(target.disposition) ||
+        (target.state !== 'pending' && target.state !== 'complete') ||
+        (target.state === 'complete' &&
+          (!isSafeUserPath(target.outputPath) || !isHash(target.outputHash))),
+    ) ||
+    new Set(journal.targets.map((target) => target.noteId)).size !==
+      journal.targets.length ||
+    journal.targets.some(
+      (target) => !journal.priorityIds.includes(target.noteId),
+    )
+  ) {
+    return false;
+  }
+  const afterSnapshot = journal.stage !== 'prepared';
+  const afterLetter = !['prepared', 'snapshotted'].includes(journal.stage);
+  const afterTargets = ['season-archived', 'completed'].includes(journal.stage);
+  const afterSeason = journal.stage === 'completed';
+  return (
+    (!afterSnapshot ||
+      (isRecord(journal.snapshot) &&
+        isRecord(journal.snapshot.manifest) &&
+        typeof journal.snapshot.manifestPath === 'string' &&
+        journal.snapshot.manifestPath
+          .toLocaleLowerCase('en')
+          .startsWith('.studio/backups/'))) &&
+    (!afterLetter || isHash(journal.letter.hash)) &&
+    (!afterTargets ||
+      (journal.targets.every((target) => target.state === 'complete') &&
+        isHash(journal.archivedSeasonHash))) &&
+    (!afterSeason || isHash(journal.archivedSeasonHash))
+  );
+}
+
 function parseJournal(text: string): CloseJournal {
   try {
-    const value = JSON.parse(text) as Partial<CloseJournal>;
-    if (
-      value.version !== 1 ||
-      typeof value.transactionId !== 'string' ||
-      typeof value.stage !== 'string' ||
-      value.season === undefined ||
-      value.closedSeasonNote === undefined ||
-      !Array.isArray(value.targets) ||
-      value.letter === undefined
-    ) {
-      throw new Error('invalid shape');
-    }
-    return value as CloseJournal;
+    const value: unknown = JSON.parse(text);
+    if (!validJournal(value)) throw new Error('invalid shape');
+    return value;
   } catch (error) {
     throw new SeasonCloseTransactionConflictError(
       'The season-close checkpoint is unreadable. Preserve it for explicit repair.',
@@ -253,11 +376,7 @@ function outcomeNote(journal: CloseJournal, target: CloseTarget): StudioNote {
   const common = {
     ...target.note,
     updated: journal.preparedAt,
-    extraFrontmatter: outcomeMetadata(
-      target.note,
-      journal,
-      target.disposition,
-    ),
+    extraFrontmatter: outcomeMetadata(target.note, journal, target.disposition),
   };
   if (target.disposition === 'archive')
     return { ...common, status: 'archived' };
@@ -280,10 +399,7 @@ function outcomeNote(journal: CloseJournal, target: CloseTarget): StudioNote {
   };
 }
 
-function artifactNote(
-  journal: CloseJournal,
-  target: CloseTarget,
-): StudioNote {
+function artifactNote(journal: CloseJournal, target: CloseTarget): StudioNote {
   const celebration = target.disposition === 'celebrate';
   const id = `${journal.transactionId}-${target.noteId}-${celebration ? 'celebration' : 'invitation'}`;
   return {
@@ -427,6 +543,115 @@ export function createSeasonCloseTransactionService({
     return { journal, hash: written.hash };
   }
 
+  async function run(initial: LoadedJournal): Promise<SeasonCloseResult> {
+    let loaded = initial;
+    let journal = loaded.journal;
+
+    if (journal.stage === 'prepared') {
+      const snapshot = await revisions.create('season-close', [
+        journal.season.path,
+        ...journal.targets.map((target) => target.path),
+      ]);
+      journal = { ...journal, stage: 'snapshotted', snapshot };
+      loaded = await checkpoint(loaded, journal);
+    }
+
+    if (journal.stage === 'snapshotted') {
+      const hash = await writeNoteIdempotently(
+        vault,
+        journal.letter.path,
+        journal.letter.note,
+        { expectedMissing: true },
+      );
+      journal = {
+        ...journal,
+        stage: 'letter-written',
+        letter: { ...journal.letter, hash },
+      };
+      loaded = await checkpoint(loaded, journal);
+    }
+
+    if (
+      journal.stage === 'letter-written' ||
+      journal.stage === 'applying-targets'
+    ) {
+      for (let index = 0; index < journal.targets.length; index += 1) {
+        const target = journal.targets[index]!;
+        if (target.state === 'complete') continue;
+        let path = target.path;
+        let hash: string;
+        if (
+          target.disposition === 'celebrate' ||
+          target.disposition === 'invite-forward'
+        ) {
+          const artifact = artifactNote(journal, target);
+          path = `${target.disposition === 'celebrate' ? 'Reflection Garden/Season Outcomes' : 'Current Season/Invitations'}/${suggestFilename(artifact)}`;
+          hash = await writeNoteIdempotently(vault, path, artifact, {
+            expectedMissing: true,
+          });
+        } else {
+          hash = await writeNoteIdempotently(
+            vault,
+            path,
+            outcomeNote(journal, target),
+            { expectedHash: target.hash },
+          );
+        }
+        const targets = journal.targets.map((candidate, candidateIndex) =>
+          candidateIndex === index
+            ? {
+                ...candidate,
+                state: 'complete' as const,
+                outputPath: path,
+                outputHash: hash,
+              }
+            : candidate,
+        );
+        journal = { ...journal, stage: 'applying-targets', targets };
+        loaded = await checkpoint(loaded, journal);
+      }
+    }
+
+    if (journal.stage === 'applying-targets') {
+      const archivedSeasonHash = await writeNoteIdempotently(
+        vault,
+        journal.season.path,
+        journal.closedSeasonNote,
+        { expectedHash: journal.season.hash },
+      );
+      journal = {
+        ...journal,
+        stage: 'season-archived',
+        archivedSeasonHash,
+      };
+      loaded = await checkpoint(loaded, journal);
+    }
+
+    if (journal.stage === 'season-archived') {
+      journal = { ...journal, stage: 'completed' };
+      loaded = await checkpoint(loaded, journal);
+    }
+
+    if (journal.stage !== 'completed' || journal.snapshot === undefined)
+      throw new SeasonCloseTransactionConflictError(
+        'The season close checkpoint stopped in an unknown state.',
+      );
+    const season = await vault.readText(journal.season.path);
+    const parsed = parseNote(season.text);
+    if (!parsed.ok)
+      throw new SeasonCloseTransactionConflictError(
+        'The archived season needs metadata repair.',
+      );
+    return {
+      season: {
+        note: parsed.note,
+        path: journal.season.path,
+        hash: season.hash,
+      },
+      snapshot: journal.snapshot,
+    };
+  }
+
   return {
     async close(request) {
       assertRequestShape(request);
@@ -446,106 +671,12 @@ export function createSeasonCloseTransactionService({
       ) {
         loaded = await prepare(request, loaded);
       }
-      let journal = loaded.journal;
+      return run(loaded);
+    },
 
-      if (journal.stage === 'prepared') {
-        const snapshot = await revisions.create('season-close', [
-          journal.season.path,
-          ...journal.targets.map((target) => target.path),
-        ]);
-        journal = { ...journal, stage: 'snapshotted', snapshot };
-        loaded = await checkpoint(loaded, journal);
-      }
-
-      if (journal.stage === 'snapshotted') {
-        const hash = await writeNoteIdempotently(
-          vault,
-          journal.letter.path,
-          journal.letter.note,
-          { expectedMissing: true },
-        );
-        journal = {
-          ...journal,
-          stage: 'letter-written',
-          letter: { ...journal.letter, hash },
-        };
-        loaded = await checkpoint(loaded, journal);
-      }
-
-      if (
-        journal.stage === 'letter-written' ||
-        journal.stage === 'applying-targets'
-      ) {
-        for (let index = 0; index < journal.targets.length; index += 1) {
-          const target = journal.targets[index]!;
-          if (target.state === 'complete') continue;
-          let path = target.path;
-          let hash: string;
-          if (
-            target.disposition === 'celebrate' ||
-            target.disposition === 'invite-forward'
-          ) {
-            const artifact = artifactNote(journal, target);
-            path = `${target.disposition === 'celebrate' ? 'Reflection Garden/Season Outcomes' : 'Current Season/Invitations'}/${suggestFilename(artifact)}`;
-            hash = await writeNoteIdempotently(vault, path, artifact, {
-              expectedMissing: true,
-            });
-          } else {
-            hash = await writeNoteIdempotently(
-              vault,
-              path,
-              outcomeNote(journal, target),
-              { expectedHash: target.hash },
-            );
-          }
-          const targets = journal.targets.map((candidate, candidateIndex) =>
-            candidateIndex === index
-              ? { ...candidate, state: 'complete' as const, outputPath: path, outputHash: hash }
-              : candidate,
-          );
-          journal = { ...journal, stage: 'applying-targets', targets };
-          loaded = await checkpoint(loaded, journal);
-        }
-      }
-
-      if (journal.stage === 'applying-targets') {
-        const archivedSeasonHash = await writeNoteIdempotently(
-          vault,
-          journal.season.path,
-          journal.closedSeasonNote,
-          { expectedHash: journal.season.hash },
-        );
-        journal = {
-          ...journal,
-          stage: 'season-archived',
-          archivedSeasonHash,
-        };
-        loaded = await checkpoint(loaded, journal);
-      }
-
-      if (journal.stage === 'season-archived') {
-        journal = { ...journal, stage: 'completed' };
-        loaded = await checkpoint(loaded, journal);
-      }
-
-      if (journal.stage !== 'completed' || journal.snapshot === undefined)
-        throw new SeasonCloseTransactionConflictError(
-          'The season close checkpoint stopped in an unknown state.',
-        );
-      const season = await vault.readText(journal.season.path);
-      const parsed = parseNote(season.text);
-      if (!parsed.ok)
-        throw new SeasonCloseTransactionConflictError(
-          'The archived season needs metadata repair.',
-        );
-      return {
-        season: {
-          note: parsed.note,
-          path: journal.season.path,
-          hash: season.hash,
-        },
-        snapshot: journal.snapshot,
-      };
+    async resume() {
+      const loaded = await loadJournal(control);
+      return loaded === null ? null : run(loaded);
     },
   };
 }

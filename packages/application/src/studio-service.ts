@@ -182,7 +182,10 @@ export interface StudioService {
   restore(id: string): Promise<RestoreNoteResult>;
   reconcileTrash(): Promise<string[]>;
   snapshot(reason: RevisionReason, paths: string[]): Promise<RevisionSnapshot>;
-  closeSeasonTransaction(request: SeasonCloseRequest): Promise<SeasonCloseResult>;
+  closeSeasonTransaction(
+    request: SeasonCloseRequest,
+  ): Promise<SeasonCloseResult>;
+  resumeSeasonCloseTransaction(): Promise<SeasonCloseResult | null>;
   repairs(): Promise<StudioRepairItem[]>;
   rebuildIndex(): Promise<void>;
   indexState(): 'ready' | 'stale' | 'rebuilding';
@@ -699,6 +702,23 @@ export function createStudioService(
     });
   }
 
+  function finishSeasonClose<T>(operation: () => Promise<T>): Promise<T> {
+    assertActive();
+    return enqueueDurableMutation(async () => {
+      try {
+        return await operation();
+      } finally {
+        durableGeneration += 1;
+        markIndexStale();
+        try {
+          await rebuildIndex();
+        } catch {
+          scheduleRecovery();
+        }
+      }
+    });
+  }
+
   const service: StudioService = {
     views,
     lifeAreas,
@@ -967,20 +987,10 @@ export function createStudioService(
       return enqueueDurableMutation(() => revisions.create(reason, paths));
     },
     closeSeasonTransaction(request) {
-      assertActive();
-      return enqueueDurableMutation(async () => {
-        try {
-          return await seasonCloseTransactions.close(request);
-        } finally {
-          durableGeneration += 1;
-          markIndexStale();
-          try {
-            await rebuildIndex();
-          } catch {
-            scheduleRecovery();
-          }
-        }
-      });
+      return finishSeasonClose(() => seasonCloseTransactions.close(request));
+    },
+    resumeSeasonCloseTransaction() {
+      return finishSeasonClose(() => seasonCloseTransactions.resume());
     },
     async repairs() {
       assertActive();

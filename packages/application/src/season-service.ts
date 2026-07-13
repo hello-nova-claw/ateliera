@@ -372,22 +372,25 @@ export function createSeasonService(
     checkpoint: Awaited<
       ReturnType<StudioService['seasonTransactions']['readActive']>
     >,
+    clearActive = false,
   ): Promise<void> {
+    const next = {
+      ...checkpoint.value,
+      revision: checkpoint.value.revision + 1,
+      ...(clearActive ? { activeNoteId: null, activePath: null } : {}),
+      operation: null,
+    };
     try {
-      await studio.seasonTransactions.compareAndSetActive(checkpoint, {
-        ...checkpoint.value,
-        revision: checkpoint.value.revision + 1,
-        operation: null,
-      });
+      await studio.seasonTransactions.compareAndSetActive(checkpoint, next);
     } catch (error) {
       if (!(error instanceof VaultConflictError)) throw error;
       const current = await studio.seasonTransactions.readActive();
-      if (
-        current.value.activeNoteId === checkpoint.value.activeNoteId &&
-        current.value.operation === null
-      ) {
-        return;
-      }
+      const alreadyComplete =
+        current.value.operation === null &&
+        (clearActive
+          ? current.value.activeNoteId === null
+          : current.value.activeNoteId === checkpoint.value.activeNoteId);
+      if (alreadyComplete) return;
       throw error;
     }
   }
@@ -395,7 +398,18 @@ export function createSeasonService(
   async function resumeActiveOperation(): Promise<SeasonRecord | null> {
     const checkpoint = await studio.seasonTransactions.readActive();
     const operation = checkpoint.value.operation;
-    if (operation === null || operation.kind === 'closing') return null;
+    if (operation === null) return null;
+
+    if (operation.kind === 'closing') {
+      const result = await studio.resumeSeasonCloseTransaction();
+      if (result === null) {
+        throw new Error(
+          'The season-close checkpoint has no journal. Preserve it for explicit repair.',
+        );
+      }
+      await completeActiveOperation(checkpoint, true);
+      return toRecord(result.season);
+    }
 
     if (operation.kind === 'activating') {
       let target = await loadProjection(operation.targetPath);
@@ -445,7 +459,7 @@ export function createSeasonService(
   }
 
   async function reserveActiveOperation(
-    kind: 'activating' | 'repairing',
+    kind: 'activating' | 'repairing' | 'closing',
     target: SeasonRecord,
   ) {
     const observed = await studio.seasonTransactions.readActive();
@@ -567,19 +581,25 @@ export function createSeasonService(
     async closeSeason(record, reflection) {
       if (record.state.status !== 'active')
         throw new Error('Only the active season can be closed.');
-      const linkedPaths = (await studio.projectRoom('life-landscape'))
-        .filter((candidate) =>
-          record.state.priorities.includes(candidate.noteId),
-        )
-        .map((candidate) => candidate.path);
-      await studio.snapshot('season-close', [record.path, ...linkedPaths]);
+      const resumed = await resumeActiveOperation();
+      if (resumed !== null) {
+        if (
+          resumed.note.id === record.note.id &&
+          resumed.state.status === 'archived'
+        ) {
+          return resumed;
+        }
+        throw new Error('Another active season needs attention first.');
+      }
+      const normalized = normalizeCloseReflection(record.state, reflection);
+      const reservation = await reserveActiveOperation('closing', record);
       const letterId = generateId();
       const created = now();
       const letter: StudioNote = {
         schemaVersion: 1,
         id: letterId,
         title: `A letter from ${record.state.title}`,
-        body: seasonLetterBody(record.state, reflection),
+        body: seasonLetterBody(record.state, normalized),
         cardType: 'season-letter',
         semanticType: 'reflection',
         status: 'active',
@@ -594,21 +614,36 @@ export function createSeasonService(
         privacy: { sensitivity: 'private', aiAccess: 'ask' },
         extraFrontmatter: {
           season_id: record.state.id,
-          dispositions: reflection.dispositions,
+          dispositions: normalized.dispositions,
         },
         lineEnding: '\n',
       };
-      await studio.save({
-        note: letter,
-        path: `Reflection Garden/${suggestFilename(letter)}`,
-        expectedMissing: true,
-      });
-      for (const item of reflection.dispositions) {
-        if (item.disposition === 'archive' || item.disposition === 'release') {
-          await studio.archive(item.noteId);
+      const request: SeasonCloseRequest = {
+        transactionId: reservation.value.operation!.id,
+        season: record,
+        closedSeasonNote: noteWithState(
+          record.note,
+          closeSeasonState(record.state, created),
+        ),
+        priorityIds: record.state.priorities,
+        reflection: normalized,
+        dispositions: normalized.dispositions.map((item) => ({
+          noteId: item.noteId,
+          expectedHash: item.expectedHash,
+          disposition: item.disposition,
+        })),
+        letter,
+      };
+      try {
+        const closed = await studio.closeSeasonTransaction(request);
+        await completeActiveOperation(reservation, true);
+        return toRecord(closed.season);
+      } catch (error) {
+        if (error instanceof SeasonClosePreflightError) {
+          await completeActiveOperation(reservation);
         }
+        throw error;
       }
-      return saveState(record, closeSeasonState(record.state, now()));
     },
   };
 }

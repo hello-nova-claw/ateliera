@@ -2,7 +2,7 @@ import {
   createStudioControlVault,
   type StudioControlVault,
   type VaultPort,
-} from '@studio/storage';
+} from '@studio/storage/portable';
 
 const ACTIVE_PATH = '.studio/season/active.json';
 const CLOSE_JOURNAL_PATH = '.studio/season/close-journal.json';
