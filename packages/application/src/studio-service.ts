@@ -37,7 +37,7 @@ import { createViewStateRepository } from './view-state';
 import type { ViewStateRepository } from './view-state';
 import {
   createNoteLifecycleService,
-  type RestoredNoteResult,
+  type RestoreNoteResult,
   type TrashedNoteResult,
 } from './note-lifecycle';
 
@@ -46,6 +46,7 @@ export type StudioEvent =
   | { kind: 'note-archived' | 'note-unarchived'; noteId: string; path: string }
   | { kind: 'note-trashed'; noteId: string }
   | { kind: 'note-restored'; noteId: string; path: string; relocated: boolean }
+  | { kind: 'note-restore-conflict'; noteId: string; conflictingPaths: string[] }
   | { kind: 'index-stale' }
   | { kind: 'index-rebuilt' };
 
@@ -106,7 +107,7 @@ export interface StudioService {
   archive(id: string): Promise<SavedNote>;
   unarchive(id: string): Promise<SavedNote>;
   trash(id: string): Promise<TrashedNoteResult>;
-  restore(id: string): Promise<RestoredNoteResult>;
+  restore(id: string): Promise<RestoreNoteResult>;
   reconcileTrash(): Promise<string[]>;
   snapshot(reason: RevisionReason, paths: string[]): Promise<RevisionSnapshot>;
   repairs(): Promise<StudioRepairItem[]>;
@@ -471,10 +472,15 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   async function finishLifecycle<T>(
     operation: () => Promise<T>,
     event: (result: T) => StudioEvent,
+    didMutate: (result: T) => boolean = () => true,
   ): Promise<T> {
     assertActive();
     return enqueueDurableMutation(async () => {
       const result = await operation();
+      if (!didMutate(result)) {
+        emit(event(result));
+        return result;
+      }
       durableGeneration += 1;
       markIndexStale();
       try {
@@ -640,12 +646,19 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     restore(id) {
       return finishLifecycle(
         () => noteLifecycle.restore(id),
-        (result) => ({
-          kind: 'note-restored',
-          noteId: id,
-          path: result.path,
-          relocated: result.relocated,
-        }),
+        (result) => result.kind === 'restored'
+          ? {
+              kind: 'note-restored',
+              noteId: id,
+              path: result.path,
+              relocated: result.relocated,
+            }
+          : {
+              kind: 'note-restore-conflict',
+              noteId: id,
+              conflictingPaths: result.conflictingPaths,
+            },
+        (result) => result.kind === 'restored',
       );
     },
     reconcileTrash() {

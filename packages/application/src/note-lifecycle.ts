@@ -52,6 +52,7 @@ export interface TrashedNoteResult {
 }
 
 export interface RestoredNoteResult {
+  kind: 'restored';
   note: StudioNote;
   path: string;
   hash: string;
@@ -60,11 +61,24 @@ export interface RestoredNoteResult {
   unknownAttachments: string[];
 }
 
+export interface RestoreIdentityConflictResult {
+  kind: 'identity-conflict';
+  noteId: string;
+  trashPath: string;
+  conflictingPaths: string[];
+  repair: {
+    required: true;
+    options: ['change-existing-id', 'restore-with-new-id'];
+  };
+}
+
+export type RestoreNoteResult = RestoredNoteResult | RestoreIdentityConflictResult;
+
 export interface NoteLifecycleService {
   archive(id: string): Promise<{ note: StudioNote; path: string; hash: string }>;
   unarchive(id: string): Promise<{ note: StudioNote; path: string; hash: string }>;
   trash(id: string): Promise<TrashedNoteResult>;
-  restore(id: string): Promise<RestoredNoteResult>;
+  restore(id: string): Promise<RestoreNoteResult>;
   reconcile(): Promise<string[]>;
 }
 
@@ -202,6 +216,11 @@ function indexedContent(note: StudioNote) {
   return { links: extractLinks(note.body), searchText: markdownToPlainText(note.body) };
 }
 
+function isPotentialNotePath(path: string): boolean {
+  const name = basename(path);
+  return name.toLocaleLowerCase('en').endsWith('.md') || !name.includes('.');
+}
+
 async function updateDisposableIndex(operation: () => Promise<void>): Promise<void> {
   try {
     await operation();
@@ -246,6 +265,27 @@ export function createNoteLifecycleService({
     await updateDisposableIndex(() =>
       index.upsert(changed, current.path, written.hash, indexedContent(changed)));
     return { note: changed, path: current.path, hash: written.hash };
+  }
+
+  async function stableIdConflicts(id: string): Promise<string[]> {
+    const entries = await vault.list();
+    const conflicts: string[] = [];
+    for (const entry of entries) {
+      if (
+        entry.kind !== 'file' ||
+        entry.path.toLocaleLowerCase('en').startsWith('.studio/') ||
+        !isPotentialNotePath(entry.path)
+      ) continue;
+      let file: Awaited<ReturnType<VaultPort['readText']>>;
+      try {
+        file = await vault.readText(entry.path);
+      } catch (error) {
+        throw new LifecycleStorageUnavailableError([entry.path], { cause: error });
+      }
+      const parsed = parseNote(file.text);
+      if (parsed.ok && parsed.note.id === id) conflicts.push(entry.path);
+    }
+    return conflicts.sort((left, right) => left.localeCompare(right, 'en'));
   }
 
   async function reconcileInternal(): Promise<string[]> {
@@ -406,6 +446,19 @@ export function createNoteLifecycleService({
       }
       const parsed = parseNote(trashed.text);
       if (!parsed.ok) throw new TrashManifestError('The trashed note metadata is damaged.');
+      const conflictingPaths = await stableIdConflicts(parsed.note.id);
+      if (conflictingPaths.length > 0) {
+        return {
+          kind: 'identity-conflict',
+          noteId: parsed.note.id,
+          trashPath: entry.trashPath,
+          conflictingPaths,
+          repair: {
+            required: true,
+            options: ['change-existing-id', 'restore-with-new-id'],
+          },
+        };
+      }
       let destination = entry.originalPath;
       let relocated = false;
       if (requirePresence(await presence(vault, destination), destination) === 'present') {
@@ -455,6 +508,7 @@ export function createNoteLifecycleService({
         if (result.state === 'unavailable') unknownAttachments.push(attachment.path);
       }
       return {
+        kind: 'restored',
         note: parsed.note,
         path: destination,
         hash: restored.hash,
