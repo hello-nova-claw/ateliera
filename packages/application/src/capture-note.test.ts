@@ -92,4 +92,31 @@ describe('capture', () => {
     expect(write).toHaveBeenLastCalledWith(saved.path, expect.any(String), { expectedMissing: true });
     expect((await vault.list()).filter((entry) => entry.kind === 'file')).toHaveLength(1);
   });
+
+  it('stores an authored decision horizon in the atomic Landscape capture', async () => {
+    const vault = createInMemoryVault();
+    const write = vi.spyOn(vault, 'writeTextAtomic');
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    const saved = await service.capture({
+      body: 'Choose childcare support',
+      decisionHorizon: '60d',
+      landscape: { lifeArea: 'family', anchor: 'decisions' },
+    });
+
+    expect(saved.note.extraFrontmatter).toEqual({ decision_horizon: '60d' });
+    expect(write).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a decision horizon outside the Decisions anchor before writing', async () => {
+    const vault = createInMemoryVault();
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    await expect(service.capture({
+      body: 'A calm home',
+      decisionHorizon: '30d',
+      landscape: { lifeArea: 'home', anchor: 'vision' },
+    })).rejects.toThrow('Decision horizons');
+    expect(await vault.list()).toEqual([]);
+  });
 });
