@@ -4,6 +4,7 @@ export default defineConfig({
   testDir: './tests/e2e',
   outputDir: './artifacts/playwright/test-results',
   fullyParallel: true,
+  workers: 1,
   reporter: [
     ['list'],
     ['html', { outputFolder: './artifacts/playwright/report', open: 'never' }],
