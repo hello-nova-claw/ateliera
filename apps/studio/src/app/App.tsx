@@ -106,6 +106,7 @@ function StudioApplication({
   const [captures, setCaptures] = useState<CaptureEntry[]>([]);
   const [opened, setOpened] = useState(
     () =>
+      !isNativeShell() &&
       typeof localStorage.getItem === 'function' &&
       localStorage.getItem('studio:opened') === 'true',
   );
