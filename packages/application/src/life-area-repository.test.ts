@@ -30,8 +30,13 @@ describe('life area repository', () => {
     expect(snapshot.revision).toBeNull();
     expect(snapshot.repaired).toBe(false);
     expect(snapshot.areas).toEqual(
-      defaultLifeAreas.map((area, order) => ({ ...area, hidden: false, order })),
+      defaultLifeAreas.map((area, order) => ({
+        ...area,
+        hidden: order >= 5,
+        order,
+      })),
     );
+    expect(snapshot.areas.filter((area) => !area.hidden)).toHaveLength(5);
   });
 
   it('persists renamed, custom, hidden, and reordered areas with exact CAS', async () => {
