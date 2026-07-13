@@ -71,4 +71,27 @@ describe('StudioService note lifecycle', () => {
       files: [expect.objectContaining({ originalPath: 'Notes/n1.md' })],
     });
   });
+
+  it('uses an injected revision boundary and rejects snapshots after disposal', async () => {
+    const create = vi.fn(async () => ({
+      manifestPath: '.studio/backups/injected/manifest.json',
+      manifest: {
+        version: 1 as const,
+        id: 'injected',
+        reason: 'conflict-resolution' as const,
+        createdAt: '2026-07-13T00:00:00.000Z',
+        state: 'complete' as const,
+        files: [],
+      },
+    }));
+    const service = createStudioService({
+      vault: createInMemoryVault(),
+      index: new RecordingIndex(),
+      revisions: { create, prune: vi.fn() },
+    });
+    await service.snapshot('conflict-resolution', []);
+    expect(create).toHaveBeenCalledWith('conflict-resolution', []);
+    await service.dispose();
+    expect(() => service.snapshot('conflict-resolution', [])).toThrow('disposed');
+  });
 });
