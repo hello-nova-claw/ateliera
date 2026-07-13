@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { App } from './App';
 
 it('renders the Studio landmark', async () => {
@@ -58,6 +58,8 @@ it.each(['Not now', 'Remember'])(
       );
     }
     fireEvent.click(screen.getByRole('button', { name: action }));
-    expect(await screen.findByRole('button', { name: 'Capture' })).toHaveFocus();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Capture' })).toHaveFocus(),
+    );
   },
 );

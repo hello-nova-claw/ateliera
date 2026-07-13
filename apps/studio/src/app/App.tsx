@@ -3,16 +3,25 @@ import {
   type CaptureEntry,
   type CaptureService,
 } from '@studio/application';
-import { useEffect, useMemo, useState } from 'react';
-import serviceWorkerUrl from './service-worker.ts?worker&url';
+import {
+  ensureBrowserPersistence,
+  type BrowserPersistenceStatus,
+} from '@studio/storage/browser';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import './app.css';
 
 async function prepareOfflineShell(): Promise<void> {
   if (!('serviceWorker' in navigator)) return;
-  const registration = await navigator.serviceWorker.register(
-    import.meta.env.PROD ? '/service-worker.js' : serviceWorkerUrl,
-    { type: 'module', scope: '/' },
-  );
+  if (
+    navigator.serviceWorker.controller !== null &&
+    (await caches.match('/')) !== undefined
+  ) {
+    return;
+  }
+  const registration = await navigator.serviceWorker.register('/service-worker.js', {
+    type: 'module',
+    scope: '/',
+  });
   const worker =
     registration.active ?? registration.waiting ?? registration.installing;
   if (worker !== null && worker.state !== 'activated') {
@@ -50,7 +59,10 @@ async function prepareOfflineShell(): Promise<void> {
     });
   }
   const urls = [
-    location.pathname,
+    '/',
+    '/manifest.webmanifest',
+    '/studio-icon.svg',
+    '/studio-maskable.svg',
     ...performance
       .getEntriesByType('resource')
       .map((entry) => new URL(entry.name))
@@ -63,15 +75,25 @@ async function prepareOfflineShell(): Promise<void> {
       )
       .map((url) => `${url.pathname}${url.search}`),
   ];
-  const cache = await caches.open('studio-app-shell-v1');
+  const cacheName = (await caches.keys()).find((key) =>
+    key.startsWith('studio-app-shell-'),
+  );
+  if (cacheName === undefined) {
+    throw new Error('The offline shell cache is unavailable.');
+  }
+  const cache = await caches.open(cacheName);
   await cache.addAll([...new Set(urls)]);
 }
 
 export interface AppProps {
   captureService?: CaptureService;
+  requestPersistence?: () => Promise<BrowserPersistenceStatus>;
 }
 
-export function App({ captureService }: AppProps = {}) {
+export function App({
+  captureService,
+  requestPersistence = ensureBrowserPersistence,
+}: AppProps = {}) {
   const service = useMemo(
     () => captureService ?? createBrowserCaptureService(),
     [captureService],
@@ -81,7 +103,12 @@ export function App({ captureService }: AppProps = {}) {
   const [text, setText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [offlineReady, setOfflineReady] = useState(false);
+  const [offlineUnavailable, setOfflineUnavailable] = useState(false);
+  const [persistenceStatus, setPersistenceStatus] =
+    useState<BrowserPersistenceStatus>();
   const [error, setError] = useState<string>();
+  const captureButton = useRef<HTMLButtonElement>(null);
+  const shouldRestoreCaptureFocus = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -103,27 +130,37 @@ export function App({ captureService }: AppProps = {}) {
       .then(() => {
         if (active) setOfflineReady(true);
       })
-      .catch((reason: unknown) => {
-        if (active)
-          setError(
-            reason instanceof Error
-              ? reason.message
-              : 'Offline use could not be prepared.',
-          );
+      .catch(() => {
+        if (active) setOfflineUnavailable(true);
       });
     return () => {
       active = false;
     };
   }, [service]);
 
+  useEffect(() => {
+    if (!isCapturing && shouldRestoreCaptureFocus.current) {
+      shouldRestoreCaptureFocus.current = false;
+      captureButton.current?.focus();
+    }
+  }, [isCapturing]);
+
+  function closeCapture(): void {
+    shouldRestoreCaptureFocus.current = true;
+    setIsCapturing(false);
+  }
+
   async function remember(): Promise<void> {
     setIsSaving(true);
     setError(undefined);
+    const persistence = requestPersistence();
     try {
       const capture = await service.capture(text);
       setCaptures((current) => [...current, capture]);
       setText('');
-      setIsCapturing(false);
+      closeCapture();
+      setPersistenceStatus(await persistence);
+      requestAnimationFrame(() => captureButton.current?.focus());
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'This thought could not be saved.');
     } finally {
@@ -141,6 +178,7 @@ export function App({ captureService }: AppProps = {}) {
         <button
           className="studio-shell__capture-button"
           onClick={() => setIsCapturing(true)}
+          ref={captureButton}
           type="button"
         >
           Capture
@@ -150,6 +188,20 @@ export function App({ captureService }: AppProps = {}) {
       {offlineReady && (
         <p className="studio-shell__offline-status" role="status">
           Ready offline
+        </p>
+      )}
+
+      {offlineUnavailable && (
+        <p className="studio-shell__offline-status" role="status">
+          Offline preparation is unavailable for now.
+        </p>
+      )}
+
+      {persistenceStatus !== undefined && (
+        <p className="studio-shell__offline-status" role="status">
+          {persistenceStatus === 'persistent'
+            ? 'Stored locally with persistent browser storage.'
+            : 'Stored locally; this browser may clear it if space is needed.'}
         </p>
       )}
 
@@ -172,7 +224,7 @@ export function App({ captureService }: AppProps = {}) {
           <div className="studio-shell__capture-actions">
             <button
               className="studio-shell__secondary-button"
-              onClick={() => setIsCapturing(false)}
+              onClick={closeCapture}
               type="button"
             >
               Not now
