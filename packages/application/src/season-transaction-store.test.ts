@@ -114,6 +114,13 @@ describe('season transaction store', () => {
     '{"version":1,"revision":0,"activeNoteId":"winter","activePath":null,"operation":null}',
     '{"version":1,"revision":0,"activeNoteId":null,"activePath":null,"operation":[]}',
     '{"version":1,"revision":0,"activeNoteId":null,"activePath":null,"operation":{"id":1,"kind":"bad","targetNoteId":false,"targetPath":null}}',
+    '{"version":1,"revision":0,"activeNoteId":null,"activePath":null,"operation":{"id":"activate-winter","kind":"activating","targetNoteId":"winter","targetPath":"Current Season/winter.md"}}',
+    '{"version":1,"revision":0,"activeNoteId":"winter","activePath":"../winter.md","operation":null}',
+    '{"version":1,"revision":0,"activeNoteId":"winter","activePath":"Current Season//winter.md","operation":null}',
+    '{"version":1,"revision":0,"activeNoteId":"winter","activePath":"Current Season/winter.md","operation":{"id":"activate-winter","kind":"activating","targetNoteId":"spring","targetPath":"Current Season/winter.md"}}',
+    '{"version":1,"revision":0,"activeNoteId":"winter","activePath":"Current Season/winter.md","operation":{"id":"activate-winter","kind":"activating","targetNoteId":"winter","targetPath":"Current Season/spring.md"}}',
+    '{"version":1,"revision":0,"activeNoteId":"winter","activePath":"Current Season/winter.md","operation":null,"forged":true}',
+    '{"version":1,"revision":0,"activeNoteId":"winter","activePath":"Current Season/winter.md","operation":{"id":"activate-winter","kind":"activating","targetNoteId":"winter","targetPath":"Current Season/winter.md","forged":true}}',
   ])('rejects malformed active checkpoint variant %#', async (text) => {
     const vault = createInMemoryVault();
     await createStudioControlVault(vault).writeTextAtomic(
@@ -123,6 +130,83 @@ describe('season transaction store', () => {
     await expect(
       createSeasonTransactionStore(vault).readActive(),
     ).rejects.toThrow('active-season checkpoint');
+  });
+
+  it.each([
+    {
+      name: 'an operation without an active season',
+      checkpoint: {
+        version: 1 as const,
+        revision: 1,
+        activeNoteId: null,
+        activePath: null,
+        operation: {
+          id: 'activate-winter',
+          kind: 'activating' as const,
+          targetNoteId: 'winter',
+          targetPath: 'Current Season/winter.md',
+        },
+      },
+    },
+    {
+      name: 'an unsafe active path',
+      checkpoint: {
+        version: 1 as const,
+        revision: 1,
+        activeNoteId: 'winter',
+        activePath: '.studio/forged.md',
+        operation: null,
+      },
+    },
+    {
+      name: 'a target id that differs from the active season',
+      checkpoint: {
+        version: 1 as const,
+        revision: 1,
+        activeNoteId: 'winter',
+        activePath: 'Current Season/winter.md',
+        operation: {
+          id: 'activate-spring',
+          kind: 'activating' as const,
+          targetNoteId: 'spring',
+          targetPath: 'Current Season/winter.md',
+        },
+      },
+    },
+    {
+      name: 'a target path that differs from the active season',
+      checkpoint: {
+        version: 1 as const,
+        revision: 1,
+        activeNoteId: 'winter',
+        activePath: 'Current Season/winter.md',
+        operation: {
+          id: 'activate-winter',
+          kind: 'activating' as const,
+          targetNoteId: 'winter',
+          targetPath: 'Current Season/spring.md',
+        },
+      },
+    },
+  ])('refuses to persist $name', async ({ checkpoint }) => {
+    const vault = createInMemoryVault({
+      'Current Season/winter.md': 'keep this user note',
+    });
+    const store = createSeasonTransactionStore(vault);
+    const observed = await store.readActive();
+
+    await expect(
+      store.compareAndSetActive(observed, checkpoint),
+    ).rejects.toThrow('active-season checkpoint');
+
+    expect(await vault.readText('Current Season/winter.md')).toMatchObject({
+      text: 'keep this user note',
+    });
+    expect(
+      await createStudioControlVault(vault).exists(
+        '.studio/season/active.json',
+      ),
+    ).toBe(false);
   });
 
   it.each(['not json', '[]', 'null'])(

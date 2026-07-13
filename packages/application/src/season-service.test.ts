@@ -1,4 +1,8 @@
-import { VaultConflictError, createInMemoryVault } from '@studio/storage';
+import {
+  VaultConflictError,
+  createInMemoryVault,
+  createStudioControlVault,
+} from '@studio/storage';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createSeasonService, seasonStateFromNote } from './season-service';
@@ -566,56 +570,40 @@ describe('season service', () => {
     ).resolves.toMatchObject({ state: { status: 'archived' } });
   });
 
-  it('rejects a close when recovery completes a different season first', async () => {
-    const { seasons, studio } = setup();
+  it('fails explicitly without mutating user notes when recovery finds a forged active target', async () => {
+    const { seasons, studio, vault } = setup();
     let record = await completeWizard(
       seasons,
       await seasons.beginSeason({ title: 'Winter' }),
     );
     record = await seasons.activateSeason(record);
-    const observed = await studio.seasonTransactions.readActive();
-    await studio.seasonTransactions.compareAndSetActive(observed, {
-      ...observed.value,
-      revision: observed.value.revision + 1,
+    const before = await vault.readText(record.path);
+    await createStudioControlVault(vault).writeTextAtomic(
+      '.studio/season/active.json',
+      `${JSON.stringify({
+      version: 1,
+      revision: 3,
+      activeNoteId: record.note.id,
+      activePath: record.path,
       operation: {
         id: 'other-completed-close',
         kind: 'closing',
         targetNoteId: 'other-season',
         targetPath: 'Current Season/other.md',
       },
-    });
-    vi.spyOn(studio, 'resumeSeasonCloseTransaction').mockResolvedValue({
-      season: {
-        note: note({
-          id: 'other-season',
-          cardType: 'season',
-          status: 'archived',
-          extraFrontmatter: { season_id: 'other-season' },
-        }),
-        path: 'Current Season/other.md',
-        hash: 'other-hash',
-      },
-      snapshot: {
-        manifestPath: '.studio/backups/other/manifest.json',
-        manifest: {
-          version: 1,
-          id: 'other',
-          reason: 'season-close',
-          createdAt: '2026-07-14T00:00:00.000Z',
-          state: 'complete',
-          files: [],
-        },
-      },
-    });
+    })}\n`,
+    );
+    const resume = vi.spyOn(studio, 'resumeSeasonCloseTransaction');
 
-    await expect(
-      seasons.closeSeason(record, {
-        celebration: 'Enough.',
-        learning: 'Learning.',
-        identity: 'Becoming.',
-        dispositions: [],
-      }),
-    ).rejects.toThrow('Another active season needs attention');
+    await expect(seasons.loadCurrent()).rejects.toThrow(
+      'active-season checkpoint',
+    );
+    expect(resume).not.toHaveBeenCalled();
+    expect(await vault.readText(record.path)).toEqual(before);
+    expect((await studio.projectCurrentSeason()).current).toMatchObject({
+      noteId: record.note.id,
+      status: 'active',
+    });
   });
 
   it('treats a close checkpoint cleared by a concurrent finisher as complete', async () => {
