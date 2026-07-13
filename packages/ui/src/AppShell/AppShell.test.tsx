@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { AppShell } from './AppShell';
 
 it('provides named navigation, main content, and a one-tap capture action', () => {
@@ -61,4 +61,25 @@ it('makes every room reachable from the compact More menu with focus restoration
   fireEvent.click(screen.getByRole('menuitem', { name: 'Current Season' }));
   expect(onNavigate).toHaveBeenCalledWith('/season');
   expect(more).toHaveFocus();
+});
+
+it('restores the More trigger after an outside pointer closes the menu', async () => {
+  render(
+    <AppShell
+      activePath="/foyer"
+      onCapture={() => undefined}
+      onNavigate={() => undefined}
+      roomTitle="Foyer"
+    >
+      <button type="button">Outside</button>
+    </AppShell>,
+  );
+  const more = screen.getByRole('button', { name: 'More' });
+  fireEvent.click(more);
+  expect(screen.getByRole('menu')).toBeVisible();
+
+  fireEvent.pointerDown(screen.getByRole('button', { name: 'Outside' }));
+
+  expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  await waitFor(() => expect(more).toHaveFocus());
 });

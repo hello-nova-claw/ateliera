@@ -85,3 +85,30 @@ test('Current Season respects reduced motion and forced colors', async ({
     fullPage: true,
   });
 });
+
+test('long unbroken season titles stay contained on mobile', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(
+    '/iframe.html?id=rooms-current-season--long-text&viewMode=story',
+  );
+  const longPriority = page.locator('.season-priority').first();
+  await expect(longPriority).toBeVisible();
+  expect(
+    await longPriority.evaluate(
+      (element) => element.scrollWidth <= element.clientWidth,
+    ),
+  ).toBe(true);
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: path.join(output, 'long-text-390x844.png'),
+    fullPage: true,
+  });
+});

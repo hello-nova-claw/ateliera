@@ -30,9 +30,13 @@ async function beginSeason(page: Page): Promise<void> {
   await page.getByLabel('This is a season of…').fill('making room');
   await page.getByLabel(/How should it feel/).fill('Calm\nCurious');
   await page.getByRole('button', { name: 'Continue' }).click();
-  await page.getByRole('checkbox', { name: 'Home' }).check();
-  await page.getByRole('checkbox', { name: 'Studio' }).check();
-  await page.getByRole('checkbox', { name: 'Family' }).check();
+  for (const priority of ['Home', 'Studio', 'Family']) {
+    await page.getByLabel('New Landscape priority').fill(priority);
+    await page
+      .getByRole('button', { name: 'Create Landscape priority' })
+      .click();
+    await expect(page.getByRole('checkbox', { name: priority })).toBeChecked();
+  }
   await page.getByRole('button', { name: 'Continue' }).click();
   await page
     .getByLabel('Decisions and experiments — 30 days')
@@ -97,6 +101,11 @@ test('builds, reads, reloads, and closes a season without automatic carry-forwar
     page.getByRole('heading', { name: 'A spacious winter' }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Close season' }).click();
+  await page.getByRole('button', { name: 'Archive season and letter' }).click();
+  await expect(page.getByRole('alert')).toHaveText(
+    'Add what you celebrate before closing this season.',
+  );
+  await expect(page.getByRole('alert')).toBeFocused();
   await page.getByLabel('What do you celebrate?').fill('We made room.');
   await page.getByLabel('What did you learn?').fill('Small was enough.');
   await page.getByLabel('Who did you become?').fill('More trusting.');
