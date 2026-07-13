@@ -1,17 +1,21 @@
 import type { CaptureNoteInput, SavedNote } from '@studio/application';
-import type { SemanticType } from '@studio/domain';
+import type { DecisionHorizon, SemanticType } from '@studio/domain';
 import { useState } from 'react';
 
 export interface QuickCaptureProps {
   capture: (input: QuickCaptureInput) => Promise<SavedNote>;
+  decisionHorizon?: boolean;
   onCancel: () => void;
   onRemembered: (saved: SavedNote) => void | Promise<void>;
 }
 
-export type QuickCaptureInput = CaptureNoteInput;
+export type QuickCaptureInput = CaptureNoteInput & {
+  decisionHorizon?: DecisionHorizon;
+};
 
 export function QuickCapture({
   capture,
+  decisionHorizon = false,
   onCancel,
   onRemembered,
 }: QuickCaptureProps) {
@@ -19,18 +23,23 @@ export function QuickCapture({
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [semanticType, setSemanticType] = useState<'' | SemanticType>('');
+  const [horizon, setHorizon] = useState<DecisionHorizon>('30d');
 
   async function remember(): Promise<void> {
     setSaving(true);
     setError(undefined);
     try {
-      const saved = await capture(
-        semanticType === '' ? { body } : { body, semanticType },
-      );
+      const saved = await capture({
+        body,
+        ...(semanticType === '' ? {} : { semanticType }),
+        ...(decisionHorizon ? { decisionHorizon: horizon } : {}),
+      });
       await onRemembered(saved);
     } catch (reason) {
       setError(
-        reason instanceof Error ? reason.message : 'This thought could not be remembered.',
+        reason instanceof Error
+          ? reason.message
+          : 'This thought could not be remembered.',
       );
     } finally {
       setSaving(false);
@@ -71,6 +80,23 @@ export function QuickCapture({
         <option value="celebration">Celebration</option>
         <option value="uncharted">Uncharted</option>
       </select>
+      {decisionHorizon && (
+        <>
+          <label htmlFor="capture-decision-horizon">Decision horizon</label>
+          <select
+            id="capture-decision-horizon"
+            onChange={(event) =>
+              setHorizon(event.target.value as DecisionHorizon)
+            }
+            value={horizon}
+          >
+            <option value="30d">Next 30 days</option>
+            <option value="60d">Next 60 days</option>
+            <option value="90d">Next 90 days</option>
+            <option value="someday">Someday</option>
+          </select>
+        </>
+      )}
       {error !== undefined && <p role="alert">{error}</p>}
       <div className="studio-form__actions">
         <button

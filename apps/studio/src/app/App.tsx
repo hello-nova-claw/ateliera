@@ -410,6 +410,9 @@ function StudioApplication({
         ...(input.semanticType === undefined
           ? {}
           : { semanticType: input.semanticType }),
+        ...(input.decisionHorizon === undefined
+          ? {}
+          : { decisionHorizon: input.decisionHorizon }),
         ...(pendingCapturePlacement.current === undefined
           ? {}
           : { placement: pendingCapturePlacement.current }),
@@ -754,6 +757,9 @@ function StudioApplication({
       >
         <QuickCapture
           capture={captureThought}
+          decisionHorizon={
+            pendingLandscapePlacement.current?.anchor === 'decisions'
+          }
           onCancel={closeCapture}
           onRemembered={(saved) => {
             capturePaths.current.set(saved.note.id, saved.path);
