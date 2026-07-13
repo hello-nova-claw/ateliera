@@ -272,6 +272,23 @@ describe('Uncharted and Reflection Garden application behavior', () => {
     expect(unchangedLinks.note.extraFrontmatter.related_notes).toEqual([]);
   });
 
+  it('rejects an Uncharted horizon on any other capture shape', async () => {
+    const service = createStudioService({
+      vault: await seed([]),
+      index: new RecordingIndex(),
+    });
+    await expect(service.capture({
+      body: 'Not an Uncharted capture',
+      placement: 'reflection',
+      unchartedHorizon: 'near',
+    })).rejects.toThrow('only classify an Uncharted capture');
+    await expect(service.capture({
+      body: 'Unknown horizon',
+      placement: 'uncharted',
+      unchartedHorizon: 'elsewhere' as 'near',
+    })).rejects.toThrow('only classify an Uncharted capture');
+  });
+
   it('sorts equally recurring themes by name', async () => {
     const vault = await seed([
       {

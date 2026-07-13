@@ -120,6 +120,7 @@ export interface CaptureNoteInput {
   placement?: CapturePlacement;
   landscape?: { lifeArea: string; anchor: LandscapeAnchor };
   decisionHorizon?: DecisionHorizon;
+  unchartedHorizon?: 'near' | 'beyond';
 }
 
 export type CapturePlacement =
@@ -869,6 +870,16 @@ export function createStudioService(
           'Decision horizons can only be used with the Decisions anchor.',
         );
       }
+      if (
+        input.unchartedHorizon !== undefined &&
+        (input.placement !== 'uncharted' ||
+          (input.unchartedHorizon !== 'near' &&
+            input.unchartedHorizon !== 'beyond'))
+      ) {
+        throw new Error(
+          'An Uncharted horizon can only classify an Uncharted capture.',
+        );
+      }
       const created = iso(clock);
       const placement =
         input.placement === undefined
@@ -916,10 +927,14 @@ export function createStudioService(
           attachments: [],
           display: { featured: placement !== undefined },
           privacy: { sensitivity: 'private', aiAccess: 'ask' },
-          extraFrontmatter:
-            input.decisionHorizon === undefined
+          extraFrontmatter: {
+            ...(input.decisionHorizon === undefined
               ? {}
-              : { decision_horizon: input.decisionHorizon },
+              : { decision_horizon: input.decisionHorizon }),
+            ...(input.unchartedHorizon === 'beyond'
+              ? { beyond_gate: true }
+              : {}),
+          },
           lineEnding: '\n',
         };
         try {
