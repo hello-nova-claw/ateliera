@@ -153,6 +153,7 @@ function StudioApplication({
   const [duplicateStudio, setDuplicateStudio] = useState<BrowserStudioRecord>();
   const searchButton = useRef<HTMLButtonElement>(null);
   const captureButton = useRef<HTMLButtonElement>(null);
+  const editorTrigger = useRef<HTMLButtonElement>(null);
   const themeButton = useRef<HTMLButtonElement>(null);
   const offlineReady = useRef(
     'serviceWorker' in navigator && navigator.serviceWorker.controller !== null,
@@ -321,6 +322,11 @@ function StudioApplication({
     queueMicrotask(() => captureButton.current?.focus());
   }
 
+  function closeEditor(): void {
+    setEditor(undefined);
+    requestAnimationFrame(() => editorTrigger.current?.focus());
+  }
+
   const commands: StudioCommand[] = [
     { id: 'foyer', label: 'Open Foyer', onSelect: () => go('/foyer') },
     {
@@ -456,10 +462,11 @@ function StudioApplication({
       <section className="studio-room">
         <RoomRoute
           captures={captures}
-          onOpenCapture={(id) => {
+          onOpenCapture={(id, trigger) => {
             if (!isStudioService(service)) return;
             const notePath = capturePaths.current.get(id);
             if (notePath === undefined) return;
+            editorTrigger.current = trigger;
             setToast('');
             void service.load(notePath).then((saved) => {
               setEditorCloseRequest(0);
@@ -579,7 +586,7 @@ function StudioApplication({
           <Suspense fallback={<p role="status">Opening editor…</p>}>
             <NoteEditorSession
               initial={editor}
-              onClose={() => setEditor(undefined)}
+              onClose={closeEditor}
               requestClose={editorCloseRequest}
               service={service}
             />

@@ -6,7 +6,7 @@ export default function FoyerRoom({
   onOpenCapture,
 }: {
   captures: CaptureEntry[];
-  onOpenCapture?: (id: string) => void;
+  onOpenCapture?: (id: string, trigger: HTMLButtonElement) => void;
 }) {
   return (
     <RoomPlaceholder

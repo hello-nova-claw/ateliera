@@ -4,7 +4,7 @@ import type { StudioPath } from './router';
 
 interface RoomProps {
   captures: CaptureEntry[];
-  onOpenCapture?: (id: string) => void;
+  onOpenCapture?: (id: string, trigger: HTMLButtonElement) => void;
 }
 
 type LazyRoom = LazyExoticComponent<(props: RoomProps) => React.JSX.Element>;
@@ -32,7 +32,7 @@ export function RoomRoute({
   title,
 }: {
   captures: CaptureEntry[];
-  onOpenCapture?: (id: string) => void;
+  onOpenCapture?: (id: string, trigger: HTMLButtonElement) => void;
   path: StudioPath;
   title: string;
 }) {

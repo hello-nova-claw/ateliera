@@ -3,7 +3,7 @@ import type { CaptureEntry } from '@studio/application';
 export interface RoomPlaceholderProps {
   captures?: CaptureEntry[];
   foyer?: boolean;
-  onOpenCapture?: (id: string) => void;
+  onOpenCapture?: (id: string, trigger: HTMLButtonElement) => void;
   title: string;
 }
 
@@ -41,7 +41,9 @@ export function RoomPlaceholder({
                   ) : (
                     <button
                       className="studio-room__remembered-button"
-                      onClick={() => onOpenCapture(capture.id)}
+                      onClick={(event) =>
+                        onOpenCapture(capture.id, event.currentTarget)
+                      }
                       type="button"
                     >
                       {capture.text}
