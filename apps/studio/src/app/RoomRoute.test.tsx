@@ -24,6 +24,6 @@ it('loads each room through the matching route boundary', async () => {
 
   rerender(<RoomRoute captures={[]} path="/uncharted" title="Uncharted" />);
   expect(
-    await screen.findByRole('heading', { level: 1, name: 'Uncharted' }),
+    await screen.findByRole('heading', { level: 1, name: 'What if…?' }),
   ).toBeVisible();
 });

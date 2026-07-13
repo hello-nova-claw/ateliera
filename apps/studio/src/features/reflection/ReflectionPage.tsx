@@ -17,6 +17,7 @@ export type ReflectionConnection = {
 export interface ReflectionPageProps {
   connections?: ReflectionConnection[];
   error?: string;
+  imageUnavailableIds?: ReadonlySet<string>;
   imageUrls?: Readonly<Record<string, string>>;
   model: ReflectionGardenProjection;
   onCapture?: (
@@ -52,12 +53,14 @@ function EntryCard({
   card,
   connections,
   imageUrl,
+  imageUnavailable = false,
   onConnect,
   onOpen,
 }: {
   card: ReflectionCardProjection;
   connections: ReflectionConnection[];
   imageUrl?: string;
+  imageUnavailable?: boolean;
   onConnect?: ReflectionPageProps['onConnect'];
   onOpen?: ReflectionPageProps['onOpen'];
 }) {
@@ -85,6 +88,11 @@ function EntryCard({
           <span aria-hidden="true" className="reflection-entry__tape" />
           <img alt={card.title} src={imageUrl} />
         </figure>
+      )}
+      {imageUnavailable && (
+        <p className="reflection-entry__image-repair">
+          This image is not available here. The entry remains intact.
+        </p>
       )}
       <div className="reflection-entry__meaning">
         <SemanticMark labelMode="visible" type={card.semanticType} />
@@ -179,6 +187,7 @@ function ThenAndNow({ cards }: { cards: ReflectionCardProjection[] }) {
 export function ReflectionPage({
   connections = [],
   error,
+  imageUnavailableIds = new Set(),
   imageUrls = {},
   model,
   onCapture,
@@ -339,6 +348,7 @@ export function ReflectionPage({
               {...(imageUrls[card.noteId] === undefined
                 ? {}
                 : { imageUrl: imageUrls[card.noteId] })}
+              imageUnavailable={imageUnavailableIds.has(card.noteId)}
               {...(onConnect === undefined ? {} : { onConnect })}
               {...(onOpen === undefined ? {} : { onOpen })}
             />

@@ -121,3 +121,18 @@ it('keeps recoverable loading, offline, stale and malformed states calm', () => 
   );
   expect(screen.getByRole('alert')).toHaveTextContent('words remain untouched');
 });
+
+it('shows a quiet image repair state without rendering a raw vault reference', () => {
+  render(
+    <ReflectionPage
+      imageUnavailableIds={new Set(['now'])}
+      model={{
+        ...model,
+        cards: [{ ...model.cards[0]!, coverReference: '../../Attachments/private.png' }],
+      }}
+    />,
+  );
+  expect(screen.getByText('This image is not available here. The entry remains intact.')).toBeVisible();
+  expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  expect(document.body).not.toHaveTextContent('../../Attachments/private.png');
+});

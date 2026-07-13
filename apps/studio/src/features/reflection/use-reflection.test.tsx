@@ -78,3 +78,32 @@ it('keeps valid entries visible when another entry needs metadata repair', async
   expect(view.result.current.model.cards).toEqual([card]);
 });
 
+it('resolves optional images through the vault media boundary and revokes object URLs', async () => {
+  const createObjectURL = vi.fn(() => 'blob:private-image');
+  const revokeObjectURL = vi.fn();
+  vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
+  const withCover = { ...card, coverReference: '../../Attachments/private.png' };
+  const service = {
+    projectReflectionGarden: vi.fn(async () => ({ cards: [withCover], themes: [] })),
+    projectRoom: vi.fn(async () => []),
+    projectUncharted: vi.fn(async () => ({ cards: [] })),
+    projectCurrentSeason: vi.fn(async () => ({ current: null, conflicts: [] })),
+    lifeAreas: { load: vi.fn(async () => ({ areas: [] })) },
+    repairs: vi.fn(async () => []),
+    indexState: vi.fn(() => 'ready'),
+    resolveCover: vi.fn(async () => ({
+      kind: 'available' as const,
+      path: 'Attachments/private.png',
+      mimeType: 'image/png' as const,
+      bytes: new Uint8Array([1, 2, 3]),
+    })),
+  } as unknown as StudioService;
+  const view = renderHook(() => useReflection(service, 0));
+  await waitFor(() => expect(view.result.current.imageUrls).toEqual({
+    reflection: 'blob:private-image',
+  }));
+  expect(service.resolveCover).toHaveBeenCalledWith(withCover.path);
+  view.unmount();
+  expect(revokeObjectURL).toHaveBeenCalledWith('blob:private-image');
+  vi.unstubAllGlobals();
+});

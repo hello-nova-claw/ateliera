@@ -24,6 +24,7 @@ export interface ReflectionView {
   connections: ReflectionConnection[];
   error?: string;
   imageUrls: Readonly<Record<string, string>>;
+  imageUnavailableIds: ReadonlySet<string>;
   model: ReflectionGardenProjection;
   state: 'ready' | 'loading' | 'stale' | 'error';
 }
@@ -41,6 +42,7 @@ export function useReflection(
   const [model, setModel] = useState(empty);
   const [connections, setConnections] = useState<ReflectionConnection[]>([]);
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({});
+  const [imageUnavailableIds, setImageUnavailableIds] = useState<Set<string>>(new Set());
   const [state, setState] = useState<ReflectionView['state']>(
     service ? 'loading' : 'ready',
   );
@@ -133,16 +135,28 @@ export function useReflection(
         .filter((card) => card.coverReference !== undefined)
         .map(async (card) => {
           const media = await service.resolveCover(card.path);
-          if (media.kind !== 'available') return undefined;
+          if (media.kind !== 'available') return { noteId: card.noteId } as const;
           const url = URL.createObjectURL(new Blob([media.bytes], { type: media.mimeType }));
+          if (!current) {
+            URL.revokeObjectURL(url);
+            return { noteId: card.noteId } as const;
+          }
           urls.push(url);
-          return [card.noteId, url] as const;
+          return { noteId: card.noteId, url } as const;
         }),
     ).then((items) => {
       if (!current) return;
-      setImageUrls(Object.fromEntries(items.filter((item) => item !== undefined)));
+      setImageUrls(Object.fromEntries(
+        items.flatMap((item) => 'url' in item ? [[item.noteId, item.url]] : []),
+      ));
+      setImageUnavailableIds(new Set(
+        items.flatMap((item) => 'url' in item ? [] : [item.noteId]),
+      ));
     }).catch(() => {
-      if (current) setImageUrls({});
+      if (current) {
+        setImageUrls({});
+        setImageUnavailableIds(new Set());
+      }
     });
     return () => {
       current = false;
@@ -185,9 +199,9 @@ export function useReflection(
     connect,
     connections,
     imageUrls,
+    imageUnavailableIds,
     model,
     state,
     ...(error === undefined ? {} : { error }),
   };
 }
-

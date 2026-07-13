@@ -18,6 +18,7 @@ export default function ReflectionRoom({
       connections={view.connections}
       {...(view.error ? { error: view.error } : {})}
       imageUrls={view.imageUrls}
+      imageUnavailableIds={view.imageUnavailableIds}
       model={view.model}
       onCapture={async (type, body, openAfter, trigger) => {
         const saved = await view.capture(type, body, openAfter);

@@ -79,6 +79,24 @@ it('invites by link while retaining the visible Uncharted meaning', async () => 
   expect(screen.getAllByText('Uncharted').length).toBeGreaterThan(0);
 });
 
+it('keeps a failed invitation visible and focused for retry', async () => {
+  const onInvite = vi.fn(async () => { throw new Error('Another version exists.'); });
+  render(
+    <UnchartedPage
+      activeSeason={{ id: '2026-winter', title: 'Making room' }}
+      model={model}
+      onInvite={onInvite}
+    />,
+  );
+  const invite = screen.getByRole('button', {
+    name: 'Invite A week beside the sea into Making room',
+  });
+  fireEvent.click(invite);
+  expect(await screen.findByText('Another version exists.')).toBeVisible();
+  await waitFor(() => expect(invite).toHaveFocus());
+  expect(screen.getByText('A week beside the sea')).toBeVisible();
+});
+
 it('preserves the room structure through loading, stale and repair states', () => {
   const view = render(<UnchartedPage model={{ cards: [] }} state="loading" />);
   expect(screen.getByRole('status')).toHaveTextContent('Gathering Uncharted');

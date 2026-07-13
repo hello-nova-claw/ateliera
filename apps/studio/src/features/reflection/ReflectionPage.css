@@ -250,6 +250,13 @@
   transform: rotate(-1deg);
 }
 
+.reflection-entry__image-repair {
+  margin-block: 0 var(--studio-space-5);
+  padding: var(--studio-space-4);
+  border: 1px dashed var(--studio-color-line-strong);
+  border-radius: var(--studio-radius-control);
+}
+
 .reflection-entry__image img {
   display: block;
   inline-size: 100%;
