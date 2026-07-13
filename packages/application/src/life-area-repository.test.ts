@@ -276,6 +276,11 @@ describe('life area repository', () => {
   it.each([
     { path: LIFE_AREA_CONFIG_PATH, kind: 'directory' as const },
     { path: LIFE_AREA_CONFIG_PATH, kind: 'file' as const },
+    {
+      path: LIFE_AREA_CONFIG_PATH,
+      kind: 'file' as const,
+      contentHash: 'metadata-hash',
+    },
   ])('rejects unusable config metadata for a $kind entry', async (entry) => {
     const vault = createInMemoryVault();
     vi.spyOn(vault, 'list').mockResolvedValueOnce([entry]);
