@@ -1,14 +1,17 @@
 use std::{
     fs,
     os::fd::AsRawFd,
-    sync::mpsc,
+    sync::{Arc, Barrier, mpsc},
     time::{Duration, Instant},
 };
 
 use serde_json::json;
 use tauri::{Listener, Manager, test, webview::InvokeRequest};
 
-use crate::{commands::vault::VaultRegistry, handle_window_event, studio_builder};
+use crate::{
+    commands::vault::{Vault, VaultRegistry},
+    handle_window_event, studio_builder,
+};
 
 fn request(command: &str, body: serde_json::Value) -> InvokeRequest {
     InvokeRequest {
@@ -104,6 +107,80 @@ fn ipc_rejects_symlink_components_and_traversal() {
 }
 
 #[test]
+fn ipc_reserves_the_internal_studio_namespace() {
+    let selected = tempfile::tempdir().unwrap();
+    fs::write(selected.path().join("note.md"), "public").unwrap();
+    let app = app();
+    let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+        .build()
+        .unwrap();
+    let token = app
+        .state::<VaultRegistry>()
+        .register_selected_path_for_test("main", selected.path())
+        .unwrap();
+
+    let attempts = [
+        (
+            "vault_read_text",
+            json!({ "vaultToken": token, "path": ".studio-write.lock" }),
+        ),
+        (
+            "vault_read_binary",
+            json!({ "vaultToken": token, "path": ".studio-write.lock" }),
+        ),
+        (
+            "vault_write_text_atomic",
+            json!({ "vaultToken": token, "path": ".studio-write.lock", "text": "attack", "expectedHash": null }),
+        ),
+        (
+            "vault_write_binary_atomic",
+            json!({ "vaultToken": token, "path": ".studio-write.lock", "bytes": [1, 2, 3] }),
+        ),
+        (
+            "vault_move",
+            json!({ "vaultToken": token, "from": "note.md", "to": ".studio-write.lock" }),
+        ),
+        (
+            "vault_move",
+            json!({ "vaultToken": token, "from": ".studio-write.lock", "to": "stolen.md" }),
+        ),
+        (
+            "vault_remove",
+            json!({ "vaultToken": token, "path": ".studio-write.lock" }),
+        ),
+        (
+            "vault_list",
+            json!({ "vaultToken": token, "prefix": ".studio-write.lock" }),
+        ),
+        (
+            "vault_exists",
+            json!({ "vaultToken": token, "path": ".studio-write.lock" }),
+        ),
+    ];
+    for (command, body) in attempts {
+        assert_eq!(
+            invoke_mock(&webview, command, body).unwrap_err(),
+            json!("path_escape")
+        );
+    }
+    let entries = invoke_mock(
+        &webview,
+        "vault_list",
+        json!({ "vaultToken": token, "prefix": null }),
+    )
+    .unwrap();
+    assert!(!entries.to_string().contains(".studio-"));
+    assert_eq!(
+        fs::read_to_string(selected.path().join("note.md")).unwrap(),
+        "public"
+    );
+    assert_ne!(
+        fs::read_to_string(selected.path().join(".studio-write.lock")).unwrap(),
+        "attack"
+    );
+}
+
+#[test]
 fn cooperative_external_writer_is_never_clobbered_by_a_conditional_write() {
     let selected = tempfile::tempdir().unwrap();
     fs::write(selected.path().join("note.md"), "original").unwrap();
@@ -151,6 +228,51 @@ fn cooperative_external_writer_is_never_clobbered_by_a_conditional_write() {
         fs::read_to_string(selected.path().join("note.md")).unwrap(),
         "external"
     );
+}
+
+#[test]
+fn two_selections_of_one_vault_allow_only_one_expected_hash_writer() {
+    let selected = tempfile::tempdir().unwrap();
+    fs::write(selected.path().join("note.md"), "original").unwrap();
+    let registry = VaultRegistry::default();
+    let first_token = registry
+        .register_selected_path_for_test("first", selected.path())
+        .unwrap();
+    let second_token = registry
+        .register_selected_path_for_test("second", selected.path())
+        .unwrap();
+    let first = registry.vault_for_test("first", &first_token).unwrap();
+    let second = registry.vault_for_test("second", &second_token).unwrap();
+    let expected = first.read_text("note.md").unwrap().hash;
+    let barrier = Arc::new(Barrier::new(3));
+
+    let spawn_writer = |vault: Arc<Vault>, text: &'static str| {
+        let barrier = Arc::clone(&barrier);
+        let expected = expected.clone();
+        std::thread::spawn(move || {
+            barrier.wait();
+            vault.write_text_atomic_for_test("note.md", text, Some(&expected))
+        })
+    };
+    let first_writer = spawn_writer(first, "first");
+    let second_writer = spawn_writer(second, "second");
+    barrier.wait();
+    let results = [first_writer.join().unwrap(), second_writer.join().unwrap()];
+
+    assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+    assert_eq!(
+        results
+            .iter()
+            .filter(|result| matches!(result, Err(crate::commands::vault::VaultError::Conflict)))
+            .count(),
+        1
+    );
+    assert!(matches!(
+        fs::read_to_string(selected.path().join("note.md"))
+            .unwrap()
+            .as_str(),
+        "first" | "second"
+    ));
 }
 
 #[test]
@@ -234,6 +356,7 @@ fn watcher_follows_retained_root_after_selected_path_is_replaced() {
     let parent = tempfile::tempdir().unwrap();
     let selected = parent.path().join("selected");
     let retained = parent.path().join("retained");
+    let retained_again = parent.path().join("retained-again");
     fs::create_dir(&selected).unwrap();
     let app = app();
     let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
@@ -244,12 +367,17 @@ fn watcher_follows_retained_root_after_selected_path_is_replaced() {
         .register_selected_path_for_test("main", &selected)
         .unwrap();
 
-    fs::rename(&selected, &retained).unwrap();
-    fs::create_dir(&selected).unwrap();
-
-    let registration =
-        invoke_mock(&webview, "vault_watch", json!({ "vaultToken": token })).unwrap();
-    let event_name = registration["event"].as_str().unwrap().to_owned();
+    let vault = app
+        .state::<VaultRegistry>()
+        .vault_for_test("main", &token)
+        .unwrap();
+    let registration = vault
+        .start_watch_with_registration_hook_for_test(app.handle().clone(), || {
+            fs::rename(&selected, &retained).unwrap();
+            fs::create_dir(&selected).unwrap();
+        })
+        .unwrap();
+    let event_name = registration.event;
     let (sender, receiver) = mpsc::channel();
     let listener_id = app.listen(event_name, move |event| {
         let _ = sender.send(event.payload().to_owned());
@@ -283,8 +411,6 @@ fn watcher_follows_retained_root_after_selected_path_is_replaced() {
         Duration::from_secs(5),
         Duration::from_millis(400),
     );
-    app.unlisten(listener_id);
-
     assert_eq!(
         payloads.len(),
         1,
@@ -294,6 +420,24 @@ fn watcher_follows_retained_root_after_selected_path_is_replaced() {
     assert_eq!(payload["kind"], "created");
     assert_eq!(payload["path"], "note.md");
     assert!(!payloads[0].contains(".studio-"));
+
+    fs::rename(&retained, &retained_again).unwrap();
+    fs::create_dir(&retained).unwrap();
+    fs::write(
+        retained.join("also-outside.md"),
+        "must not retarget an established watcher",
+    )
+    .unwrap();
+    let retargeted_payloads = collect_until_quiet(
+        &receiver,
+        Duration::from_millis(350),
+        Duration::from_millis(200),
+    );
+    app.unlisten(listener_id);
+    assert!(
+        retargeted_payloads.is_empty(),
+        "established watcher retargeted to replacement: {retargeted_payloads:?}"
+    );
 }
 
 #[test]
@@ -312,4 +456,15 @@ fn revoking_a_window_drops_tokens_and_watchers() {
     handle_window_event(&registry, "main", &tauri::WindowEvent::Destroyed);
     assert_eq!(registry.capability_count_for_test(), 0);
     assert!(registry.vault_for_test("main", &token).is_err());
+}
+
+#[test]
+fn studio_builder_registers_the_production_window_event_callback() {
+    let source = include_str!("lib.rs");
+    assert!(source.contains(".on_window_event(|window, event|"));
+    assert!(
+        source.contains(
+            "handle_window_event(&window.state::<VaultRegistry>(), window.label(), event);"
+        )
+    );
 }

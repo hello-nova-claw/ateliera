@@ -14,7 +14,7 @@ use std::{
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::{
     ambient_authority,
-    fs::{Dir, OpenOptions},
+    fs::{Dir, MetadataExt, OpenOptions},
 };
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
@@ -108,6 +108,8 @@ struct SnapshotFile {
 struct WatchHandle {
     _watcher: RecommendedWatcher,
 }
+
+type SharedWatchCallback = Arc<dyn Fn(notify::Result<notify::Event>) + Send + Sync>;
 
 pub struct Vault {
     root: Dir,
@@ -371,6 +373,50 @@ impl Vault {
         Err(VaultError::Unavailable)
     }
 
+    fn watch_retained_root<F>(
+        &self,
+        callback: SharedWatchCallback,
+        after_first_registration: F,
+    ) -> Result<RecommendedWatcher, VaultError>
+    where
+        F: FnOnce(),
+    {
+        let mut registration_hook = Some(after_first_registration);
+        for _ in 0..8 {
+            let candidate = self.retained_root_path()?;
+            let callback = Arc::clone(&callback);
+            let mut watcher = notify::recommended_watcher(move |event| callback(event))
+                .map_err(|_| VaultError::Unavailable)?;
+            watcher
+                .watch(&candidate, RecursiveMode::Recursive)
+                .map_err(|_| VaultError::Unavailable)?;
+
+            if let Some(hook) = registration_hook.take() {
+                hook();
+            }
+
+            // F_GETPATH and notify both require a pathname boundary. Register first, then prove
+            // that the pathname still names the retained directory. If an attacker replaced it
+            // during registration, drop that watcher and retry from the descriptor's new path.
+            // Once identity matches, the already-registered native watcher owns the vnode; later
+            // pathname replacement cannot retarget that registration.
+            let retained = self
+                .root
+                .dir_metadata()
+                .map_err(|_| VaultError::Unavailable)?;
+            let registered = match std::fs::metadata(&candidate) {
+                Ok(metadata) => metadata,
+                Err(_) => continue,
+            };
+            if retained.dev() == std::os::unix::fs::MetadataExt::dev(&registered)
+                && retained.ino() == std::os::unix::fs::MetadataExt::ino(&registered)
+            {
+                return Ok(watcher);
+            }
+        }
+        Err(VaultError::Unavailable)
+    }
+
     pub fn read_text(&self, path: &str) -> Result<ReadTextResult, VaultError> {
         let parent = open_parent(&self.root, path, false)?;
         let bytes = read_file_nofollow(&parent.directory, &parent.basename)?;
@@ -556,6 +602,18 @@ impl Vault {
         self: &Arc<Self>,
         app: AppHandle<R>,
     ) -> Result<WatchRegistration, VaultError> {
+        self.start_watch_with_hook(app, || {})
+    }
+
+    fn start_watch_with_hook<R, F>(
+        self: &Arc<Self>,
+        app: AppHandle<R>,
+        after_first_registration: F,
+    ) -> Result<WatchRegistration, VaultError>
+    where
+        R: Runtime,
+        F: FnOnce(),
+    {
         let id = Uuid::new_v4().simple().to_string();
         let event_name = format!("studio-vault-{id}");
         let current = Arc::new(Mutex::new(self.snapshot()?));
@@ -563,7 +621,7 @@ impl Vault {
         let dirty = Arc::new(AtomicBool::new(false));
         let vault = Arc::downgrade(self);
         let emitted_name = event_name.clone();
-        let mut watcher = notify::recommended_watcher(move |_raw_event| {
+        let callback: SharedWatchCallback = Arc::new(move |_raw_event| {
             dirty.store(true, Ordering::Release);
             if running.swap(true, Ordering::AcqRel) {
                 return;
@@ -600,11 +658,8 @@ impl Vault {
                     }
                 }
             });
-        })
-        .map_err(|_| VaultError::Unavailable)?;
-        watcher
-            .watch(&self.retained_root_path()?, RecursiveMode::Recursive)
-            .map_err(|_| VaultError::Unavailable)?;
+        });
+        let watcher = self.watch_retained_root(callback, after_first_registration)?;
         self.watchers
             .lock()
             .map_err(|_| VaultError::Unavailable)?
@@ -645,6 +700,19 @@ impl Vault {
         expected_hash: Option<&str>,
     ) -> Result<String, VaultError> {
         self.write_atomic(path, text.as_bytes(), expected_hash, || {})
+    }
+
+    #[cfg(test)]
+    pub fn start_watch_with_registration_hook_for_test<R, F>(
+        self: &Arc<Self>,
+        app: AppHandle<R>,
+        after_first_registration: F,
+    ) -> Result<WatchRegistration, VaultError>
+    where
+        R: Runtime,
+        F: FnOnce(),
+    {
+        self.start_watch_with_hook(app, after_first_registration)
     }
 }
 

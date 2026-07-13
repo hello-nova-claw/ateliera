@@ -18,9 +18,9 @@ pub fn validate_relative(relative: &str) -> Result<(), VaultError> {
         || relative.starts_with('/')
         || relative.ends_with('/')
         || relative.as_bytes().get(1) == Some(&b':')
-        || relative
-            .split('/')
-            .any(|part| part.is_empty() || part == "." || part == "..")
+        || relative.split('/').any(|part| {
+            part.is_empty() || part == "." || part == ".." || part.starts_with(".studio-")
+        })
         || Path::new(relative)
             .components()
             .any(|part| !matches!(part, Component::Normal(_)))
@@ -83,6 +83,20 @@ mod tests {
     #[test]
     fn rejects_parent_traversal() {
         assert!(validate_relative("../secret.md").is_err());
+    }
+
+    #[test]
+    fn reserves_internal_studio_components() {
+        for path in [
+            ".studio-write.lock",
+            ".studio-control/config.json",
+            "Notes/.studio-attack.md",
+        ] {
+            assert!(matches!(
+                validate_relative(path),
+                Err(VaultError::PathEscape)
+            ));
+        }
     }
 
     #[test]
