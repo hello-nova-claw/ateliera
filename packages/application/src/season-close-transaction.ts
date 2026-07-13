@@ -11,6 +11,13 @@ import {
 import type { SavedNote } from './studio-service';
 
 const JOURNAL_PATH = '.studio/season/close-journal.json';
+const SEASON_DISPOSITIONS = new Set<SeasonDisposition>([
+  'celebrate',
+  'archive',
+  'return-landscape',
+  'invite-forward',
+  'release',
+]);
 
 export type SeasonDisposition =
   'celebrate' | 'archive' | 'return-landscape' | 'invite-forward' | 'release';
@@ -138,6 +145,23 @@ function isPotentialNotePath(path: string): boolean {
 }
 
 function assertRequestShape(request: SeasonCloseRequest): void {
+  if (
+    !Array.isArray(request.dispositions) ||
+    request.dispositions.some(
+      (item) =>
+        !isRecord(item) ||
+        !SEASON_DISPOSITIONS.has(item.disposition as SeasonDisposition),
+    )
+  ) {
+    throw new SeasonClosePreflightError(
+      'Every priority needs a supported disposition before closing the season.',
+    );
+  }
+  if (request.dispositions.some((item) => !isHash(item.expectedHash))) {
+    throw new SeasonClosePreflightError(
+      'The priority version changed before close began. Refresh and review it again.',
+    );
+  }
   const priorities = new Set(request.priorityIds);
   const dispositionIds = request.dispositions.map((item) => item.noteId);
   if (
@@ -453,13 +477,6 @@ function validJournal(value: unknown): value is CloseJournal {
     'season-archived',
     'completed',
   ]);
-  const dispositions = new Set<SeasonDisposition>([
-    'celebrate',
-    'archive',
-    'return-landscape',
-    'invite-forward',
-    'release',
-  ]);
   if (
     value.version !== 1 ||
     typeof value.transactionId !== 'string' ||
@@ -507,7 +524,7 @@ function validJournal(value: unknown): value is CloseJournal {
         !isHash(target.hash) ||
         !isStudioNote(target.note) ||
         target.note.id !== target.noteId ||
-        !dispositions.has(target.disposition) ||
+        !SEASON_DISPOSITIONS.has(target.disposition) ||
         (target.state !== 'pending' && target.state !== 'complete') ||
         (target.state === 'complete' &&
           (!isSafeUserPath(target.outputPath) || !isHash(target.outputHash))),
@@ -551,6 +568,64 @@ function parseJournal(text: string): CloseJournal {
       { cause: error },
     );
   }
+}
+
+function immutableJournalText(journal: CloseJournal): string {
+  return JSON.stringify({
+    transactionId: journal.transactionId,
+    preparedAt: journal.preparedAt,
+    season: journal.season,
+    closedSeasonNote: journal.closedSeasonNote,
+    reflection: journal.reflection,
+    priorityIds: journal.priorityIds,
+    snapshotBaseline: journal.snapshotBaseline,
+    targets: journal.targets.map((target) => ({
+      noteId: target.noteId,
+      path: target.path,
+      hash: target.hash,
+      note: target.note,
+      disposition: target.disposition,
+    })),
+    letter: { note: journal.letter.note, path: journal.letter.path },
+  });
+}
+
+function journalProgress(journal: CloseJournal): number {
+  if (journal.stage === 'prepared') return 0;
+  if (journal.stage === 'snapshotted') return 1;
+  if (journal.stage === 'letter-written') return 2;
+  if (journal.stage === 'applying-targets') {
+    return 3 + journal.targets.filter((target) => target.state === 'complete').length;
+  }
+  if (journal.stage === 'season-archived') return 1_000;
+  return 1_001;
+}
+
+function checkpointClaims(journal: CloseJournal): Array<string | null> {
+  return [
+    journal.snapshot === undefined ? null : JSON.stringify(journal.snapshot),
+    journal.letter.hash ?? null,
+    ...journal.targets.map((target) =>
+      target.state === 'pending'
+        ? null
+        : `${target.outputPath}\0${target.outputHash}`,
+    ),
+    journal.archivedSeasonHash ?? null,
+  ];
+}
+
+function journalSupersedes(
+  winner: CloseJournal,
+  proposed: CloseJournal,
+): boolean {
+  const winnerClaims = checkpointClaims(winner);
+  return (
+    immutableJournalText(winner) === immutableJournalText(proposed) &&
+    journalProgress(winner) >= journalProgress(proposed) &&
+    checkpointClaims(proposed).every(
+      (claim, index) => claim === null || claim === winnerClaims[index],
+    )
+  );
 }
 
 async function loadJournal(
@@ -726,12 +801,27 @@ export function createSeasonCloseTransactionService({
     loaded: LoadedJournal,
     journal: CloseJournal,
   ): Promise<LoadedJournal> {
-    const written = await control.writeTextAtomic(
-      JOURNAL_PATH,
-      journalText(journal),
-      { expectedHash: loaded.hash },
-    );
-    return { journal, hash: written.hash };
+    try {
+      const written = await control.writeTextAtomic(
+        JOURNAL_PATH,
+        journalText(journal),
+        { expectedHash: loaded.hash },
+      );
+      return { journal, hash: written.hash };
+    } catch (error) {
+      if (!(error instanceof VaultConflictError)) throw error;
+      const winner = await loadJournal(control);
+      if (
+        winner === null ||
+        !journalSupersedes(winner.journal, journal)
+      ) {
+        throw new SeasonCloseTransactionConflictError(
+          'The season-close checkpoint advanced incompatibly. Preserve it for explicit repair.',
+          { cause: error },
+        );
+      }
+      return winner;
+    }
   }
 
   async function prepareJournal(
@@ -854,7 +944,10 @@ export function createSeasonCloseTransactionService({
         (await revisions.create('season-close', [
           journal.season.path,
           ...journal.targets.map((target) => target.path),
-        ]));
+        ], {
+          id: `season-close-${journal.transactionId}`,
+          createdAt: journal.preparedAt,
+        }));
       const snapshot = await verifyRevisionSnapshot(control, created, journal);
       if (snapshot === null) {
         throw new SeasonCloseTransactionConflictError(
@@ -863,6 +956,7 @@ export function createSeasonCloseTransactionService({
       }
       journal = { ...journal, stage: 'snapshotted', snapshot };
       loaded = await checkpoint(loaded, journal);
+      journal = loaded.journal;
     }
 
     if (journal.snapshot !== undefined) {
@@ -892,6 +986,7 @@ export function createSeasonCloseTransactionService({
         letter: { ...journal.letter, hash },
       };
       loaded = await checkpoint(loaded, journal);
+      journal = loaded.journal;
     }
 
     if (
@@ -901,6 +996,7 @@ export function createSeasonCloseTransactionService({
       if (journal.stage === 'letter-written' && journal.targets.length === 0) {
         journal = { ...journal, stage: 'applying-targets' };
         loaded = await checkpoint(loaded, journal);
+        journal = loaded.journal;
       }
       for (let index = 0; index < journal.targets.length; index += 1) {
         const target = journal.targets[index]!;
@@ -936,6 +1032,7 @@ export function createSeasonCloseTransactionService({
         );
         journal = { ...journal, stage: 'applying-targets', targets };
         loaded = await checkpoint(loaded, journal);
+        journal = loaded.journal;
       }
     }
 
@@ -952,20 +1049,33 @@ export function createSeasonCloseTransactionService({
         archivedSeasonHash,
       };
       loaded = await checkpoint(loaded, journal);
+      journal = loaded.journal;
     }
 
     if (journal.stage === 'season-archived') {
       journal = { ...journal, stage: 'completed' };
       loaded = await checkpoint(loaded, journal);
+      journal = loaded.journal;
     }
 
     await verifyCompletedOutputs(vault, journal);
     const season = await vault.readText(journal.season.path);
+    const parsedSeason = parseNote(season.text);
+    if (
+      season.hash !== journal.archivedSeasonHash ||
+      season.text !== serializeNote(journal.closedSeasonNote) ||
+      !parsedSeason.ok ||
+      parsedSeason.note.status !== 'archived'
+    ) {
+      throw new SeasonCloseTransactionConflictError(
+        'The completed archived season no longer matches its pinned checkpoint. Preserve both versions for repair.',
+      );
+    }
     return {
       season: {
         note: journal.closedSeasonNote,
         path: journal.season.path,
-        hash: season.hash,
+        hash: journal.archivedSeasonHash,
       },
       snapshot: journal.snapshot!,
     };

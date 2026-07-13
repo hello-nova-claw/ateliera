@@ -29,8 +29,17 @@ export interface RevisionSnapshot {
   manifestPath: string;
 }
 
+export interface RevisionIdentity {
+  id: string;
+  createdAt: string;
+}
+
 export interface RevisionStore {
-  create(reason: RevisionReason, paths: string[]): Promise<RevisionSnapshot>;
+  create(
+    reason: RevisionReason,
+    paths: string[],
+    identity?: RevisionIdentity,
+  ): Promise<RevisionSnapshot>;
   prune(): Promise<void>;
 }
 
@@ -314,6 +323,17 @@ export function createRevisionStore(
   const limits = normalizeLimits(options.limits);
   const control = createStudioControlVault(vault);
 
+  const assertIdentity = (identity: RevisionIdentity): void => {
+    if (
+      typeof identity.id !== 'string' ||
+      identity.id === '' ||
+      typeof identity.createdAt !== 'string' ||
+      !isCanonicalTimestamp(identity.createdAt)
+    ) {
+      throw new VaultConflictError('The revision snapshot identity is invalid.');
+    }
+  };
+
   const prune = async (): Promise<void> => {
     const entries = await control.list('.studio/backups').catch((error: unknown) => {
       if (error instanceof VaultUnavailableError) return [];
@@ -400,9 +420,10 @@ export function createRevisionStore(
   };
 
   return {
-    async create(reason, sourcePaths) {
-      const createdAt = clock().toISOString();
-      const id = generateId();
+    async create(reason, sourcePaths, identity) {
+      if (identity !== undefined) assertIdentity(identity);
+      const createdAt = identity?.createdAt ?? clock().toISOString();
+      const id = identity?.id ?? generateId();
       const root = snapshotRoot(createdAt, id);
       const path = `${root}/manifest.json`;
       let manifest: RevisionManifest = {
@@ -414,6 +435,148 @@ export function createRevisionStore(
         files: [],
       };
       const planned = await planSnapshot(vault, root, sourcePaths, manifest, limits);
+
+      if (identity !== undefined) {
+        const loadOwned = async (): Promise<{
+          manifest: RevisionManifest;
+          hash: string;
+        }> => {
+          const current = await control.readText(path);
+          const parsed = parseManifest(current.text, path, limits);
+          const plannedPaths = new Map(
+            planned.map((source) => [source.originalPath, source.snapshotPath]),
+          );
+          if (
+            parsed === null ||
+            parsed.id !== id ||
+            parsed.createdAt !== createdAt ||
+            parsed.reason !== reason ||
+            (parsed.state !== 'incomplete' && parsed.state !== 'complete') ||
+            parsed.files.some(
+              (file, index) =>
+                planned[index]?.originalPath !== file.originalPath ||
+                plannedPaths.get(file.originalPath) !== file.snapshotPath,
+            ) ||
+            (parsed.state === 'complete' &&
+              parsed.files.length !== planned.length)
+          ) {
+            throw new VaultConflictError(
+              'The transaction-owned revision snapshot has incompatible durable state.',
+            );
+          }
+          const allowed = new Set([
+            path,
+            ...planned.map((source) => source.snapshotPath),
+          ]);
+          const entries = (await control.list(root)).filter(
+            (entry) => entry.kind === 'file',
+          );
+          if (entries.some((entry) => !allowed.has(entry.path))) {
+            throw new VaultConflictError(
+              'The transaction-owned revision snapshot contains an unexpected file.',
+            );
+          }
+          for (const file of parsed.files) {
+            const bytes = await control.readBinary(file.snapshotPath);
+            if ((await sha256(bytes)) !== file.hash) {
+              throw new VaultConflictError(
+                'The transaction-owned revision snapshot copy changed.',
+              );
+            }
+          }
+          return { manifest: parsed, hash: current.hash };
+        };
+
+        let manifestHash: string;
+        try {
+          manifestHash = (
+            await control.writeTextAtomic(path, manifestText(manifest), {
+              expectedMissing: true,
+            })
+          ).hash;
+        } catch (error) {
+          if (!(error instanceof VaultConflictError)) throw error;
+          const existing = await loadOwned();
+          manifest = existing.manifest;
+          manifestHash = existing.hash;
+        }
+
+        for (let index = 0; index < planned.length; index += 1) {
+          if (manifest.state === 'complete') break;
+          if (manifest.files.length > index) continue;
+          const source = planned[index]!;
+          let copiedHash: string;
+          try {
+            copiedHash = await sha256(await control.readBinary(source.snapshotPath));
+          } catch {
+            const bytes = await vault.readBinary(source.originalPath);
+            assertWithin(bytes.byteLength, limits.maxFileBytes, 'maxFileBytes');
+            try {
+              copiedHash = (
+                await control.writeBinaryAtomic(source.snapshotPath, bytes, {
+                  expectedMissing: true,
+                })
+              ).hash;
+            } catch (error) {
+              if (!(error instanceof VaultConflictError)) throw error;
+              copiedHash = await sha256(
+                await control.readBinary(source.snapshotPath),
+              );
+            }
+          }
+          const next: RevisionManifest = {
+            ...manifest,
+            files: [
+              ...manifest.files,
+              {
+                originalPath: source.originalPath,
+                snapshotPath: source.snapshotPath,
+                hash: copiedHash,
+              },
+            ],
+          };
+          try {
+            manifestHash = (
+              await control.writeTextAtomic(path, manifestText(next), {
+                expectedHash: manifestHash,
+              })
+            ).hash;
+            manifest = next;
+          } catch (error) {
+            if (!(error instanceof VaultConflictError)) throw error;
+            const existing = await loadOwned();
+            const recorded = existing.manifest.files[index];
+            if (
+              recorded?.originalPath !== source.originalPath ||
+              recorded.snapshotPath !== source.snapshotPath ||
+              recorded.hash !== copiedHash
+            ) {
+              throw new VaultConflictError(
+                'The transaction-owned revision snapshot advanced incompatibly.',
+              );
+            }
+            manifest = existing.manifest;
+            manifestHash = existing.hash;
+          }
+        }
+
+        if (manifest.state !== 'complete') {
+          const complete: RevisionManifest = { ...manifest, state: 'complete' };
+          try {
+            await control.writeTextAtomic(path, manifestText(complete), {
+              expectedHash: manifestHash,
+            });
+            manifest = complete;
+          } catch (error) {
+            if (!(error instanceof VaultConflictError)) throw error;
+            const existing = await loadOwned();
+            if (existing.manifest.state !== 'complete') throw error;
+            manifest = existing.manifest;
+          }
+        }
+        return { manifest, manifestPath: path };
+      }
+
       let manifestWrite = await control.writeTextAtomic(path, manifestText(manifest), {
         expectedMissing: true,
       });

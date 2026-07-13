@@ -208,9 +208,7 @@ describe('season close transaction', () => {
       'Current Season/winter.md',
     );
     expect(writes.at(-1)).toBe('.studio/season/close-journal.json');
-    const snapshot = await vault.readText(
-      '.studio/backups/2026-07-14/2026-07-14T00-00-00-000Z--snapshot-winter-1/manifest.json',
-    );
+    const snapshot = await vault.readText(result.snapshot.manifestPath);
     expect(
       JSON.parse(snapshot.text).files.map(
         (file: { originalPath: string }) => file.originalPath,
@@ -1323,27 +1321,25 @@ describe('season close transaction', () => {
     const bothCopiesEntered = new Promise<void>((resolve) => {
       bothEntered = resolve;
     });
-    const coordinated: StudioControlVault = {
-      ...base,
-      async writeBinaryAtomic(path, bytes, condition) {
-        if (path.includes('/files/')) {
-          entrants += 1;
-          if (entrants === 2) bothEntered();
-          await copiesReleased;
-        }
-        return base.writeBinaryAtomic(path, bytes, condition);
+    const coordinatedRevisions: RevisionStore = {
+      ...revisions,
+      async create(reason, paths, identity) {
+        entrants += 1;
+        if (entrants === 2) bothEntered();
+        await copiesReleased;
+        return revisions.create(reason, paths, identity);
       },
     };
     const first = createSeasonCloseTransactionService({
       vault,
-      control: coordinated,
-      revisions,
+      control: base,
+      revisions: coordinatedRevisions,
       clock: () => new Date(now),
     });
     const second = createSeasonCloseTransactionService({
       vault,
-      control: coordinated,
-      revisions,
+      control: base,
+      revisions: coordinatedRevisions,
       clock: () => new Date(now),
     });
 
@@ -1352,14 +1348,183 @@ describe('season close transaction', () => {
     releaseCopies();
 
     await expect(results).resolves.toEqual([
-      expect.objectContaining({ season: { note: { status: 'archived' } } }),
-      expect.objectContaining({ season: { note: { status: 'archived' } } }),
+      expect.objectContaining({
+        season: expect.objectContaining({
+          note: expect.objectContaining({ status: 'archived' }),
+        }),
+      }),
+      expect.objectContaining({
+        season: expect.objectContaining({
+          note: expect.objectContaining({ status: 'archived' }),
+        }),
+      }),
     ]);
     const manifests = (await base.list('.studio/backups')).filter(
       (entry) => entry.kind === 'file' && entry.path.endsWith('/manifest.json'),
     );
     expect(manifests).toHaveLength(1);
   });
+
+  it('adopts an equivalent applying-targets checkpoint that another instance published first', async () => {
+    const { vault, revisions, closeRequest } = await setup();
+    const base = createStudioControlVault(vault);
+    let injected = false;
+    const control: StudioControlVault = {
+      ...base,
+      async writeTextAtomic(path, text, condition) {
+        const proposed = JSON.parse(text) as {
+          stage?: string;
+          targets?: Array<{ state?: string }>;
+        };
+        if (
+          !injected &&
+          path === '.studio/season/close-journal.json' &&
+          proposed.stage === 'applying-targets' &&
+          proposed.targets?.filter((target) => target.state === 'complete')
+            .length === 1
+        ) {
+          injected = true;
+          await base.writeTextAtomic(path, text, condition);
+          throw new VaultConflictError('another instance published first');
+        }
+        return base.writeTextAtomic(path, text, condition);
+      },
+    };
+    const service = createSeasonCloseTransactionService({
+      vault,
+      control,
+      revisions,
+      clock: () => new Date(now),
+    });
+
+    await expect(service.close(closeRequest)).resolves.toMatchObject({
+      season: { note: { status: 'archived' } },
+    });
+  });
+
+  it('rejects an equal-progress checkpoint whose completed output differs', async () => {
+    const { vault, revisions, closeRequest } = await setup();
+    const base = createStudioControlVault(vault);
+    let injected = false;
+    const control: StudioControlVault = {
+      ...base,
+      async writeTextAtomic(path, text, condition) {
+        const proposed = JSON.parse(text) as {
+          stage?: string;
+          targets?: Array<{ state?: string; outputHash?: string }>;
+        };
+        if (
+          !injected &&
+          path === '.studio/season/close-journal.json' &&
+          proposed.stage === 'applying-targets' &&
+          proposed.targets?.filter((target) => target.state === 'complete')
+            .length === 1
+        ) {
+          injected = true;
+          proposed.targets[0]!.outputHash = '0'.repeat(64);
+          await base.writeTextAtomic(
+            path,
+            `${JSON.stringify(proposed, null, 2)}\n`,
+            condition,
+          );
+          throw new VaultConflictError('different output won');
+        }
+        return base.writeTextAtomic(path, text, condition);
+      },
+    };
+    const service = createSeasonCloseTransactionService({
+      vault,
+      control,
+      revisions,
+      clock: () => new Date(now),
+    });
+
+    await expect(service.close(closeRequest)).rejects.toThrow(
+      'checkpoint advanced incompatibly',
+    );
+    expect((await load(vault, closeRequest.season.path)).status).toBe('active');
+  });
+
+  it.each(['missing', 'different', 'behind'] as const)(
+    'rejects a %s journal after a checkpoint compare-and-swap conflict',
+    async (failure) => {
+      const { vault, revisions, closeRequest } = await setup();
+      const base = createStudioControlVault(vault);
+      let injected = false;
+      const control: StudioControlVault = {
+        ...base,
+        async writeTextAtomic(path, text, condition) {
+          const proposed = JSON.parse(text) as { stage?: string };
+          if (
+            !injected &&
+            path === '.studio/season/close-journal.json' &&
+            proposed.stage === 'letter-written'
+          ) {
+            injected = true;
+            const current = await base.readText(path);
+            if (failure === 'missing') {
+              await base.remove(path, { expectedHash: current.hash });
+            } else if (failure === 'different') {
+              const changed = JSON.parse(current.text) as {
+                reflection: { celebration: string };
+              };
+              changed.reflection.celebration = 'Changed by another writer.';
+              await base.writeTextAtomic(
+                path,
+                `${JSON.stringify(changed, null, 2)}\n`,
+                { expectedHash: current.hash },
+              );
+            }
+            throw new VaultConflictError('checkpoint conflict');
+          }
+          return base.writeTextAtomic(path, text, condition);
+        },
+      };
+      const service = createSeasonCloseTransactionService({
+        vault,
+        control,
+        revisions,
+        clock: () => new Date(now),
+      });
+
+      await expect(service.close(closeRequest)).rejects.toThrow(
+        'checkpoint advanced incompatibly',
+      );
+    },
+  );
+
+  it.each(['snapshotted', 'completed'] as const)(
+    'rejects when the durable journal remains behind the proposed %s checkpoint',
+    async (stage) => {
+      const { vault, revisions, closeRequest } = await setup();
+      const base = createStudioControlVault(vault);
+      let injected = false;
+      const control: StudioControlVault = {
+        ...base,
+        async writeTextAtomic(path, text, condition) {
+          if (
+            !injected &&
+            path === '.studio/season/close-journal.json' &&
+            (JSON.parse(text) as { stage?: string }).stage === stage
+          ) {
+            injected = true;
+            throw new VaultConflictError('checkpoint stayed behind');
+          }
+          return base.writeTextAtomic(path, text, condition);
+        },
+      };
+      const service = createSeasonCloseTransactionService({
+        vault,
+        control,
+        revisions,
+        clock: () => new Date(now),
+      });
+
+      await expect(service.close(closeRequest)).rejects.toThrow(
+        'checkpoint advanced incompatibly',
+      );
+    },
+  );
 
   it.each(['target-output', 'season-bytes', 'season-status'] as const)(
     'fails closed when completed durable %s no longer matches its journal',

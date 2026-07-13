@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { VaultUnavailableError } from './conflict';
 import { createInMemoryVault } from './in-memory-vault';
+import type { VaultPort } from './vault-port';
 import {
   createRevisionStore,
   RevisionLimitError,
@@ -38,6 +39,180 @@ describe('local revision snapshots', () => {
     expect(await vault.readBinary(snapshot.manifest.files[0]!.snapshotPath)).toEqual(
       await vault.readBinary(snapshot.manifest.files[0]!.originalPath),
     );
+  });
+
+  it('converges concurrent transaction-owned creates and reopens the same complete snapshot', async () => {
+    const vault = createInMemoryVault();
+    await vault.writeTextAtomic('Notes/a.md', 'one');
+    await vault.writeTextAtomic('Notes/b.md', 'two');
+    let entrants = 0;
+    let bothEntered!: () => void;
+    let release!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      bothEntered = resolve;
+    });
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const identity = {
+      id: 'owned-close',
+      createdAt: '2026-07-13T02:03:04.000Z',
+    };
+    const root =
+      '.studio/backups/2026-07-13/2026-07-13T02-03-04-000Z--owned-close';
+    const coordinated = new Proxy(vault, {
+      get(target, property, receiver) {
+        if (property !== 'writeTextAtomic') {
+          const value = Reflect.get(target, property, receiver) as unknown;
+          return typeof value === 'function' ? value.bind(target) : value;
+        }
+        return async (
+          path: string,
+          text: string,
+          condition?: Parameters<VaultPort['writeTextAtomic']>[2],
+        ) => {
+          if (
+            path === `${root}/manifest.json` &&
+            condition?.expectedMissing
+          ) {
+            entrants += 1;
+            if (entrants === 2) bothEntered();
+            await released;
+          }
+          return vault.writeTextAtomic(path, text, condition);
+        };
+      },
+    });
+    const first = createRevisionStore(coordinated);
+    const second = createRevisionStore(coordinated);
+
+    const concurrent = Promise.all([
+      first.create('season-close', ['Notes/a.md', 'Notes/b.md'], identity),
+      second.create('season-close', ['Notes/a.md', 'Notes/b.md'], identity),
+    ]);
+    await entered;
+    release();
+    const [left, right] = await concurrent;
+
+    expect(left).toEqual(right);
+    await expect(
+      createRevisionStore(vault).create(
+        'season-close',
+        ['Notes/a.md', 'Notes/b.md'],
+        identity,
+      ),
+    ).resolves.toEqual(left);
+    expect(
+      (await vault.list(root)).filter(
+        (entry) => entry.kind === 'file' && entry.path.endsWith('manifest.json'),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('resumes a transaction-owned snapshot from its exact incomplete manifest', async () => {
+    const vault = createInMemoryVault();
+    await vault.writeTextAtomic('Notes/a.md', 'one');
+    await vault.writeTextAtomic('Notes/b.md', 'two');
+    const identity = {
+      id: 'recoverable-close',
+      createdAt: '2026-07-13T02:03:04.000Z',
+    };
+    const read = vault.readBinary.bind(vault);
+    let unavailable = true;
+    vault.readBinary = async (path) => {
+      if (unavailable && path === 'Notes/b.md') {
+        throw new Error('source unavailable');
+      }
+      return read(path);
+    };
+    const store = createRevisionStore(vault);
+
+    await expect(
+      store.create(
+        'season-close',
+        ['Notes/a.md', 'Notes/b.md'],
+        identity,
+      ),
+    ).rejects.toThrow('source unavailable');
+    unavailable = false;
+
+    await expect(
+      createRevisionStore(vault).create(
+        'season-close',
+        ['Notes/a.md', 'Notes/b.md'],
+        identity,
+      ),
+    ).resolves.toMatchObject({
+      manifest: {
+        state: 'complete',
+        files: [
+          { originalPath: 'Notes/a.md' },
+          { originalPath: 'Notes/b.md' },
+        ],
+      },
+    });
+  });
+
+  it.each([
+    ['empty id', { id: '', createdAt: '2026-07-13T02:03:04.000Z' }],
+    ['invalid timestamp', { id: 'owned', createdAt: 'not-a-time' }],
+    [
+      'non-string id',
+      { id: 1, createdAt: '2026-07-13T02:03:04.000Z' },
+    ],
+  ] as const)('rejects a transaction-owned identity with an %s', async (_, identity) => {
+    const vault = createInMemoryVault();
+    await vault.writeTextAtomic('Notes/a.md', 'one');
+
+    await expect(
+      createRevisionStore(vault).create(
+        'season-close',
+        ['Notes/a.md'],
+        identity as { id: string; createdAt: string },
+      ),
+    ).rejects.toThrow('identity is invalid');
+  });
+
+  it('does not prune a newly completed transaction-owned snapshot before its caller can verify it', async () => {
+    const vault = createInMemoryVault();
+    await vault.writeTextAtomic('Notes/a.md', 'one');
+    await createRevisionStore(vault, {
+      clock: () => new Date('2026-07-13T03:00:00.000Z'),
+      generateId: () => 'newer',
+    }).create('migration', ['Notes/a.md']);
+    const identity = {
+      id: 'owned-close',
+      createdAt: '2026-07-13T02:00:00.000Z',
+    };
+
+    const snapshot = await createRevisionStore(vault).create(
+      'season-close',
+      ['Notes/a.md'],
+      identity,
+    );
+
+    await expect(vault.readText(snapshot.manifestPath)).resolves.toBeDefined();
+  });
+
+  it('rejects incompatible or tampered durable state for a transaction-owned identity', async () => {
+    const vault = createInMemoryVault();
+    await vault.writeTextAtomic('Notes/a.md', 'one');
+    const identity = {
+      id: 'owned-close',
+      createdAt: '2026-07-13T02:03:04.000Z',
+    };
+    const store = createRevisionStore(vault);
+    const snapshot = await store.create('season-close', ['Notes/a.md'], identity);
+
+    await expect(
+      store.create('migration', ['Notes/a.md'], identity),
+    ).rejects.toThrow('incompatible durable state');
+
+    const copy = snapshot.manifest.files[0]!;
+    await vault.writeTextAtomic(copy.snapshotPath, 'tampered');
+    await expect(
+      store.create('season-close', ['Notes/a.md'], identity),
+    ).rejects.toThrow('snapshot copy changed');
   });
 
   it('retains only the newest daily snapshot inside 30 days and never touches Archive', async () => {

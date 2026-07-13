@@ -4,6 +4,7 @@ export { createStudioControlVault } from './studio-control-vault';
 export type { StudioControlVault } from './studio-control-vault';
 export { createRevisionStore, RevisionLimitError } from './revisions';
 export type {
+  RevisionIdentity,
   RevisionLimits,
   RevisionReason,
   RevisionSnapshot,

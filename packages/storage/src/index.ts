@@ -26,6 +26,7 @@ export { createStudioControlVault } from './studio-control-vault';
 export type { StudioControlVault } from './studio-control-vault';
 export type {
   RevisionFile,
+  RevisionIdentity,
   RevisionLimits,
   RevisionManifest,
   RevisionReason,
