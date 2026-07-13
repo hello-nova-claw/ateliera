@@ -11,8 +11,6 @@ export default defineConfig({
         'vite.config.ts',
         'src/**/*.test.ts',
         'src/test-helpers.ts',
-        'src/index.ts',
-        'src/capture-service.ts',
       ],
       thresholds: {
         statements: 100,

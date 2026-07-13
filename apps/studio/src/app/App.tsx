@@ -1,8 +1,9 @@
 import {
-  createBrowserCaptureService,
+  createCaptureService,
   type CaptureEntry,
   type CaptureService,
 } from '@studio/application';
+import { createBrowserVault } from '@studio/storage/browser';
 import {
   ensureBrowserPersistence,
   type BrowserPersistenceStatus,
@@ -97,7 +98,7 @@ export function App({
   requestPersistence = ensureBrowserPersistence,
 }: AppProps = {}) {
   const service = useMemo(
-    () => captureService ?? createBrowserCaptureService(),
+    () => captureService ?? createCaptureService(createBrowserVault('the-studio')),
     [captureService],
   );
   const [captures, setCaptures] = useState<CaptureEntry[]>([]);
