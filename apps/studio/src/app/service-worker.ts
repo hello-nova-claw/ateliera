@@ -6,6 +6,7 @@ const CACHE_VERSION = 'studio-app-shell-__STUDIO_BUILD_ID__';
 const SHELL_URLS = [
   '/',
   '/manifest.webmanifest',
+  '/apple-touch-icon.png',
   '/studio-icon.svg',
   '/studio-maskable.svg',
 ];

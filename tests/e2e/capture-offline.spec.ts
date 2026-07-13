@@ -26,6 +26,10 @@ test('captured note survives reload while offline', async ({
   });
 
   if (browserName === 'webkit') {
+    // Chromium proves a full network-offline navigation. Playwright cannot
+    // reliably toggle WebKit offline without transient origin-storage errors,
+    // so WebKit instead proves reload with cached subresources unavailable
+    // from the network while retaining normal document/origin storage access.
     await context.route('**/*', (route) =>
       route.request().resourceType() === 'document'
         ? route.continue()

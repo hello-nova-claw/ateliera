@@ -61,6 +61,7 @@ async function prepareOfflineShell(): Promise<boolean> {
   const urls = [
     '/',
     '/manifest.webmanifest',
+    '/apple-touch-icon.png',
     '/studio-icon.svg',
     '/studio-maskable.svg',
     ...performance
