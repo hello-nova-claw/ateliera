@@ -168,6 +168,7 @@ function StudioApplication({
     'serviceWorker' in navigator && navigator.serviceWorker.controller !== null,
   );
   const capturePaths = useRef(new Map<string, string>());
+  const activeLifecycleService = useRef<StudioService | undefined>(undefined);
 
   useEffect(() => {
     if (studioService !== undefined) {
@@ -185,6 +186,7 @@ function StudioApplication({
 
   useEffect(() => {
     if (!isStudioService(service)) return undefined;
+    activeLifecycleService.current = service;
     let active = true;
     const unsubscribe = service.subscribe((event) => {
       if (
@@ -205,8 +207,13 @@ function StudioApplication({
     });
     return () => {
       active = false;
+      if (activeLifecycleService.current === service) {
+        activeLifecycleService.current = undefined;
+      }
       unsubscribe();
-      queueMicrotask(() => void service.dispose());
+      queueMicrotask(() => {
+        if (activeLifecycleService.current !== service) void service.dispose();
+      });
     };
   }, [service]);
 

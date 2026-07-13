@@ -13,6 +13,7 @@ import {
   type StudioService,
 } from '@studio/application';
 import type { StudioNote } from '@studio/domain';
+import { StrictMode } from 'react';
 import { afterEach, vi } from 'vitest';
 import { App } from './App';
 
@@ -309,4 +310,20 @@ it('lets editor cleanup enqueue its final save before unmount disposal drains th
   await waitFor(() => expect(fixture.service.dispose).toHaveBeenCalledOnce());
 
   expect(order).toEqual(['save', 'dispose']);
+});
+
+it('does not terminally dispose a Studio during the Strict Mode lifecycle probe', async () => {
+  const fixture = studioService();
+  const view = render(
+    <StrictMode>
+      <App studioId="studio:first" studioService={fixture.service} />
+    </StrictMode>,
+  );
+
+  expect(await screen.findByRole('button', { name: 'Original words' })).toBeVisible();
+  await act(async () => Promise.resolve());
+  expect(fixture.service.dispose).not.toHaveBeenCalled();
+
+  view.unmount();
+  await waitFor(() => expect(fixture.service.dispose).toHaveBeenCalledOnce());
 });
