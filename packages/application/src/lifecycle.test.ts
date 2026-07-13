@@ -286,4 +286,66 @@ describe('service lifecycle and reconciliation', () => {
     await service.dispose();
     expect(secondStop).toHaveBeenCalledOnce();
   });
+
+  it('suppresses matching self-published events but reconciles a mismatched concurrent hash', async () => {
+    const vault = createInMemoryVault();
+    const index = new RecordingIndex();
+    const rebuild = vi.spyOn(index, 'rebuild');
+    const timers = new ManualTimers();
+    const service = createStudioService({ vault, index, timers });
+    await service.start();
+
+    const saved = await service.save({ note: note({ id: 'self' }), path: 'Notes/self.md', expectedMissing: true });
+    expect(service.indexState()).toBe('ready');
+    expect(rebuild).not.toHaveBeenCalled();
+    await timers.runNext();
+    expect(rebuild).not.toHaveBeenCalled();
+    expect(service.indexState()).toBe('ready');
+
+    await vault.writeTextAtomic('Notes/self.md', serializeNote(note({ id: 'self', body: 'external' })), {
+      expectedHash: saved.hash,
+    });
+    await timers.runNext();
+    expect(rebuild).toHaveBeenCalledOnce();
+    await service.dispose();
+  });
+
+  it('falls back to safe timers when an injected recovery scheduler throws', async () => {
+    const vault = createInMemoryVault();
+    const index = new RecordingIndex();
+    index.failUpsert = true;
+    const timers = new ManualTimers();
+    const diagnostic = vi.fn();
+    const service = createStudioService({
+      vault,
+      index,
+      timers,
+      scheduleIndexRebuild: () => { throw new Error('scheduler failed'); },
+      reportDiagnostic: diagnostic,
+    });
+
+    await expect(service.save({ note: note(), path: 'Notes/n.md', expectedMissing: true })).resolves.toBeDefined();
+    expect(diagnostic).toHaveBeenCalledWith(expect.any(Error), 'recovery-scheduler');
+    expect(timers.tasks.map((task) => task.delay)).toEqual([100]);
+    index.failUpsert = false;
+    await timers.runNext();
+    expect(service.indexState()).toBe('ready');
+  });
+
+  it('makes dispose terminal, drains pending index work, and suppresses late effects', async () => {
+    const vault = createInMemoryVault();
+    const index = new RecordingIndex();
+    let release!: () => void;
+    index.rebuild = async () => new Promise<void>((resolve) => { release = resolve; });
+    const events = vi.fn();
+    const service = createStudioService({ vault, index, publish: events, timers: new ManualTimers() });
+    const rebuilding = service.rebuildIndex();
+    await vi.waitFor(() => expect(service.indexState()).toBe('rebuilding'));
+    const disposing = service.dispose();
+    release();
+    await Promise.all([rebuilding, disposing]);
+    expect(events).not.toHaveBeenCalled();
+    await expect(service.start()).rejects.toThrow('disposed');
+    await expect(service.save({ note: note(), path: 'Notes/late.md' })).rejects.toThrow('disposed');
+  });
 });

@@ -1,7 +1,7 @@
 import { parseNote } from '@studio/content';
 import { serializeNote } from '@studio/content';
 import { VaultConflictError, VaultUnavailableError, createInMemoryVault } from '@studio/storage';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createCaptureService } from './capture-service';
 import { createStudioService } from './studio-service';
@@ -61,10 +61,20 @@ describe('capture collisions', () => {
     await vault.writeTextAtomic('Inbox/race.md', 'gone');
     const read = vault.readText.bind(vault);
     vault.readText = async (path) => {
-      if (path === 'Inbox/race.md') throw new VaultUnavailableError();
+      if (path === 'Inbox/race.md') {
+        await vault.remove(path);
+        throw new VaultUnavailableError();
+      }
       return read(path);
     };
     expect(await createCaptureService(vault).list()).toEqual([]);
+  });
+
+  it('surfaces an Inbox backend outage instead of pretending the Inbox is empty', async () => {
+    const vault = createInMemoryVault();
+    await vault.writeTextAtomic('Inbox/capture.md', 'temporarily unreadable');
+    vi.spyOn(vault, 'readText').mockRejectedValueOnce(new VaultUnavailableError('backend offline'));
+    await expect(createCaptureService(vault).list()).rejects.toThrow('backend offline');
   });
 
   it('bounds StudioService collision retries and propagates unrelated capture errors', async () => {
