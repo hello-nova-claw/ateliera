@@ -6,7 +6,8 @@ import type { StudioControlVault } from './studio-control-vault';
 export type RevisionReason =
   | 'migration'
   | 'multi-file-rename'
-  | 'conflict-resolution';
+  | 'conflict-resolution'
+  | 'season-close';
 
 export interface RevisionFile {
   originalPath: string;
@@ -67,6 +68,7 @@ const REASONS = new Set<RevisionReason>([
   'migration',
   'multi-file-rename',
   'conflict-resolution',
+  'season-close',
 ]);
 const STATES = new Set<RevisionManifest['state']>([
   'writing',

@@ -1,9 +1,9 @@
 import { createInMemoryVault } from '@studio/storage';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { createSeasonService } from './season-service';
+import { createSeasonService, seasonStateFromNote } from './season-service';
 import { StudioSaveConflictError, createStudioService } from './studio-service';
-import { RecordingIndex } from './test-helpers';
+import { RecordingIndex, note } from './test-helpers';
 
 function setup() {
   const vault = createInMemoryVault();
@@ -75,5 +75,203 @@ describe('season service', () => {
     const saved = await seasons.saveStep(begun, 'feelings', { feelings: ['calm'] });
     expect(saved.note.extraFrontmatter.future_key).toEqual({ retained: true });
     expect(saved.note.extraFrontmatter.season_id).toBe(saved.state.id);
+  });
+
+  it('returns no recovery or current record in an empty Studio', async () => {
+    const { seasons } = setup();
+    expect(await seasons.recoverWizard()).toBeNull();
+    expect(await seasons.loadCurrent()).toEqual({ record: null, conflicts: [] });
+  });
+
+  it('loads the selected active season and exposes additional active notes as repair conflicts', async () => {
+    const { studio, seasons } = setup();
+    const created = '2026-07-14T00:00:00.000Z';
+    for (const [id, title] of [['first', 'First'], ['second', 'Second']] as const) {
+      await studio.save({
+        note: note({
+          id, title, cardType: 'season', status: 'active',
+          rooms: ['current-season'], created, updated: created,
+          extraFrontmatter: { season_id: id },
+        }),
+        path: `Current Season/${id}.md`, expectedMissing: true,
+      });
+    }
+    const current = await seasons.loadCurrent();
+    expect(current.record?.note.cardType).toBe('season');
+    expect(current.conflicts).toHaveLength(1);
+  });
+
+  it('updates an active season without treating a revision as failure', async () => {
+    const { seasons } = setup();
+    const begun = await seasons.beginSeason({ title: 'Winter' });
+    const revised = await seasons.updateSeason(begun, {
+      statement: 'making room',
+      practices: ['A quiet morning'],
+      supports: ['Childcare'],
+      constraints: ['Energy'],
+      enough: 'One useful version',
+      notNow: ['Everything else'],
+    });
+    expect(revised.note.body).toContain('This is a season of making room');
+    expect(revised.note.body).toContain('Constraint: Energy');
+  });
+
+  it('snapshots before close mutations, writes a letter, and archives only explicit dispositions', async () => {
+    const vault = createInMemoryVault();
+    const order: string[] = [];
+    let next = 0;
+    const revisions = {
+      create: vi.fn(async () => {
+        order.push('snapshot');
+        return { manifest: {} as never, manifestPath: '.studio/revision.json' };
+      }),
+      prune: vi.fn(async () => undefined),
+    };
+    const studio = createStudioService({
+      vault, index: new RecordingIndex(), revisions,
+      clock: () => new Date('2026-07-14T00:00:00.000Z'),
+      generateId: () => `note-${next += 1}`,
+      publish: (event) => {
+        if (event.kind === 'note-saved') order.push(`save:${event.path}`);
+        if (event.kind === 'note-archived') order.push(`archive:${event.noteId}`);
+      },
+    });
+    const seasons = createSeasonService(studio, {
+      clock: () => new Date('2026-07-14T00:00:00.000Z'),
+      generateId: () => `season-${next += 1}`,
+    });
+    await studio.save({
+      note: note({ id: 'thread', title: 'A thread' }),
+      path: 'Life Landscape/thread.md', expectedMissing: true,
+    });
+    let record = await seasons.beginSeason({ title: 'Winter' });
+    for (const step of ['prior-reflection', 'feelings', 'priorities', 'decisions-practices',
+      'supports-constraints', 'enough', 'not-now', 'confirm'] as const) {
+      record = await seasons.saveStep(record, step,
+        step === 'prior-reflection' ? { skippedPriorReflection: true } : {});
+    }
+    record = await seasons.activateSeason(record);
+    order.length = 0;
+    const closed = await seasons.closeSeason(record, {
+      celebration: 'We made room.', learning: 'Small was enough.', identity: 'More trusting.',
+      dispositions: [
+        { noteId: 'thread', title: 'A thread', disposition: 'archive' },
+        { noteId: 'future', title: 'A possibility', disposition: 'invite-forward' },
+      ],
+    });
+    expect(order[0]).toBe('snapshot');
+    expect(order).toContain('archive:thread');
+    expect(order).not.toContain('archive:future');
+    expect(order.at(-1)).toBe(`save:${record.path}`);
+    expect(closed.state.status).toBe('archived');
+    expect((await studio.projectStream('reflection'))[0]?.title).toBe('A letter from Winter');
+  });
+
+  it('does not mutate anything when the pre-close snapshot fails', async () => {
+    const vault = createInMemoryVault();
+    const studio = createStudioService({
+      vault, index: new RecordingIndex(),
+      revisions: {
+        create: vi.fn(async () => { throw new Error('snapshot unavailable'); }),
+        prune: vi.fn(async () => undefined),
+      },
+      clock: () => new Date('2026-07-14T00:00:00.000Z'),
+      generateId: () => 'season',
+    });
+    const seasons = createSeasonService(studio, {
+      clock: () => new Date('2026-07-14T00:00:00.000Z'), generateId: () => 'season',
+    });
+    let record = await seasons.beginSeason({ title: 'Winter' });
+    for (const step of ['prior-reflection', 'feelings', 'priorities', 'decisions-practices',
+      'supports-constraints', 'enough', 'not-now', 'confirm'] as const) {
+      record = await seasons.saveStep(record, step,
+        step === 'prior-reflection' ? { skippedPriorReflection: true } : {});
+    }
+    record = await seasons.activateSeason(record);
+    await expect(seasons.closeSeason(record, {
+      celebration: '', learning: '', identity: '', dispositions: [],
+    })).rejects.toThrow('snapshot unavailable');
+    expect((await seasons.loadCurrent()).record?.state.status).toBe('active');
+    expect(await studio.projectStream('reflection')).toEqual([]);
+  });
+
+  it('recovers malformed optional workflow fields conservatively', () => {
+    const state = seasonStateFromNote(note({
+      title: undefined,
+      status: 'archived',
+      extraFrontmatter: {
+        season_id: '', date_start: 42, date_end: false, priorities: ['one', 2],
+        season_workflow: {
+          statement: 1, prior_reflection: false, skipped_prior_reflection: 'yes',
+          feelings: 'calm', decisions: [null, 'bad', {},
+            { id: 'd', text: 'Decide', horizon: '30', kind: 'decision' }],
+          practices: [1], supports: null, constraints: {}, enough: 2,
+          not_now: false, mid_season_notes: 'none', completed_steps: ['feelings', 'future'],
+        },
+      },
+    }));
+    expect(state.id).toBe('n1');
+    expect(state.title).toBe('');
+    expect(state.status).toBe('archived');
+    expect(state.decisions).toHaveLength(1);
+    expect(state.completedSteps).toEqual(['feelings']);
+  });
+
+  it('uses defaults and rejects activation or closing in invalid lifecycle states', async () => {
+    const vault = createInMemoryVault();
+    const studio = createStudioService({ vault, index: new RecordingIndex() });
+    const seasons = createSeasonService(studio);
+    const draft = await seasons.beginSeason({ title: 'A season' });
+    await expect(seasons.activateSeason(draft)).rejects.toThrow('confirm');
+    await expect(seasons.closeSeason(draft, {
+      celebration: '', learning: '', identity: '', dispositions: [],
+    })).rejects.toThrow('active season');
+  });
+
+  it('refuses activation when another season became active during the wizard', async () => {
+    const { studio, seasons } = setup();
+    let draft = await seasons.beginSeason({ title: 'Winter' });
+    for (const step of ['prior-reflection', 'feelings', 'priorities', 'decisions-practices',
+      'supports-constraints', 'enough', 'not-now', 'confirm'] as const) {
+      draft = await seasons.saveStep(draft, step,
+        step === 'prior-reflection' ? { skippedPriorReflection: true } : {});
+    }
+    await studio.save({
+      note: note({
+        id: 'other-season', title: 'Other', cardType: 'season', status: 'active',
+        rooms: ['current-season'], extraFrontmatter: { season_id: 'other' },
+      }),
+      path: 'Current Season/other.md', expectedMissing: true,
+    });
+    await expect(seasons.activateSeason(draft)).rejects.toThrow('Another active season');
+  });
+
+  it('parses valid dates, active state, experiments, and non-object workflows', () => {
+    const active = seasonStateFromNote(note({
+      status: 'active',
+      extraFrontmatter: {
+        season_id: 'winter', date_start: '2026-07-14', date_end: '2026-09-14',
+        season_workflow: {
+          statement: 'rest', prior_reflection: 'Earlier', feelings: ['calm'],
+          decisions: [
+            { id: 'e60', text: 'Try', horizon: '60', kind: 'experiment' },
+            { id: 'e90', text: 'Try later', horizon: '90', kind: 'experiment' },
+            { id: 'bad-horizon', text: 'No', horizon: '120', kind: 'decision' },
+            { id: 'bad-kind', text: 'No', horizon: '30', kind: 'task' },
+          ],
+          practices: ['walk'], supports: ['friend'], constraints: ['time'],
+          enough: 'small', not_now: ['more'], mid_season_notes: ['changed'],
+          completed_steps: [],
+        },
+      },
+    }));
+    expect(active).toMatchObject({
+      id: 'winter', status: 'active', startsOn: '2026-07-14', endsOn: '2026-09-14',
+      statement: 'rest', priorReflection: 'Earlier', decisions: [{ id: 'e60' }, { id: 'e90' }],
+    });
+    expect(seasonStateFromNote(note({ extraFrontmatter: { season_workflow: [] } })).statement)
+      .toBe('');
+    expect(seasonStateFromNote(note({ extraFrontmatter: { season_workflow: null } })).feelings)
+      .toEqual([]);
   });
 });
