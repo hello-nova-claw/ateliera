@@ -366,8 +366,13 @@ test('restores the exact menu action after a concurrent move conflict', async ({
   await expect(
     page
       .getByRole('region', { name: 'Vision' })
-      .getByRole('button', { name: 'Concurrent focus note', exact: true }),
+      .getByRole('button', { name: 'Concurrent durable version', exact: true }),
   ).toBeVisible();
+  await expect(
+    page
+      .getByRole('region', { name: 'Vision' })
+      .getByRole('button', { name: 'Concurrent focus note', exact: true }),
+  ).toHaveCount(0);
 });
 
 test('mobile routes directly to one area and never renders the matrix', async ({
