@@ -171,10 +171,14 @@ export function createLifeAreaRepository(vault: VaultPort): LifeAreaRepository {
       if (entry === undefined) {
         return { areas: defaults(), revision: null, repairRequired: false };
       }
-      if (entry.kind !== 'file' || entry.contentHash === undefined) {
+      if (
+        entry.kind !== 'file' ||
+        entry.size === undefined ||
+        entry.contentHash === undefined
+      ) {
         throw new VaultUnavailableError('Life area configuration metadata is unavailable.');
       }
-      if (entry.size !== undefined && entry.size > MAX_CONFIG_BYTES) {
+      if (entry.size > MAX_CONFIG_BYTES) {
         return {
           areas: defaults(),
           revision: entry.contentHash,
