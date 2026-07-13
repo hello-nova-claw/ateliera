@@ -106,12 +106,34 @@ describe('parseNote', () => {
   });
 
   it('preserves CRLF line endings', () => {
-    const parsed = parseNote(input.replaceAll('\n', '\r\n'));
+    const crlf = input.replaceAll('\n', '\r\n');
+    const parsed = parseNote(crlf);
     expect(parsed.ok).toBe(true);
-    if (parsed.ok)
-      expect(serializeNote(parsed.note)).toContain(
-        '\r\n---\r\n\r\n# Hello\r\n',
+    if (parsed.ok) {
+      expect(parsed.note.body).toBe('\r\n# Hello\r\n');
+      const lfParsed = parseNote(input);
+      expect(lfParsed.ok).toBe(true);
+      if (lfParsed.ok)
+        expect(serializeNote(parsed.note)).toBe(
+          serializeNote(lfParsed.note).replaceAll('\n', '\r\n'),
+        );
+    }
+  });
+
+  it('uses the opening delimiter EOL for frontmatter and preserves a mixed-EOL body exactly', () => {
+    const mixed = input
+      .replaceAll('\n', '\r\n')
+      .replace('\r\n# Hello\r\n', '\r\n# Hello\nnext\r\n');
+    const parsed = parseNote(mixed);
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.note.body).toBe('\r\n# Hello\nnext\r\n');
+      const serialized = serializeNote(parsed.note);
+      expect(serialized.endsWith(parsed.note.body)).toBe(true);
+      expect(serialized.slice(0, -parsed.note.body.length)).not.toMatch(
+        /(?<!\r)\n/,
       );
+    }
   });
 
   it('disables YAML aliases', () => {
@@ -149,6 +171,40 @@ describe('parseNote', () => {
       ok: false,
       errors: [{ code: 'invalid-frontmatter' }],
     });
+  });
+
+  it('classifies unterminated frontmatter and retains the entire ambiguous source', () => {
+    const unterminated =
+      '---\nschema_version: 1\nid: 01JTEST\n\n# Still recoverable\n';
+    expect(parseNote(unterminated)).toEqual({
+      ok: false,
+      rawBody: unterminated,
+      recoverable: true,
+      errors: [
+        {
+          code: 'malformed-frontmatter',
+          message:
+            'Frontmatter is unterminated; rawBody contains the complete source because metadata and Markdown cannot be distinguished safely.',
+        },
+      ],
+    });
+  });
+
+  it.each([
+    ['created', 'not-a-date'],
+    ['created', '2026-99-99'],
+    ['created', '2026-07-13 10:00'],
+    ['updated', 'tomorrow'],
+  ])('rejects invalid %s timestamp: %s', (field, timestamp) => {
+    const parsed = parseNote(
+      input.replace(
+        `${field}: 2026-07-13T10:00:00+10:00`,
+        `${field}: ${timestamp}`,
+      ),
+    );
+    expect(parsed).toMatchObject({ ok: false, rawBody: '\n# Hello\n' });
+    if (!parsed.ok)
+      expect(parsed.errors.some((error) => error.path === field)).toBe(true);
   });
 
   it('round trips generated valid notes with semantic equality', () => {

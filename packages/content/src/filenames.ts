@@ -30,8 +30,11 @@ function slugify(value: string): string {
 export function suggestFilename(
   note: Pick<StudioNote, 'created' | 'title' | 'cardType' | 'id'>,
 ): string {
+  const parsedDate = new Date(note.created);
   const date =
     /^\d{4}-\d{2}-\d{2}/.exec(note.created)?.[0] ??
-    new Date(note.created).toISOString().slice(0, 10);
+    (Number.isNaN(parsedDate.valueOf())
+      ? '1970-01-01'
+      : parsedDate.toISOString().slice(0, 10));
   return `${date}--${slugify(note.title ?? note.cardType)}--${note.id.slice(-6).toLowerCase()}.md`;
 }

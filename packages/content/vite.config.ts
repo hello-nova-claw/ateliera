@@ -7,7 +7,12 @@ export default defineConfig({
       enabled: true,
       provider: 'v8',
       reporter: ['text'],
-      thresholds: { branches: 100 },
+      thresholds: {
+        statements: 100,
+        branches: 100,
+        functions: 100,
+        lines: 100,
+      },
     },
   },
 });

@@ -28,6 +28,7 @@ export const recognizedFrontmatterKeys = [
 ] as const;
 
 const optionalText = z.string().nullish();
+const timestamp = z.union([z.iso.date(), z.iso.datetime({ offset: true })]);
 
 export const frontmatterSchema = z.object({
   schema_version: z.literal(1),
@@ -41,8 +42,8 @@ export const frontmatterSchema = z.object({
   landscape_anchor: z.enum(landscapeAnchors).optional(),
   seasons: z.array(z.string()),
   tags: z.array(z.string()),
-  created: z.string().min(1),
-  updated: z.string().min(1),
+  created: timestamp,
+  updated: timestamp,
   source: z
     .object({ title: optionalText, creator: optionalText, url: optionalText })
     .optional(),

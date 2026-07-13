@@ -10,6 +10,25 @@ it('creates sortable, unique 26-character IDs', () => {
   expect(createNoteId()).toHaveLength(26);
 });
 
+it('keeps the timestamp prefix stable while generating unique IDs in the same millisecond', () => {
+  const ids = new Set(Array.from({ length: 100 }, () => createNoteId(1_000)));
+  expect(ids.size).toBe(100);
+  expect(new Set([...ids].map((id) => id.slice(0, 10)))).toEqual(
+    new Set(['00000000Z8']),
+  );
+  expect([...ids].every((id) => id >= '00000000Z80000000000000000')).toBe(true);
+});
+
+it('does not throw for unusual created values', () => {
+  expect(
+    suggestFilename({
+      created: 'not-a-date',
+      cardType: 'note',
+      id: '01JTESTABCDEF',
+    }),
+  ).toBe('1970-01-01--note--abcdef.md');
+});
+
 it('uses safe fallbacks for unusual metadata', () => {
   expect(
     suggestFilename({

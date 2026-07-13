@@ -14,7 +14,8 @@ function splitDocument(text: string): {
   body: string;
   lineEnding: '\n' | '\r\n';
 } {
-  const lineEnding = text.includes('\r\n') ? '\r\n' : '\n';
+  const opening = /^(?:\uFEFF)?---(\r?\n)/.exec(text);
+  const lineEnding = opening?.[1] === '\r\n' ? '\r\n' : '\n';
   const match = /^(?:\uFEFF)?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text);
   if (!match) return { body: text, lineEnding };
   return {
@@ -27,6 +28,20 @@ function splitDocument(text: string): {
 export function parseNote(text: string): ParseResult {
   const { yaml, body, lineEnding } = splitDocument(text);
   if (yaml === undefined) {
+    if (/^(?:\uFEFF)?---(?:\r?\n|$)/.test(text)) {
+      return {
+        ok: false,
+        rawBody: text,
+        recoverable: true,
+        errors: [
+          {
+            code: 'malformed-frontmatter',
+            message:
+              'Frontmatter is unterminated; rawBody contains the complete source because metadata and Markdown cannot be distinguished safely.',
+          },
+        ],
+      };
+    }
     return {
       ok: false,
       rawBody: body,
