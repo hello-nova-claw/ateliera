@@ -96,11 +96,11 @@ importers:
         specifier: ^4.6.0
         version: 4.7.0(vite@7.3.6(@types/node@24.13.3)(yaml@2.9.0))
       react:
-        specifier: ^19.1.0
-        version: 19.2.7
+        specifier: 19.1.0
+        version: 19.1.0
       react-dom:
-        specifier: ^19.1.0
-        version: 19.2.7(react@19.2.7)
+        specifier: 19.1.0
+        version: 19.1.0(react@19.1.0)
 
   packages/application:
     dependencies:
@@ -2088,11 +2088,6 @@ packages:
     peerDependencies:
       react: ^19.1.0
 
-  react-dom@19.2.7:
-    resolution: {integrity: sha512-t0BRVXvbiE/o20Hfw669rLbMCDWtYZLvmJigy2f0MxsXF+71pxhR3xOkspmsO8h3ZlNzyibAmtCa3l4lYKk6gQ==, tarball: https://registry.npmjs.org/react-dom/-/react-dom-19.2.7.tgz}
-    peerDependencies:
-      react: ^19.2.7
-
   react-is@17.0.2:
     resolution: {integrity: sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w==, tarball: https://registry.npmjs.org/react-is/-/react-is-17.0.2.tgz}
 
@@ -2102,10 +2097,6 @@ packages:
 
   react@19.1.0:
     resolution: {integrity: sha512-FS+XFBNvn3GTAWq26joslQgWNoFu08F4kl0J4CgdNKADkdSGXQyTCnKteIAJy96Br6YbpEU1LSzV5dYtjMkMDg==, tarball: https://registry.npmjs.org/react/-/react-19.1.0.tgz}
-    engines: {node: '>=0.10.0'}
-
-  react@19.2.7:
-    resolution: {integrity: sha512-HNe9WslTbXmFK8o8cmwgAeJFSBvt1bPdHCVKtaaV+WlAN36mpT4hcRpwbf3fY56ar2oIXzsBpOAiIRHAdY0OlQ==, tarball: https://registry.npmjs.org/react/-/react-19.2.7.tgz}
     engines: {node: '>=0.10.0'}
 
   recast@0.23.12:
@@ -2157,9 +2148,6 @@ packages:
 
   scheduler@0.26.0:
     resolution: {integrity: sha512-NlHwttCI/l5gCPR3D1nNXtWABUmBwvZpEQiD4IXSbIDq8BzLIK/7Ir5gTFSGZDUu37K5cMNp0hFtzO38sC7gWA==, tarball: https://registry.npmjs.org/scheduler/-/scheduler-0.26.0.tgz}
-
-  scheduler@0.27.0:
-    resolution: {integrity: sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q==, tarball: https://registry.npmjs.org/scheduler/-/scheduler-0.27.0.tgz}
 
   semver@6.3.1:
     resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==, tarball: https://registry.npmjs.org/semver/-/semver-6.3.1.tgz}
@@ -4352,18 +4340,11 @@ snapshots:
       react: 19.1.0
       scheduler: 0.26.0
 
-  react-dom@19.2.7(react@19.2.7):
-    dependencies:
-      react: 19.2.7
-      scheduler: 0.27.0
-
   react-is@17.0.2: {}
 
   react-refresh@0.17.0: {}
 
   react@19.1.0: {}
-
-  react@19.2.7: {}
 
   recast@0.23.12:
     dependencies:
@@ -4437,8 +4418,6 @@ snapshots:
       xmlchars: 2.2.0
 
   scheduler@0.26.0: {}
-
-  scheduler@0.27.0: {}
 
   semver@6.3.1: {}
 
