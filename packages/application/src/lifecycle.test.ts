@@ -349,7 +349,7 @@ describe('service lifecycle and reconciliation', () => {
     expect(service.indexState()).toBe('ready');
   });
 
-  it('classifies delayed, repeated, expired, and mismatched self-publication events by hash', async () => {
+  it('classifies delayed, expired, and mismatched self-publication events by hash', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-13T00:00:00Z'));
     try {
@@ -378,9 +378,6 @@ describe('service lifecycle and reconciliation', () => {
       await service.start();
 
       const first = await service.save({ note: note({ id: 'self' }), path: 'Notes/self.md' });
-      const second = await service.save({ note: note({ id: 'self' }), path: 'Notes/self.md' });
-      expect(second.hash).toBe(first.hash);
-      listener?.({ kind: 'modified', path: 'Notes/self.md', hash: first.hash });
       listener?.({ kind: 'modified', path: 'Notes/self.md', hash: first.hash });
       expect(timers.tasks).toEqual([]);
 
@@ -393,6 +390,66 @@ describe('service lifecycle and reconciliation', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('never reuses an older self hash while a later write to the same path is pending', async () => {
+    const backing = createInMemoryVault();
+    let listener: Parameters<VaultPort['watch']>[0] | undefined;
+    let releaseSecondWrite!: () => void;
+    const secondWriteGate = new Promise<void>((resolve) => { releaseSecondWrite = resolve; });
+    let secondWriteStarted!: (hash: string) => void;
+    const secondWriteDurable = new Promise<string>((resolve) => { secondWriteStarted = resolve; });
+    let writes = 0;
+    const vault: VaultPort = {
+      list: backing.list.bind(backing),
+      readText: backing.readText.bind(backing),
+      async writeTextAtomic(path, value, options) {
+        writes += 1;
+        const result = await backing.writeTextAtomic(path, value, options);
+        if (writes === 2) {
+          secondWriteStarted(result.hash);
+          await secondWriteGate;
+        }
+        return result;
+      },
+      readBinary: backing.readBinary.bind(backing),
+      writeBinaryAtomic: backing.writeBinaryAtomic.bind(backing),
+      move: backing.move.bind(backing),
+      remove: backing.remove.bind(backing),
+      exists: backing.exists.bind(backing),
+      watch: async (next) => { listener = next; return () => undefined; },
+    };
+    const timers = new ManualTimers();
+    const index = new RecordingIndex();
+    const rebuild = vi.spyOn(index, 'rebuild');
+    const service = createStudioService({ vault, index, timers });
+    await service.start();
+    const savedA = await service.save({
+      note: note({ id: 'same-path', body: 'A' }),
+      path: 'Notes/same.md',
+      expectedMissing: true,
+    });
+
+    const savingB = service.save({
+      note: note({ id: 'same-path', body: 'B' }),
+      path: 'Notes/same.md',
+      expectedHash: savedA.hash,
+    });
+    const hashB = await secondWriteDurable;
+    const restoredA = await backing.writeTextAtomic('Notes/same.md', serializeNote(savedA.note), {
+      expectedHash: hashB,
+    });
+    listener?.({ kind: 'modified', path: 'Notes/same.md', hash: restoredA.hash });
+    expect(service.indexState()).toBe('stale');
+
+    releaseSecondWrite();
+    await savingB;
+    expect(service.indexState()).toBe('stale');
+    await timers.runNext();
+    expect(rebuild).toHaveBeenCalledOnce();
+    expect((await index.getById('same-path'))?.note.body).toBe('A');
+    expect(service.indexState()).toBe('ready');
+    await service.dispose();
   });
 
   it('reconciles a synchronous watcher event whose hash does not match the completed write', async () => {
@@ -475,12 +532,15 @@ describe('service lifecycle and reconciliation', () => {
     const service = createStudioService({ vault, index: new RecordingIndex(), publish: events });
     const saving = service.save({ note: note(), path: 'Notes/pending.md' });
     let disposed = false;
-    const disposing = service.dispose().then(() => { disposed = true; });
+    const disposing = service.dispose();
+    const alsoDisposing = service.dispose();
+    expect(alsoDisposing).toBe(disposing);
+    void disposing.then(() => { disposed = true; });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(disposed).toBe(false);
 
     release();
-    await Promise.all([saving, disposing]);
+    await Promise.all([saving, disposing, alsoDisposing]);
     expect(events).not.toHaveBeenCalled();
   });
 
