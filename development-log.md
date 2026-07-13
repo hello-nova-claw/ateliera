@@ -82,3 +82,13 @@
 - Final CommonMark review added recursive definition discovery inside container nodes, first-definition precedence, and graceful unmatched-reference handling.
 - The reproducible 10,000-note real-FTS benchmark rebuilt in 7.983 seconds and returned warmed filtered results in 9.76 ms on the reference development Mac, below the 200 ms target.
 - Verified all 374 workspace tests, typecheck, lint, and production build. Task 7 remediation is complete and ready for independent re-review.
+
+## 2026-07-13 — Application services and room projections
+
+- Added an injected `StudioService` that captures with safe Inbox defaults and saves in the required order: validate, serialize, conditional atomic vault write, disposable-index upsert, then UI event publication.
+- Preserved durable Markdown when indexing fails, exposed explicit ready/stale/rebuilding state, coalesced rebuild scheduling, and rebuilt the disposable index from canonical vault notes.
+- Wrapped compare-and-swap conflicts with both the attempted note and the current durable text so concurrent edits remain available for resolution.
+- Added vault-derived Foyer, room, Life Landscape, Current Season, Reflection, and Celebration projections with deterministic fallback sorting, archive/exclusion filtering, corrupt-note isolation, and canonical-ID de-duplication.
+- Added a dedicated `.studio/views/*.json` repository for disposable per-view ordering without weakening the reserved `.studio-*` storage-control namespace.
+- Added a browser-safe portable storage-contract export so application code does not pull Node-only adapters into the production PWA bundle.
+- Verified 21 application tests at 100% statement/branch/function/line coverage, 395 workspace tests, lint, workspace typecheck, and the production build. Task 8 is complete and ready for independent review.
