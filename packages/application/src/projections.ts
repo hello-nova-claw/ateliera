@@ -62,6 +62,7 @@ export interface LandscapeProjectionQuery {
 }
 
 export interface LandscapeCardProjection extends StudioCardProjection {
+  hash: string;
   lifeAreas: string[];
   anchor: LandscapeAnchor;
   decisionHorizon?: DecisionHorizon;
@@ -207,22 +208,23 @@ export async function projectLandscapeBoard(
           `landscape:${lifeArea}:${anchor}`,
           views,
         );
-        const byId = new Map(candidates.map((item) => [item.note.id, item.note]));
+        const byId = new Map(candidates.map((item) => [item.note.id, item]));
         const cards = projected.map((card): LandscapeCardProjection => {
-          const horizon = byId.get(card.noteId)?.extraFrontmatter.decision_horizon;
+          const source = byId.get(card.noteId)!;
+          const horizon = source.note.extraFrontmatter.decision_horizon;
           return {
             ...card,
-            lifeAreas: [...(byId.get(card.noteId)?.lifeAreas ?? [])],
+            hash: source.hash,
+            lifeAreas: [...source.note.lifeAreas],
             anchor,
             ...(isDecisionHorizon(horizon) ? { decisionHorizon: horizon } : {}),
           };
         });
         const featuredIndex = cards.findIndex(
-          (card) => byId.get(card.noteId)?.display.featured === true,
+          (card) => byId.get(card.noteId)?.note.display.featured === true,
         );
         if (featuredIndex > 0) {
-          const [featured] = cards.splice(featuredIndex, 1);
-          if (featured !== undefined) cards.unshift(featured);
+          cards.unshift(cards.splice(featuredIndex, 1)[0]!);
         }
         return {
           lifeArea,

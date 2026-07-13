@@ -161,6 +161,7 @@ export interface StudioService {
   projectLandscapeBoard(lifeAreas: readonly string[]): Promise<LandscapeBoardProjection>;
   updateLandscapePlacement(input: {
     path: string;
+    expectedHash: string;
     lifeAreas: string[];
     anchor: LandscapeAnchor;
   }): Promise<SavedNote>;
@@ -214,6 +215,23 @@ function iso(clock: () => Date): string {
 
 function isInternalPath(path: string): boolean {
   return path.toLocaleLowerCase('en').startsWith('.studio/');
+}
+
+function portableLifeAreaFolder(lifeArea: string): string {
+  const segment = Array.from(
+    Array.from(lifeArea.normalize('NFC'))
+      .map((character) => {
+        const codePoint = character.codePointAt(0)!;
+        return codePoint < 32 || codePoint === 127 ? '-' : character;
+      })
+      .join('')
+      .replace(/[<>:"/\\|?*]/gu, '-')
+      .replace(/-+/gu, '-')
+      .replace(/^[ .-]+|[ .-]+$/gu, ''),
+  ).slice(0, 64).join('');
+  return segment === '' || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/iu.test(segment)
+    ? 'Area'
+    : segment;
 }
 
 export function createStudioService(dependencies: StudioServiceDependencies): StudioService {
@@ -675,7 +693,9 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
         try {
           return await save({
             note,
-            path: `${placement?.folder ?? 'Inbox'}/${suggestFilename(note)}`,
+            path: input.landscape === undefined
+              ? `${placement?.folder ?? 'Inbox'}/${suggestFilename(note)}`
+              : `Life Landscape/${portableLifeAreaFolder(input.landscape.lifeArea)}/${suggestFilename(note)}`,
             expectedMissing: true,
           });
         } catch (error) {
@@ -770,7 +790,7 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
       const loaded = await loadNote(input.path);
       return save({
         path: loaded.path,
-        expectedHash: loaded.hash,
+        expectedHash: input.expectedHash,
         note: {
           ...loaded.note,
           lifeAreas: [...new Set(input.lifeAreas)],

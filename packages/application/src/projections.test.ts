@@ -30,6 +30,7 @@ describe('room projections', () => {
       { path: 'Landscape/second.md', note: second },
     ]);
     const service = createStudioService({ vault, index: new RecordingIndex() });
+    await service.views.save('landscape:home:decisions', ['second', 'shared']);
 
     const board = await service.projectLandscapeBoard(['home', 'family']);
     expect(board.cells).toHaveLength(10);
@@ -148,7 +149,7 @@ describe('room projections', () => {
     const saved = await service.capture({
       body: 'A place-safe capture',
       landscape: {
-        lifeArea: '../../Home: family\\dreams',
+        lifeArea: '../../Home: family\\dreams\u0000',
         anchor: 'vision',
       },
     });
@@ -157,6 +158,17 @@ describe('room projections', () => {
       /^Life Landscape\/Home- family-dreams\//,
     );
     expect(saved.path).not.toContain('..');
+
+    const reserved = await service.capture({
+      body: 'A reserved-name capture',
+      landscape: { lifeArea: 'CON', anchor: 'vision' },
+    });
+    const empty = await service.capture({
+      body: 'An empty-segment capture',
+      landscape: { lifeArea: '../..', anchor: 'vision' },
+    });
+    expect(reserved.path).toMatch(/^Life Landscape\/Area\//);
+    expect(empty.path).toMatch(/^Life Landscape\/Area\//);
   });
   it('projects one canonical note multiple ways without duplication', async () => {
     const shared = note({
