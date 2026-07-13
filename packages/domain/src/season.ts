@@ -196,6 +196,51 @@ function validateSeasonState(
   state: SeasonState,
   options: { priorityOverride?: boolean },
 ): void {
+  for (const field of [
+    'title',
+    'statement',
+    'priorReflection',
+    'enough',
+  ] as const) {
+    if (typeof state[field] !== 'string') {
+      throw new Error(`Season ${field} must be text.`);
+    }
+  }
+  if (typeof state.skippedPriorReflection !== 'boolean') {
+    throw new Error('Season skippedPriorReflection must be true or false.');
+  }
+  for (const field of [
+    'feelings',
+    'priorities',
+    'practices',
+    'supports',
+    'constraints',
+    'notNow',
+    'midSeasonNotes',
+  ] as const) {
+    if (
+      !Array.isArray(state[field]) ||
+      state[field].some((value) => typeof value !== 'string')
+    ) {
+      throw new Error(`Season ${field} must contain only text.`);
+    }
+  }
+  if (
+    !Array.isArray(state.decisions) ||
+    state.decisions.some(
+      (decision) =>
+        typeof decision !== 'object' ||
+        decision === null ||
+        typeof decision.id !== 'string' ||
+        typeof decision.text !== 'string' ||
+        !['30', '60', '90'].includes(decision.horizon) ||
+        !['decision', 'experiment'].includes(decision.kind),
+    )
+  ) {
+    throw new Error(
+      'Season decisions must use a valid id, text, horizon, and kind.',
+    );
+  }
   if (!validDate(state.startsOn) || !validDate(state.endsOn)) {
     throw new Error('Season dates must use YYYY-MM-DD.');
   }
@@ -203,7 +248,10 @@ function validateSeasonState(
     throw new Error('End date must be on or after the start date.');
   }
   if (state.title.trim() === '') throw new Error('Give this season a name.');
-  if (state.priorities.length > 3 && options.priorityOverride !== true) {
+  if (
+    state.priorities.length > 4 ||
+    (state.priorities.length > 3 && options.priorityOverride !== true)
+  ) {
     throw new PriorityLimitError();
   }
 }
@@ -271,7 +319,10 @@ export function addSeasonPriority(
   const priorities = [...new Set([...season.priorities, noteId.trim()])].filter(
     Boolean,
   );
-  if (priorities.length > 3 && options.override !== true)
+  if (
+    priorities.length > 4 ||
+    (priorities.length > 3 && options.override !== true)
+  )
     throw new PriorityLimitError();
   return { ...season, priorities };
 }

@@ -14,7 +14,10 @@ import {
 
 describe('season domain', () => {
   it('persists an interruptible nine-step draft without losing earlier answers', () => {
-    const draft = createSeasonDraft('season-1', '2026-07-14T00:00:00.000Z');
+    const draft = {
+      ...createSeasonDraft('season-1', '2026-07-14T00:00:00.000Z'),
+      title: 'Winter',
+    };
     const named = updateSeasonDraft(draft, 'name-dates', {
       title: 'A spacious winter',
       startsOn: '2026-07-14',
@@ -96,7 +99,10 @@ describe('season domain', () => {
   });
 
   it('rejects fields outside a wizard step and protects lifecycle identity', () => {
-    const draft = createSeasonDraft('season-1', '2026-07-14T00:00:00.000Z');
+    const draft = {
+      ...createSeasonDraft('season-1', '2026-07-14T00:00:00.000Z'),
+      title: 'Winter',
+    };
     expect(() =>
       updateSeasonDraft(draft, 'feelings', {
         feelings: ['calm'],
