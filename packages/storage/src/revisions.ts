@@ -96,6 +96,34 @@ export function createRevisionStore(
   const retentionDays = options.retentionDays ?? 30;
   const control = createStudioControlVault(vault);
 
+  const prune = async (): Promise<void> => {
+    const entries = await control.list('.studio/backups').catch((error: unknown) => {
+      if (error instanceof VaultUnavailableError) return [];
+      throw error;
+    });
+    const snapshots: RevisionSnapshot[] = [];
+    for (const entry of entries) {
+      if (entry.kind !== 'file' || !entry.path.endsWith('/manifest.json')) continue;
+      const file = await control.readText(entry.path);
+      const manifest = parseManifest(file.text);
+      if (manifest !== null) snapshots.push({ manifest, manifestPath: entry.path });
+    }
+    snapshots.sort((left, right) => right.manifest.createdAt.localeCompare(left.manifest.createdAt));
+    const now = clock().valueOf();
+    const newestDay = new Set<string>();
+    for (const snapshot of snapshots) {
+      const created = Date.parse(snapshot.manifest.createdAt);
+      const day = snapshot.manifest.createdAt.slice(0, 10);
+      const expired = !Number.isFinite(created) || now - created >= retentionDays * 86_400_000;
+      const duplicateDay = newestDay.has(day);
+      if (expired || duplicateDay) {
+        await removeSnapshot(control, snapshot.manifestPath);
+      } else {
+        newestDay.add(day);
+      }
+    }
+  };
+
   return {
     async create(reason, sourcePaths) {
       const createdAt = clock().toISOString();
@@ -134,6 +162,9 @@ export function createRevisionStore(
         await control.writeTextAtomic(path, manifestText(manifest), {
           expectedHash: manifestWrite.hash,
         });
+        // Retention cleanup is conservative and must never turn a completed safety snapshot into
+        // a failed operation. A later create or explicit prune will retry unavailable cleanup.
+        await prune().catch(() => undefined);
         return { manifest, manifestPath: path };
       } catch (error) {
         manifest = { ...manifest, state: 'incomplete' };
@@ -144,32 +175,6 @@ export function createRevisionStore(
       }
     },
 
-    async prune() {
-      const entries = await control.list('.studio/backups').catch((error: unknown) => {
-        if (error instanceof VaultUnavailableError) return [];
-        throw error;
-      });
-      const snapshots: RevisionSnapshot[] = [];
-      for (const entry of entries) {
-        if (entry.kind !== 'file' || !entry.path.endsWith('/manifest.json')) continue;
-        const file = await control.readText(entry.path);
-        const manifest = parseManifest(file.text);
-        if (manifest !== null) snapshots.push({ manifest, manifestPath: entry.path });
-      }
-      snapshots.sort((left, right) => right.manifest.createdAt.localeCompare(left.manifest.createdAt));
-      const now = clock().valueOf();
-      const newestDay = new Set<string>();
-      for (const snapshot of snapshots) {
-        const created = Date.parse(snapshot.manifest.createdAt);
-        const day = snapshot.manifest.createdAt.slice(0, 10);
-        const expired = !Number.isFinite(created) || now - created >= retentionDays * 86_400_000;
-        const duplicateDay = newestDay.has(day);
-        if (expired || duplicateDay) {
-          await removeSnapshot(control, snapshot.manifestPath);
-        } else {
-          newestDay.add(day);
-        }
-      }
-    },
+    prune,
   };
 }
