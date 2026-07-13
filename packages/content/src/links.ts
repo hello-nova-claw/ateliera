@@ -42,7 +42,8 @@ function referenceKey(identifier: string): string {
 }
 
 function collectReference(link: LinkReference, definitions: Map<string, Definition>, output: ParsedLink[]): void {
-  const definition = definitions.get(referenceKey(link.identifier))!;
+  const definition = definitions.get(referenceKey(link.identifier));
+  if (!definition) return;
   const parsed = markdownTarget(definition.url);
   if (parsed) output.push({ ...parsed, label: toString(link) });
 }
@@ -68,9 +69,15 @@ function parseMarkdown(markdown: string): Root {
 
 function definitionsIn(root: Root): Map<string, Definition> {
   const definitions = new Map<string, Definition>();
-  for (const child of root.children) {
-    if (child.type === 'definition') definitions.set(referenceKey(child.identifier), child);
+  function visit(node: Root | Content): void {
+    if (node.type === 'definition') {
+      const key = referenceKey(node.identifier);
+      if (!definitions.has(key)) definitions.set(key, node);
+      return;
+    }
+    if ('children' in node) for (const child of (node as Parent).children) visit(child);
   }
+  visit(root);
   return definitions;
 }
 
@@ -82,8 +89,7 @@ function plainTextParts(node: Root | Content): string[] {
   return [];
 }
 
-export function extractLinks(markdown: string): ParsedLink[] {
-  const root = parseMarkdown(markdown);
+export function extractLinksFromAst(root: Root): ParsedLink[] {
   const located: ParsedLink[] = [];
   walk(root, definitionsIn(root), located);
   const seen = new Set<string>();
@@ -93,6 +99,10 @@ export function extractLinks(markdown: string): ParsedLink[] {
     seen.add(key);
     return [link];
   });
+}
+
+export function extractLinks(markdown: string): ParsedLink[] {
+  return extractLinksFromAst(parseMarkdown(markdown));
 }
 
 export function markdownToPlainText(markdown: string): string {
