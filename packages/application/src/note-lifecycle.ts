@@ -250,14 +250,39 @@ export function createNoteLifecycleService({
     return result;
   }
 
-  async function indexedNote(id: string) {
-    const entry = await index.getById(id);
-    if (entry === null) throw new VaultUnavailableError(`No active note with id ${id} was found.`);
-    return entry;
+  async function canonicalNote(id: string) {
+    const matches: Array<{ note: StudioNote; path: string; hash: string }> = [];
+    const entries = await vault.list();
+    for (const entry of entries) {
+      if (
+        entry.kind !== 'file' ||
+        entry.path.toLocaleLowerCase('en').startsWith('.studio/') ||
+        !isPotentialNotePath(entry.path)
+      ) continue;
+      let file: Awaited<ReturnType<VaultPort['readText']>>;
+      try {
+        file = await vault.readText(entry.path);
+      } catch (error) {
+        throw new LifecycleStorageUnavailableError([entry.path], { cause: error });
+      }
+      const parsed = parseNote(file.text);
+      if (parsed.ok && parsed.note.id === id) {
+        matches.push({ note: parsed.note, path: entry.path, hash: file.hash });
+      }
+    }
+    if (matches.length === 0) {
+      throw new VaultUnavailableError(`No active note with id ${id} was found.`);
+    }
+    if (matches.length > 1) {
+      throw new VaultConflictError(
+        `Multiple Markdown notes use id ${id}; repair the duplicate identity before continuing.`,
+      );
+    }
+    return matches[0]!;
   }
 
   async function setArchiveStatus(id: string, status: 'archived' | 'active') {
-    const current = await indexedNote(id);
+    const current = await canonicalNote(id);
     if (status === 'active' && current.note.status !== 'archived') {
       throw new Error('Only an archived note can be returned to active views.');
     }
@@ -400,11 +425,11 @@ export function createNoteLifecycleService({
 
     trash: (id) => serialized(async () => {
       await reconcileInternal();
-      const current = await indexedNote(id);
       let loaded = await loadManifest(controlVault);
       if (loaded.manifest.entries.some((entry) => entry.id === id)) {
         throw new VaultConflictError('This note is already represented in Trash.');
       }
+      const current = await canonicalNote(id);
       const trashPath = `.studio/Trash/items/${encodeURIComponent(id)}/${basename(current.path)}`;
       const trashDestination = requirePresence(await presence(controlVault, trashPath), trashPath);
       if (trashDestination === 'present') {
