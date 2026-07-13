@@ -1,3 +1,4 @@
+import { DatabaseSync } from 'node:sqlite';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,11 +10,13 @@ import { note } from './test-helpers';
 
 describe('SQLite IndexPort', () => {
   let directory: string;
+  let databasePath: string;
   let index: IndexPort & { close(): void };
 
   beforeEach(async () => {
     directory = await mkdtemp(join(tmpdir(), 'studio-index-'));
-    index = createNodeSqliteIndex(join(directory, 'index.sqlite')) as SqliteIndex;
+    databasePath = join(directory, 'index.sqlite');
+    index = createNodeSqliteIndex(databasePath) as SqliteIndex;
   });
 
   afterEach(async () => {
@@ -82,5 +85,47 @@ describe('SQLite IndexPort', () => {
     const target = note({ id: 'target', title: 'Later' });
     await index.upsert(target, 'Identity/later.md', 'target');
     expect(await index.backlinks(target.id)).toEqual([source.id]);
+  });
+
+  it('keeps paths that traverse above the vault root unresolved', async () => {
+    const target = note({ id: 'target', title: 'Calm' });
+    const source = note({ id: 'source', title: 'Source' });
+    await index.upsert(target, 'Foyer/calm.md', 'target');
+    await index.upsert(source, 'Reflection/source.md', 'source', [
+      { kind: 'path', target: '../../Foyer/calm.md', label: 'unsafe' },
+    ]);
+    expect((await index.forwardLinks(source.id))[0]).not.toHaveProperty('targetId');
+  });
+
+  it('keeps duplicate wiki titles unresolved and exposes every deterministic candidate', async () => {
+    await index.upsert(note({ id: 'candidate-b', title: 'Shared' }), 'B/shared.md', 'b');
+    await index.upsert(note({ id: 'candidate-a', title: 'Shared' }), 'A/shared.md', 'a');
+    await index.upsert(note({ id: 'source', title: 'Source' }), 'source.md', 'source', [
+      { kind: 'wiki', target: 'Shared', label: 'Shared' },
+    ]);
+    expect(await index.forwardLinks('source')).toEqual([{
+      sourceId: 'source', kind: 'wiki', target: 'Shared', label: 'Shared', candidateIds: ['candidate-a', 'candidate-b'],
+    }]);
+    expect(await index.backlinks('candidate-a')).toEqual([]);
+    expect(await index.backlinks('candidate-b')).toEqual([]);
+  });
+
+  it('cleans orphan dictionaries after note deletion', async () => {
+    const disposable = note({ id: 'disposable', tags: ['orphan-tag'], lifeAreas: ['orphan-area'], rooms: ['orphan-room'], seasons: ['orphan-season'] });
+    await index.upsert(disposable, 'disposable.md', 'hash');
+    await index.remove(disposable.id);
+    const inspection = new DatabaseSync(databasePath, { readOnly: true });
+    try {
+      for (const table of ['tags', 'life_areas', 'rooms', 'seasons']) {
+        expect(inspection.prepare(`SELECT count(*) AS count FROM ${table}`).get()).toMatchObject({ count: 0 });
+      }
+    } finally { inspection.close(); }
+  });
+
+  it('omits misleading highlights when diacritic-folded FTS has no exact source offset', async () => {
+    await index.upsert(note({ title: 'A café ritual', body: 'Peaceful tea.' }), 'cafe.md', 'cafe');
+    const [hit] = await index.search('cafe');
+    expect(hit?.title).toBe('A café ritual');
+    expect(hit?.highlightRanges).toEqual([]);
   });
 });

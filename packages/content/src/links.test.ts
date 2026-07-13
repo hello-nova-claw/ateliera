@@ -30,4 +30,16 @@ describe('extractLinks', () => {
       { kind: 'path', target: '%E0%A4%A.md', label: 'broken' },
     ]);
   });
+
+  it('supports CommonMark angle-bracket destinations containing spaces and parentheses', () => {
+    expect(extractLinks('[room](<Life Landscape/My Room (now).md>)')).toEqual([
+      { kind: 'path', target: 'Life Landscape/My Room (now).md', label: 'room' },
+    ]);
+  });
+
+  it('does not extract links from indented code or HTML comments', () => {
+    expect(extractLinks('    [[indented]]\n\n<!-- [[commented]] [hidden](hidden.md) -->\n\n[[visible]]')).toEqual([
+      { kind: 'wiki', target: 'visible', label: 'visible' },
+    ]);
+  });
 });

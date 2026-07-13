@@ -61,4 +61,23 @@ describe('rebuildIndex', () => {
     await rebuildIndex(options);
     expect(index.snapshot()).toEqual(before);
   });
+
+  it('indexes the first canonical path and reports later duplicate stable IDs for repair', async () => {
+    const index = createRecordingIndex();
+    const result = await rebuildIndex({
+      index,
+      vault: createVault({
+        'B/second.md': { text: 'second', hash: 'second' },
+        'A/first.md': { text: 'first', hash: 'first' },
+      }),
+      parse: (text) => ({ ok: true, note: note({ id: 'same', title: text }), warnings: [] }),
+    });
+
+    expect(index.snapshot()).toEqual(['A/first.md']);
+    expect(result.repairs).toEqual([{
+      path: 'B/second.md',
+      errors: [{ code: 'invalid-frontmatter', path: 'id', message: 'Duplicate stable note ID "same"; the canonical note is A/first.md.' }],
+      rawBody: 'second',
+    }]);
+  });
 });
