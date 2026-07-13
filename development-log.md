@@ -97,4 +97,5 @@
 - Added idempotent start/dispose lifecycle around vault watching, case-insensitive internal-path exclusion, coalesced create/modify/move/remove reconciliation, scan-race isolation, and bounded timer-backed recovery with injectable timers and backoff.
 - Active-season projections now expose conflicts and a repair payload, Inbox drafts remain visible only in Inbox until triage, Foyer featured content excludes the dedicated season card, and chronological fallbacks compare parsed epochs with deterministic ties.
 - Added bounded collision retries to StudioService and hardened the transitional shell capture adapter with draft/Inbox defaults and conditional writes; all production application files now participate in coverage.
-- Verified 41 application tests at 100% statement/branch/function/line coverage, 415 workspace tests, lint, workspace typecheck, and the production build. Task 8 remediation is complete and ready for re-review.
+- Added a separate external-change generation so an event arriving during watcher reconciliation keeps the index stale until a follow-up rebuild represents it.
+- Verified 42 application tests at 100% statement/branch/function/line coverage, 416 workspace tests, lint, workspace typecheck, and the production build. Task 8 remediation is complete and ready for re-review.
