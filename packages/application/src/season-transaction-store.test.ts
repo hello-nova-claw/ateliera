@@ -146,6 +146,7 @@ describe('season transaction store', () => {
     '{"version":1,"revision":0,"activeNoteId":"winter","activePath":"Current Season/winter.md","operation":null,"forged":true}',
     '{"version":1,"revision":0,"activeNoteId":"winter","activePath":"Current Season/winter.md","operation":{"id":"activate-winter","kind":"activating","targetNoteId":"winter","targetPath":"Current Season/winter.md","forged":true}}',
     '{"version":1,"revision":0,"activeNoteId":"\\ud800","activePath":"Current Season/winter.md","operation":null}',
+    '{"version":1,"revision":0,"activeNoteId":"winter","activePath":"Current Season/winter.md","operation":{"id":"activate-winter","kind":["activating"],"targetNoteId":"winter","targetPath":"Current Season/winter.md"}}',
   ])('rejects malformed active checkpoint variant %#', async (text) => {
     const vault = createInMemoryVault();
     await createStudioControlVault(vault).writeTextAtomic(
