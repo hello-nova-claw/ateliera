@@ -118,6 +118,7 @@ describe('life area repository', () => {
     ['too many', Array.from({ length: MAX_LIFE_AREAS + 1 }, (_, order) => ({ id: `area-${order}`, title: `Area ${order}`, hidden: false, order }))],
     ['invalid slug', [{ id: 'Home!', title: 'Home', hidden: false, order: 0 }]],
     ['blank title', [{ id: 'home', title: '   ', hidden: false, order: 0 }]],
+    ['non-text title', [{ id: 'home', title: 42, hidden: false, order: 0 }]],
     ['long title', [{ id: 'home', title: 'x'.repeat(101), hidden: false, order: 0 }]],
     ['duplicate id', [{ id: 'home', title: 'Home', hidden: false, order: 0 }, { id: 'home', title: 'Elsewhere', hidden: false, order: 1 }]],
     ['duplicate normalized title', [{ id: 'home', title: ' Café ', hidden: false, order: 0 }, { id: 'food', title: 'Cafe\u0301', hidden: false, order: 1 }]],
@@ -158,5 +159,15 @@ describe('life area repository', () => {
     vi.spyOn(vault, 'exists').mockResolvedValueOnce(true);
 
     await expect(repository.load()).rejects.toThrow('storage unavailable');
+  });
+
+  it('propagates unexpected adapter errors without probing for absence', async () => {
+    const vault = createInMemoryVault();
+    const repository = createLifeAreaRepository(vault);
+    const exists = vi.spyOn(vault, 'exists');
+    vi.spyOn(vault, 'readText').mockRejectedValueOnce(new TypeError('adapter bug'));
+
+    await expect(repository.load()).rejects.toThrow('adapter bug');
+    expect(exists).not.toHaveBeenCalled();
   });
 });
