@@ -95,6 +95,30 @@ describe('season transaction store', () => {
     expect((await store.readActive()).value).toEqual(second.value);
   });
 
+  it('accepts the generated operation id for a maximum-length canonical note id', async () => {
+    const vault = createInMemoryVault();
+    const store = createSeasonTransactionStore(vault);
+    const observed = await store.readActive();
+    const noteId = 'n'.repeat(128);
+    const path = `Current Season/${noteId}.md`;
+    const next = {
+      version: 1 as const,
+      revision: 1,
+      activeNoteId: noteId,
+      activePath: path,
+      operation: {
+        id: `activating-${noteId}-1`,
+        kind: 'activating' as const,
+        targetNoteId: noteId,
+        targetPath: path,
+      },
+    };
+
+    await expect(store.compareAndSetActive(observed, next)).resolves.toMatchObject({
+      value: next,
+    });
+  });
+
   it('rejects malformed durable active checkpoints instead of guessing', async () => {
     const vault = createInMemoryVault();
     await createStudioControlVault(vault).writeTextAtomic(
