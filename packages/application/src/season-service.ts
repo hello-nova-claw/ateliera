@@ -603,6 +603,11 @@ export function createSeasonService(
           'The active-season checkpoint no longer identifies an active candidate. Repair it before choosing a season.',
         );
       }
+      if (checkpoint.value.operation !== null) {
+        throw new Error(
+          'The active-season operation must finish before repairing conflicts.',
+        );
+      }
       await studio.snapshot(
         'conflict-resolution',
         candidates.map((candidate) => candidate.path),
