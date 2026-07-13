@@ -45,12 +45,17 @@ export function useAutosave({
   const durableHash = useRef(initial.hash);
   const editRevision = useRef(0);
   const savedRevision = useRef(0);
+  const failedRevision = useRef<number | undefined>(undefined);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const inFlight = useRef<Promise<void> | undefined>(undefined);
   const stopped = useRef(false);
 
   const persist = useCallback(async (): Promise<void> => {
-    if (stopped.current || savedRevision.current === editRevision.current) {
+    if (
+      stopped.current ||
+      savedRevision.current === editRevision.current ||
+      failedRevision.current === editRevision.current
+    ) {
       return;
     }
     if (inFlight.current !== undefined) {
@@ -69,6 +74,7 @@ export function useAutosave({
         const result = await save(value, durableHash.current);
         durableHash.current = result.hash;
         savedRevision.current = revision;
+        failedRevision.current = undefined;
         if (savedRevision.current === editRevision.current) {
           removeRecovery();
           setState('saved');
@@ -82,6 +88,7 @@ export function useAutosave({
           setConflict(reason);
           setState('conflict');
         } else {
+          failedRevision.current = revision;
           setError(reason instanceof Error ? reason : new Error('The note could not be saved.'));
           setState('error');
         }
