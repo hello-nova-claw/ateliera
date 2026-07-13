@@ -377,10 +377,11 @@ async function readBackendSelection(
 ): Promise<BrowserVaultBackend | undefined> {
   const db = await openVaultDatabase();
   const transaction = db.transaction('backends', 'readonly');
+  const complete = transactionComplete(transaction);
   const result = (await requestResult(
     transaction.objectStore('backends').get(name),
   )) as BrowserVaultBackend | undefined;
-  await transactionComplete(transaction);
+  await complete;
   return result;
 }
 
@@ -390,8 +391,9 @@ async function writeBackendSelection(
 ): Promise<void> {
   const db = await openVaultDatabase();
   const transaction = db.transaction('backends', 'readwrite');
+  const complete = transactionComplete(transaction);
   transaction.objectStore('backends').put(backend, name);
-  await transactionComplete(transaction);
+  await complete;
 }
 
 function createIndexedDbStore(name: string): BrowserVaultStore {
@@ -401,10 +403,11 @@ function createIndexedDbStore(name: string): BrowserVaultStore {
     async entries() {
       const db = await database;
       const transaction = db.transaction('files', 'readonly');
+      const complete = transactionComplete(transaction);
       const records = (await requestResult(
         transaction.objectStore('files').index('vault').getAll(name),
       )) as IndexedDbRecord[];
-      await transactionComplete(transaction);
+      await complete;
       return records.map(
         (record) =>
           [
@@ -420,10 +423,11 @@ function createIndexedDbStore(name: string): BrowserVaultStore {
     async read(path) {
       const db = await database;
       const transaction = db.transaction('files', 'readonly');
+      const complete = transactionComplete(transaction);
       const record = (await requestResult(
         transaction.objectStore('files').get(key(path)),
       )) as IndexedDbRecord | undefined;
-      await transactionComplete(transaction);
+      await complete;
       return record === undefined
         ? undefined
         : {
@@ -435,6 +439,7 @@ function createIndexedDbStore(name: string): BrowserVaultStore {
     async write(path, file) {
       const db = await database;
       const transaction = db.transaction('files', 'readwrite');
+      const complete = transactionComplete(transaction);
       transaction.objectStore('files').put({
         key: key(path),
         vault: name,
@@ -443,13 +448,14 @@ function createIndexedDbStore(name: string): BrowserVaultStore {
         hash: file.hash,
         modifiedAt: file.modifiedAt,
       } satisfies IndexedDbRecord);
-      await transactionComplete(transaction);
+      await complete;
     },
     async remove(path) {
       const db = await database;
       const transaction = db.transaction('files', 'readwrite');
+      const complete = transactionComplete(transaction);
       transaction.objectStore('files').delete(key(path));
-      await transactionComplete(transaction);
+      await complete;
     },
   };
 }
@@ -623,7 +629,7 @@ type PersistenceManager = Pick<StorageManager, 'persist' | 'persisted'> | {
 
 export async function ensureBrowserPersistence(
   manager: PersistenceManager =
-    typeof navigator === 'undefined' ? {} : navigator.storage,
+    typeof navigator === 'undefined' ? {} : (navigator.storage ?? {}),
 ): Promise<BrowserPersistenceStatus> {
   if (manager.persisted === undefined || manager.persist === undefined) {
     return 'best-effort';

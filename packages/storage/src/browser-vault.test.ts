@@ -11,6 +11,8 @@ import {
 } from './browser-vault';
 import { describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
+import { createHash } from 'node:crypto';
+import { deflateRawSync } from 'node:zlib';
 
 function createTestStore(): BrowserVaultStore {
   const files = new Map<string, StoredBrowserFile>();
@@ -35,6 +37,76 @@ function createTestStore(): BrowserVaultStore {
       files.delete(path);
     },
   };
+}
+
+function testZipNumber(value: number, width: 2 | 4): Uint8Array {
+  const bytes = new Uint8Array(width);
+  const view = new DataView(bytes.buffer);
+  if (width === 2) view.setUint16(0, value, true);
+  else view.setUint32(0, value, true);
+  return bytes;
+}
+
+function testZipJoin(chunks: readonly Uint8Array[]): Uint8Array {
+  const output = new Uint8Array(
+    chunks.reduce((size, chunk) => size + chunk.byteLength, 0),
+  );
+  let offset = 0;
+  for (const chunk of chunks) {
+    output.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return output;
+}
+
+function testCrc32(bytes: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function createDeflatedTestZip(
+  files: ReadonlyArray<readonly [string, Uint8Array]>,
+): Uint8Array {
+  const encoder = new TextEncoder();
+  const locals: Uint8Array[] = [];
+  const centrals: Uint8Array[] = [];
+  let localOffset = 0;
+  for (const [path, content] of files) {
+    const name = encoder.encode(path);
+    const compressed = new Uint8Array(deflateRawSync(content));
+    const checksum = testCrc32(content);
+    const local = testZipJoin([
+      testZipNumber(0x04034b50, 4), testZipNumber(20, 2),
+      testZipNumber(0x0800, 2), testZipNumber(8, 2),
+      testZipNumber(0, 2), testZipNumber(0, 2), testZipNumber(checksum, 4),
+      testZipNumber(compressed.byteLength, 4), testZipNumber(content.byteLength, 4),
+      testZipNumber(name.byteLength, 2), testZipNumber(0, 2), name, compressed,
+    ]);
+    locals.push(local);
+    centrals.push(testZipJoin([
+      testZipNumber(0x02014b50, 4), testZipNumber(20, 2), testZipNumber(20, 2),
+      testZipNumber(0x0800, 2), testZipNumber(8, 2), testZipNumber(0, 2),
+      testZipNumber(0, 2), testZipNumber(checksum, 4),
+      testZipNumber(compressed.byteLength, 4), testZipNumber(content.byteLength, 4),
+      testZipNumber(name.byteLength, 2), testZipNumber(0, 2), testZipNumber(0, 2),
+      testZipNumber(0, 2), testZipNumber(0, 2), testZipNumber(0, 4),
+      testZipNumber(localOffset, 4), name,
+    ]));
+    localOffset += local.byteLength;
+  }
+  const central = testZipJoin(centrals);
+  return testZipJoin([
+    ...locals, central, testZipNumber(0x06054b50, 4), testZipNumber(0, 2),
+    testZipNumber(0, 2), testZipNumber(files.length, 2),
+    testZipNumber(files.length, 2), testZipNumber(central.byteLength, 4),
+    testZipNumber(localOffset, 4), testZipNumber(0, 2),
+  ]);
 }
 
 vaultContract('browser vault', async () =>
@@ -168,6 +240,53 @@ describe('browser vault ZIP portability boundary', () => {
       text: 'old a',
     });
     await expect(target.exists('Inbox/b.md')).resolves.toBe(false);
+  });
+
+  it('accepts standard deflate-compressed ZIP exports', async () => {
+    const content = new TextEncoder().encode('# Compressed hill\n');
+    const sha256 = createHash('sha256').update(content).digest('hex');
+    const manifest = new TextEncoder().encode(JSON.stringify({
+      schemaVersion: 1,
+      exportedAt: new Date().toISOString(),
+      files: [{ path: 'Inbox/hill.md', sha256, size: content.byteLength }],
+    }));
+    const archive = createDeflatedTestZip([
+      ['Inbox/hill.md', content],
+      ['.studio/export-manifest.json', manifest],
+    ]);
+    const target = createBrowserVault('compressed-target', {
+      store: createTestStore(),
+    });
+
+    const plan = await prepareBrowserVaultImport(target, archive);
+    await applyBrowserVaultImport(target, plan, { confirm: true });
+
+    await expect(target.readText('Inbox/hill.md')).resolves.toMatchObject({
+      text: '# Compressed hill\n',
+    });
+  });
+
+  it('returns typed failures for truncated and oversized archives', async () => {
+    const source = createBrowserVault('limits-source', { store: createTestStore() });
+    await source.writeTextAtomic('Inbox/hill.md', 'hill');
+    const archive = new Uint8Array(
+      await (await exportBrowserVault(source)).arrayBuffer(),
+    );
+    const target = createBrowserVault('limits-target', { store: createTestStore() });
+
+    await expect(
+      prepareBrowserVaultImport(target, archive.slice(0, -5)),
+    ).rejects.toMatchObject({ code: 'invalid-archive' });
+
+    const oversized = archive.slice();
+    const view = new DataView(oversized.buffer);
+    const central = oversized.findIndex((value, index) =>
+      value === 0x50 && view.getUint32(index, true) === 0x02014b50,
+    );
+    view.setUint32(central + 24, 65 * 1024 * 1024, true);
+    await expect(
+      prepareBrowserVaultImport(target, oversized),
+    ).rejects.toMatchObject({ code: 'archive-too-large' });
   });
 });
 
