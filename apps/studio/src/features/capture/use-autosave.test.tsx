@@ -152,6 +152,31 @@ it('holds an ordinary save error until a later edit asks to retry', async () => 
   expect(result.current.state).toBe('saved');
 });
 
+it('retries the same preserved revision only when explicitly requested', async () => {
+  vi.useFakeTimers();
+  const save = vi
+    .fn<(value: StudioNote, hash: string) => Promise<SavedNote>>()
+    .mockRejectedValueOnce(new Error('storage offline'))
+    .mockImplementationOnce(async (value) => saved(value, 'recovered-hash'));
+  const { result } = renderHook(() =>
+    useAutosave({
+      initial: saved(note, 'durable-hash'),
+      save,
+      writeRecovery: vi.fn(),
+      removeRecovery: vi.fn(),
+    }),
+  );
+
+  act(() => result.current.update({ ...note, body: 'Still safe' }));
+  await act(async () => vi.advanceTimersByTimeAsync(750));
+
+  await act(async () => {
+    expect(await result.current.retry()).toBe(true);
+  });
+  expect(save).toHaveBeenCalledTimes(2);
+  expect(result.current.state).toBe('saved');
+});
+
 it('flushes a dirty draft when the editor unmounts before the debounce', async () => {
   vi.useFakeTimers();
   const save = vi.fn(async (value: StudioNote) => saved(value, 'unmount-hash'));

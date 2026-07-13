@@ -175,3 +175,28 @@ it('merges a stale draft explicitly and saves against the current durable hash',
     expect.objectContaining({ expectedHash: 'current-hash' }),
   );
 });
+
+it('keeps the editor open after a failed close flush and offers a retry', async () => {
+  const onClose = vi.fn();
+  const service = mockService({
+    save: vi.fn().mockRejectedValue(new Error('Disk unavailable')),
+  });
+  render(
+    <NoteEditorSession
+      initial={initial}
+      onClose={onClose}
+      requestClose={0}
+      service={service}
+      studioId="studio-a"
+    />,
+  );
+
+  fireEvent.change(screen.getByLabelText('Title'), {
+    target: { value: 'Waiting safely' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+
+  expect(await screen.findByText(/could not be saved.*Retry before closing/i)).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Try saving again' })).toBeEnabled();
+  expect(onClose).not.toHaveBeenCalled();
+});
