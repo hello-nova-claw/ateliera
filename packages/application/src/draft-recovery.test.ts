@@ -1,4 +1,5 @@
 import { createDraftRecoveryStore, type DraftRecoveryRecord } from './draft-recovery';
+import { expect, it } from 'vitest';
 
 class MemoryStorage {
   readonly values = new Map<string, string>();
@@ -45,6 +46,27 @@ it('isolates malformed recovery data and allows it to be discarded', () => {
   expect(storage.values.size).toBe(0);
 });
 
+it.each([
+  null,
+  {},
+  { ...record, key: 'another-note' },
+  { ...record, body: 1 },
+  { ...record, expectedHash: 1 },
+  { ...record, updatedAt: 1 },
+  { ...record, updatedAt: 'not-a-date' },
+  { ...record, title: 1 },
+])('removes structurally invalid recovery data (%#)', (invalid) => {
+  const storage = new MemoryStorage();
+  storage.setItem(
+    'studio:draft-recovery:Inbox%2Fnote.md',
+    JSON.stringify(invalid),
+  );
+  const recovery = createDraftRecoveryStore(storage);
+
+  expect(recovery.read(record.key)).toBeNull();
+  expect(storage.values.size).toBe(0);
+});
+
 it('never treats a draft for a different durable hash as current text', () => {
   const storage = new MemoryStorage();
   const recovery = createDraftRecoveryStore(storage);
@@ -57,6 +79,14 @@ it('never treats a draft for a different durable hash as current text', () => {
   expect(recovery.readForDurable(record.key, 'durable-hash')).toEqual({
     kind: 'recoverable',
     draft: record,
+  });
+});
+
+it('reports when no recovery draft exists', () => {
+  const recovery = createDraftRecoveryStore(new MemoryStorage());
+
+  expect(recovery.readForDurable(record.key, 'durable-hash')).toEqual({
+    kind: 'none',
   });
 });
 

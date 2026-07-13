@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@studio/application": "workspace:*",
+    "@studio/domain": "workspace:*",
     "@studio/storage": "workspace:*",
     "@studio/ui": "workspace:*",
     "@vitejs/plugin-react": "^4.6.0",

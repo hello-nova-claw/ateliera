@@ -89,6 +89,9 @@ importers:
       '@studio/application':
         specifier: workspace:*
         version: link:../../packages/application
+      '@studio/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@studio/storage':
         specifier: workspace:*
         version: link:../../packages/storage
