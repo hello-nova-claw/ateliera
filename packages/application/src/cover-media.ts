@@ -16,7 +16,7 @@ export type CoverMediaResult =
       kind: 'available';
       path: string;
       mimeType: CoverMediaMimeType;
-      bytes: Uint8Array;
+      bytes: Uint8Array<ArrayBuffer>;
     }
   | {
       kind: 'unavailable';
@@ -131,5 +131,7 @@ export async function resolveCoverMedia(
   }
   if (bytes.byteLength > MAX_COVER_MEDIA_BYTES) return unavailable(reference, 'too-large');
   if (sniffMimeType(bytes) !== expectedMime) return unavailable(reference, 'unsupported-format');
-  return { kind: 'available', path, mimeType: expectedMime, bytes };
+  const ownedBytes = new Uint8Array(bytes.byteLength);
+  ownedBytes.set(bytes);
+  return { kind: 'available', path, mimeType: expectedMime, bytes: ownedBytes };
 }
