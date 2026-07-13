@@ -44,6 +44,52 @@ export interface SeasonState {
   updated: string;
 }
 
+export interface SeasonStepAnswersMap {
+  'name-dates': {
+    title: string;
+    startsOn?: string | null;
+    endsOn?: string | null;
+  };
+  'prior-reflection': {
+    priorReflection: string;
+    skippedPriorReflection: boolean;
+  };
+  feelings: { feelings: string[]; statement: string };
+  priorities: { priorities: string[] };
+  'decisions-practices': {
+    decisions: SeasonDecision[];
+    practices: string[];
+  };
+  'supports-constraints': { supports: string[]; constraints: string[] };
+  enough: { enough: string };
+  'not-now': { notNow: string[] };
+  confirm: Record<string, never>;
+}
+
+export type SeasonStepAnswers<Step extends SeasonWizardStep> = Partial<
+  SeasonStepAnswersMap[Step]
+>;
+
+export type SeasonUpdateInput = Partial<
+  Pick<
+    SeasonState,
+    | 'title'
+    | 'statement'
+    | 'feelings'
+    | 'priorities'
+    | 'decisions'
+    | 'practices'
+    | 'supports'
+    | 'constraints'
+    | 'enough'
+    | 'notNow'
+    | 'midSeasonNotes'
+  >
+> & {
+  startsOn?: string | null;
+  endsOn?: string | null;
+};
+
 export interface ClosedSeasonState extends SeasonState {
   status: 'archived';
   carryForward: [];
@@ -81,21 +127,62 @@ export function createSeasonDraft(id: string, now: string): SeasonState {
   };
 }
 
-type SeasonStepAnswers = Partial<
-  Omit<SeasonState, 'id' | 'created' | 'completedSteps'>
->;
+const stepKeys = {
+  'name-dates': ['title', 'startsOn', 'endsOn'],
+  'prior-reflection': ['priorReflection', 'skippedPriorReflection'],
+  feelings: ['feelings', 'statement'],
+  priorities: ['priorities'],
+  'decisions-practices': ['decisions', 'practices'],
+  'supports-constraints': ['supports', 'constraints'],
+  enough: ['enough'],
+  'not-now': ['notNow'],
+  confirm: [],
+} as const satisfies Record<SeasonWizardStep, readonly string[]>;
 
 function validDate(value: string | undefined): boolean {
-  return value === undefined || /^\d{4}-\d{2}-\d{2}$/u.test(value);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(value ?? '');
+  if (value === undefined) return true;
+  if (match === null) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
 }
 
-export function updateSeasonDraft(
+function assertAcceptedKeys(step: SeasonWizardStep, answers: object): void {
+  const accepted = new Set<string>(stepKeys[step]);
+  const unexpected = Object.keys(answers).filter((key) => !accepted.has(key));
+  if (unexpected.length > 0) {
+    throw new Error(
+      `${unexpected.join(', ')} is not accepted by the ${step} step.`,
+    );
+  }
+}
+
+export function updateSeasonDraft<Step extends SeasonWizardStep>(
   season: SeasonState,
-  step: SeasonWizardStep,
-  answers: SeasonStepAnswers,
+  step: Step,
+  answers: SeasonStepAnswers<Step>,
   now = season.updated,
+  options: { priorityOverride?: boolean } = {},
 ): SeasonState {
-  const next = { ...season, ...answers };
+  if (season.status !== 'draft') {
+    throw new Error('Wizard steps can update only a draft season.');
+  }
+  assertAcceptedKeys(step, answers);
+  const normalized = {
+    ...answers,
+    ...('startsOn' in answers
+      ? { startsOn: answers.startsOn || undefined }
+      : {}),
+    ...('endsOn' in answers ? { endsOn: answers.endsOn || undefined } : {}),
+  };
+  const next = { ...season, ...normalized } as SeasonState;
   if (!validDate(next.startsOn) || !validDate(next.endsOn)) {
     throw new Error('Season dates must use YYYY-MM-DD.');
   }
@@ -111,6 +198,9 @@ export function updateSeasonDraft(
     !next.skippedPriorReflection
   ) {
     throw new Error('Add a reflection, or choose to skip this step.');
+  }
+  if (next.priorities.length > 3 && options.priorityOverride !== true) {
+    throw new PriorityLimitError();
   }
   return {
     ...next,
@@ -139,9 +229,16 @@ export function activateSeasonState(
   season: SeasonState,
   now = season.updated,
 ): SeasonState {
+  if (season.status !== 'draft') {
+    throw new Error('Only a draft season can be activated.');
+  }
   if (season.title.trim() === '') throw new Error('Give this season a name.');
-  if (!season.completedSteps.includes('confirm')) {
-    throw new Error('Review and confirm this season before beginning.');
+  if (
+    !seasonWizardSteps.every((step) => season.completedSteps.includes(step))
+  ) {
+    throw new Error(
+      'Complete all earlier steps and confirm this season before beginning.',
+    );
   }
   return { ...season, status: 'active', updated: now };
 }
@@ -150,6 +247,9 @@ export function closeSeasonState(
   season: SeasonState,
   now = season.updated,
 ): ClosedSeasonState {
+  if (season.status !== 'active') {
+    throw new Error('Only the active season can be closed.');
+  }
   return { ...season, status: 'archived', carryForward: [], updated: now };
 }
 

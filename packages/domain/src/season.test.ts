@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import type { SeasonState } from './season';
+
 import {
   activateSeasonState,
   PriorityLimitError,
@@ -46,6 +48,7 @@ describe('season domain', () => {
   it('never carries notes forward automatically when closing', () => {
     const closed = closeSeasonState({
       ...createSeasonDraft('season-1', '2026-07-14T00:00:00.000Z'),
+      status: 'active',
       priorities: ['one'],
       notNow: ['two'],
     });
@@ -110,10 +113,10 @@ describe('season domain', () => {
 
   it('activates only a draft confirmed through the confirm step', () => {
     const draft = createSeasonDraft('season-1', '2026-07-14T00:00:00.000Z');
-    const forged = {
+    const forged: SeasonState = {
       ...draft,
       title: 'Winter',
-      completedSteps: ['confirm'] as const,
+      completedSteps: ['confirm'],
     };
     expect(() => activateSeasonState(forged)).toThrow('all earlier steps');
     const archived = { ...draft, status: 'archived' as const };
