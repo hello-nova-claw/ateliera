@@ -19,5 +19,8 @@ function adaptDatabase(database: DatabaseSync): SqliteDatabase {
 }
 
 export function createNodeSqliteIndex(path: string): SqliteIndex {
+  if (typeof globalThis.document !== 'undefined') {
+    throw new Error('Synchronous SQLite must run in a native process or background worker, never on the UI thread.');
+  }
   return createSqliteIndex(adaptDatabase(new DatabaseSync(path)));
 }

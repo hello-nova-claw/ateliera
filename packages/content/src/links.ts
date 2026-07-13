@@ -1,3 +1,7 @@
+import type { Content, Link, Parent, Root, Text } from 'mdast';
+import { fromMarkdown } from 'mdast-util-from-markdown';
+import { toString } from 'mdast-util-to-string';
+
 export type ParsedLinkKind = 'wiki' | 'path' | 'id';
 
 export interface ParsedLink {
@@ -7,13 +11,6 @@ export interface ParsedLink {
 }
 
 const WIKI_LINK = /\[\[([^\]|\n]+?)(?:\|([^\]\n]+?))?\]\]/g;
-const MARKDOWN_LINK = /(?<!!)\[([^\]\n]+)\]\(([^)\s]+)(?:\s+["'][^"']*["'])?\)/g;
-
-function withoutCode(markdown: string): string {
-  return markdown
-    .replace(/^(?: {0,3})(`{3,}|~{3,})[^\n]*\n[\s\S]*?^(?: {0,3})\1\s*$/gm, '')
-    .replace(/`+[^`\n]*`+/g, '');
-}
 
 function cleanTarget(target: string): string {
   const withoutFragment = target.split('#', 1)[0]!;
@@ -33,25 +30,37 @@ function markdownTarget(target: string): { kind: ParsedLinkKind; target: string 
   return { kind: 'path', target: cleaned };
 }
 
-export function extractLinks(markdown: string): ParsedLink[] {
-  const source = withoutCode(markdown);
-  const located: Array<ParsedLink & { offset: number }> = [];
-  for (const match of source.matchAll(WIKI_LINK)) {
-    const target = match[1]!.trim();
-    if (target) located.push({ kind: 'wiki', target, label: match[2]?.trim() || target, offset: match.index });
-  }
-  for (const match of source.matchAll(MARKDOWN_LINK)) {
-    const parsed = markdownTarget(match[2]!);
-    if (parsed) located.push({ ...parsed, label: match[1]!.trim(), offset: match.index });
-  }
+function collectLink(link: Link, output: ParsedLink[]): void {
+  const parsed = markdownTarget(link.url);
+  if (parsed) output.push({ ...parsed, label: toString(link) });
+}
 
-  located.sort((left, right) => left.offset - right.offset);
+function collectText(text: Text, output: ParsedLink[]): void {
+  for (const match of text.value.matchAll(WIKI_LINK)) {
+    const target = match[1]!.trim();
+    if (target) output.push({ kind: 'wiki', target, label: match[2]?.trim() || target });
+  }
+}
+
+function walk(node: Root | Content, output: ParsedLink[]): void {
+  if (node.type === 'link') { collectLink(node, output); return; }
+  if (node.type === 'text') { collectText(node, output); return; }
+  if (node.type === 'code' || node.type === 'inlineCode' || node.type === 'html') return;
+  if ('children' in node) for (const child of (node as Parent).children) walk(child, output);
+}
+
+export function extractLinks(markdown: string): ParsedLink[] {
+  const located: ParsedLink[] = [];
+  walk(fromMarkdown(markdown), located);
   const seen = new Set<string>();
-  return located.flatMap((locatedLink) => {
-    const link: ParsedLink = { kind: locatedLink.kind, target: locatedLink.target, label: locatedLink.label };
+  return located.flatMap((link) => {
     const key = `${link.kind}:${link.target.toLocaleLowerCase('en')}`;
     if (seen.has(key)) return [];
     seen.add(key);
     return [link];
   });
+}
+
+export function markdownToPlainText(markdown: string): string {
+  return toString(fromMarkdown(markdown), { includeHtml: false }).replace(/\s+/g, ' ').trim();
 }

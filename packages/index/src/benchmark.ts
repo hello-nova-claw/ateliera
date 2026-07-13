@@ -28,6 +28,7 @@ try {
   const rebuildStarted = performance.now();
   await index.rebuild(Array.from({ length: count }, (_, position) => ({
     note: fixture(position), path: `Reflection/${position}.md`, hash: `hash-${position}`,
+    content: { links: [], searchText: fixture(position).body },
   })));
   const rebuildMs = performance.now() - rebuildStarted;
   await index.search('calm spacious', { semanticTypes: ['reflection'] });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { extractLinks } from './links';
+import { extractLinks, markdownToPlainText } from './links';
 
 describe('extractLinks', () => {
   it('extracts wiki links, aliases, stable Studio links, and local Markdown notes in source order', () => {
@@ -41,5 +41,9 @@ describe('extractLinks', () => {
     expect(extractLinks('    [[indented]]\n\n<!-- [[commented]] [hidden](hidden.md) -->\n\n[[visible]]')).toEqual([
       { kind: 'wiki', target: 'visible', label: 'visible' },
     ]);
+  });
+
+  it('derives searchable text from rendered CommonMark rather than destinations or comments', () => {
+    expect(markdownToPlainText('Visible [calm label](https://hidden.example/calm-secret) `code word` <!-- hidden comment -->')).toBe('Visible calm label code word');
   });
 });

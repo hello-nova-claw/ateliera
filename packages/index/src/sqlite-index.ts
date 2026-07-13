@@ -3,8 +3,10 @@ import type { StudioNote } from '@studio/domain';
 import type {
   HighlightRange,
   IndexedLink,
+  IndexedContent,
   IndexEntry,
   IndexPort,
+  IndexRebuildProgress,
   ParsedLink,
   SearchFilters,
   SearchHit,
@@ -25,17 +27,6 @@ interface LinkRow {
 function rows<T>(value: unknown[]): T[] { return value as T[]; }
 function row<T>(value: unknown): T | undefined { return value as T | undefined; }
 
-function plainText(markdown: string): string {
-  return markdown
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-    .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, '$2$1')
-    .replace(/[`*_>#~-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
 function tokens(query: string): string[] {
   return [...new Set((query.toLocaleLowerCase('en').match(/[\p{L}\p{N}_-]+/gu) ?? []).filter(Boolean))];
 }
@@ -45,7 +36,8 @@ function ftsQuery(queryTokens: string[]): string {
 }
 
 function makeSnippet(note: NoteRow, queryTokens: string[]): { snippet: string; highlightRanges: HighlightRange[] } {
-  const source = plainText(`${note.title}. ${note.body}`);
+  const safeTitle = note.title.replace(/<[^>]*>/g, ' ');
+  const source = `${safeTitle}. ${note.body}`.replace(/\s+/g, ' ').trim();
   const folded = source.toLocaleLowerCase('en');
   const first = queryTokens.map((token) => folded.indexOf(token)).filter((index) => index >= 0).sort((a, b) => a - b)[0] ?? 0;
   const start = Math.max(0, first - 60);
@@ -76,17 +68,21 @@ function addListFilter(
   values.push(...items);
 }
 
-function normalizePath(path: string): string {
+function normalizePath(path: string): string | null {
   const output: string[] = [];
   for (const segment of path.split('/')) {
     if (!segment || segment === '.') continue;
-    if (segment === '..') output.pop();
-    else output.push(segment);
+    if (segment === '..') {
+      if (output.length === 0) return null;
+      output.pop();
+    }
+    else output.push(segment.normalize('NFC'));
   }
   return output.join('/');
 }
 
-function normalizeLinkPath(sourcePath: string, target: string): string {
+function normalizeLinkPath(sourcePath: string, target: string): string | null {
+  if (target.startsWith('/')) return null;
   const parent = sourcePath.split('/').slice(0, -1).join('/');
   return normalizePath(`${parent}/${target}`);
 }
@@ -96,8 +92,8 @@ export class SqliteIndex implements IndexPort {
 
   close(): void { this.database.close(); }
 
-  async upsert(note: StudioNote, path: string, hash: string, links: ParsedLink[] = []): Promise<void> {
-    this.transaction(() => { this.replace(note, path, hash, links); this.resolveLinks(); });
+  async upsert(note: StudioNote, path: string, hash: string, content: IndexedContent): Promise<void> {
+    this.transaction(() => { this.replace(note, path, hash, content); this.resolveLinks(); this.cleanupDictionaries(); });
   }
 
   async remove(id: string): Promise<void> {
@@ -105,6 +101,7 @@ export class SqliteIndex implements IndexPort {
       this.database.prepare('DELETE FROM note_fts WHERE id = ?').run(id);
       this.database.prepare('DELETE FROM notes WHERE id = ?').run(id);
       this.resolveLinks();
+      this.cleanupDictionaries();
     });
   }
 
@@ -115,6 +112,7 @@ export class SqliteIndex implements IndexPort {
 
   async search(query: string, filters: SearchFilters = {}): Promise<SearchHit[]> {
     const queryTokens = tokens(query);
+    if (query.trim() && queryTokens.length === 0) return [];
     const values: SqlValue[] = [];
     const clauses: string[] = [];
     const from = queryTokens.length
@@ -129,6 +127,10 @@ export class SqliteIndex implements IndexPort {
       clauses.push(`n.status IN (${filters.statuses.map(() => '?').join(',')})`);
       values.push(...filters.statuses);
     }
+    if (filters.cardTypes?.length) {
+      clauses.push(`n.card_type IN (${filters.cardTypes.map(() => '?').join(',')})`);
+      values.push(...filters.cardTypes);
+    }
     if (filters.dateFrom) { clauses.push('n.updated >= ?'); values.push(filters.dateFrom); }
     if (filters.dateTo) { clauses.push('n.updated <= ?'); values.push(filters.dateTo); }
     addListFilter(clauses, values, 'note_rooms', 'room', filters.rooms);
@@ -137,7 +139,19 @@ export class SqliteIndex implements IndexPort {
     addListFilter(clauses, values, 'note_tags', 'tag', filters.tags);
     const rank = queryTokens.length ? 'bm25(note_fts)' : '0';
     const found = rows<NoteRow>(this.database.prepare(`SELECT n.*, ${rank} AS rank FROM ${from}${clauses.length ? ` WHERE ${clauses.join(' AND ')}` : ''} ORDER BY rank ASC, n.updated DESC, n.id ASC LIMIT 200`).all(...values));
-    return found.map((item) => ({ id: item.id, path: item.path, title: item.title, ...makeSnippet(item, queryTokens), score: -(item.rank ?? 0) }));
+    return found.map((item) => {
+      const snippet = makeSnippet(item, queryTokens);
+      const indexedNote = JSON.parse(item.note_json) as StudioNote;
+      const sourceText = [indexedNote.source?.title, indexedNote.source?.creator, indexedNote.source?.url].filter(Boolean).join(' ');
+      const matchContext = snippet.highlightRanges.length === 0
+        ? indexedNote.tags.find((tag) => queryTokens.some((token) => tag.toLocaleLowerCase('en').includes(token))) !== undefined
+          ? { field: 'tags' as const, text: indexedNote.tags.join(', ') }
+          : queryTokens.some((token) => sourceText.toLocaleLowerCase('en').includes(token))
+            ? { field: 'source' as const, text: sourceText }
+            : undefined
+        : undefined;
+      return { id: item.id, path: item.path, title: item.title, ...snippet, score: -(item.rank ?? 0), ...(matchContext ? { matchContext } : {}) };
+    });
   }
 
   async backlinks(id: string): Promise<string[]> {
@@ -145,38 +159,49 @@ export class SqliteIndex implements IndexPort {
   }
 
   async forwardLinks(id: string): Promise<IndexedLink[]> {
-    return rows<LinkRow>(this.database.prepare('SELECT source_id, kind, target, label, target_id FROM links WHERE source_id = ? ORDER BY ordinal').all(id)).map((item) => ({
-      sourceId: item.source_id, kind: item.kind, target: item.target, label: item.label,
-      ...(item.target_id ? { targetId: item.target_id } : {}),
-    }));
+    return rows<LinkRow>(this.database.prepare('SELECT source_id, kind, target, label, target_id FROM links WHERE source_id = ? ORDER BY ordinal').all(id)).map((item) => {
+      const candidates = item.kind === 'wiki' && !item.target_id
+        ? rows<{ id: string }>(this.database.prepare('SELECT id FROM notes WHERE lower(title) = lower(?) ORDER BY id').all(item.target)).map((candidate) => candidate.id)
+        : [];
+      return {
+        sourceId: item.source_id, kind: item.kind, target: item.target, label: item.label,
+        ...(item.target_id ? { targetId: item.target_id } : {}),
+        ...(candidates.length > 1 ? { candidateIds: candidates } : {}),
+      };
+    });
   }
 
-  async rebuild(entries: IndexEntry[]): Promise<void> {
+  async rebuild(entries: IndexEntry[], onProgress?: (progress: IndexRebuildProgress) => void): Promise<void> {
     const ordered = [...entries].sort((left, right) => left.path.localeCompare(right.path, 'en'));
     this.transaction(() => {
       this.deleteAll();
-      for (const entry of ordered) this.replace(entry.note, entry.path, entry.hash, entry.links ?? []);
+      onProgress?.({ phase: 'indexing', processed: 0, total: ordered.length });
+      for (const [position, entry] of ordered.entries()) {
+        this.replace(entry.note, entry.path, entry.hash, entry.content);
+        onProgress?.({ phase: 'indexing', processed: position + 1, total: ordered.length });
+      }
       this.resolveLinks();
       this.database.prepare("INSERT OR REPLACE INTO index_state(key, value) VALUES ('rebuilt_at', ?)").run(new Date().toISOString());
+      onProgress?.({ phase: 'committing', processed: ordered.length, total: ordered.length });
     });
   }
 
   async clear(): Promise<void> { this.transaction(() => this.deleteAll()); }
 
-  private replace(note: StudioNote, path: string, hash: string, links: ParsedLink[]): void {
+  private replace(note: StudioNote, path: string, hash: string, content: IndexedContent): void {
     this.database.prepare('DELETE FROM note_fts WHERE id = ?').run(note.id);
     this.database.prepare('DELETE FROM notes WHERE id = ?').run(note.id);
     const title = note.title ?? '';
     const sourceText = [note.source?.title, note.source?.creator, note.source?.url].filter(Boolean).join(' ');
     this.database.prepare(`INSERT INTO notes(id,path,hash,title,body,note_json,card_type,semantic_type,status,created,updated,source_text) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(note.id, path, hash, title, note.body, JSON.stringify(note), note.cardType, note.semanticType, note.status, note.created, note.updated, sourceText);
-    this.database.prepare('INSERT INTO note_fts(id,title,body,tags,source) VALUES (?,?,?,?,?)').run(note.id, title, note.body, note.tags.join(' '), sourceText);
+      .run(note.id, path, hash, title, content.searchText, JSON.stringify(note), note.cardType, note.semanticType, note.status, note.created, note.updated, sourceText);
+    this.database.prepare('INSERT INTO note_fts(id,title,body,tags,source) VALUES (?,?,?,?,?)').run(note.id, title, content.searchText, note.tags.join(' '), sourceText);
     this.insertMany('tags', 'note_tags', 'tag', note.id, note.tags);
     this.insertMany('life_areas', 'note_life_areas', 'life_area', note.id, note.lifeAreas);
     this.insertMany('rooms', 'note_rooms', 'room', note.id, note.rooms);
     this.insertMany('seasons', 'note_seasons', 'season', note.id, note.seasons);
     const statement = this.database.prepare('INSERT INTO links(source_id,ordinal,kind,target,label,target_id) VALUES (?,?,?,?,?,NULL)');
-    links.forEach((link, ordinal) => statement.run(note.id, ordinal, link.kind, link.target, link.label));
+    content.links.forEach((link, ordinal) => statement.run(note.id, ordinal, link.kind, link.target, link.label));
   }
 
   private insertMany(dictionary: string, junction: string, column: string, id: string, values: string[]): void {
@@ -188,20 +213,42 @@ export class SqliteIndex implements IndexPort {
   private resolveLinks(): void {
     const notes = rows<Pick<NoteRow, 'id' | 'path' | 'title'>>(this.database.prepare('SELECT id,path,title FROM notes ORDER BY id').all());
     const byId = new Map(notes.map((note) => [note.id, note.id]));
-    const byTitle = new Map(notes.filter((note) => note.title).map((note) => [note.title.toLocaleLowerCase('en'), note.id]));
-    const byPath = new Map(notes.map((note) => [normalizePath(note.path), note.id]));
+    const byTitle = new Map<string, string[]>();
+    for (const note of notes.filter((item) => item.title)) {
+      const key = note.title.normalize('NFC').toLocaleLowerCase('en');
+      byTitle.set(key, [...(byTitle.get(key) ?? []), note.id]);
+    }
+    const byPath = new Map(notes.flatMap((note) => {
+      const normalized = normalizePath(note.path);
+      return normalized ? [[normalized, note.id] as const] : [];
+    }));
     const links = rows<LinkRow>(this.database.prepare('SELECT l.source_id,l.kind,l.target,l.label,l.target_id,n.path AS source_path FROM links l JOIN notes n ON n.id=l.source_id ORDER BY l.source_id,l.ordinal').all());
     const update = this.database.prepare('UPDATE links SET target_id = ? WHERE source_id = ? AND kind = ? AND target = ?');
     for (const link of links) {
       const targetId = link.kind === 'id' ? byId.get(link.target)
-        : link.kind === 'wiki' ? byTitle.get(link.target.toLocaleLowerCase('en'))
-          : byPath.get(normalizeLinkPath(link.source_path ?? '', link.target));
+        : link.kind === 'wiki' ? (() => {
+          const candidates = byTitle.get(link.target.normalize('NFC').toLocaleLowerCase('en')) ?? [];
+          return candidates.length === 1 ? candidates[0] : undefined;
+        })()
+          : (() => {
+            const normalized = normalizeLinkPath(link.source_path ?? '', link.target);
+            return normalized ? byPath.get(normalized) : undefined;
+          })();
       update.run(targetId ?? null, link.source_id, link.kind, link.target);
     }
   }
 
   private deleteAll(): void {
     this.database.exec('DELETE FROM note_fts; DELETE FROM notes; DELETE FROM tags; DELETE FROM life_areas; DELETE FROM rooms; DELETE FROM seasons; DELETE FROM links;');
+  }
+
+  private cleanupDictionaries(): void {
+    this.database.exec(`
+      DELETE FROM tags WHERE NOT EXISTS (SELECT 1 FROM note_tags WHERE note_tags.tag = tags.name);
+      DELETE FROM life_areas WHERE NOT EXISTS (SELECT 1 FROM note_life_areas WHERE note_life_areas.life_area = life_areas.name);
+      DELETE FROM rooms WHERE NOT EXISTS (SELECT 1 FROM note_rooms WHERE note_rooms.room = rooms.name);
+      DELETE FROM seasons WHERE NOT EXISTS (SELECT 1 FROM note_seasons WHERE note_seasons.season = seasons.name);
+    `);
   }
 
   private transaction(operation: () => void): void {
