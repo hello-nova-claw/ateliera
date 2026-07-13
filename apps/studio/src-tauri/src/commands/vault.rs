@@ -22,7 +22,9 @@ use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter, Runtime, State, WebviewWindow};
 use uuid::Uuid;
 
-use crate::security::path_guard::{map_path_error, open_parent, validate_relative};
+use crate::security::path_guard::{
+    is_internal_component, map_path_error, open_parent, validate_relative,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum VaultError {
@@ -727,7 +729,7 @@ fn collect_entries(
             .file_name()
             .into_string()
             .map_err(|_| VaultError::Unavailable)?;
-        if name.starts_with(".studio-") {
+        if is_internal_component(&name) {
             continue;
         }
         let path = if prefix.is_empty() {

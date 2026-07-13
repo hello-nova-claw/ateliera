@@ -125,6 +125,10 @@ fn ipc_reserves_the_internal_studio_namespace() {
             json!({ "vaultToken": token, "path": ".studio-write.lock" }),
         ),
         (
+            "vault_read_text",
+            json!({ "vaultToken": token, "path": ".STUDIO-write.lock" }),
+        ),
+        (
             "vault_read_binary",
             json!({ "vaultToken": token, "path": ".studio-write.lock" }),
         ),

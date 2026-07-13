@@ -10,6 +10,12 @@ pub struct ParentHandle {
     pub basename: String,
 }
 
+pub(crate) fn is_internal_component(part: &str) -> bool {
+    part.as_bytes()
+        .get(..b".studio-".len())
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case(b".studio-"))
+}
+
 pub fn validate_relative(relative: &str) -> Result<(), VaultError> {
     if relative.is_empty()
         || relative == "."
@@ -19,7 +25,7 @@ pub fn validate_relative(relative: &str) -> Result<(), VaultError> {
         || relative.ends_with('/')
         || relative.as_bytes().get(1) == Some(&b':')
         || relative.split('/').any(|part| {
-            part.is_empty() || part == "." || part == ".." || part.starts_with(".studio-")
+            part.is_empty() || part == "." || part == ".." || is_internal_component(part)
         })
         || Path::new(relative)
             .components()
@@ -89,6 +95,7 @@ mod tests {
     fn reserves_internal_studio_components() {
         for path in [
             ".studio-write.lock",
+            ".STUDIO-write.lock",
             ".studio-control/config.json",
             "Notes/.studio-attack.md",
         ] {
