@@ -7,11 +7,23 @@ import { useSeason } from './use-season';
 it('loads canonical Landscape priorities and creates a selectable canonical note', async () => {
   const capture = vi.fn(async () => ({
     path: 'Life Landscape/home/protect-creative-time.md',
-    hash: 'hash',
+    hash: 'new-hash',
     note: { id: 'priority-new', title: 'Protect creative time' },
   }));
   const service = {
     capture,
+    seasonTransactions: {
+      readActive: vi.fn(async () => ({
+        hash: null,
+        value: {
+          version: 1,
+          revision: 0,
+          activeNoteId: null,
+          activePath: null,
+          operation: null,
+        },
+      })),
+    },
     lifeAreas: {
       load: vi.fn(async () => ({
         revision: null,
@@ -39,12 +51,22 @@ it('loads canonical Landscape priorities and creates a selectable canonical note
           ]
         : [],
     ),
+    load: vi.fn(async (path: string) => ({
+      path,
+      hash: 'home-hash',
+      note: { id: 'priority-home', title: 'Make home easier' },
+    })),
   } as unknown as StudioService;
 
   const { result } = renderHook(() => useSeason(service, 0));
   await waitFor(() => expect(result.current.state).toBe('ready'));
   expect(result.current.priorityCandidates).toEqual([
-    { noteId: 'priority-home', title: 'Make home easier' },
+    {
+      noteId: 'priority-home',
+      title: 'Make home easier',
+      hash: 'home-hash',
+      path: 'Life Landscape/home/make-home-easier.md',
+    },
   ]);
 
   await act(async () => {
@@ -53,6 +75,8 @@ it('loads canonical Landscape priorities and creates a selectable canonical note
     ).resolves.toEqual({
       noteId: 'priority-new',
       title: 'Protect creative time',
+      hash: 'new-hash',
+      path: 'Life Landscape/home/protect-creative-time.md',
     });
   });
   expect(capture).toHaveBeenCalledWith({
@@ -63,5 +87,7 @@ it('loads canonical Landscape priorities and creates a selectable canonical note
   expect(result.current.priorityCandidates).toContainEqual({
     noteId: 'priority-new',
     title: 'Protect creative time',
+    hash: 'new-hash',
+    path: 'Life Landscape/home/protect-creative-time.md',
   });
 });

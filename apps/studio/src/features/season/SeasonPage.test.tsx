@@ -110,10 +110,10 @@ it('requires an explicit choice to retain a fourth priority', () => {
   render(
     <SeasonPage
       priorityCandidates={[
-        { noteId: 'home-note', title: 'Home' },
-        { noteId: 'studio-note', title: 'Studio' },
-        { noteId: 'family-note', title: 'Family' },
-        { noteId: 'rest-note', title: 'Rest' },
+        { noteId: 'home-note', title: 'Home', hash: 'home-hash' },
+        { noteId: 'studio-note', title: 'Studio', hash: 'studio-hash' },
+        { noteId: 'family-note', title: 'Family', hash: 'family-hash' },
+        { noteId: 'rest-note', title: 'Rest', hash: 'rest-hash' },
       ]}
       record={record({ status: 'draft' })}
       state="ready"
@@ -133,7 +133,11 @@ it('stores canonical note IDs while presenting priority titles', async () => {
     <SeasonPage
       onSaveStep={onSaveStep}
       priorityCandidates={[
-        { noteId: 'landscape-home', title: 'Make home easier' },
+        {
+          noteId: 'landscape-home',
+          title: 'Make home easier',
+          hash: 'home-hash',
+        },
       ]}
       record={record({ status: 'draft', priorities: [] })}
       state="ready"
@@ -154,12 +158,11 @@ it('stores canonical note IDs while presenting priority titles', async () => {
 });
 
 it('creates a canonical Landscape priority and selects its note ID', async () => {
-  const onCreatePriority = vi
-    .fn()
-    .mockResolvedValue({
-      noteId: 'new-priority',
-      title: 'Protect creative time',
-    });
+  const onCreatePriority = vi.fn().mockResolvedValue({
+    noteId: 'new-priority',
+    title: 'Protect creative time',
+    hash: 'new-hash',
+  });
   const onSaveStep = vi.fn();
   render(
     <SeasonPage
@@ -204,9 +207,17 @@ it('requires, trims, and awaits close reflections without dismissing failures', 
     <SeasonPage
       onCloseSeason={onCloseSeason}
       priorityCandidates={[
-        { noteId: 'Home', title: 'Make home easier' },
-        { noteId: 'Studio', title: 'Build a useful Studio' },
-        { noteId: 'Family', title: 'Support family rhythms' },
+        { noteId: 'Home', title: 'Make home easier', hash: 'home-hash' },
+        {
+          noteId: 'Studio',
+          title: 'Build a useful Studio',
+          hash: 'studio-hash',
+        },
+        {
+          noteId: 'Family',
+          title: 'Support family rhythms',
+          hash: 'family-hash',
+        },
       ]}
       record={record()}
       state="ready"
@@ -255,7 +266,11 @@ it('requires, trims, and awaits close reflections without dismissing failures', 
       learning: 'Small was enough.',
       identity: 'More trusting.',
       dispositions: expect.arrayContaining([
-        expect.objectContaining({ noteId: 'Home', title: 'Make home easier' }),
+        expect.objectContaining({
+          noteId: 'Home',
+          title: 'Make home easier',
+          expectedHash: 'home-hash',
+        }),
       ]),
     }),
   );
@@ -272,6 +287,43 @@ it('requires, trims, and awaits close reflections without dismissing failures', 
   expect(
     screen.getByRole('button', { name: 'Archive season and letter' }),
   ).toBeEnabled();
+});
+
+it('refuses to close against an unavailable priority revision', async () => {
+  const onCloseSeason = vi.fn();
+  render(
+    <SeasonPage
+      onCloseSeason={onCloseSeason}
+      priorityCandidates={[
+        { noteId: 'Home', title: 'Make home easier', hash: '' },
+      ]}
+      record={record({ priorities: ['Home'] })}
+      state="ready"
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Close season' }));
+  fireEvent.change(screen.getByLabelText('What do you celebrate?'), {
+    target: { value: 'We made room.' },
+  });
+  fireEvent.change(screen.getByLabelText('What did you learn?'), {
+    target: { value: 'Small was enough.' },
+  });
+  fireEvent.change(screen.getByLabelText('Who did you become?'), {
+    target: { value: 'More trusting.' },
+  });
+  fireEvent.change(screen.getByRole('combobox', { name: 'Make home easier' }), {
+    target: { value: 'return-landscape' },
+  });
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Archive season and letter' }),
+  );
+
+  const error = await screen.findByRole('alert');
+  expect(error).toHaveTextContent(
+    'Refresh this season before closing; Make home easier changed or is unavailable.',
+  );
+  await waitFor(() => expect(error).toHaveFocus());
+  expect(onCloseSeason).not.toHaveBeenCalled();
 });
 
 it('surfaces active-season conflicts without silently choosing one', () => {
