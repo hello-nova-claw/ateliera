@@ -3,6 +3,7 @@ import type {
   LandscapeCardProjection,
 } from '@studio/application';
 import {
+  defaultLifeAreas,
   landscapeAnchorDefinitions,
   type LandscapeAnchor,
   type LifeArea,
@@ -42,6 +43,16 @@ export interface LandscapePageProps {
   path: string;
   state?: 'ready' | 'loading' | 'stale' | 'error';
 }
+
+type UndoAction =
+  | { kind: 'move'; move: LandscapeMove }
+  | {
+      kind: 'order';
+      lifeArea: string;
+      anchor: LandscapeAnchor;
+      noteIds: string[];
+      title: string;
+    };
 
 function cell(
   board: LandscapeBoardProjection,
@@ -126,19 +137,21 @@ function NoteCard({
   const [busy, setBusy] = useState(false);
   const start = useRef<{ x: number; y: number } | undefined>(undefined);
   const [announcement, setAnnouncement] = useState('');
+  const [moveError, setMoveError] = useState('');
 
   async function move(lifeAreas: string[], anchor: LandscapeAnchor) {
     if (!onMove || busy) return;
     setBusy(true);
+    setMoveError('');
     setAnnouncement(`Moving ${card.title}…`);
     try {
       await onMove({ card, lifeAreas, anchor });
       setAnnouncement(`${card.title} moved.`);
       setMenuOpen(false);
     } catch (reason) {
-      setAnnouncement(
-        reason instanceof Error ? reason.message : `${card.title} could not be moved.`,
-      );
+      const message = reason instanceof Error ? reason.message : `${card.title} could not be moved.`;
+      setAnnouncement(message);
+      setMoveError(message);
     } finally {
       setBusy(false);
     }
@@ -156,7 +169,9 @@ function NoteCard({
       setAnnouncement(`${card.title} moved ${offset < 0 ? 'earlier' : 'later'}.`);
       setMenuOpen(false);
     } catch (reason) {
-      setAnnouncement(reason instanceof Error ? reason.message : 'The order could not be saved.');
+      const message = reason instanceof Error ? reason.message : 'The order could not be saved.';
+      setAnnouncement(message);
+      setMoveError(message);
     } finally {
       setBusy(false);
     }
@@ -230,6 +245,7 @@ function NoteCard({
         </div>
       )}
       <span aria-live="polite" className="studio-visually-hidden">{announcement}</span>
+      {moveError && <p className="life-landscape-card__error" role="alert">{moveError}</p>}
     </article>
   );
 }
@@ -246,12 +262,35 @@ function AreaSwitcher({ areas, current, onNavigate }: { areas: LifeArea[]; curre
 
 export function LandscapePage({ areas, board, error, onAddArea, onCreate, onMove, onNavigate, onOpen, onRemoveArea, onReorder, path, state = 'ready' }: LandscapePageProps) {
   const view = viewFromPath(path);
-  const [undo, setUndo] = useState<LandscapeMove>();
+  const [undo, setUndo] = useState<UndoAction>();
   const [undoBusy, setUndoBusy] = useState(false);
 
   async function performMove(move: LandscapeMove) {
     await onMove?.(move);
-    setUndo({ card: move.card, lifeAreas: move.card.lifeAreas, anchor: move.card.anchor });
+    setUndo({
+      kind: 'move',
+      move: { card: move.card, lifeAreas: move.card.lifeAreas, anchor: move.card.anchor },
+    });
+  }
+
+  async function performReorder(
+    lifeArea: string,
+    anchor: LandscapeAnchor,
+    noteIds: string[],
+  ) {
+    if (!onReorder) return;
+    const previous = cell(board, lifeArea, anchor)?.noteIds ?? [];
+    await onReorder(lifeArea, anchor, noteIds);
+    const moved = cardsFor(board, lifeArea, anchor).find(
+      (card, index) => card.noteId !== noteIds[index],
+    );
+    setUndo({
+      kind: 'order',
+      lifeArea,
+      anchor,
+      noteIds: previous,
+      title: moved?.title ?? 'this note',
+    });
   }
 
   useEffect(() => {
@@ -288,7 +327,7 @@ export function LandscapePage({ areas, board, error, onAddArea, onCreate, onMove
                   return (
                     <div className="life-landscape__cell" data-drop-anchor={anchor.id} data-drop-area={area.id} key={area.id}>
                       {projected?.featured ? <button aria-label={projected.featured.title} className="life-landscape__cell-title" onClick={(event) => onOpen?.(projected.featured!, event.currentTarget)} title={projected.featured.title} type="button">{projected.featured.title}</button> : <span>There is room here.</span>}
-                      {(projected?.additionalCount ?? 0) > 0 && <button onClick={() => onNavigate(`/landscape/${area.id}`)} type="button">+{projected!.additionalCount} more</button>}
+                      {(projected?.additionalCount ?? 0) > 0 && <button className="life-landscape__additional" onClick={() => onNavigate(`/landscape/${area.id}`)} type="button">+{projected!.additionalCount} more</button>}
                     </div>
                   );
                 })}
@@ -305,7 +344,7 @@ export function LandscapePage({ areas, board, error, onAddArea, onCreate, onMove
           <h2 className="life-landscape__area-title">{areaLabel(areas, view.area)}</h2>
           {landscapeAnchorDefinitions.map((anchor) => {
             const cards = cardsFor(board, view.area, anchor.id);
-            return <section className="life-landscape__section" data-drop-anchor={anchor.id} data-drop-area={view.area} key={anchor.id} aria-labelledby={`landscape-${view.area}-${anchor.id}`}><div className="life-landscape__section-heading"><div><h2 id={`landscape-${view.area}-${anchor.id}`}>{anchor.label}</h2><p>{anchor.prompt}</p></div>{onCreate && <button onClick={(event) => onCreate(view.area, anchor.id, event.currentTarget)} type="button">+ Add</button>}</div>{cards.length === 0 ? <p className="life-landscape__empty">There is room here.</p> : <div className="life-landscape__cards">{cards.map((card, index) => <NoteCard areas={areas} card={card} currentArea={view.area} key={card.noteId} {...(onMove ? { onMove: performMove } : {})} {...(onOpen ? { onOpen } : {})} {...(onReorder ? { onReorder } : {})} position={index} sectionCards={cards} />)}</div>}</section>;
+            return <section className="life-landscape__section" data-drop-anchor={anchor.id} data-drop-area={view.area} key={anchor.id} aria-labelledby={`landscape-${view.area}-${anchor.id}`}><div className="life-landscape__section-heading"><div><h2 id={`landscape-${view.area}-${anchor.id}`}>{anchor.label}</h2><p>{anchor.prompt}</p></div>{onCreate && <button onClick={(event) => onCreate(view.area, anchor.id, event.currentTarget)} type="button">+ Add</button>}</div>{cards.length === 0 ? <p className="life-landscape__empty">There is room here.</p> : <div className="life-landscape__cards">{cards.map((card, index) => <NoteCard areas={areas} card={card} currentArea={view.area} key={card.noteId} {...(onMove ? { onMove: performMove } : {})} {...(onOpen ? { onOpen } : {})} {...(onReorder ? { onReorder: performReorder } : {})} position={index} sectionCards={cards} />)}</div>}</section>;
           })}
         </div>
       )}
@@ -315,13 +354,13 @@ export function LandscapePage({ areas, board, error, onAddArea, onCreate, onMove
           <nav aria-label="Landscape anchors" className="life-landscape__anchor-switcher">{landscapeAnchorDefinitions.map((anchor) => <button aria-current={anchor.id === view.anchor ? 'page' : undefined} key={anchor.id} onClick={() => onNavigate(`/landscape/lens/${anchor.id}`)} type="button">{anchor.label}</button>)}</nav>
           <h2>{landscapeAnchorDefinitions.find((anchor) => anchor.id === view.anchor)?.label}</h2>
           <p>{landscapeAnchorDefinitions.find((anchor) => anchor.id === view.anchor)?.prompt}</p>
-          <div className="life-landscape__lens-grid">{areas.map((area) => { const cards = cardsFor(board, area.id, view.anchor); return <section data-drop-anchor={view.anchor} data-drop-area={area.id} key={area.id}><h3>{area.title}</h3>{cards.length === 0 ? <p className="life-landscape__empty">There is room here.</p> : cards.map((card, index) => <NoteCard areas={areas} card={card} currentArea={area.id} key={card.noteId} {...(onMove ? { onMove: performMove } : {})} {...(onOpen ? { onOpen } : {})} {...(onReorder ? { onReorder } : {})} position={index} sectionCards={cards} />)}</section>; })}</div>
+          <div className="life-landscape__lens-grid">{areas.map((area) => { const cards = cardsFor(board, area.id, view.anchor); return <section data-drop-anchor={view.anchor} data-drop-area={area.id} key={area.id}><h3>{area.title}</h3>{cards.length === 0 ? <p className="life-landscape__empty">There is room here.</p> : cards.map((card, index) => <NoteCard areas={areas} card={card} currentArea={area.id} key={card.noteId} {...(onMove ? { onMove: performMove } : {})} {...(onOpen ? { onOpen } : {})} {...(onReorder ? { onReorder: performReorder } : {})} position={index} sectionCards={cards} />)}</section>; })}</div>
         </div>
       )}
 
-      {(onAddArea || onRemoveArea) && <details className="life-landscape__manage"><summary>Manage life areas</summary><p>{areas.length} active. Five to ten usually keeps the Landscape spacious.</p><div>{areas.map((area) => <button disabled={areas.length <= 1} key={area.id} onClick={() => onRemoveArea?.(area.id)} type="button">Hide {area.title}</button>)}</div>{onAddArea && <button onClick={() => onAddArea('learning')} type="button">Add another life area</button>}</details>}
+      {(onAddArea || onRemoveArea) && <details className="life-landscape__manage"><summary>Manage life areas</summary><p>{areas.length} active. Five to ten usually keeps the Landscape spacious.</p><div>{areas.map((area) => <button disabled={areas.length <= 1} key={area.id} onClick={() => onRemoveArea?.(area.id)} type="button">Hide {area.title}</button>)}</div>{onAddArea && <div>{defaultLifeAreas.filter((area) => !areas.some((active) => active.id === area.id)).map((area) => <button key={area.id} onClick={() => onAddArea(area.id)} type="button">Add {area.title}</button>)}</div>}</details>}
 
-      {undo && <div className="life-landscape__undo" role="status"><span>Moved {undo.card.title}.</span><button disabled={undoBusy} onClick={() => { setUndoBusy(true); void onMove?.(undo).then(() => setUndo(undefined)).finally(() => setUndoBusy(false)); }} type="button">Undo move</button></div>}
+      {undo && <div className="life-landscape__undo" role="status"><span>Moved {undo.kind === 'move' ? undo.move.card.title : undo.title}.</span><button disabled={undoBusy} onClick={() => { setUndoBusy(true); const operation = undo.kind === 'move' ? onMove?.(undo.move) : onReorder?.(undo.lifeArea, undo.anchor, undo.noteIds); void Promise.resolve(operation).then(() => setUndo(undefined)).finally(() => setUndoBusy(false)); }} type="button">Undo move</button></div>}
     </div>
   );
 }

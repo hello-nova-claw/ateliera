@@ -97,4 +97,26 @@ describe('LandscapePage', () => {
     expect(onMove).toHaveBeenCalledWith(expect.objectContaining({ anchor: 'practices', lifeAreas: ['home'] }));
     expect(await screen.findByRole('button', { name: 'Undo move' })).toBeInTheDocument();
   });
+
+  it('offers keyboard reorder with undo and reports a failed move without losing the card', async () => {
+    const first = {
+      noteId: 'one', path: 'Landscape/one.md', title: 'First note', excerpt: '', semanticType: 'vision' as const, cardType: 'vision', status: 'active' as const, updated: '2026-07-13T00:00:00.000Z', lifeAreas: ['home'], anchor: 'vision' as const,
+    };
+    const second = { ...first, noteId: 'two', path: 'Landscape/two.md', title: 'Second note' };
+    const board: LandscapeBoardProjection = {
+      cells: emptyBoard.cells.map((cell) => cell.lifeArea === 'home' && cell.anchor === 'vision' ? { ...cell, featured: first, cards: [first, second], noteIds: ['one', 'two'], additionalCount: 1 } : cell),
+    };
+    const onReorder = vi.fn(async () => undefined);
+    const onMove = vi.fn(async () => { throw new Error('Another version exists.'); });
+    render(<LandscapePage areas={[...defaultLifeAreas.slice(0, 5)]} board={board} onMove={onMove} onNavigate={vi.fn()} onReorder={onReorder} path="/landscape/home" />);
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Drag First note' }), { key: 'ArrowDown' });
+    expect(onReorder).toHaveBeenCalledWith('home', 'vision', ['two', 'one']);
+    expect(await screen.findByRole('button', { name: 'Undo move' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move First note' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Move to Practices/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Another version exists.');
+    expect(screen.getByRole('button', { name: 'First note' })).toBeInTheDocument();
+  });
 });

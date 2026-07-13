@@ -164,7 +164,7 @@
   -webkit-line-clamp: 3;
 }
 
-.life-landscape__cell > button:last-child:not(:first-child) {
+.life-landscape__additional {
   min-block-size: var(--studio-touch-target);
   border: 0;
   color: var(--studio-color-link);
@@ -304,6 +304,13 @@
 
 .life-landscape-card p {
   color: var(--studio-color-ink-muted);
+}
+
+.life-landscape-card__error {
+  padding: var(--studio-space-2);
+  border-inline-start: 2px solid var(--studio-color-celebration);
+  color: var(--studio-color-ink-strong);
+  background: var(--studio-color-surface);
 }
 
 .life-landscape-card__horizon {
