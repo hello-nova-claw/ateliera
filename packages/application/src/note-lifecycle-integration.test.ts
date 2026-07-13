@@ -59,4 +59,16 @@ describe('StudioService note lifecycle', () => {
     await expect(service.archive('n1')).rejects.toThrow('disposed');
     expect(() => service.reconcileTrash()).toThrow('disposed');
   });
+
+  it('creates a bounded exact-file snapshot before a conflict resolution', async () => {
+    const vault = createInMemoryVault();
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    await service.save({ note: note(), path: 'Notes/n1.md', expectedMissing: true });
+    const snapshot = await service.snapshot('conflict-resolution', ['Notes/n1.md']);
+    expect(snapshot.manifest).toMatchObject({
+      reason: 'conflict-resolution',
+      state: 'complete',
+      files: [expect.objectContaining({ originalPath: 'Notes/n1.md' })],
+    });
+  });
 });
