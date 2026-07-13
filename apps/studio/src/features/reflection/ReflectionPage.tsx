@@ -158,7 +158,7 @@ function ThenAndNow({ cards }: { cards: ReflectionCardProjection[] }) {
   if (!pair?.then) return null;
   return (
     <section aria-label="Then and now" className="reflection-then-now">
-      <p className="reflection-page__eyebrow">Then &amp; now</p>
+      <h2 className="reflection-page__eyebrow">Then &amp; now</h2>
       <div className="reflection-then-now__pair">
         <article>
           <span>Then</span>
@@ -324,7 +324,8 @@ export function ReflectionPage({
 
       {view === 'garden' && <ThenAndNow cards={model.cards} />}
 
-      <section aria-label="Garden entries" className="reflection-stream">
+      <section aria-labelledby="reflection-stream-title" className="reflection-stream">
+        <h2 className="visually-hidden" id="reflection-stream-title">Garden entries</h2>
         {filtered.length === 0 ? (
           <p className="reflection-stream__empty">There is room to notice something small.</p>
         ) : filtered.map((card) => (

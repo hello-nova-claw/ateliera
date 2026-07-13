@@ -14,10 +14,13 @@
   font: var(--studio-type-room-title);
 }
 
-.reflection-page__header > p:last-child,
 .reflection-page__state,
 .reflection-entry > p,
 .reflection-then-now p {
+  color: var(--studio-color-ink-muted);
+}
+
+.reflection-page__header > p:last-child {
   color: var(--studio-color-ink-muted);
 }
 
