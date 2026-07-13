@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { parseNote, serializeNote } from '@studio/content';
 
-import { createStudioService } from './studio-service';
+import {
+  StudioSaveConflictError,
+  createStudioService,
+} from './studio-service';
 import { orderedProjection } from './projections';
 import { createViewStateRepository } from './view-state';
 import { RecordingIndex, note, seed } from './test-helpers';
@@ -34,7 +38,11 @@ describe('room projections', () => {
         (cell) => cell.lifeArea === 'home' && cell.anchor === 'decisions',
       ),
     ).toMatchObject({
-      featured: { noteId: 'shared', decisionHorizon: '60d' },
+      featured: {
+        noteId: 'shared',
+        decisionHorizon: '60d',
+        hash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      },
       additionalCount: 1,
       noteIds: ['shared', 'second'],
     });
@@ -54,9 +62,15 @@ describe('room projections', () => {
     });
     const vault = await seed([{ path: 'Landscape/move.md', note: original }]);
     const service = createStudioService({ vault, index: new RecordingIndex() });
+    const projected = await service.projectLandscapeBoard(['home']);
+    const expectedHash = projected.cells.find(
+      (cell) => cell.lifeArea === 'home' && cell.anchor === 'vision',
+    )?.featured?.hash;
+    expect(expectedHash).toBeDefined();
 
     const linked = await service.updateLandscapePlacement({
       path: 'Landscape/move.md',
+      expectedHash: expectedHash!,
       lifeAreas: ['home', 'family'],
       anchor: 'practices',
     });
@@ -65,6 +79,48 @@ describe('room projections', () => {
     expect(linked.note.extraFrontmatter).toEqual({
       unknown_key: { preserved: true },
     });
+  });
+
+  it('rejects a stale displayed Landscape move without overwriting newer metadata', async () => {
+    const original = note({
+      id: 'stale-move',
+      lifeAreas: ['home'],
+      landscapeAnchor: 'vision',
+    });
+    const vault = await seed([{ path: 'Landscape/stale.md', note: original }]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    const board = await service.projectLandscapeBoard(['home']);
+    const displayed = board.cells.find(
+      (cell) => cell.lifeArea === 'home' && cell.anchor === 'vision',
+    )?.featured;
+    expect(displayed).toBeDefined();
+
+    const current = await vault.readText('Landscape/stale.md');
+    const parsed = parseNote(current.text);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) throw new Error('Expected the seeded note to parse.');
+    await vault.writeTextAtomic(
+      'Landscape/stale.md',
+      serializeNote({
+        ...parsed.note,
+        lifeAreas: ['family'],
+        landscapeAnchor: 'practices',
+      }),
+      { expectedHash: current.hash },
+    );
+
+    await expect(
+      service.updateLandscapePlacement({
+        path: displayed!.path,
+        expectedHash: displayed!.hash,
+        lifeAreas: ['home'],
+        anchor: 'decisions',
+      }),
+    ).rejects.toBeInstanceOf(StudioSaveConflictError);
+
+    const durable = parseNote((await vault.readText('Landscape/stale.md')).text);
+    expect(durable.ok && durable.note.lifeAreas).toEqual(['family']);
+    expect(durable.ok && durable.note.landscapeAnchor).toBe('practices');
   });
 
   it('captures a Landscape note with classification in its only durable write', async () => {
@@ -81,6 +137,26 @@ describe('room projections', () => {
       landscapeAnchor: 'vision',
       semanticType: 'vision',
     });
+    expect(saved.path).toMatch(
+      /^Life Landscape\/home\/\d{4}-\d{2}-\d{2}--vision--[a-z0-9]{6}\.md$/,
+    );
+  });
+
+  it('keeps a Landscape capture inside a safe portable area folder', async () => {
+    const vault = await seed([]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    const saved = await service.capture({
+      body: 'A place-safe capture',
+      landscape: {
+        lifeArea: '../../Home: family\\dreams',
+        anchor: 'vision',
+      },
+    });
+
+    expect(saved.path).toMatch(
+      /^Life Landscape\/Home- family-dreams\//,
+    );
+    expect(saved.path).not.toContain('..');
   });
   it('projects one canonical note multiple ways without duplication', async () => {
     const shared = note({
