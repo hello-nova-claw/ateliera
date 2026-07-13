@@ -190,6 +190,16 @@ async function snapshotFilesAreIntact(
     return false;
   }
   const entriesByPath = new Map(entries.map((entry) => [entry.path, entry]));
+  let declaredTotalBytes = 0;
+  for (const file of manifest.files) {
+    const size = entriesByPath.get(file.snapshotPath)?.size;
+    if (size === undefined) continue;
+    if (!Number.isSafeInteger(size) || size < 0 || size > limits.maxFileBytes) return false;
+    declaredTotalBytes += size;
+    if (!Number.isSafeInteger(declaredTotalBytes) || declaredTotalBytes > limits.maxTotalBytes) {
+      return false;
+    }
+  }
   let totalBytes = 0;
   for (const file of manifest.files) {
     const entry = entriesByPath.get(file.snapshotPath);
