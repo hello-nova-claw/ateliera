@@ -178,9 +178,13 @@ describe('LandscapePage', () => {
       ),
     };
     const onReorder = vi.fn(async () => undefined);
-    const onMove = vi.fn(async (): Promise<{ hash: string }> => {
-      throw new Error('Another version exists.');
-    });
+    let rejectMove!: (reason: Error) => void;
+    const onMove = vi.fn(
+      () =>
+        new Promise<{ hash: string }>((_resolve, reject) => {
+          rejectMove = reject;
+        }),
+    );
     render(
       <LandscapePage
         areas={[...defaultLifeAreas.slice(0, 5)]}
@@ -206,12 +210,79 @@ describe('LandscapePage', () => {
     });
     failedItem.focus();
     fireEvent.click(failedItem);
+    screen.getByRole('button', { name: '← Back to map' }).focus();
+    await act(async () => rejectMove(new Error('Another version exists.')));
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Another version exists.',
     );
     expect(
       screen.getByRole('button', { name: 'First note' }),
     ).toBeInTheDocument();
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(failedItem).toHaveFocus();
+  });
+
+  it('returns focus to the exact reorder action after an asynchronous failure', async () => {
+    const first = {
+      noteId: 'one',
+      path: 'Landscape/one.md',
+      hash: 'first-hash',
+      title: 'First note',
+      excerpt: '',
+      semanticType: 'vision' as const,
+      cardType: 'vision',
+      status: 'active' as const,
+      updated: '2026-07-13T00:00:00.000Z',
+      lifeAreas: ['home'],
+      anchor: 'vision' as const,
+    };
+    const second = {
+      ...first,
+      noteId: 'two',
+      path: 'Landscape/two.md',
+      title: 'Second note',
+    };
+    const board: LandscapeBoardProjection = {
+      cells: emptyBoard.cells.map((cell) =>
+        cell.lifeArea === 'home' && cell.anchor === 'vision'
+          ? {
+              ...cell,
+              featured: first,
+              cards: [first, second],
+              noteIds: ['one', 'two'],
+              additionalCount: 1,
+            }
+          : cell,
+      ),
+    };
+    let rejectReorder!: (reason: Error) => void;
+    const onReorder = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectReorder = reject;
+        }),
+    );
+    render(
+      <LandscapePage
+        areas={[...defaultLifeAreas.slice(0, 5)]}
+        board={board}
+        onMove={vi.fn(async () => ({ hash: 'moved-hash' }))}
+        onNavigate={vi.fn()}
+        onReorder={onReorder}
+        path="/landscape/home"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move First note' }));
+    const failedItem = screen.getByRole('menuitem', { name: 'Move later' });
+    failedItem.focus();
+    fireEvent.click(failedItem);
+    screen.getByRole('button', { name: '← Back to map' }).focus();
+    await act(async () => rejectReorder(new Error('The order changed elsewhere.')));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The order changed elsewhere.',
+    );
     expect(screen.getByRole('menu')).toBeInTheDocument();
     expect(failedItem).toHaveFocus();
   });
