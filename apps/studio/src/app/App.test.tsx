@@ -18,9 +18,30 @@ vi.mock('@studio/storage/tauri', async (importOriginal) => ({
 
 afterEach(() => {
   cleanup();
+  history.replaceState(null, '', '/foyer');
   Reflect.deleteProperty(window, '__TAURI_INTERNALS__');
   selectTauriVault.mockReset();
   vi.unstubAllGlobals();
+});
+
+it('announces the canonical Foyer after an unknown URL is replaced', async () => {
+  history.replaceState(null, '', '/somewhere-unknown');
+  const replaceState = vi.spyOn(history, 'replaceState');
+
+  render(
+    <App
+      captureService={{
+        capture: async (text) => ({ id: 'test', text }),
+        list: async () => [],
+      }}
+    />,
+  );
+
+  expect(replaceState).toHaveBeenCalledWith(null, '', '/foyer');
+  await waitFor(() =>
+    expect(document.title).toBe('Foyer — The Studio'),
+  );
+  expect(screen.getByText(/Foyer opened\./)).toBeInTheDocument();
 });
 
 it('renders the Studio landmark', async () => {
