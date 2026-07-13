@@ -1,5 +1,12 @@
 import { markdownToPlainText } from '@studio/content';
-import type { LandscapeAnchor, SemanticType, StudioNote } from '@studio/domain';
+import {
+  isDecisionHorizon,
+  landscapeAnchors,
+  type DecisionHorizon,
+  type LandscapeAnchor,
+  type SemanticType,
+  type StudioNote,
+} from '@studio/domain';
 
 import type { ViewStateRepository } from './view-state';
 
@@ -52,6 +59,23 @@ export interface ActiveSeasonProjection {
 export interface LandscapeProjectionQuery {
   lifeArea: string;
   anchor?: LandscapeAnchor;
+}
+
+export interface LandscapeCardProjection extends StudioCardProjection {
+  decisionHorizon?: DecisionHorizon;
+}
+
+export interface LandscapeCellProjection {
+  lifeArea: string;
+  anchor: LandscapeAnchor;
+  featured: LandscapeCardProjection | null;
+  additionalCount: number;
+  noteIds: string[];
+  cards: LandscapeCardProjection[];
+}
+
+export interface LandscapeBoardProjection {
+  cells: LandscapeCellProjection[];
 }
 
 function visible(item: LoadedNote, viewKey: string): boolean {
@@ -160,6 +184,54 @@ export async function projectLandscape(
     `landscape:${query.lifeArea}${suffix}`,
     views,
   );
+}
+
+export async function projectLandscapeBoard(
+  notes: LoadedNote[],
+  lifeAreas: readonly string[],
+  views: ViewStateRepository,
+): Promise<LandscapeBoardProjection> {
+  const uniqueAreas = [...new Set(lifeAreas)];
+  const cells = await Promise.all(
+    uniqueAreas.flatMap((lifeArea) =>
+      landscapeAnchors.map(async (anchor): Promise<LandscapeCellProjection> => {
+        const candidates = notes.filter(
+          (item) =>
+            item.note.lifeAreas.includes(lifeArea) &&
+            item.note.landscapeAnchor === anchor,
+        );
+        const projected = await orderedProjection(
+          candidates,
+          `landscape:${lifeArea}:${anchor}`,
+          views,
+        );
+        const byId = new Map(candidates.map((item) => [item.note.id, item.note]));
+        const cards = projected.map((card): LandscapeCardProjection => {
+          const horizon = byId.get(card.noteId)?.extraFrontmatter.decision_horizon;
+          return {
+            ...card,
+            ...(isDecisionHorizon(horizon) ? { decisionHorizon: horizon } : {}),
+          };
+        });
+        const featuredIndex = cards.findIndex(
+          (card) => byId.get(card.noteId)?.display.featured === true,
+        );
+        if (featuredIndex > 0) {
+          const [featured] = cards.splice(featuredIndex, 1);
+          if (featured !== undefined) cards.unshift(featured);
+        }
+        return {
+          lifeArea,
+          anchor,
+          featured: cards[0] ?? null,
+          additionalCount: Math.max(0, cards.length - 1),
+          noteIds: cards.map((card) => card.noteId),
+          cards,
+        };
+      }),
+    ),
+  );
+  return { cells };
 }
 
 export async function projectStream(

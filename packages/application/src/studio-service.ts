@@ -6,7 +6,12 @@ import {
   serializeNote,
   suggestFilename,
 } from '@studio/content';
-import type { ParseError, SemanticType, StudioNote } from '@studio/domain';
+import type {
+  LandscapeAnchor,
+  ParseError,
+  SemanticType,
+  StudioNote,
+} from '@studio/domain';
 import type { IndexEntry, IndexPort } from '@studio/index';
 import {
   VaultConflictError,
@@ -24,12 +29,14 @@ import type {
 import {
   type ActiveSeasonProjection,
   type FoyerProjection,
+  type LandscapeBoardProjection,
   type LandscapeProjectionQuery,
   type LoadedNote,
   type StudioCardProjection,
   projectCurrentSeason,
   projectFoyer,
   projectLandscape,
+  projectLandscapeBoard,
   projectRoom,
   projectStream,
 } from './projections';
@@ -150,6 +157,12 @@ export interface StudioService {
   indexState(): 'ready' | 'stale' | 'rebuilding';
   projectRoom(room: string): Promise<StudioCardProjection[]>;
   projectLandscape(query: LandscapeProjectionQuery): Promise<StudioCardProjection[]>;
+  projectLandscapeBoard(lifeAreas: readonly string[]): Promise<LandscapeBoardProjection>;
+  updateLandscapePlacement(input: {
+    path: string;
+    lifeAreas: string[];
+    anchor: LandscapeAnchor;
+  }): Promise<SavedNote>;
   projectCurrentSeason(): Promise<ActiveSeasonProjection>;
   projectStream(type: 'reflection' | 'celebration'): Promise<StudioCardProjection[]>;
   projectFoyer(): Promise<FoyerProjection>;
@@ -742,6 +755,21 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     indexState() { return state; },
     async projectRoom(room) { assertActive(); return projectRoom((await scan()).notes, room, views); },
     async projectLandscape(query) { assertActive(); return projectLandscape((await scan()).notes, query, views); },
+    async projectLandscapeBoard(lifeAreas) { assertActive(); return projectLandscapeBoard((await scan()).notes, lifeAreas, views); },
+    async updateLandscapePlacement(input) {
+      assertActive();
+      const loaded = await loadNote(input.path);
+      return save({
+        path: loaded.path,
+        expectedHash: loaded.hash,
+        note: {
+          ...loaded.note,
+          lifeAreas: [...new Set(input.lifeAreas)],
+          landscapeAnchor: input.anchor,
+          updated: clock().toISOString(),
+        },
+      });
+    },
     async projectCurrentSeason() { assertActive(); return projectCurrentSeason((await scan()).notes); },
     async projectStream(type) { assertActive(); return projectStream((await scan()).notes, type, views); },
     async projectFoyer() { assertActive(); return projectFoyer((await scan()).notes, views); },
