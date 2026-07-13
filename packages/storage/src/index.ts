@@ -21,6 +21,15 @@ export type {
   VaultArchiveErrorCode,
 } from './browser-vault';
 export { selectTauriVault } from './tauri-vault';
+export { createRevisionStore } from './revisions';
+export type {
+  RevisionFile,
+  RevisionManifest,
+  RevisionReason,
+  RevisionSnapshot,
+  RevisionStore,
+  RevisionStoreOptions,
+} from './revisions';
 export type {
   VaultChange,
   VaultEntry,
