@@ -363,6 +363,49 @@ describe('browser vault ZIP portability boundary', () => {
       text: 'outside edit',
     });
   });
+
+  it('does not overwrite a later edit while rolling back a partial import', async () => {
+    const base = createTestStore();
+    let otherTab: ReturnType<typeof createBrowserVault>;
+    let outsideEdit: Promise<{ hash: string }> | undefined;
+    let firstPublished = false;
+    const store: BrowserVaultStore = {
+      ...base,
+      async write(path, file) {
+        const text = new TextDecoder().decode(file.bytes);
+        if (path === 'Inbox/a.md' && text === 'new a') firstPublished = true;
+        if (path === 'Inbox/b.md' && text === 'new b' && firstPublished) {
+          queueMicrotask(() => {
+            outsideEdit = otherTab.writeTextAtomic('Inbox/a.md', 'outside edit');
+          });
+          throw new DOMException('quota reached', 'QuotaExceededError');
+        }
+        await base.write(path, file);
+      },
+    };
+    const source = createBrowserVault('rollback-race-source', {
+      store: createTestStore(),
+    });
+    await source.writeTextAtomic('Inbox/a.md', 'new a');
+    await source.writeTextAtomic('Inbox/b.md', 'new b');
+    const target = createBrowserVault('rollback-race-target', { store });
+    otherTab = createBrowserVault('rollback-race-target', { store });
+    await target.writeTextAtomic('Inbox/a.md', 'old a');
+    await target.writeTextAtomic('Inbox/b.md', 'old b');
+    const plan = await prepareBrowserVaultImport(
+      target,
+      await exportBrowserVault(source),
+    );
+
+    await expect(
+      applyBrowserVaultImport(target, plan, { confirm: true }),
+    ).rejects.toThrow('rollback could not restore');
+    await vi.waitFor(() => expect(outsideEdit).toBeDefined());
+    await outsideEdit;
+    await expect(target.readText('Inbox/a.md')).resolves.toMatchObject({
+      text: 'outside edit',
+    });
+  });
 });
 
 it('rolls back a partial browser move when source removal fails', async () => {

@@ -231,8 +231,9 @@ class BrowserVault implements VaultPort {
   async writeBinaryAtomic(
     path: string,
     bytes: Uint8Array,
+    condition?: WriteCondition,
   ): Promise<{ hash: string }> {
-    return this.#write(validatePath(path), bytes);
+    return this.#write(validatePath(path), bytes, condition);
   }
 
   async move(from: string, to: string): Promise<void> {
@@ -246,7 +247,12 @@ class BrowserVault implements VaultPort {
         throw new VaultConflictError();
       }
       await store.write(destinationPath, file);
-      await store.remove(sourcePath);
+      try {
+        await store.remove(sourcePath);
+      } catch (error) {
+        await store.remove(destinationPath);
+        throw error;
+      }
       this.#emit({
         kind: 'moved',
         path: destinationPath,
@@ -256,12 +262,19 @@ class BrowserVault implements VaultPort {
     });
   }
 
-  async remove(path: string): Promise<void> {
+  async remove(path: string, condition?: WriteCondition): Promise<void> {
     const validPath = validatePath(path);
     await withVaultLock(this.name, async () => {
       const store = await this.storePromise;
-      if ((await store.read(validPath)) === undefined) {
+      const previous = await store.read(validPath);
+      if (previous === undefined) {
         throw new VaultUnavailableError();
+      }
+      if (
+        condition?.expectedHash !== undefined &&
+        previous.hash !== condition.expectedHash
+      ) {
+        throw new VaultConflictError();
       }
       await store.remove(validPath);
       this.#emit({ kind: 'removed', path: validPath });
@@ -292,6 +305,9 @@ class BrowserVault implements VaultPort {
     return withVaultLock(this.name, async () => {
       const store = await this.storePromise;
       const previous = await store.read(path);
+      if (condition?.expectedMissing && previous !== undefined) {
+        throw new VaultConflictError();
+      }
       if (
         condition?.expectedHash !== undefined &&
         previous?.hash !== condition.expectedHash
@@ -831,7 +847,7 @@ function requireRange(
   }
 }
 
-async function inflateRaw(bytes: Uint8Array): Promise<Uint8Array> {
+async function inflateRaw(bytes: Uint8Array, maximumSize: number): Promise<Uint8Array> {
   if (typeof DecompressionStream === 'undefined') {
     throw new VaultArchiveError(
       'unsupported-archive',
@@ -842,8 +858,25 @@ async function inflateRaw(bytes: Uint8Array): Promise<Uint8Array> {
     const stream = new Blob([bytes.slice().buffer]).stream().pipeThrough(
       new DecompressionStream('deflate-raw' as CompressionFormat),
     );
-    return new Uint8Array(await new Response(stream).arrayBuffer());
-  } catch {
+    const reader = stream.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maximumSize) {
+        await reader.cancel();
+        throw new VaultArchiveError(
+          'archive-too-large',
+          'A compressed ZIP entry expands beyond its declared safety limit.',
+        );
+      }
+      chunks.push(value);
+    }
+    return joinBytes(chunks);
+  } catch (error) {
+    if (error instanceof VaultArchiveError) throw error;
     throw new VaultArchiveError('invalid-archive', 'A compressed ZIP entry is invalid.');
   }
 }
@@ -924,7 +957,8 @@ async function parseZip(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
       throw new VaultArchiveError('invalid-archive', 'ZIP headers do not agree.');
     }
     const compressed = bytes.slice(dataOffset, dataOffset + compressedSize);
-    const content = method === 0 ? compressed : await inflateRaw(compressed);
+    const content =
+      method === 0 ? compressed : await inflateRaw(compressed, uncompressedSize);
     if (content.byteLength !== uncompressedSize) {
       throw new VaultArchiveError('invalid-archive', `ZIP size validation failed for ${path}.`);
     }
@@ -956,19 +990,60 @@ export async function exportBrowserVault(vault: VaultPort): Promise<Blob> {
       entry.path !== MANIFEST_PATH &&
       !entry.path.startsWith('.studio/index/'),
   );
+  if (entries.length > MAX_ENTRY_COUNT - 1) {
+    throw new VaultArchiveError(
+      'archive-too-large',
+      `Browser ZIP export supports at most ${MAX_ENTRY_COUNT - 1} user files.`,
+    );
+  }
   const files: Array<readonly [string, Uint8Array]> = [];
   const manifest: PortableManifest = {
     schemaVersion: 1,
     exportedAt: new Date().toISOString(),
     files: [],
   };
+  let expandedSize = 0;
   for (const entry of entries) {
+    if (
+      (entry.size ?? 0) > MAX_ENTRY_BYTES ||
+      encoder.encode(entry.path).byteLength > 0xffff
+    ) {
+      throw new VaultArchiveError(
+        'archive-too-large',
+        `The browser ZIP limit was exceeded by ${entry.path}.`,
+      );
+    }
     const bytes = await vault.readBinary(entry.path);
+    if (bytes.byteLength > MAX_ENTRY_BYTES) {
+      throw new VaultArchiveError(
+        'archive-too-large',
+        `The browser ZIP limit was exceeded by ${entry.path}.`,
+      );
+    }
+    expandedSize += bytes.byteLength;
     const sha256 = await digest(bytes);
     files.push([entry.path, bytes]);
     manifest.files.push({ path: entry.path, sha256, size: bytes.byteLength });
   }
-  files.push([MANIFEST_PATH, encoder.encode(JSON.stringify(manifest, null, 2))]);
+  const manifestBytes = encoder.encode(JSON.stringify(manifest, null, 2));
+  expandedSize += manifestBytes.byteLength;
+  if (manifestBytes.byteLength > MAX_ENTRY_BYTES || expandedSize > MAX_TOTAL_BYTES) {
+    throw new VaultArchiveError(
+      'archive-too-large',
+      'The browser ZIP export exceeds the 512 MiB expanded-data limit.',
+    );
+  }
+  files.push([MANIFEST_PATH, manifestBytes]);
+  const archiveSize = files.reduce(
+    (size, [path, bytes]) => size + 76 + encoder.encode(path).byteLength * 2 + bytes.byteLength,
+    22,
+  );
+  if (archiveSize > MAX_ARCHIVE_BYTES || archiveSize > 0xffffffff) {
+    throw new VaultArchiveError(
+      'archive-too-large',
+      'The browser ZIP export exceeds the supported ZIP32 archive limit.',
+    );
+  }
   const archive = createZip(files);
   return new Blob([archive.buffer as ArrayBuffer], { type: 'application/zip' });
 }
@@ -1016,6 +1091,9 @@ export async function prepareBrowserVaultImport(
   vault: VaultPort,
   source: Blob | Uint8Array,
 ): Promise<BrowserVaultImportPlan> {
+  if (source instanceof Blob && source.size > MAX_ARCHIVE_BYTES) {
+    throw new VaultArchiveError('archive-too-large', 'The ZIP archive is too large.');
+  }
   const bytes =
     source instanceof Blob
       ? new Uint8Array(await source.arrayBuffer())
@@ -1135,7 +1213,13 @@ export async function applyBrowserVaultImport(
       }
     }
     for (const item of plan.items) {
-      await vault.writeBinaryAtomic(item.path, await vault.readBinary(`${stageRoot}/${item.path}`));
+      await vault.writeBinaryAtomic(
+        item.path,
+        await vault.readBinary(`${stageRoot}/${item.path}`),
+        item.action === 'create'
+          ? { expectedMissing: true }
+          : { expectedHash: item.expectedHash as string },
+      );
       applied.push(item);
     }
   } catch (error) {
@@ -1143,9 +1227,13 @@ export async function applyBrowserVaultImport(
       const previous = backups.get(item.path);
       try {
         if (previous === undefined) {
-          if (await vault.exists(item.path)) await vault.remove(item.path);
+          if (await vault.exists(item.path)) {
+            await vault.remove(item.path, { expectedHash: item.sha256 });
+          }
         } else {
-          await vault.writeBinaryAtomic(item.path, previous);
+          await vault.writeBinaryAtomic(item.path, previous, {
+            expectedHash: item.sha256,
+          });
         }
       } catch {
         throw new VaultUnavailableError(

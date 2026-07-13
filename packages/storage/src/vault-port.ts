@@ -14,6 +14,8 @@ export interface WriteCondition {
    * lock are outside the exact compare-and-replace guarantee.
    */
   expectedHash?: string;
+  /** Create only when the path does not exist. */
+  expectedMissing?: true;
 }
 
 export type VaultChange =
@@ -30,9 +32,13 @@ export interface VaultPort {
     condition?: WriteCondition,
   ): Promise<{ hash: string }>;
   readBinary(path: string): Promise<Uint8Array>;
-  writeBinaryAtomic(path: string, bytes: Uint8Array): Promise<{ hash: string }>;
+  writeBinaryAtomic(
+    path: string,
+    bytes: Uint8Array,
+    condition?: WriteCondition,
+  ): Promise<{ hash: string }>;
   move(from: string, to: string): Promise<void>;
-  remove(path: string): Promise<void>;
+  remove(path: string, condition?: WriteCondition): Promise<void>;
   exists(path: string): Promise<boolean>;
   watch(listener: (event: VaultChange) => void): Promise<() => void>;
 }

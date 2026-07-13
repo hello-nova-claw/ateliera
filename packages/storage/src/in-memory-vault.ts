@@ -88,8 +88,12 @@ class InMemoryVault implements VaultPort {
     return this.#requiredFile(validatePath(path)).bytes.slice();
   }
 
-  async writeBinaryAtomic(path: string, bytes: Uint8Array): Promise<{ hash: string }> {
-    return this.#write(validatePath(path), bytes);
+  async writeBinaryAtomic(
+    path: string,
+    bytes: Uint8Array,
+    condition?: WriteCondition,
+  ): Promise<{ hash: string }> {
+    return this.#write(validatePath(path), bytes, condition);
   }
 
   async move(from: string, to: string): Promise<void> {
@@ -103,8 +107,16 @@ class InMemoryVault implements VaultPort {
     this.#emit({ kind: 'moved', path: destinationPath, previousPath: sourcePath, hash: file.hash });
   }
 
-  async remove(path: string): Promise<void> {
+  async remove(path: string, condition?: WriteCondition): Promise<void> {
     const validPath = validatePath(path);
+    const current = this.#files.get(validPath);
+    if (
+      current !== undefined &&
+      condition?.expectedHash !== undefined &&
+      current.hash !== condition.expectedHash
+    ) {
+      throw new VaultConflictError();
+    }
     if (!this.#files.delete(validPath)) throw new VaultUnavailableError();
     this.#emit({ kind: 'removed', path: validPath });
   }
@@ -126,6 +138,9 @@ class InMemoryVault implements VaultPort {
 
   #write(path: string, sourceBytes: Uint8Array, condition?: WriteCondition): { hash: string } {
     const previous = this.#files.get(path);
+    if (condition?.expectedMissing && previous !== undefined) {
+      throw new VaultConflictError();
+    }
     if (condition?.expectedHash !== undefined && previous?.hash !== condition.expectedHash) {
       throw new VaultConflictError();
     }
