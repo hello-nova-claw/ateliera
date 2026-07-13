@@ -390,7 +390,7 @@
 .life-landscape-card__drag-help {
   align-self: center;
   max-inline-size: 10rem;
-  color: var(--studio-color-ink-soft);
+  color: var(--studio-color-ink-strong);
   font-size: 0.75rem;
 }
 
@@ -569,6 +569,31 @@
   padding: var(--studio-space-4);
   border-inline-start: 3px solid var(--studio-color-celebration);
   background: var(--studio-color-surface);
+}
+
+.life-landscape__recovery {
+  display: grid;
+  gap: var(--studio-space-3);
+  max-inline-size: 44rem;
+  padding: var(--studio-space-5);
+  border: 1px solid var(--studio-color-accent-line);
+  border-radius: var(--studio-radius-note);
+  background: var(--studio-color-accent-soft);
+}
+
+.life-landscape__recovery h2,
+.life-landscape__recovery p {
+  margin: 0;
+}
+
+.life-landscape__recovery div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--studio-space-3);
+}
+
+.life-landscape__recovery div p {
+  flex-basis: 100%;
 }
 
 @media (width < 768px) {

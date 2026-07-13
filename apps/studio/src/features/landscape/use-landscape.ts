@@ -56,6 +56,7 @@ export function useLandscape(
   const [preferences, setPreferences] =
     useState<LifeAreaPreference[]>(defaultPreferences);
   const [areaRevision, setAreaRevision] = useState<string | null>(null);
+  const [repairRequired, setRepairRequired] = useState(false);
   const [board, setBoard] = useState<LandscapeBoardProjection>(emptyBoard);
   const [localRevision, setLocalRevision] = useState(0);
   const [state, setState] = useState<'ready' | 'loading' | 'stale' | 'error'>(
@@ -69,6 +70,7 @@ export function useLandscape(
       setAreas(defaultActiveAreas);
       setPreferences(defaultPreferences());
       setAreaRevision(null);
+      setRepairRequired(false);
       setBoard(emptyBoard);
       setState('ready');
       return undefined;
@@ -85,6 +87,7 @@ export function useLandscape(
         if (!current) return;
         setPreferences(snapshot.areas);
         setAreaRevision(snapshot.revision);
+        setRepairRequired(snapshot.repairRequired);
         setAreas(selected);
         setBoard(next);
         setError(undefined);
@@ -104,9 +107,17 @@ export function useLandscape(
     };
   }, [localRevision, revision, service]);
 
-  async function savePreferences(next: LifeAreaPreference[]) {
+  async function savePreferences(
+    next: LifeAreaPreference[],
+    allowRepair = false,
+  ) {
     if (!service)
       throw new Error('Choose a Studio before changing life areas.');
+    if (repairRequired && !allowRepair) {
+      throw new Error(
+        'Review the life area recovery before changing this setup.',
+      );
+    }
     const ordered = [...next]
       .sort((left, right) => left.order - right.order)
       .map((area, order) => ({ ...area, order }));
@@ -114,6 +125,7 @@ export function useLandscape(
       const saved = await service.lifeAreas.save(ordered, areaRevision);
       setPreferences(saved.areas);
       setAreaRevision(saved.revision);
+      setRepairRequired(saved.repairRequired);
       setAreas(activeAreas(saved.areas));
       setError(undefined);
       refresh();
@@ -132,8 +144,10 @@ export function useLandscape(
     areas,
     board,
     error,
+    repairRequired,
     state,
     refresh,
+    repairAreas: async () => savePreferences(preferences, true),
     addArea: async ({ id, title }: { id?: string; title: string }) => {
       const existing =
         id === undefined

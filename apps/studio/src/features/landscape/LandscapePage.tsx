@@ -11,7 +11,8 @@ import {
 import {
   DndContext,
   DragOverlay,
-  PointerSensor,
+  MouseSensor,
+  pointerWithin,
   TouchSensor,
   useDraggable,
   useDroppable,
@@ -53,6 +54,7 @@ export interface LandscapePageProps {
   onNavigate: (path: string) => void;
   onOpen?: (card: LandscapeCardProjection, trigger: HTMLButtonElement) => void;
   onRemoveArea?: (id: string) => void;
+  onRepairAreas?: () => Promise<void>;
   onRenameArea?: (id: string, title: string) => void;
   onReorderArea?: (id: string, offset: -1 | 1) => void;
   onReorder?: (
@@ -61,6 +63,7 @@ export interface LandscapePageProps {
     noteIds: string[],
   ) => Promise<void>;
   path: string;
+  repairRequired?: boolean;
   state?: 'ready' | 'loading' | 'stale' | 'error';
 }
 
@@ -537,10 +540,12 @@ export function LandscapePage({
   onNavigate,
   onOpen,
   onRemoveArea,
+  onRepairAreas,
   onRenameArea,
   onReorder,
   onReorderArea,
   path,
+  repairRequired = false,
   state = 'ready',
 }: LandscapePageProps) {
   const view = viewFromPath(path);
@@ -555,8 +560,11 @@ export function LandscapePage({
   const [newAreaTitle, setNewAreaTitle] = useState('');
   const [renamingArea, setRenamingArea] = useState<string>();
   const [renameTitle, setRenameTitle] = useState('');
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [recoveryError, setRecoveryError] = useState('');
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, {
       activationConstraint: { delay: 500, tolerance: 8 },
     }),
@@ -660,6 +668,24 @@ export function LandscapePage({
     setDragSession((value) => value + 1);
   }
 
+  async function confirmRecovery() {
+    if (!onRepairAreas || recoveryBusy) return;
+    setRecoveryBusy(true);
+    setRecoveryError('');
+    try {
+      await onRepairAreas();
+      setRecoveryOpen(false);
+    } catch (reason) {
+      setRecoveryError(
+        reason instanceof Error
+          ? reason.message
+          : 'The life area setup could not be restored.',
+      );
+    } finally {
+      setRecoveryBusy(false);
+    }
+  }
+
   async function undoLastMove() {
     if (!undo || undoBusy) return;
     setUndoBusy(true);
@@ -691,6 +717,7 @@ export function LandscapePage({
 
   return (
     <DndContext
+      collisionDetection={pointerWithin}
       key={dragSession}
       onDragCancel={cancelDrag}
       onDragEnd={finishDrag}
@@ -718,6 +745,42 @@ export function LandscapePage({
             {error ??
               'The Landscape could not be gathered. Your notes remain safe.'}
           </p>
+        )}
+        {repairRequired && (
+          <section className="life-landscape__recovery" role="alert">
+            <h2>Life area setup needs attention</h2>
+            <p>
+              This Studio could not read the saved life area setup. The original
+              file is untouched, and these defaults are only a preview.
+            </p>
+            {!recoveryOpen ? (
+              <button onClick={() => setRecoveryOpen(true)} type="button">
+                Review recovery
+              </button>
+            ) : (
+              <div aria-label="Confirm life area recovery" role="group">
+                <p>
+                  Replacing the file will save these defaults over the
+                  unreadable setup. Continue only if that is what you want.
+                </p>
+                <button
+                  disabled={recoveryBusy}
+                  onClick={() => setRecoveryOpen(false)}
+                  type="button"
+                >
+                  Keep original file
+                </button>
+                <button
+                  disabled={recoveryBusy}
+                  onClick={() => void confirmRecovery()}
+                  type="button"
+                >
+                  Replace with defaults
+                </button>
+              </div>
+            )}
+            {recoveryError && <p role="alert">{recoveryError}</p>}
+          </section>
         )}
         {interactionError && (
           <p className="life-landscape__error" role="alert">
@@ -951,123 +1014,126 @@ export function LandscapePage({
           </div>
         )}
 
-        {(onAddArea || onRemoveArea || onRenameArea || onReorderArea) && (
-          <details className="life-landscape__manage">
-            <summary>Manage life areas</summary>
-            <p>
-              {areas.length} active. Five to ten usually keeps the Landscape
-              spacious.
-            </p>
-            <ol>
-              {areas.map((area, index) => (
-                <li key={area.id}>
-                  {renamingArea === area.id ? (
-                    <label>
-                      <span>Name for {area.title}</span>
-                      <input
-                        aria-label={`Name for ${area.title}`}
-                        maxLength={80}
-                        onChange={(event) => setRenameTitle(event.target.value)}
-                        value={renameTitle}
-                      />
-                    </label>
-                  ) : (
-                    <span>{area.title}</span>
-                  )}
-                  {onReorderArea && (
-                    <>
-                      <button
-                        aria-label={`Move ${area.title} earlier`}
-                        disabled={index === 0}
-                        onClick={() => onReorderArea(area.id, -1)}
-                        type="button"
-                      >
-                        ↑
-                      </button>
-                      <button
-                        aria-label={`Move ${area.title} later`}
-                        disabled={index === areas.length - 1}
-                        onClick={() => onReorderArea(area.id, 1)}
-                        type="button"
-                      >
-                        ↓
-                      </button>
-                    </>
-                  )}
-                  {onRenameArea &&
-                    (renamingArea === area.id ? (
-                      <button
-                        disabled={renameTitle.trim() === ''}
-                        onClick={() => {
-                          onRenameArea(area.id, renameTitle.trim());
-                          setRenamingArea(undefined);
-                        }}
-                        type="button"
-                      >
-                        Save {area.title} name
-                      </button>
+        {!repairRequired &&
+          (onAddArea || onRemoveArea || onRenameArea || onReorderArea) && (
+            <details className="life-landscape__manage">
+              <summary>Manage life areas</summary>
+              <p>
+                {areas.length} active. Five to ten usually keeps the Landscape
+                spacious.
+              </p>
+              <ol>
+                {areas.map((area, index) => (
+                  <li key={area.id}>
+                    {renamingArea === area.id ? (
+                      <label>
+                        <span>Name for {area.title}</span>
+                        <input
+                          aria-label={`Name for ${area.title}`}
+                          maxLength={80}
+                          onChange={(event) =>
+                            setRenameTitle(event.target.value)
+                          }
+                          value={renameTitle}
+                        />
+                      </label>
                     ) : (
-                      <button
-                        aria-label={`Rename ${area.title}`}
-                        onClick={() => {
-                          setRenamingArea(area.id);
-                          setRenameTitle(area.title);
-                        }}
-                        type="button"
-                      >
-                        Rename
-                      </button>
-                    ))}
-                  <button
-                    disabled={areas.length <= 1}
-                    onClick={() => onRemoveArea?.(area.id)}
-                    type="button"
-                  >
-                    Hide
-                  </button>
-                </li>
-              ))}
-            </ol>
-            {onAddArea && (
-              <div className="life-landscape__area-library">
-                {defaultLifeAreas
-                  .filter(
-                    (area) => !areas.some((active) => active.id === area.id),
-                  )
-                  .map((area) => (
+                      <span>{area.title}</span>
+                    )}
+                    {onReorderArea && (
+                      <>
+                        <button
+                          aria-label={`Move ${area.title} earlier`}
+                          disabled={index === 0}
+                          onClick={() => onReorderArea(area.id, -1)}
+                          type="button"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          aria-label={`Move ${area.title} later`}
+                          disabled={index === areas.length - 1}
+                          onClick={() => onReorderArea(area.id, 1)}
+                          type="button"
+                        >
+                          ↓
+                        </button>
+                      </>
+                    )}
+                    {onRenameArea &&
+                      (renamingArea === area.id ? (
+                        <button
+                          disabled={renameTitle.trim() === ''}
+                          onClick={() => {
+                            onRenameArea(area.id, renameTitle.trim());
+                            setRenamingArea(undefined);
+                          }}
+                          type="button"
+                        >
+                          Save {area.title} name
+                        </button>
+                      ) : (
+                        <button
+                          aria-label={`Rename ${area.title}`}
+                          onClick={() => {
+                            setRenamingArea(area.id);
+                            setRenameTitle(area.title);
+                          }}
+                          type="button"
+                        >
+                          Rename
+                        </button>
+                      ))}
                     <button
-                      key={area.id}
-                      onClick={() =>
-                        onAddArea({ id: area.id, title: area.title })
-                      }
+                      disabled={areas.length <= 1}
+                      onClick={() => onRemoveArea?.(area.id)}
                       type="button"
                     >
-                      Add {area.title}
+                      Hide
                     </button>
-                  ))}
-                <label>
-                  <span>New life area</span>
-                  <input
-                    aria-label="New life area"
-                    maxLength={80}
-                    onChange={(event) => setNewAreaTitle(event.target.value)}
-                    value={newAreaTitle}
-                  />
-                </label>
-                <button
-                  disabled={newAreaTitle.trim() === ''}
-                  onClick={() => {
-                    onAddArea({ title: newAreaTitle.trim() });
-                    setNewAreaTitle('');
-                  }}
-                  type="button"
-                >
-                  Add custom area
-                </button>
-              </div>
-            )}
-          </details>
-        )}
+                  </li>
+                ))}
+              </ol>
+              {onAddArea && (
+                <div className="life-landscape__area-library">
+                  {defaultLifeAreas
+                    .filter(
+                      (area) => !areas.some((active) => active.id === area.id),
+                    )
+                    .map((area) => (
+                      <button
+                        key={area.id}
+                        onClick={() =>
+                          onAddArea({ id: area.id, title: area.title })
+                        }
+                        type="button"
+                      >
+                        Add {area.title}
+                      </button>
+                    ))}
+                  <label>
+                    <span>New life area</span>
+                    <input
+                      aria-label="New life area"
+                      maxLength={80}
+                      onChange={(event) => setNewAreaTitle(event.target.value)}
+                      value={newAreaTitle}
+                    />
+                  </label>
+                  <button
+                    disabled={newAreaTitle.trim() === ''}
+                    onClick={() => {
+                      onAddArea({ title: newAreaTitle.trim() });
+                      setNewAreaTitle('');
+                    }}
+                    type="button"
+                  >
+                    Add custom area
+                  </button>
+                </div>
+              )}
+            </details>
+          )}
 
         {undo && (
           <div aria-live="polite" className="life-landscape__undo">

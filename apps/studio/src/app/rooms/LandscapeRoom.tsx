@@ -64,6 +64,7 @@ export default function LandscapeRoom({
       onRemoveArea={(id) =>
         void landscape.removeArea(id).catch(() => undefined)
       }
+      onRepairAreas={landscape.repairAreas}
       onRenameArea={(id, title) =>
         void landscape.renameArea(id, title).catch(() => undefined)
       }
@@ -72,6 +73,7 @@ export default function LandscapeRoom({
         void landscape.reorderArea(id, offset).catch(() => undefined)
       }
       path={path}
+      repairRequired={landscape.repairRequired}
       state={landscape.state}
     />
   );

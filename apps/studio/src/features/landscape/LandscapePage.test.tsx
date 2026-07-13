@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { defaultLifeAreas, landscapeAnchors } from '@studio/domain';
 import type { LandscapeBoardProjection } from '@studio/application';
 import { describe, expect, it, vi } from 'vitest';
@@ -419,9 +419,11 @@ describe('LandscapePage', () => {
     expect(screen.queryByText('Manage life areas')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Review recovery' }));
     expect(onRepairAreas).not.toHaveBeenCalled();
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Replace with defaults' }),
-    );
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Replace with defaults' }),
+      );
+    });
     await vi.waitFor(() => expect(onRepairAreas).toHaveBeenCalledOnce());
   });
 });
