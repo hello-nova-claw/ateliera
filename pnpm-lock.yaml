@@ -153,6 +153,9 @@ importers:
       '@studio/domain':
         specifier: workspace:*
         version: link:../domain
+      '@tauri-apps/api':
+        specifier: ^2.11.1
+        version: 2.11.1
 
   packages/test-utils: {}
 
@@ -960,6 +963,9 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
+
+  '@tauri-apps/api@2.11.1':
+    resolution: {integrity: sha512-M2FPuYND2m+wh5hfW9ZpSdxMPdEJovPBWwoHJmwUpysTYNHaOkVFN419m/K0LIgjb/7KU2vBgsUepJWugQCvAA==, tarball: https://registry.npmjs.org/@tauri-apps/api/-/api-2.11.1.tgz}
 
   '@testing-library/dom@10.4.1':
     resolution: {integrity: sha512-o4PXJQidqJl82ckFaXUeoAW+XysPLauYI43Abki5hABd853iMhitooc6znOnczgbTYmEP6U6/y1ZyKAIsvMKGg==, tarball: https://registry.npmjs.org/@testing-library/dom/-/dom-10.4.1.tgz}
@@ -3162,6 +3168,8 @@ snapshots:
       storybook: 9.1.20(@testing-library/dom@10.4.1)(prettier@3.9.5)(vite@7.3.6(@types/node@24.13.3)(yaml@2.9.0))
     optionalDependencies:
       typescript: 5.9.3
+
+  '@tauri-apps/api@2.11.1': {}
 
   '@testing-library/dom@10.4.1':
     dependencies:

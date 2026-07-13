@@ -8,6 +8,7 @@ artifacts/
 .turbo/
 .vite/
 target/
+.toolchains/
 .superpowers/
 .worktrees/
 *.log

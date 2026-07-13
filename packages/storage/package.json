@@ -1,1 +1,1 @@
-{"name":"@studio/storage","version":"0.0.0","private":true,"type":"module","exports":"./src/index.ts","scripts":{"build":"tsc --build","test":"vitest run","typecheck":"tsc --build"},"dependencies":{"@studio/domain":"workspace:*"}}
+{"name":"@studio/storage","version":"0.0.0","private":true,"type":"module","exports":"./src/index.ts","scripts":{"build":"tsc --build","test":"vitest run","test:tauri":"vitest run src/tauri-vault.test.ts","typecheck":"tsc --build"},"dependencies":{"@studio/domain":"workspace:*","@tauri-apps/api":"^2.11.1"}}

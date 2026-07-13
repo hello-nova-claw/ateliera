@@ -27,3 +27,10 @@
 - Added recoverable Markdown parsing, deterministic serialization, unknown-key preservation, stable note IDs, and portable filename suggestions.
 - Added representative vault fixtures plus enum, malformed metadata, fidelity, and property-based coverage.
 - Task 3 is complete; current phase: ready for Task 4 migrations and links.
+
+## 2026-07-13 — Desktop vault adapter
+
+- Added a root-contained Tauri vault adapter with canonical path and symlink guards.
+- Added conditional SHA-256 writes using same-directory temporary files, file/directory sync, and atomic rename.
+- Added selected-root filesystem watching and a TypeScript adapter verified by the shared VaultPort contract.
+- Task 5 is complete; current phase: ready for Task 6 browser-local storage.
