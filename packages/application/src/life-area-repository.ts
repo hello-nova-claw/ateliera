@@ -39,7 +39,7 @@ interface StoredLifeAreaConfig {
 function defaults(): LifeAreaPreference[] {
   return defaultLifeAreas.map((area, order) => ({
     ...area,
-    hidden: false,
+    hidden: order >= 5,
     order,
   }));
 }
