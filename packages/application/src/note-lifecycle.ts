@@ -10,6 +10,9 @@ import type { StudioControlVault, VaultPort } from '@studio/storage/portable';
 
 const MANIFEST_PATH = '.studio/Trash/manifest.json';
 const MAX_SUFFIX_ATTEMPTS = 100;
+const SHA256 = /^[a-f0-9]{64}$/;
+const WINDOWS_DRIVE_PATH = /^[A-Za-z]:/;
+const UNSAFE_IDENTIFIER_CHARACTER = /[\u0000-\u001f\u007f-\u009f/\\]/;
 
 export interface TrashAttachmentRecord {
   path: string;
@@ -111,38 +114,128 @@ function isStatus(value: unknown): value is NoteStatus {
   return ['draft', 'active', 'resting', 'archived', 'trashed'].includes(String(value));
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasExactKeys(
+  value: Record<string, unknown>,
+  required: readonly string[],
+  optional: readonly string[] = [],
+): boolean {
+  const allowed = new Set([...required, ...optional]);
+  return required.every((key) => Object.hasOwn(value, key)) &&
+    Object.keys(value).every((key) => allowed.has(key));
+}
+
+function isWellFormedUnicode(value: string): boolean {
+  try {
+    encodeURIComponent(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Note ids predate a UUID/ULID-only domain contract. Keep compatible ids such as
+// `n1` and `01JTEST`, while requiring a single canonical, path-safe scalar.
+function isCanonicalNoteId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= 128 &&
+    value === value.trim() && value === value.normalize('NFC') &&
+    value !== '.' && value !== '..' && !UNSAFE_IDENTIFIER_CHARACTER.test(value) &&
+    isWellFormedUnicode(value);
+}
+
+function isCanonicalTimestamp(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const epoch = Date.parse(value);
+  return Number.isFinite(epoch) && new Date(epoch).toISOString() === value;
+}
+
+function isCanonicalUserPath(value: unknown): value is string {
+  if (
+    typeof value !== 'string' || value.length === 0 || value !== value.normalize('NFC') ||
+    value !== value.trim() || value.includes('\0') || value.includes('\\') ||
+    value.startsWith('/') || value.endsWith('/') || WINDOWS_DRIVE_PATH.test(value) ||
+    !isWellFormedUnicode(value)
+  ) return false;
+  return value.split('/').every((segment) => {
+    const folded = segment.toLocaleLowerCase('en');
+    return segment.length > 0 && segment === segment.trim() && segment !== '.' && segment !== '..' &&
+      folded !== '.studio' && !folded.startsWith('.studio-');
+  });
+}
+
+function expectedTrashPath(id: string, originalPath: string): string {
+  return `.studio/Trash/items/${encodeURIComponent(id)}/${basename(originalPath)}`;
+}
+
 function isTrashEntry(value: unknown): value is TrashEntry {
-  if (typeof value !== 'object' || value === null) return false;
-  const candidate = value as Partial<TrashEntry>;
-  return (
-    typeof candidate.id === 'string' &&
-    typeof candidate.originalPath === 'string' &&
-    typeof candidate.trashPath === 'string' &&
-    candidate.trashPath.startsWith('.studio/Trash/items/') &&
-    typeof candidate.originalHash === 'string' &&
-    isStatus(candidate.originalStatus) &&
-    typeof candidate.deletedAt === 'string' &&
-    ['prepared', 'trashed', 'restoring'].includes(String(candidate.state)) &&
-    Array.isArray(candidate.attachments) &&
-    candidate.attachments.every((item) =>
-      typeof item === 'object' && item !== null &&
-      typeof (item as Partial<TrashAttachmentRecord>).path === 'string' &&
-      ['available', 'missing', 'unknown'].includes(
-        String((item as Partial<TrashAttachmentRecord>).availability),
-      )) &&
-    (candidate.restorePath === undefined || typeof candidate.restorePath === 'string')
-  );
+  if (!isRecord(value) || !hasExactKeys(value, [
+    'id',
+    'originalPath',
+    'trashPath',
+    'originalHash',
+    'originalStatus',
+    'deletedAt',
+    'attachments',
+    'state',
+  ], ['restorePath'])) return false;
+  if (
+    !isCanonicalNoteId(value.id) || !isCanonicalUserPath(value.originalPath) ||
+    typeof value.trashPath !== 'string' ||
+    value.trashPath !== expectedTrashPath(value.id, value.originalPath) ||
+    typeof value.originalHash !== 'string' || !SHA256.test(value.originalHash) ||
+    !isStatus(value.originalStatus) || value.originalStatus === 'trashed' ||
+    !isCanonicalTimestamp(value.deletedAt) ||
+    !['prepared', 'trashed', 'restoring'].includes(String(value.state)) ||
+    !Array.isArray(value.attachments) ||
+    (value.restorePath !== undefined && !isCanonicalUserPath(value.restorePath))
+  ) return false;
+
+  const attachmentPaths = new Set<string>();
+  for (const item of value.attachments) {
+    if (
+      !isRecord(item) || !hasExactKeys(item, ['path', 'availability']) ||
+      !isCanonicalUserPath(item.path) ||
+      !['available', 'missing', 'unknown'].includes(String(item.availability)) ||
+      attachmentPaths.has(item.path)
+    ) return false;
+    attachmentPaths.add(item.path);
+  }
+  return true;
+}
+
+function isTrashManifest(value: unknown): value is TrashManifest {
+  if (
+    !isRecord(value) || !hasExactKeys(value, ['version', 'entries']) ||
+    value.version !== 1 || !Array.isArray(value.entries) ||
+    !value.entries.every(isTrashEntry)
+  ) return false;
+
+  const ids = new Set<string>();
+  const trashPaths = new Set<string>();
+  const userPathOwners = new Map<string, number>();
+  for (const [index, entry] of value.entries.entries()) {
+    if (ids.has(entry.id) || trashPaths.has(entry.trashPath)) return false;
+    ids.add(entry.id);
+    trashPaths.add(entry.trashPath);
+
+    for (const path of [entry.originalPath, entry.restorePath].filter(
+      (candidate): candidate is string => candidate !== undefined,
+    )) {
+      const owner = userPathOwners.get(path);
+      if (owner !== undefined && owner !== index) return false;
+      userPathOwners.set(path, index);
+    }
+  }
+  return true;
 }
 
 function parseManifest(text: string): TrashManifest {
   try {
     const value: unknown = JSON.parse(text);
-    if (
-      typeof value === 'object' && value !== null &&
-      (value as Partial<TrashManifest>).version === 1 &&
-      Array.isArray((value as Partial<TrashManifest>).entries) &&
-      (value as TrashManifest).entries.every(isTrashEntry)
-    ) return value as TrashManifest;
+    if (isTrashManifest(value)) return value;
   } catch {
     // Fall through to the recoverable typed error below.
   }
@@ -169,6 +262,11 @@ async function loadManifest(vault: StudioControlVault): Promise<LoadedManifest> 
 }
 
 async function writeManifest(vault: StudioControlVault, loaded: LoadedManifest): Promise<LoadedManifest> {
+  if (!isTrashManifest(loaded.manifest)) {
+    throw new TrashManifestError(
+      'Trash metadata is unsafe. Nothing was changed; repair its manifest first.',
+    );
+  }
   const written = await vault.writeTextAtomic(MANIFEST_PATH, manifestText(loaded.manifest),
     loaded.hash === undefined ? { expectedMissing: true } : { expectedHash: loaded.hash });
   return { manifest: loaded.manifest, hash: written.hash };
@@ -424,6 +522,9 @@ export function createNoteLifecycleService({
     unarchive: (id) => serialized(() => setArchiveStatus(id, 'active')),
 
     trash: (id) => serialized(async () => {
+      if (!isCanonicalNoteId(id)) {
+        throw new TrashManifestError('The note id cannot be represented safely in Trash.');
+      }
       await reconcileInternal();
       let loaded = await loadManifest(controlVault);
       if (loaded.manifest.entries.some((entry) => entry.id === id)) {
