@@ -12,6 +12,8 @@ import {
   createLifeAreaRepository,
   type LifeAreaPreference,
 } from './life-area-repository';
+import { createStudioService } from './studio-service';
+import { RecordingIndex } from './test-helpers';
 
 const customAreas: LifeAreaPreference[] = [
   { id: 'home', title: 'Our Home', hidden: false, order: 1 },
@@ -169,5 +171,38 @@ describe('life area repository', () => {
 
     await expect(repository.load()).rejects.toThrow('adapter bug');
     expect(exists).not.toHaveBeenCalled();
+  });
+});
+
+describe('StudioService life area repository boundary', () => {
+  it('exposes a vault-backed repository by default', async () => {
+    const vault = createInMemoryVault();
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    const initial = await service.lifeAreas.load();
+    const changed = initial.areas.map((area) =>
+      area.id === 'home' ? { ...area, title: 'Our Home' } : area,
+    );
+
+    await service.lifeAreas.save(changed, initial.revision);
+
+    const reopened = createStudioService({ vault, index: new RecordingIndex() });
+    expect(
+      (await reopened.lifeAreas.load()).areas.find((area) => area.id === 'home')
+        ?.title,
+    ).toBe('Our Home');
+  });
+
+  it('uses the injected repository required by native adapters', () => {
+    const lifeAreas = {
+      load: vi.fn(),
+      save: vi.fn(),
+    };
+    const service = createStudioService({
+      vault: createInMemoryVault(),
+      index: new RecordingIndex(),
+      lifeAreas,
+    });
+
+    expect(service.lifeAreas).toBe(lifeAreas);
   });
 });
