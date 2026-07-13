@@ -12,7 +12,10 @@ const MANIFEST_PATH = '.studio/Trash/manifest.json';
 const MAX_SUFFIX_ATTEMPTS = 100;
 const SHA256 = /^[a-f0-9]{64}$/;
 const WINDOWS_DRIVE_PATH = /^[A-Za-z]:/;
-const UNSAFE_IDENTIFIER_CHARACTER = /[\u0000-\u001f\u007f-\u009f/\\]/;
+const UNSAFE_IDENTIFIER_CHARACTER = new RegExp(
+  String.raw`[\u0000-\u001f\u007f-\u009f/\\]`,
+  'u',
+);
 
 export interface TrashAttachmentRecord {
   path: string;
