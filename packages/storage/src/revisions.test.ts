@@ -277,6 +277,61 @@ describe('local revision snapshots', () => {
     await expect(vault.exists(snapshot.manifestPath)).resolves.toBe(false);
   });
 
+  it.each(['copy', 'manifest', 'extra'] as const)(
+    'keeps a retryable pruning journal when a validated %s changes before removal',
+    async (mutation) => {
+      const vault = createInMemoryVault();
+      const root = '.studio/backups/2026-06-01/2026-06-01T08-00-00-000Z--old';
+      const manifestPath = `${root}/manifest.json`;
+      const copyPath = `${root}/files/Notes/a.md`;
+      const copy = await vault.writeTextAtomic(copyPath, 'original');
+      await seedSnapshot(vault, root, {
+        version: 1,
+        id: 'old',
+        reason: 'migration',
+        createdAt: '2026-06-01T08:00:00.000Z',
+        state: 'complete',
+        files: [{ originalPath: 'Notes/a.md', snapshotPath: copyPath, hash: copy.hash }],
+      }, {});
+      const write = vault.writeTextAtomic.bind(vault);
+      let injected = false;
+      vault.writeTextAtomic = async (path, text, condition) => {
+        const result = await write(path, text, condition);
+        if (
+          !injected &&
+          path === manifestPath &&
+          (JSON.parse(text) as RevisionManifest).state === 'pruning'
+        ) {
+          injected = true;
+          if (mutation === 'copy') {
+            const current = await vault.readText(copyPath);
+            await write(copyPath, 'changed', { expectedHash: current.hash });
+          } else if (mutation === 'manifest') {
+            const current = await vault.readText(manifestPath);
+            await write(manifestPath, `${current.text.trimEnd()}\n`, { expectedHash: current.hash });
+          } else {
+            await write(`${root}/unexpected.md`, 'do not delete', { expectedMissing: true });
+          }
+        }
+        return result;
+      };
+
+      await expect(createRevisionStore(vault, {
+        clock: () => new Date('2026-07-13T12:00:00.000Z'),
+        retentionDays: 1,
+      }).prune()).rejects.toBeInstanceOf(Error);
+
+      await expect(vault.exists(manifestPath)).resolves.toBe(true);
+      expect(JSON.parse((await vault.readText(manifestPath)).text)).toMatchObject({ state: 'pruning' });
+      if (mutation === 'copy') await expect(vault.readText(copyPath)).resolves.toMatchObject({ text: 'changed' });
+      if (mutation === 'extra') {
+        await expect(vault.readText(`${root}/unexpected.md`)).resolves.toMatchObject({
+          text: 'do not delete',
+        });
+      }
+    },
+  );
+
   it.each([
     {
       name: 'file count',
