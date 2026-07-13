@@ -76,7 +76,10 @@ it('offers restore or discard without silently replacing durable text', () => {
 it('preserves both conflict versions and exposes all explicit resolutions', () => {
   render(
     <CardEditor
-      conflict={{ local: { ...note, body: 'Mine' }, remoteBody: 'The other version' }}
+      conflict={{
+        local: { ...note, title: 'My title', body: 'Mine' },
+        remote: { ...note, title: 'Other title', body: 'The other version' },
+      }}
       note={{ ...note, body: 'Mine' }}
       onChange={vi.fn()}
       onFlush={vi.fn()}
@@ -89,8 +92,65 @@ it('preserves both conflict versions and exposes all explicit resolutions', () =
 
   expect(screen.getByRole('alert')).toHaveTextContent('Another version exists');
   expect(screen.getByRole('region', { name: 'Your version' })).toHaveTextContent('Mine');
+  expect(screen.getByRole('region', { name: 'Your version' })).toHaveTextContent('My title');
   expect(screen.getByRole('region', { name: 'Other version' })).toHaveTextContent('The other version');
+  expect(screen.getByRole('region', { name: 'Other version' })).toHaveTextContent('Other title');
+  expect(screen.getByLabelText('Title')).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Keep mine as a sibling' })).toBeVisible();
   expect(screen.getByRole('button', { name: 'Keep other' })).toBeVisible();
   expect(screen.getByRole('button', { name: 'Merge manually' })).toBeVisible();
+});
+
+it('prevents duplicate conflict actions and explains retryable failures', () => {
+  const { rerender } = render(
+    <CardEditor
+      conflict={{ local: { ...note, body: 'Mine' }, remote: note }}
+      conflictActionState="busy"
+      note={{ ...note, body: 'Mine' }}
+      onChange={vi.fn()}
+      onFlush={vi.fn()}
+      onKeepMine={vi.fn()}
+      onKeepOther={vi.fn()}
+      onManualMerge={vi.fn()}
+      saveState="conflict"
+    />,
+  );
+
+  expect(screen.getByRole('button', { name: 'Keeping mine…' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Keep other' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Merge manually' })).toBeDisabled();
+
+  rerender(
+    <CardEditor
+      conflict={{ local: { ...note, body: 'Mine' }, remote: note }}
+      conflictActionError="The sibling could not be saved. Try again."
+      conflictActionState="error"
+      note={{ ...note, body: 'Mine' }}
+      onChange={vi.fn()}
+      onFlush={vi.fn()}
+      onKeepMine={vi.fn()}
+      onKeepOther={vi.fn()}
+      onManualMerge={vi.fn()}
+      saveState="conflict"
+    />,
+  );
+
+  expect(screen.getByText('The sibling could not be saved. Try again.')).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Keep mine as a sibling' })).toBeEnabled();
+});
+
+it('warns when browser recovery storage is unavailable', () => {
+  render(
+    <CardEditor
+      note={note}
+      onChange={vi.fn()}
+      onFlush={vi.fn()}
+      recoveryUnavailable
+      saveState="dirty"
+    />,
+  );
+
+  expect(screen.getByRole('status', { name: 'Recovery unavailable' })).toHaveTextContent(
+    'keep this editor open',
+  );
 });

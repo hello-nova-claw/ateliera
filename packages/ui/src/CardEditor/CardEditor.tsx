@@ -21,20 +21,25 @@ export interface RecoveryDraftView {
 
 export interface ConflictView {
   local: StudioNote;
-  remoteBody: string;
+  remote: StudioNote;
 }
 
 export interface CardEditorProps {
   conflict?: ConflictView;
+  conflictActionError?: string;
+  conflictActionState?: 'idle' | 'busy' | 'error';
   note: StudioNote;
   onChange: (note: StudioNote) => void;
   onDiscardDraft?: () => void;
-  onFlush: () => void | Promise<void>;
+  onFlush: () => unknown | Promise<unknown>;
   onKeepMine?: () => void;
   onKeepOther?: () => void;
   onManualMerge?: () => void;
   onRestoreDraft?: () => void;
+  onRetrySave?: () => void;
   recoveryDraft?: RecoveryDraftView;
+  recoveryUnavailable?: boolean;
+  saveError?: string;
   saveState: EditorSaveState;
 }
 
@@ -56,6 +61,8 @@ function withTitle(note: StudioNote, title: string): StudioNote {
 
 export function CardEditor({
   conflict,
+  conflictActionError,
+  conflictActionState = 'idle',
   note,
   onChange,
   onDiscardDraft,
@@ -64,7 +71,10 @@ export function CardEditor({
   onKeepOther,
   onManualMerge,
   onRestoreDraft,
+  onRetrySave,
   recoveryDraft,
+  recoveryUnavailable = false,
+  saveError,
   saveState,
 }: CardEditorProps) {
   return (
@@ -91,9 +101,29 @@ export function CardEditor({
         </section>
       )}
 
+      {recoveryUnavailable && (
+        <p
+          aria-label="Recovery unavailable"
+          className="card-editor__notice"
+          role="status"
+        >
+          Browser draft recovery is unavailable. Durable saves still work; keep this
+          editor open until the saved confirmation appears.
+        </p>
+      )}
+
+      {saveError !== undefined && (
+        <section className="card-editor__notice" role="alert">
+          <h2>Your changes are still waiting.</h2>
+          <p>{saveError}</p>
+          <button onClick={onRetrySave} type="button">Try saving again</button>
+        </section>
+      )}
+
       <label className="card-editor__title-field">
         <span>Title</span>
         <input
+          disabled={conflict !== undefined}
           onBlur={() => void onFlush()}
           onChange={(event) => onChange(withTitle(note, event.target.value))}
           value={note.title ?? ''}
@@ -104,6 +134,7 @@ export function CardEditor({
         label="Markdown body"
         onBlur={() => void onFlush()}
         onChange={(body) => onChange({ ...note, body })}
+        readOnly={conflict !== undefined}
         value={note.body}
       />
 
@@ -113,6 +144,7 @@ export function CardEditor({
           <label>
             <span>Semantic meaning</span>
             <select
+              disabled={conflict !== undefined}
               onChange={(event) =>
                 onChange({
                   ...note,
@@ -127,6 +159,7 @@ export function CardEditor({
           <label>
             <span>Status</span>
             <select
+              disabled={conflict !== undefined}
               onChange={(event) =>
                 onChange({
                   ...note,
@@ -148,17 +181,35 @@ export function CardEditor({
           <div className="card-editor__versions">
             <section aria-label="Your version">
               <h3>Mine</h3>
+              <p>{conflict.local.title ?? 'Untitled'}</p>
               <p>{conflict.local.body}</p>
             </section>
             <section aria-label="Other version">
               <h3>Other</h3>
-              <p>{conflict.remoteBody}</p>
+              <p>{conflict.remote.title ?? 'Untitled'}</p>
+              <p>{conflict.remote.body}</p>
             </section>
           </div>
+          {conflictActionError !== undefined && (
+            <p className="card-editor__action-error" role="alert">
+              {conflictActionError}
+            </p>
+          )}
           <div className="card-editor__actions">
-            <button onClick={onKeepMine} type="button">Keep mine as a sibling</button>
-            <button onClick={onKeepOther} type="button">Keep other</button>
-            <button onClick={onManualMerge} type="button">Merge manually</button>
+            <button
+              aria-busy={conflictActionState === 'busy'}
+              disabled={conflictActionState === 'busy'}
+              onClick={onKeepMine}
+              type="button"
+            >
+              {conflictActionState === 'busy' ? 'Keeping mine…' : 'Keep mine as a sibling'}
+            </button>
+            <button disabled={conflictActionState === 'busy'} onClick={onKeepOther} type="button">
+              Keep other
+            </button>
+            <button disabled={conflictActionState === 'busy'} onClick={onManualMerge} type="button">
+              Merge manually
+            </button>
           </div>
         </section>
       )}

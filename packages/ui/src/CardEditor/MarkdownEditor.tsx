@@ -8,6 +8,7 @@ export interface MarkdownEditorProps {
   label: string;
   onBlur?: () => void;
   onChange: (value: string) => void;
+  readOnly?: boolean;
   value: string;
 }
 
@@ -15,6 +16,7 @@ export function MarkdownEditor({
   label,
   onBlur,
   onChange,
+  readOnly = false,
   value,
 }: MarkdownEditorProps) {
   const host = useRef<HTMLDivElement>(null);
@@ -35,6 +37,7 @@ export function MarkdownEditor({
           markdown(),
           keymap.of([...defaultKeymap, ...historyKeymap]),
           EditorView.lineWrapping,
+          EditorView.editable.of(!readOnly),
           EditorView.contentAttributes.of({
             'aria-label': label,
             'aria-multiline': 'true',
@@ -55,7 +58,7 @@ export function MarkdownEditor({
       view.current = null;
       editor.destroy();
     };
-  }, [label]);
+  }, [label, readOnly]);
 
   useEffect(() => {
     const editor = view.current;
