@@ -144,6 +144,36 @@ async function expectUnreadableJournal(value: unknown): Promise<void> {
 }
 
 describe('season close transaction', () => {
+  it('prepares a durable journal without snapshots or user-note mutations and reports it', async () => {
+    const { vault, revisions, closeRequest } = await setup();
+    const create = vi.spyOn(revisions, 'create');
+    const service = createSeasonCloseTransactionService({
+      vault,
+      control: createStudioControlVault(vault),
+      revisions,
+      clock: () => new Date(now),
+    });
+
+    await expect(service.pending()).resolves.toBeNull();
+    await expect(service.resume()).resolves.toBeNull();
+    await service.prepare(closeRequest);
+    await service.prepare(closeRequest);
+
+    await expect(service.pending()).resolves.toEqual({
+      transactionId: 'close-winter',
+      seasonNoteId: 'season-winter',
+      seasonPath: 'Current Season/winter.md',
+      stage: 'prepared',
+    });
+    expect(create).not.toHaveBeenCalled();
+    expect((await load(vault, closeRequest.season.path)).status).toBe('active');
+    expect(
+      (await createStudioControlVault(vault).list('.studio/backups')).filter(
+        (entry) => entry.kind === 'file',
+      ),
+    ).toEqual([]);
+  });
+
   it('snapshots every canonical target and applies five distinct durable outcomes before archiving the season last', async () => {
     const { vault, revisions, closeRequest } = await setup();
     const writes: string[] = [];
@@ -538,6 +568,10 @@ describe('season close transaction', () => {
       ['priority id type', ['priorityIds', 0], 1],
       ['priority id empty', ['priorityIds', 0], ''],
       ['priority id duplicate', ['priorityIds', 1], 'home'],
+      ['snapshot baseline array', ['snapshotBaseline'], null],
+      ['snapshot baseline type', ['snapshotBaseline'], [1]],
+      ['snapshot baseline root', ['snapshotBaseline'], ['Elsewhere/manifest.json']],
+      ['snapshot baseline filename', ['snapshotBaseline'], ['.studio/backups/x/other.json']],
       ['targets array', ['targets'], null],
       ['letter record', ['letter'], null],
       ['letter note primitive', ['letter', 'note'], null],
@@ -588,6 +622,12 @@ describe('season close transaction', () => {
     replaceAtPath(pendingArchivedTarget, ['stage'], 'season-archived');
     replaceAtPath(pendingArchivedTarget, ['targets', 0, 'state'], 'pending');
     await expectUnreadableJournal(pendingArchivedTarget);
+
+    const duplicateBaseline = structuredClone(valid);
+    const baseline = Reflect.get(duplicateBaseline, 'snapshotBaseline') as string[];
+    if (baseline.length === 0) baseline.push('.studio/backups/x/manifest.json');
+    baseline.push(baseline[0]!);
+    await expectUnreadableJournal(duplicateBaseline);
   });
 
   it.each([
@@ -863,7 +903,13 @@ describe('season close transaction', () => {
   });
 
   it('reuses its completed journal and replaces it only for a new valid season', async () => {
-    const { vault, revisions, closeRequest } = await setup();
+    const { vault, closeRequest } = await setup();
+    let snapshot = 0;
+    const revisions = createRevisionStore(vault, {
+      clock: () =>
+        new Date(snapshot === 0 ? now : '2026-07-15T00:00:00.000Z'),
+      generateId: () => `replacement-${(snapshot += 1)}`,
+    });
     const service = createSeasonCloseTransactionService({
       vault,
       control: createStudioControlVault(vault),
@@ -992,6 +1038,191 @@ describe('season close transaction', () => {
     },
   );
 
+  it.each([
+    'snapshot-extra',
+    'manifest-extra',
+    'version',
+    'id-type',
+    'id-empty',
+    'reason',
+    'created-at',
+    'state',
+    'files-type',
+    'manifest-path-type',
+    'manifest-path-binding',
+    'file-record',
+    'file-extra',
+    'original-path',
+    'snapshot-path',
+    'hash',
+    'duplicate-original',
+    'duplicate-snapshot',
+    'returned-manifest-mismatch',
+  ] as const)(
+    'rejects a malformed typed RevisionStore result: %s',
+    async (failure) => {
+      const { vault, revisions, closeRequest } = await setup();
+      const adversarial: RevisionStore = {
+        ...revisions,
+        async create(reason, paths) {
+          const snapshot = structuredClone(await revisions.create(reason, paths));
+          const manifest = snapshot.manifest as unknown as Record<string, unknown>;
+          const files = snapshot.manifest.files as unknown as Array<Record<string, unknown>>;
+          if (failure === 'snapshot-extra')
+            Reflect.set(snapshot, 'unexpected', true);
+          if (failure === 'manifest-extra') manifest.unexpected = true;
+          if (failure === 'version') manifest.version = 2;
+          if (failure === 'id-type') manifest.id = 1;
+          if (failure === 'id-empty') manifest.id = '';
+          if (failure === 'reason') manifest.reason = 'migration';
+          if (failure === 'created-at') manifest.createdAt = 'today';
+          if (failure === 'state') manifest.state = 'writing';
+          if (failure === 'files-type') manifest.files = null;
+          if (failure === 'manifest-path-type')
+            Reflect.set(snapshot, 'manifestPath', 1);
+          if (failure === 'manifest-path-binding')
+            snapshot.manifestPath = `${snapshot.manifestPath}.other`;
+          if (failure === 'file-record')
+            (snapshot.manifest.files as unknown[])[0] = null;
+          if (failure === 'file-extra') files[0]!.unexpected = true;
+          if (failure === 'original-path') files[0]!.originalPath = '../x.md';
+          if (failure === 'snapshot-path') files[0]!.snapshotPath = '.studio/backups/x';
+          if (failure === 'hash') files[0]!.hash = 'bad';
+          if (failure === 'duplicate-original')
+            files[1]!.originalPath = files[0]!.originalPath;
+          if (failure === 'duplicate-snapshot')
+            files[1]!.snapshotPath = files[0]!.snapshotPath;
+          if (failure === 'returned-manifest-mismatch')
+            snapshot.manifest.files.reverse();
+          return snapshot;
+        },
+      };
+      const service = createSeasonCloseTransactionService({
+        vault,
+        control: createStudioControlVault(vault),
+        revisions: adversarial,
+        clock: () => new Date(now),
+      });
+
+      await expect(service.close(closeRequest)).rejects.toThrow(
+        'revision snapshot could not be verified',
+      );
+    },
+  );
+
+  it.each(['manifest-read', 'manifest-json', 'snapshot-list', 'copy-read'] as const)(
+    'fails closed when snapshot verification cannot complete: %s',
+    async (failure) => {
+      const { vault, revisions, closeRequest } = await setup();
+      const base = createStudioControlVault(vault);
+      let snapshotPath = '';
+      const adversarial: RevisionStore = {
+        ...revisions,
+        async create(reason, paths) {
+          const snapshot = await revisions.create(reason, paths);
+          snapshotPath = snapshot.manifestPath;
+          if (failure === 'manifest-json') {
+            const file = await base.readText(snapshot.manifestPath);
+            await base.writeTextAtomic(snapshot.manifestPath, '{', {
+              expectedHash: file.hash,
+            });
+          }
+          return snapshot;
+        },
+      };
+      const control: StudioControlVault = {
+        ...base,
+        async readText(path) {
+          if (failure === 'manifest-read' && path === snapshotPath)
+            throw new Error('offline');
+          return base.readText(path);
+        },
+        async list(path) {
+          if (
+            failure === 'snapshot-list' &&
+            snapshotPath !== '' &&
+            path === snapshotPath.slice(0, -'/manifest.json'.length)
+          )
+            throw new Error('offline');
+          return base.list(path);
+        },
+        async readBinary(path) {
+          if (failure === 'copy-read' && path.includes('/files/'))
+            throw new Error('offline');
+          return base.readBinary(path);
+        },
+      };
+      const service = createSeasonCloseTransactionService({
+        vault,
+        control,
+        revisions: adversarial,
+        clock: () => new Date(now),
+      });
+
+      await expect(service.close(closeRequest)).rejects.toThrow(
+        'revision snapshot could not be verified',
+      );
+    },
+  );
+
+  it('rejects ambiguous matching recovery snapshots and ignores malformed candidates', async () => {
+    const { vault, closeRequest } = await setup();
+    const control = createStudioControlVault(vault);
+    const service = createSeasonCloseTransactionService({
+      vault,
+      control,
+      revisions: createRevisionStore(vault),
+      clock: () => new Date(now),
+    });
+    await service.prepare(closeRequest);
+    await control.writeTextAtomic(
+      '.studio/backups/malformed/manifest.json',
+      '{',
+      { expectedMissing: true },
+    );
+    const targetPaths: Record<string, string> = {
+      home: 'Home/home.md',
+      book: 'Projects/book.md',
+      rest: 'Inbox/rest.md',
+      future: 'Wisdom/future.md',
+      idea: 'Ideas/idea.md',
+    };
+    for (const [date, id] of [
+      [now, 'candidate-a'],
+      ['2026-07-15T00:00:00.000Z', 'candidate-b'],
+    ] as const) {
+      await createRevisionStore(vault, {
+        clock: () => new Date(date),
+        generateId: () => id,
+      }).create('season-close', [
+        closeRequest.season.path,
+        ...closeRequest.dispositions.map((item) => targetPaths[item.noteId]!),
+      ]);
+    }
+
+    await expect(service.resume()).rejects.toThrow(
+      'More than one matching season-close snapshot',
+    );
+  });
+
+  it('revalidates a journaled snapshot on every completed resume', async () => {
+    const { vault, revisions, closeRequest } = await setup();
+    const service = createSeasonCloseTransactionService({
+      vault,
+      control: createStudioControlVault(vault),
+      revisions,
+      clock: () => new Date(now),
+    });
+    const result = await service.close(closeRequest);
+    await createStudioControlVault(vault).remove(
+      result.snapshot.manifest.files[0]!.snapshotPath,
+    );
+
+    await expect(service.resume()).rejects.toThrow(
+      'revision snapshot could not be verified',
+    );
+  });
+
   it('reuses one verified snapshot when its success checkpoint initially fails', async () => {
     const { vault, revisions, closeRequest } = await setup();
     const create = vi.spyOn(revisions, 'create');
@@ -1096,7 +1327,7 @@ describe('season close transaction', () => {
     });
 
     await expect(service.close(closeRequest)).rejects.toThrow(
-      'archived season needs metadata repair',
+      'archived season no longer matches',
     );
   });
 

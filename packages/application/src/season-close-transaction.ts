@@ -38,7 +38,24 @@ export interface SeasonCloseResult {
   snapshot: RevisionSnapshot;
 }
 
+export type SeasonCloseJournalStage =
+  | 'prepared'
+  | 'snapshotted'
+  | 'letter-written'
+  | 'applying-targets'
+  | 'season-archived'
+  | 'completed';
+
+export interface PendingSeasonClose {
+  transactionId: string;
+  seasonNoteId: string;
+  seasonPath: string;
+  stage: SeasonCloseJournalStage;
+}
+
 export interface SeasonCloseTransactionService {
+  prepare(request: SeasonCloseRequest): Promise<void>;
+  pending(): Promise<PendingSeasonClose | null>;
   close(request: SeasonCloseRequest): Promise<SeasonCloseResult>;
   resume(): Promise<SeasonCloseResult | null>;
 }
@@ -80,18 +97,13 @@ interface CloseTarget {
 interface CloseJournal {
   version: 1;
   transactionId: string;
-  stage:
-    | 'prepared'
-    | 'snapshotted'
-    | 'letter-written'
-    | 'applying-targets'
-    | 'season-archived'
-    | 'completed';
+  stage: SeasonCloseJournalStage;
   preparedAt: string;
   season: SavedNote;
   closedSeasonNote: StudioNote;
   reflection: SeasonCloseRequest['reflection'];
   priorityIds: string[];
+  snapshotBaseline: string[];
   targets: CloseTarget[];
   letter: { note: StudioNote; path: string; hash?: string };
   snapshot?: RevisionSnapshot;
@@ -151,6 +163,27 @@ function assertRequestShape(request: SeasonCloseRequest): void {
     );
   }
   normalizedReflection(request.reflection);
+}
+
+function canonicalPriorityIds(note: StudioNote): string[] {
+  const value = note.extraFrontmatter.priorities;
+  if (
+    !Array.isArray(value) ||
+    !value.every((id) => typeof id === 'string' && id !== '') ||
+    new Set(value).size !== value.length
+  ) {
+    throw new SeasonClosePreflightError(
+      'The canonical season priorities are missing or malformed. Repair the season before closing it.',
+    );
+  }
+  return value as string[];
+}
+
+function sameStringSet(left: string[], right: string[]): boolean {
+  return (
+    left.length === right.length &&
+    left.every((value) => right.includes(value))
+  );
 }
 
 async function canonicalNotes(vault: VaultPort): Promise<{
@@ -237,6 +270,170 @@ function isTimestamp(value: unknown): value is string {
   return Number.isFinite(parsed) && new Date(parsed).toISOString() === value;
 }
 
+async function sha256(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    Uint8Array.from(bytes).buffer,
+  );
+  return [...new Uint8Array(digest)]
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+function snapshotRoot(createdAt: string, id: string): string {
+  return `.studio/backups/${createdAt.slice(0, 10)}/${createdAt
+    .replaceAll(':', '-')
+    .replace('.', '-')}--${encodeURIComponent(id)}`;
+}
+
+function expectedSnapshotFiles(journal: CloseJournal): Map<string, string> {
+  return new Map([
+    [journal.season.path, journal.season.hash],
+    ...journal.targets.map(
+      (target) => [target.path, target.hash] as const,
+    ),
+  ]);
+}
+
+function parseRevisionSnapshot(value: unknown): RevisionSnapshot | null {
+  if (
+    !isRecord(value) ||
+    Object.keys(value).length !== 2 ||
+    !isRecord(value.manifest) ||
+    Object.keys(value.manifest).length !== 6 ||
+    value.manifest.version !== 1 ||
+    typeof value.manifest.id !== 'string' ||
+    value.manifest.id === '' ||
+    value.manifest.reason !== 'season-close' ||
+    !isTimestamp(value.manifest.createdAt) ||
+    value.manifest.state !== 'complete' ||
+    !Array.isArray(value.manifest.files) ||
+    typeof value.manifestPath !== 'string'
+  ) {
+    return null;
+  }
+  const root = snapshotRoot(value.manifest.createdAt, value.manifest.id);
+  if (value.manifestPath !== `${root}/manifest.json`) return null;
+  const originals = new Set<string>();
+  const snapshots = new Set<string>();
+  for (const file of value.manifest.files) {
+    if (
+      !isRecord(file) ||
+      Object.keys(file).length !== 3 ||
+      !isSafeUserPath(file.originalPath) ||
+      file.snapshotPath !== `${root}/files/${file.originalPath}` ||
+      !isHash(file.hash) ||
+      originals.has(file.originalPath) ||
+      snapshots.has(file.snapshotPath as string)
+    ) {
+      return null;
+    }
+    originals.add(file.originalPath);
+    snapshots.add(file.snapshotPath as string);
+  }
+  return value as unknown as RevisionSnapshot;
+}
+
+async function verifyRevisionSnapshot(
+  control: StudioControlVault,
+  candidate: unknown,
+  journal: CloseJournal,
+): Promise<RevisionSnapshot | null> {
+  const returned = parseRevisionSnapshot(candidate);
+  if (returned === null) return null;
+  const expected = expectedSnapshotFiles(journal);
+  if (
+    returned.manifest.files.length !== expected.size ||
+    returned.manifest.files.some(
+      (file) => expected.get(file.originalPath) !== file.hash,
+    )
+  ) {
+    return null;
+  }
+  let manifestFile: Awaited<ReturnType<StudioControlVault['readText']>>;
+  try {
+    manifestFile = await control.readText(returned.manifestPath);
+  } catch {
+    return null;
+  }
+  let durable: RevisionSnapshot | null = null;
+  try {
+    durable = parseRevisionSnapshot({
+      manifest: JSON.parse(manifestFile.text) as unknown,
+      manifestPath: returned.manifestPath,
+    });
+  } catch {
+    return null;
+  }
+  if (
+    durable === null ||
+    JSON.stringify(durable.manifest) !== JSON.stringify(returned.manifest)
+  ) {
+    return null;
+  }
+  const root = returned.manifestPath.slice(0, -'/manifest.json'.length);
+  const expectedControlPaths = new Set([
+    returned.manifestPath,
+    ...returned.manifest.files.map((file) => file.snapshotPath),
+  ]);
+  let entries: Awaited<ReturnType<StudioControlVault['list']>>;
+  try {
+    entries = (await control.list(root)).filter(
+      (entry) => entry.kind === 'file',
+    );
+  } catch {
+    return null;
+  }
+  if (
+    entries.length !== expectedControlPaths.size ||
+    entries.some((entry) => !expectedControlPaths.has(entry.path))
+  ) {
+    return null;
+  }
+  for (const file of returned.manifest.files) {
+    try {
+      const bytes = await control.readBinary(file.snapshotPath);
+      if ((await sha256(bytes)) !== file.hash) return null;
+    } catch {
+      return null;
+    }
+  }
+  return returned;
+}
+
+async function discoverRevisionSnapshot(
+  control: StudioControlVault,
+  journal: CloseJournal,
+): Promise<RevisionSnapshot | null> {
+  const entries = await control.list('.studio/backups');
+  const matches: RevisionSnapshot[] = [];
+  for (const entry of entries) {
+    if (entry.kind !== 'file' || !entry.path.endsWith('/manifest.json'))
+      continue;
+    try {
+      const manifest = JSON.parse((await control.readText(entry.path)).text) as unknown;
+      const verified = await verifyRevisionSnapshot(
+        control,
+        { manifest, manifestPath: entry.path },
+        journal,
+      );
+      if (
+        verified !== null &&
+        !journal.snapshotBaseline.includes(entry.path)
+      )
+        matches.push(verified);
+    } catch {
+      // A malformed or transient snapshot is never selected for recovery.
+    }
+  }
+  if (matches.length > 1) {
+    throw new SeasonCloseTransactionConflictError(
+      'More than one matching season-close snapshot exists. Preserve them for explicit repair.',
+    );
+  }
+  return matches[0] ?? null;
+}
+
 function isStudioNote(value: unknown): value is StudioNote {
   if (!isRecord(value)) return false;
   try {
@@ -283,6 +480,14 @@ function validJournal(value: unknown): value is CloseJournal {
     !Array.isArray(value.priorityIds) ||
     !value.priorityIds.every((id) => typeof id === 'string' && id !== '') ||
     new Set(value.priorityIds).size !== value.priorityIds.length ||
+    !Array.isArray(value.snapshotBaseline) ||
+    !value.snapshotBaseline.every(
+      (path) =>
+        typeof path === 'string' &&
+        path.toLocaleLowerCase('en').startsWith('.studio/backups/') &&
+        path.endsWith('/manifest.json'),
+    ) ||
+    new Set(value.snapshotBaseline).size !== value.snapshotBaseline.length ||
     !Array.isArray(value.targets) ||
     !isRecord(value.letter) ||
     !isStudioNote(value.letter.note) ||
@@ -453,6 +658,64 @@ async function writeNoteIdempotently(
   }
 }
 
+async function assertPinnedOutput(
+  vault: VaultPort,
+  path: string,
+  hash: string,
+  note: StudioNote,
+  label: string,
+): Promise<void> {
+  const current = await vault.readText(path).catch(() => null);
+  if (
+    current === null ||
+    current.hash !== hash ||
+    current.text !== serializeNote(note)
+  ) {
+    throw new SeasonCloseTransactionConflictError(
+      `The completed ${label} no longer matches its pinned checkpoint. Preserve both versions for repair.`,
+    );
+  }
+}
+
+async function verifyCompletedOutputs(
+  vault: VaultPort,
+  journal: CloseJournal,
+): Promise<void> {
+  if (
+    !['prepared', 'snapshotted'].includes(journal.stage)
+  ) {
+    await assertPinnedOutput(
+      vault,
+      journal.letter.path,
+      journal.letter.hash!,
+      journal.letter.note,
+      'season letter',
+    );
+  }
+  for (const target of journal.targets) {
+    if (target.state !== 'complete') continue;
+    const artifact =
+      target.disposition === 'celebrate' ||
+      target.disposition === 'invite-forward';
+    await assertPinnedOutput(
+      vault,
+      target.outputPath!,
+      target.outputHash!,
+      artifact ? artifactNote(journal, target) : outcomeNote(journal, target),
+      `priority output ${target.noteId}`,
+    );
+  }
+  if (journal.stage === 'season-archived' || journal.stage === 'completed') {
+    await assertPinnedOutput(
+      vault,
+      journal.season.path,
+      journal.archivedSeasonHash!,
+      journal.closedSeasonNote,
+      'archived season',
+    );
+  }
+}
+
 export function createSeasonCloseTransactionService({
   vault,
   control,
@@ -471,7 +734,7 @@ export function createSeasonCloseTransactionService({
     return { journal, hash: written.hash };
   }
 
-  async function prepare(
+  async function prepareJournal(
     request: SeasonCloseRequest,
     existing: LoadedJournal | null,
   ): Promise<LoadedJournal> {
@@ -491,6 +754,12 @@ export function createSeasonCloseTransactionService({
         'The active season changed before close began. Refresh and review it again.',
       );
     }
+    const durablePriorities = canonicalPriorityIds(durableSeason.note);
+    if (!sameStringSet(durablePriorities, request.priorityIds)) {
+      throw new SeasonClosePreflightError(
+        'The requested priorities do not exactly match the canonical season priorities. Refresh and review the season before closing it.',
+      );
+    }
     const targets = request.dispositions.map((item): CloseTarget => {
       const target = exactCanonical(canonical, item.noteId);
       if (target.hash !== item.expectedHash) {
@@ -508,6 +777,13 @@ export function createSeasonCloseTransactionService({
       };
     });
     const preparedAt = clock().toISOString();
+    const snapshotBaseline = (await control.list('.studio/backups'))
+      .filter(
+        (entry) =>
+          entry.kind === 'file' && entry.path.endsWith('/manifest.json'),
+      )
+      .map((entry) => entry.path)
+      .sort((left, right) => left.localeCompare(right, 'en'));
     const journal: CloseJournal = {
       version: 1,
       transactionId: request.transactionId,
@@ -520,6 +796,7 @@ export function createSeasonCloseTransactionService({
       },
       reflection: normalizedReflection(request.reflection),
       priorityIds: [...request.priorityIds],
+      snapshotBaseline,
       targets,
       letter: {
         note: {
@@ -543,18 +820,64 @@ export function createSeasonCloseTransactionService({
     return { journal, hash: written.hash };
   }
 
+  async function ensurePrepared(
+    request: SeasonCloseRequest,
+  ): Promise<LoadedJournal> {
+    assertRequestShape(request);
+    let loaded = await loadJournal(control);
+    if (
+      loaded !== null &&
+      loaded.journal.transactionId !== request.transactionId &&
+      loaded.journal.stage !== 'completed'
+    ) {
+      throw new SeasonCloseTransactionConflictError(
+        'Another season close is already in progress. Resume or repair it before starting another.',
+      );
+    }
+    if (
+      loaded === null ||
+      loaded.journal.transactionId !== request.transactionId
+    ) {
+      loaded = await prepareJournal(request, loaded);
+    }
+    return loaded;
+  }
+
   async function run(initial: LoadedJournal): Promise<SeasonCloseResult> {
     let loaded = initial;
     let journal = loaded.journal;
 
     if (journal.stage === 'prepared') {
-      const snapshot = await revisions.create('season-close', [
-        journal.season.path,
-        ...journal.targets.map((target) => target.path),
-      ]);
+      const discovered = await discoverRevisionSnapshot(control, journal);
+      const created =
+        discovered ??
+        (await revisions.create('season-close', [
+          journal.season.path,
+          ...journal.targets.map((target) => target.path),
+        ]));
+      const snapshot = await verifyRevisionSnapshot(control, created, journal);
+      if (snapshot === null) {
+        throw new SeasonCloseTransactionConflictError(
+          'The revision snapshot could not be verified. No season notes were changed.',
+        );
+      }
       journal = { ...journal, stage: 'snapshotted', snapshot };
       loaded = await checkpoint(loaded, journal);
     }
+
+    if (journal.snapshot !== undefined) {
+      const verified = await verifyRevisionSnapshot(
+        control,
+        journal.snapshot,
+        journal,
+      );
+      if (verified === null) {
+        throw new SeasonCloseTransactionConflictError(
+          'The revision snapshot could not be verified. No further season notes were changed.',
+        );
+      }
+    }
+    await verifyCompletedOutputs(vault, journal);
 
     if (journal.stage === 'snapshotted') {
       const hash = await writeNoteIdempotently(
@@ -636,45 +959,36 @@ export function createSeasonCloseTransactionService({
       loaded = await checkpoint(loaded, journal);
     }
 
-    if (journal.stage !== 'completed' || journal.snapshot === undefined)
-      throw new SeasonCloseTransactionConflictError(
-        'The season close checkpoint stopped in an unknown state.',
-      );
+    await verifyCompletedOutputs(vault, journal);
     const season = await vault.readText(journal.season.path);
-    const parsed = parseNote(season.text);
-    if (!parsed.ok)
-      throw new SeasonCloseTransactionConflictError(
-        'The archived season needs metadata repair.',
-      );
     return {
       season: {
-        note: parsed.note,
+        note: journal.closedSeasonNote,
         path: journal.season.path,
         hash: season.hash,
       },
-      snapshot: journal.snapshot,
+      snapshot: journal.snapshot!,
     };
   }
 
   return {
+    async prepare(request) {
+      await ensurePrepared(request);
+    },
+
+    async pending() {
+      const loaded = await loadJournal(control);
+      if (loaded === null) return null;
+      return {
+        transactionId: loaded.journal.transactionId,
+        seasonNoteId: loaded.journal.season.note.id,
+        seasonPath: loaded.journal.season.path,
+        stage: loaded.journal.stage,
+      };
+    },
+
     async close(request) {
-      assertRequestShape(request);
-      let loaded = await loadJournal(control);
-      if (
-        loaded !== null &&
-        loaded.journal.transactionId !== request.transactionId &&
-        loaded.journal.stage !== 'completed'
-      ) {
-        throw new SeasonCloseTransactionConflictError(
-          'Another season close is already in progress. Resume or repair it before starting another.',
-        );
-      }
-      if (
-        loaded === null ||
-        loaded.journal.transactionId !== request.transactionId
-      ) {
-        loaded = await prepare(request, loaded);
-      }
+      const loaded = await ensurePrepared(request);
       return run(loaded);
     },
 
