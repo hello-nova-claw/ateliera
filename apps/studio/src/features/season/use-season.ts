@@ -7,7 +7,7 @@ import {
 } from '@studio/application';
 import {
   seasonWizardSteps,
-  type SeasonState,
+  type SeasonStepAnswers,
   type SeasonWizardStep,
 } from '@studio/domain';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -28,9 +28,9 @@ export interface SeasonView {
   record: SeasonRecord | null;
   priorityCandidates: SeasonPriorityCandidate[];
   repairActive(keepNoteId: string): Promise<void>;
-  saveStep(
-    step: SeasonWizardStep,
-    answers: Partial<SeasonState>,
+  saveStep<Step extends SeasonWizardStep>(
+    step: Step,
+    answers: SeasonStepAnswers<Step>,
     options?: { priorityOverride?: boolean },
   ): Promise<void>;
   startWizard(): void;
@@ -177,9 +177,9 @@ export function useSeason(
   );
 
   const saveStep = useCallback(
-    async (
-      step: SeasonWizardStep,
-      answers: Partial<SeasonState>,
+    async <Step extends SeasonWizardStep>(
+      step: Step,
+      answers: SeasonStepAnswers<Step>,
       options?: { priorityOverride?: boolean },
     ) => {
       if (!service || !record) return;

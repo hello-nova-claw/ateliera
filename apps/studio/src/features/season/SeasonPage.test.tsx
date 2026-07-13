@@ -102,7 +102,6 @@ it('shows interruptible wizard progress, validates step errors, and saves a step
     expect.objectContaining({
       skippedPriorReflection: true,
     }),
-    undefined,
   );
 });
 

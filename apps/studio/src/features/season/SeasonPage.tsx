@@ -6,7 +6,7 @@ import type {
 } from '@studio/application';
 import {
   seasonWizardSteps,
-  type SeasonState,
+  type SeasonStepAnswers,
   type SeasonWizardStep,
 } from '@studio/domain';
 import { Dialog } from '@studio/ui';
@@ -37,9 +37,9 @@ export interface SeasonPageProps {
   }) => Promise<void> | void;
   onEdit?: () => void;
   onRepairActive?: (keepNoteId: string) => Promise<void> | void;
-  onSaveStep?: (
-    step: SeasonWizardStep,
-    answers: Partial<SeasonState>,
+  onSaveStep?: <Step extends SeasonWizardStep>(
+    step: Step,
+    answers: SeasonStepAnswers<Step>,
     options?: { priorityOverride?: boolean },
   ) => Promise<void> | void;
   record: SeasonRecord | null;
@@ -195,52 +195,59 @@ function SeasonWizard({
           'Choose up to three priorities, or explicitly keep all four.',
         );
       }
-      const answers: Partial<SeasonState> =
-        step === 'prior-reflection'
-          ? {
-              priorReflection: reflection,
-              skippedPriorReflection: skipReflection,
-            }
-          : step === 'feelings'
-            ? { feelings: lines(feelings), statement }
-            : step === 'priorities'
-              ? { priorities }
-              : step === 'decisions-practices'
-                ? {
-                    decisions: (
-                      [
-                        ['30', decisions30],
-                        ['60', decisions60],
-                        ['90', decisions90],
-                      ] as const
-                    ).flatMap(([horizon, value]) =>
-                      lines(value).map((text, index) => ({
-                        id: `decision-${horizon}-${index + 1}`,
-                        text,
-                        horizon,
-                        kind: 'decision' as const,
-                      })),
-                    ),
-                    practices: lines(practices),
-                  }
-                : step === 'supports-constraints'
-                  ? {
-                      supports: lines(supports),
-                      constraints: lines(constraints),
-                    }
-                  : step === 'enough'
-                    ? { enough }
-                    : step === 'not-now'
-                      ? { notNow: lines(notNow) }
-                      : {};
-      await onSave?.(
-        step,
-        answers,
-        step === 'priorities'
-          ? { priorityOverride: overridePriority }
-          : undefined,
-      );
-      if (step === 'confirm') await onActivate?.();
+      switch (step) {
+        case 'prior-reflection':
+          await onSave?.('prior-reflection', {
+            priorReflection: reflection,
+            skippedPriorReflection: skipReflection,
+          });
+          break;
+        case 'feelings':
+          await onSave?.('feelings', { feelings: lines(feelings), statement });
+          break;
+        case 'priorities':
+          await onSave?.(
+            'priorities',
+            { priorities },
+            { priorityOverride: overridePriority },
+          );
+          break;
+        case 'decisions-practices':
+          await onSave?.('decisions-practices', {
+            decisions: (
+              [
+                ['30', decisions30],
+                ['60', decisions60],
+                ['90', decisions90],
+              ] as const
+            ).flatMap(([horizon, value]) =>
+              lines(value).map((text, index) => ({
+                id: `decision-${horizon}-${index + 1}`,
+                text,
+                horizon,
+                kind: 'decision' as const,
+              })),
+            ),
+            practices: lines(practices),
+          });
+          break;
+        case 'supports-constraints':
+          await onSave?.('supports-constraints', {
+            supports: lines(supports),
+            constraints: lines(constraints),
+          });
+          break;
+        case 'enough':
+          await onSave?.('enough', { enough });
+          break;
+        case 'not-now':
+          await onSave?.('not-now', { notNow: lines(notNow) });
+          break;
+        case 'confirm':
+          await onSave?.('confirm', {});
+          await onActivate?.();
+          break;
+      }
     } catch (reason) {
       setError(
         reason instanceof Error
