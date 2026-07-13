@@ -6,6 +6,7 @@ import {
   VaultUnavailableError,
 } from './conflict';
 import { selectTauriVault, type TauriVaultBridge } from './tauri-vault';
+import { createStudioControlVault } from './studio-control-vault';
 
 const token = '0123456789abcdef0123456789abcdef';
 const recoveryIdentity = 'fedcba9876544abc8edcba9876543210';
@@ -99,6 +100,31 @@ describe('Tauri vault IPC adapter', () => {
       path: 'asset.bin',
       expectedHash: 'remove-hash',
       expectedMissing: true,
+    });
+  });
+
+  it('routes lifecycle control paths only through the trusted boundary', async () => {
+    const invoke = vi.fn(async (command: string) => {
+      if (command === 'vault_select') return selection();
+      if (command === 'vault_write_text_atomic') return { hash: 'manifest-hash' };
+      if (command === 'vault_move') return undefined;
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    const vault = await selectTauriVault(bridge(invoke));
+    const control = createStudioControlVault(vault!);
+    await control.writeTextAtomic('.studio/Trash/manifest.json', '{}', { expectedMissing: true });
+    expect(invoke).toHaveBeenLastCalledWith('vault_write_text_atomic', {
+      vaultToken: token,
+      path: '.studio/Trash/manifest.json',
+      text: '{}',
+      expectedHash: undefined,
+      expectedMissing: true,
+    });
+    await control.moveInto('Notes/a.md', '.studio/Trash/items/a/a.md');
+    expect(invoke).toHaveBeenLastCalledWith('vault_move', {
+      vaultToken: token,
+      from: 'Notes/a.md',
+      to: '.studio/Trash/items/a/a.md',
     });
   });
 
