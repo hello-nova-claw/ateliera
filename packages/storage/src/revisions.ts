@@ -1,4 +1,4 @@
-import { VaultUnavailableError } from './conflict';
+import { VaultConflictError, VaultUnavailableError } from './conflict';
 import type { VaultPort } from './vault-port';
 import { createStudioControlVault } from './studio-control-vault';
 import type { StudioControlVault } from './studio-control-vault';
@@ -175,65 +175,87 @@ async function sha256(bytes: Uint8Array): Promise<string> {
     .join('');
 }
 
-async function snapshotFilesAreIntact(
+interface ValidatedSnapshotFiles {
+  files: Array<{ path: string; hash: string }>;
+  expectedPaths: Set<string>;
+}
+
+async function validatedSnapshotFiles(
   control: StudioControlVault,
   manifest: RevisionManifest,
   limits: RevisionLimits,
-): Promise<boolean> {
+  allowMissing: boolean,
+): Promise<ValidatedSnapshotFiles | null> {
   const root = snapshotRoot(manifest.createdAt, manifest.id);
   const entries = (await control.list(root)).filter((entry) => entry.kind === 'file');
   const expectedPaths = new Set([
     `${root}/manifest.json`,
     ...manifest.files.map((file) => file.snapshotPath),
   ]);
-  if (entries.length !== expectedPaths.size || entries.some((entry) => !expectedPaths.has(entry.path))) {
-    return false;
+  if (
+    !entries.some((entry) => entry.path === `${root}/manifest.json`) ||
+    entries.some((entry) => !expectedPaths.has(entry.path)) ||
+    (!allowMissing && entries.length !== expectedPaths.size)
+  ) {
+    return null;
   }
   const entriesByPath = new Map(entries.map((entry) => [entry.path, entry]));
   let declaredTotalBytes = 0;
   for (const file of manifest.files) {
-    const size = entriesByPath.get(file.snapshotPath)?.size;
+    const entry = entriesByPath.get(file.snapshotPath);
+    if (entry === undefined) {
+      if (allowMissing) continue;
+      return null;
+    }
+    const size = entry.size;
     if (size === undefined) continue;
-    if (!Number.isSafeInteger(size) || size < 0 || size > limits.maxFileBytes) return false;
+    if (!Number.isSafeInteger(size) || size < 0 || size > limits.maxFileBytes) return null;
     declaredTotalBytes += size;
     if (!Number.isSafeInteger(declaredTotalBytes) || declaredTotalBytes > limits.maxTotalBytes) {
-      return false;
+      return null;
     }
   }
   let totalBytes = 0;
+  const files: Array<{ path: string; hash: string }> = [];
   for (const file of manifest.files) {
     const entry = entriesByPath.get(file.snapshotPath);
-    if (entry === undefined) return false;
+    if (entry === undefined) {
+      if (allowMissing) continue;
+      return null;
+    }
     const bytes = await control.readBinary(file.snapshotPath);
     const size = bytes.byteLength;
-    if (size > limits.maxFileBytes) return false;
+    if (size > limits.maxFileBytes) return null;
     totalBytes += size;
-    if (totalBytes > limits.maxTotalBytes) return false;
-    if (await sha256(bytes) !== file.hash) return false;
+    if (totalBytes > limits.maxTotalBytes) return null;
+    const hash = await sha256(bytes);
+    if (hash !== file.hash) return null;
+    files.push({ path: file.snapshotPath, hash });
   }
-  return true;
+  return { files, expectedPaths };
 }
 
-async function removeEntry(vault: StudioControlVault, path: string, hash?: string): Promise<void> {
-  if (hash !== undefined) {
-    await vault.remove(path, { expectedHash: hash });
-    return;
-  }
-  const bytes = await vault.readBinary(path);
-  await vault.remove(path, { expectedHash: await sha256(bytes) });
-}
-
-async function removeSnapshot(vault: StudioControlVault, manifestPath: string): Promise<void> {
+async function removeSnapshot(
+  vault: StudioControlVault,
+  manifestPath: string,
+  manifestHash: string,
+  validated: ValidatedSnapshotFiles,
+): Promise<void> {
   const root = manifestPath.slice(0, -'/manifest.json'.length);
-  const entries = (await vault.list(root)).filter((entry) => entry.kind === 'file');
-  const contents = entries
-    .filter((entry) => entry.path !== manifestPath)
-    .sort((left, right) => right.path.length - left.path.length || left.path.localeCompare(right.path, 'en'));
-  for (const entry of contents) await removeEntry(vault, entry.path, entry.contentHash);
-  const manifestEntry = entries.find((entry) => entry.path === manifestPath);
-  if (manifestEntry !== undefined) {
-    await removeEntry(vault, manifestEntry.path, manifestEntry.contentHash);
+  const assertNoUnexpectedFiles = async (): Promise<void> => {
+    const entries = (await vault.list(root)).filter((entry) => entry.kind === 'file');
+    if (entries.some((entry) => !validated.expectedPaths.has(entry.path))) {
+      throw new VaultConflictError('Snapshot changed after retention validation.');
+    }
+  };
+  await assertNoUnexpectedFiles();
+  const files = [...validated.files].sort((left, right) =>
+    right.path.length - left.path.length || left.path.localeCompare(right.path, 'en'));
+  for (const file of files) {
+    await vault.remove(file.path, { expectedHash: file.hash });
   }
+  await assertNoUnexpectedFiles();
+  await vault.remove(manifestPath, { expectedHash: manifestHash });
 }
 
 interface PlannedSource {
@@ -295,8 +317,14 @@ export function createRevisionStore(
       if (error instanceof VaultUnavailableError) return [];
       throw error;
     });
-    const snapshots: Array<RevisionSnapshot & { manifestHash: string }> = [];
-    const pruning: RevisionSnapshot[] = [];
+    const snapshots: Array<RevisionSnapshot & {
+      manifestHash: string;
+      validated: ValidatedSnapshotFiles;
+    }> = [];
+    const pruning: Array<RevisionSnapshot & {
+      manifestHash: string;
+      validated: ValidatedSnapshotFiles;
+    }> = [];
     for (const entry of entries) {
       if (entry.kind !== 'file' || !entry.path.endsWith('/manifest.json') ||
         (entry.size !== undefined && entry.size > limits.maxManifestBytes)) continue;
@@ -305,9 +333,25 @@ export function createRevisionStore(
         if (encoder.encode(file.text).byteLength > limits.maxManifestBytes) continue;
         const manifest = parseManifest(file.text, entry.path, limits);
         if (manifest?.state === 'pruning') {
-          pruning.push({ manifest, manifestPath: entry.path });
-        } else if (manifest?.state === 'complete' && await snapshotFilesAreIntact(control, manifest, limits)) {
-          snapshots.push({ manifest, manifestPath: entry.path, manifestHash: file.hash });
+          const validated = await validatedSnapshotFiles(control, manifest, limits, true);
+          if (validated !== null) {
+            pruning.push({
+              manifest,
+              manifestPath: entry.path,
+              manifestHash: file.hash,
+              validated,
+            });
+          }
+        } else if (manifest?.state === 'complete') {
+          const validated = await validatedSnapshotFiles(control, manifest, limits, false);
+          if (validated !== null) {
+            snapshots.push({
+              manifest,
+              manifestPath: entry.path,
+              manifestHash: file.hash,
+              validated,
+            });
+          }
         }
       } catch {
         // A malformed, missing, or temporarily unreadable snapshot cannot displace a verified copy.
@@ -315,7 +359,14 @@ export function createRevisionStore(
     }
 
     pruning.sort((left, right) => left.manifestPath.localeCompare(right.manifestPath, 'en'));
-    for (const snapshot of pruning) await removeSnapshot(control, snapshot.manifestPath);
+    for (const snapshot of pruning) {
+      await removeSnapshot(
+        control,
+        snapshot.manifestPath,
+        snapshot.manifestHash,
+        snapshot.validated,
+      );
+    }
 
     snapshots.sort((left, right) =>
       right.manifest.createdAt.localeCompare(left.manifest.createdAt) ||
@@ -329,10 +380,17 @@ export function createRevisionStore(
       const duplicateDay = newestDay.has(day);
       if (expired || duplicateDay) {
         const pruningManifest: RevisionManifest = { ...snapshot.manifest, state: 'pruning' };
-        await control.writeTextAtomic(snapshot.manifestPath, manifestText(pruningManifest), {
+        const pruningWrite = await control.writeTextAtomic(
+          snapshot.manifestPath,
+          manifestText(pruningManifest), {
           expectedHash: snapshot.manifestHash,
-        });
-        await removeSnapshot(control, snapshot.manifestPath);
+          });
+        await removeSnapshot(
+          control,
+          snapshot.manifestPath,
+          pruningWrite.hash,
+          snapshot.validated,
+        );
       } else {
         newestDay.add(day);
       }
