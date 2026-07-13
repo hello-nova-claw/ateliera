@@ -156,7 +156,14 @@ async function loadManifest(vault: StudioControlVault): Promise<LoadedManifest> 
     const file = await vault.readText(MANIFEST_PATH);
     return { manifest: parseManifest(file.text), hash: file.hash };
   } catch (error) {
-    if (error instanceof VaultUnavailableError) return { manifest: { version: 1, entries: [] } };
+    if (error instanceof VaultUnavailableError) {
+      const manifestPresence = await presence(vault, MANIFEST_PATH);
+      if (manifestPresence.state === 'absent') return { manifest: { version: 1, entries: [] } };
+      throw new LifecycleStorageUnavailableError(
+        [MANIFEST_PATH],
+        { cause: manifestPresence.state === 'unavailable' ? manifestPresence.error : error },
+      );
+    }
     throw error;
   }
 }
@@ -267,9 +274,13 @@ export function createNoteLifecycleService({
     return { note: changed, path: current.path, hash: written.hash };
   }
 
-  async function stableIdConflicts(id: string): Promise<string[]> {
+  async function stableIdState(id: string): Promise<{
+    conflicts: string[];
+    userState: Array<{ path: string; hash: string }>;
+  }> {
     const entries = await vault.list();
     const conflicts: string[] = [];
+    const userState: Array<{ path: string; hash: string }> = [];
     for (const entry of entries) {
       if (
         entry.kind !== 'file' ||
@@ -282,10 +293,27 @@ export function createNoteLifecycleService({
       } catch (error) {
         throw new LifecycleStorageUnavailableError([entry.path], { cause: error });
       }
+      userState.push({ path: entry.path, hash: file.hash });
       const parsed = parseNote(file.text);
       if (parsed.ok && parsed.note.id === id) conflicts.push(entry.path);
     }
-    return conflicts.sort((left, right) => left.localeCompare(right, 'en'));
+    return {
+      conflicts: conflicts.sort((left, right) => left.localeCompare(right, 'en')),
+      userState: userState.sort((left, right) => left.path.localeCompare(right.path, 'en')),
+    };
+  }
+
+  function identityConflict(entry: TrashEntry, conflictingPaths: string[]): RestoreIdentityConflictResult {
+    return {
+      kind: 'identity-conflict',
+      noteId: entry.id,
+      trashPath: entry.trashPath,
+      conflictingPaths,
+      repair: {
+        required: true,
+        options: ['change-existing-id', 'restore-with-new-id'],
+      },
+    };
   }
 
   async function reconcileInternal(): Promise<string[]> {
@@ -446,18 +474,9 @@ export function createNoteLifecycleService({
       }
       const parsed = parseNote(trashed.text);
       if (!parsed.ok) throw new TrashManifestError('The trashed note metadata is damaged.');
-      const conflictingPaths = await stableIdConflicts(parsed.note.id);
-      if (conflictingPaths.length > 0) {
-        return {
-          kind: 'identity-conflict',
-          noteId: parsed.note.id,
-          trashPath: entry.trashPath,
-          conflictingPaths,
-          repair: {
-            required: true,
-            options: ['change-existing-id', 'restore-with-new-id'],
-          },
-        };
+      const initialIdentityState = await stableIdState(parsed.note.id);
+      if (initialIdentityState.conflicts.length > 0) {
+        return identityConflict(entry, initialIdentityState.conflicts);
       }
       let destination = entry.originalPath;
       let relocated = false;
@@ -482,9 +501,36 @@ export function createNoteLifecycleService({
             item.id === id ? { ...item, state: 'restoring', restorePath: destination } : item),
         },
       });
-      await controlVault.moveOut(entry.trashPath, destination, {
-        expectedHash: entry.originalHash,
-      });
+      const resetRestoreJournal = async () => {
+        loaded = await writeManifest(controlVault, {
+          ...loaded,
+          manifest: {
+            version: 1,
+            entries: loaded.manifest.entries.map((item) =>
+              item.id === id ? { ...item, state: 'trashed' } : item),
+          },
+        });
+      };
+      const guardedIdentityState = await stableIdState(parsed.note.id);
+      if (guardedIdentityState.conflicts.length > 0) {
+        await resetRestoreJournal();
+        return identityConflict(entry, guardedIdentityState.conflicts);
+      }
+      try {
+        await controlVault.moveOut(entry.trashPath, destination, {
+          expectedHash: entry.originalHash,
+          expectedUserState: guardedIdentityState.userState,
+        });
+      } catch (error) {
+        await resetRestoreJournal();
+        if (error instanceof VaultConflictError) {
+          const latestIdentityState = await stableIdState(parsed.note.id);
+          if (latestIdentityState.conflicts.length > 0) {
+            return identityConflict(entry, latestIdentityState.conflicts);
+          }
+        }
+        throw error;
+      }
       const restored = await vault.readText(destination);
       try {
         await writeManifest(controlVault, {
