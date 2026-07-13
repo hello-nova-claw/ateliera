@@ -170,6 +170,46 @@ describe('season service', () => {
     expect(revised.note.body).toContain('Constraint: Energy');
   });
 
+  it('whitelists revision fields, enforces priority limits, and clears dates durably', async () => {
+    const { seasons } = setup();
+    const begun = await seasons.beginSeason({
+      title: 'Winter',
+      startsOn: '2026-07-14',
+      endsOn: '2026-09-14',
+    });
+    await expect(
+      seasons.updateSeason(begun, {
+        status: 'active',
+      } as never),
+    ).rejects.toThrow('not accepted');
+    await expect(
+      seasons.updateSeason(begun, {
+        priorities: ['one', 'two', 'three', 'four'],
+      }),
+    ).rejects.toThrow('three priorities');
+    const cleared = await seasons.updateSeason(begun, {
+      startsOn: null,
+      endsOn: null,
+    });
+    expect(cleared.state.startsOn).toBeUndefined();
+    expect(cleared.state.endsOn).toBeUndefined();
+    expect(cleared.note.extraFrontmatter).not.toHaveProperty('date_start');
+    expect(cleared.note.extraFrontmatter).not.toHaveProperty('date_end');
+    expect(cleared.state.id).toBe(begun.state.id);
+    expect(cleared.state.created).toBe(begun.state.created);
+    expect(cleared.state.status).toBe('draft');
+  });
+
+  it('rejects wizard answers assigned to a different step', async () => {
+    const { seasons } = setup();
+    const begun = await seasons.beginSeason({ title: 'Winter' });
+    await expect(
+      seasons.saveStep(begun, 'feelings', {
+        enough: 'A forged cross-step answer',
+      } as never),
+    ).rejects.toThrow('not accepted');
+  });
+
   it('snapshots before close mutations, writes a letter, and archives only explicit dispositions', async () => {
     const vault = createInMemoryVault();
     const order: string[] = [];
