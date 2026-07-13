@@ -139,7 +139,7 @@
 .foyer-text-action {
   padding: var(--studio-space-2) 0;
   border: 0;
-  color: var(--studio-color-link);
+  color: var(--studio-color-ink-1);
   background: transparent;
   font: var(--studio-type-control);
   text-decoration: underline;
