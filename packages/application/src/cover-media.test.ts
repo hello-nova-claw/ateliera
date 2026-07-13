@@ -8,10 +8,16 @@ import {
   StudioSaveConflictError,
   createStudioService,
 } from './studio-service';
+import { resolveCoverMedia } from './cover-media';
 import { RecordingIndex, note } from './test-helpers';
 
 const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
 const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const gif87 = new TextEncoder().encode('GIF87a');
+const gif89 = new TextEncoder().encode('GIF89a');
+const webp = new Uint8Array([...new TextEncoder().encode('RIFF'), 0, 0, 0, 0, ...new TextEncoder().encode('WEBP')]);
+const avif = new Uint8Array([0, 0, 0, 0, ...new TextEncoder().encode('ftypavif')]);
+const avis = new Uint8Array([0, 0, 0, 0, ...new TextEncoder().encode('ftypavis')]);
 
 async function setupCover(
   cover: string | undefined,
@@ -61,6 +67,21 @@ describe('cover media resolution', () => {
     });
   });
 
+  it.each([
+    ['../Attachments/old.gif', 'Attachments/old.gif', gif87, 'image/gif'],
+    ['../Attachments/new.GIF', 'Attachments/new.GIF', gif89, 'image/gif'],
+    ['../Attachments/photo.webp', 'Attachments/photo.webp', webp, 'image/webp'],
+    ['../Attachments/photo.avif', 'Attachments/photo.avif', avif, 'image/avif'],
+    ['../Attachments/sequence.avif', 'Attachments/sequence.avif', avis, 'image/avif'],
+    ['../Attachments/photo.JPEG', 'Attachments/photo.JPEG', jpeg, 'image/jpeg'],
+  ] as const)('allows a signature-matched %s image', async (cover, path, bytes, mimeType) => {
+    const { service } = await setupCover(cover, bytes, path);
+
+    await expect(service.resolveCover('Foyer/cover.md')).resolves.toMatchObject({
+      kind: 'available', path, mimeType,
+    });
+  });
+
   it('returns a quiet no-cover state without reading binary data', async () => {
     const { service, vault } = await setupCover(undefined);
     const read = vi.spyOn(vault, 'readBinary');
@@ -82,6 +103,9 @@ describe('cover media resolution', () => {
     ['../.studio/private.jpg', 'unsafe-reference'],
     ['../Attachments/private.jpg?token=secret', 'unsafe-reference'],
     ['../Attachments/private.jpg#fragment', 'unsafe-reference'],
+    ['../Attachments//private.jpg', 'unsafe-reference'],
+    ['../.studio-temp/private.jpg', 'unsafe-reference'],
+    ['../Attachments/private\0.jpg', 'unsafe-reference'],
     ['../Attachments/private.svg', 'unsupported-format'],
     ['../Attachments/private', 'unsupported-format'],
   ] as const)('rejects %s before any binary read', async (cover, reason) => {
@@ -106,6 +130,18 @@ describe('cover media resolution', () => {
     });
   });
 
+  it.each([
+    ['../Attachments/random.jpg', new Uint8Array([1, 2, 3])],
+    ['../Attachments/not-webp.webp', new TextEncoder().encode('RIFFbad')],
+    ['../Attachments/not-avif.avif', new Uint8Array([0, 0, 0, 0, ...new TextEncoder().encode('ftypnope')])],
+  ] as const)('rejects unrecognized bytes for %s', async (cover, bytes) => {
+    const path = cover.replace('../', '');
+    const { service } = await setupCover(cover, bytes, path);
+    await expect(service.resolveCover('Foyer/cover.md')).resolves.toMatchObject({
+      kind: 'unavailable', reason: 'unsupported-format',
+    });
+  });
+
   it('reports confirmed missing media without swallowing vault outages', async () => {
     const missing = await setupCover('../Attachments/morning.jpg');
     await expect(missing.service.resolveCover('Foyer/cover.md')).resolves.toEqual({
@@ -121,6 +157,16 @@ describe('cover media resolution', () => {
     await expect(unavailable.service.resolveCover('Foyer/cover.md')).rejects.toThrow(
       'attachment store unavailable',
     );
+
+    const raced = await setupCover('../Attachments/morning.jpg', jpeg);
+    const originalRead = raced.vault.readBinary.bind(raced.vault);
+    raced.vault.readBinary = async (path) => {
+      await raced.vault.remove(path);
+      return originalRead(path);
+    };
+    await expect(raced.service.resolveCover('Foyer/cover.md')).resolves.toMatchObject({
+      kind: 'unavailable', reason: 'missing',
+    });
   });
 
   it('enforces the media limit both before and after the binary read', async () => {
@@ -136,11 +182,40 @@ describe('cover media resolution', () => {
     });
     expect(preflightRead).not.toHaveBeenCalled();
 
+    const unknownSize = await setupCover('../Attachments/morning.jpg', jpeg);
+    const unknownList = unknownSize.vault.list.bind(unknownSize.vault);
+    unknownSize.vault.list = async (prefix) => [
+      { path: 'Attachments', kind: 'directory' },
+      { path: 'Attachments/other.jpg', kind: 'file', size: 1 },
+      ...(await unknownList(prefix)).map(({ size: _size, ...entry }) => entry),
+    ];
+    await expect(unknownSize.service.resolveCover('Foyer/cover.md')).resolves.toMatchObject({
+      kind: 'available', mimeType: 'image/jpeg',
+    });
+
     const postRead = await setupCover('../Attachments/morning.jpg', jpeg);
     postRead.vault.readBinary = async () => new Uint8Array(MAX_COVER_MEDIA_BYTES + 1);
     await expect(postRead.service.resolveCover('Foyer/cover.md')).resolves.toMatchObject({
       kind: 'unavailable', reason: 'too-large',
     });
+  });
+
+  it('rejects a root note reference that resolves to no file', async () => {
+    const vault = createInMemoryVault();
+    await vault.writeTextAtomic('cover.md', serializeNote(note({ display: { featured: true, cover: '.' } })));
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    await expect(service.resolveCover('cover.md')).resolves.toMatchObject({
+      kind: 'unavailable', reason: 'unsafe-reference',
+    });
+  });
+
+  it('rejects an invalid source-note path at the standalone policy boundary', async () => {
+    await expect(resolveCoverMedia(
+      createInMemoryVault(),
+      'Foyer//cover.md',
+      '../Attachments/morning.jpg',
+    )).resolves.toMatchObject({ kind: 'unavailable', reason: 'unsafe-reference' });
   });
 });
 

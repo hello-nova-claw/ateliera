@@ -278,6 +278,7 @@ describe('room projections', () => {
     expect(foyer.image).toEqual(
       expect.objectContaining({
         noteId: 'cover',
+        hash: expect.any(String),
         source: '../Attachments/morning-light.jpg',
         alt: 'Morning light',
       }),
@@ -300,6 +301,7 @@ describe('room projections', () => {
     expect((await service.projectFoyer()).image).toEqual({
       noteId: 'image',
       path: 'Foyer/image.md',
+      hash: expect.any(String),
       source: '../Attachments/quiet.jpg',
       alt: 'A chosen Studio image',
     });

@@ -40,6 +40,16 @@ import {
   type RestoreNoteResult,
   type TrashedNoteResult,
 } from './note-lifecycle';
+import {
+  resolveCoverMedia,
+  type CoverMediaResult,
+} from './cover-media';
+
+export {
+  MAX_COVER_MEDIA_BYTES,
+  type CoverMediaMimeType,
+  type CoverMediaResult,
+} from './cover-media';
 
 export type StudioEvent =
   | { kind: 'note-saved'; noteId: string; path: string }
@@ -126,6 +136,8 @@ export interface StudioService {
   subscribe(listener: StudioEventListener): () => void;
   capture(input: CaptureNoteInput): Promise<SavedNote>;
   load(path: string): Promise<SavedNote>;
+  resolveCover(path: string): Promise<CoverMediaResult>;
+  clearCover(path: string, expectedHash: string): Promise<SavedNote>;
   save(input: SaveNoteInput): Promise<SavedNote>;
   archive(id: string): Promise<SavedNote>;
   unarchive(id: string): Promise<SavedNote>;
@@ -492,6 +504,18 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     return enqueueDurableMutation(() => performSave(input));
   }
 
+  async function readNote(path: string): Promise<SavedNote & { text: string }> {
+    const file = await dependencies.vault.readText(path);
+    const parsed = parseNote(file.text);
+    if (!parsed.ok) throw new Error(`The note at ${path} needs metadata repair.`);
+    return { note: parsed.note, path, hash: file.hash, text: file.text };
+  }
+
+  async function loadNote(path: string): Promise<SavedNote> {
+    const { text: _text, ...loaded } = await readNote(path);
+    return loaded;
+  }
+
   async function finishLifecycle<T>(
     operation: () => Promise<T>,
     event: (result: T) => StudioEvent,
@@ -642,12 +666,28 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
       });
     },
 
-    async load(path) {
+    async load(path) { assertActive(); return loadNote(path); },
+    async resolveCover(path) {
       assertActive();
-      const file = await dependencies.vault.readText(path);
-      const parsed = parseNote(file.text);
-      if (!parsed.ok) throw new Error(`The note at ${path} needs metadata repair.`);
-      return { note: parsed.note, path, hash: file.hash };
+      const loaded = await loadNote(path);
+      return resolveCoverMedia(dependencies.vault, path, loaded.note.display.cover);
+    },
+    clearCover(path, expectedHash) {
+      if (disposed) return Promise.reject(new Error('This Studio service has been disposed.'));
+      return enqueueDurableMutation(async () => {
+        const loaded = await readNote(path);
+        const clearedNote: StudioNote = {
+          ...loaded.note,
+          display: { featured: loaded.note.display.featured },
+        };
+        if (loaded.hash !== expectedHash) {
+          throw new StudioSaveConflictError(clearedNote, loaded.text, {
+            cause: new VaultConflictError(),
+          });
+        }
+        if (loaded.note.display.cover === undefined) return loaded;
+        return performSave({ note: clearedNote, path, expectedHash });
+      });
     },
 
     save,

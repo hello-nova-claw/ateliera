@@ -23,6 +23,7 @@ export interface StudioCardProjection {
 export interface FoyerImageProjection {
   noteId: string;
   path: string;
+  hash: string;
   source: string;
   alt: string;
   caption?: string;
@@ -295,6 +296,7 @@ export async function projectFoyer(
         : {
             noteId: imageNote.note.id,
             path: imageNote.path,
+            hash: imageNote.hash,
             source: imageNote.note.display.cover,
             alt: imageNote.note.title?.trim() || 'A chosen Studio image',
             ...(imageNote.note.body.trim() === ''
