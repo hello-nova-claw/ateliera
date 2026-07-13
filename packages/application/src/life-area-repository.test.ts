@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   LIFE_AREA_CONFIG_PATH,
   MAX_LIFE_AREAS,
+  UnsupportedLifeAreaConfigError,
   createLifeAreaRepository,
   type LifeAreaPreference,
 } from './life-area-repository';
@@ -143,9 +144,8 @@ describe('life area repository', () => {
     expect(write).not.toHaveBeenCalled();
   });
 
-  it('falls back and repairs wrong-version, oversized, and structurally invalid config', async () => {
+  it('falls back and repairs oversized and structurally invalid config', async () => {
     for (const text of [
-      '{"version":2,"areas":[]}',
       ' '.repeat(65_537),
       '{"version":1,"areas":[{"id":"home"}]}',
     ]) {
@@ -155,6 +155,20 @@ describe('life area repository', () => {
       expect(snapshot.repaired).toBe(true);
       expect(snapshot.areas).toHaveLength(defaultLifeAreas.length);
     }
+  });
+
+  it('preserves configuration written by a newer schema version', async () => {
+    const vault = createInMemoryVault();
+    const text = '{"version":2,"areas":[],"future":true}\n';
+    const original = await vault.writeTextAtomic(LIFE_AREA_CONFIG_PATH, text);
+
+    await expect(createLifeAreaRepository(vault).load()).rejects.toBeInstanceOf(
+      UnsupportedLifeAreaConfigError,
+    );
+    await expect(vault.readText(LIFE_AREA_CONFIG_PATH)).resolves.toEqual({
+      text,
+      hash: original.hash,
+    });
   });
 
   it('does not hide real read failures behind the missing-config fallback', async () => {
