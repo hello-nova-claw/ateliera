@@ -79,5 +79,6 @@
 - The UI-safe package root no longer exports the concrete synchronous index. The Node adapter rejects document/UI contexts; production desktop execution belongs in a native/background process and future browser SQLite belongs in a Web Worker. Progress separately reports scanning, indexing, and the commit boundary.
 - Added card-type filtering, safe tag/source match context, punctuation-only empty results, and conservative diacritic highlighting. Typo-tolerant title/tag ranking is explicitly deferred to Task 16 with tests and visible rationale required before the Search UI ships.
 - Re-review then found unsafe transformed-string highlight offsets and missing reference-style links. The final remediation uses validated grapheme-aware mappings back to original UTF-16 offsets, keeps titles literal and consistent across FTS/snippets, resolves full/collapsed/shortcut references, and enables GFM table/plain-text semantics.
-- The reproducible 10,000-note real-FTS benchmark rebuilt in 7.928 seconds and returned warmed filtered results in 11.00 ms on the reference development Mac, below the 200 ms target.
-- Verified all 371 workspace tests, typecheck, lint, and production build. Task 7 remediation is complete and ready for independent re-review.
+- Final CommonMark review added recursive definition discovery inside container nodes, first-definition precedence, and graceful unmatched-reference handling.
+- The reproducible 10,000-note real-FTS benchmark rebuilt in 7.983 seconds and returned warmed filtered results in 9.76 ms on the reference development Mac, below the 200 ms target.
+- Verified all 374 workspace tests, typecheck, lint, and production build. Task 7 remediation is complete and ready for independent re-review.
