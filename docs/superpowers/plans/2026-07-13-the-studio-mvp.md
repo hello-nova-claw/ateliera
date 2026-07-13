@@ -619,7 +619,7 @@ git commit -m "feat: define vault storage contract"
 
 **Interfaces:**
 - Consumes: a directory selected through a native Tauri folder dialog and retained as a capability-scoped open directory handle.
-- Produces: `createTauriVault(rootToken: string): VaultPort`, where `rootToken` is random and opaque to the webview.
+- Produces: `selectTauriVault(): Promise<VaultPort | null>`; native selection returns a random opaque token that remains private to the adapter.
 
 - [ ] **Step 1: Write failing Rust path and atomic-write tests**
 
@@ -654,12 +654,12 @@ Open/select the vault through the native desktop flow. Retain a `cap_std::fs::Di
 
 - [ ] **Step 4: Connect TypeScript adapter and normalize logical changes**
 
-Expose native `vault_select`/`vault_open`, plus token-scoped `list`, `read_text`, `write_text_atomic`, `move`, `remove`, and `watch` commands. Convert Rust error codes to typed domain errors without leaking full external paths. Conditional writes and moves must compare hashes through the same retained capability used for mutation. The watcher emits debounced logical `created | modified | moved | removed` vault changes and suppresses temporary atomic-write artifacts.
+Expose native `vault_select`, plus token-scoped `list`, `read_text`, `write_text_atomic`, `move`, `remove`, and `watch` commands. Convert Rust error codes to typed domain errors without leaking full external paths. Conditional writes compare hashes through the same retained capability used for mutation. All Studio desktop mutations acquire both an in-process mutex and a vault-level `.studio-write.lock` advisory lock; this is the exact linearizability boundary shared by Studio processes and other cooperating writers. A second hash check immediately before publication detects ordinary non-cooperating edits without ever publishing a known-failed candidate, but an arbitrary external tool that ignores the lock can still race that final check and rename and is explicitly outside the exact compare-and-replace guarantee. Moves use an atomic no-clobber rename. The watcher roots itself at the retained directory descriptor, emits debounced logical `created | modified | moved | removed` vault changes, and suppresses temporary and lock artifacts.
 
 - [ ] **Step 5: Verify Rust and desktop integration**
 
 Run: `pnpm tauri:test && pnpm --filter @studio/storage test:tauri`  
-Expected: PASS against the real Tauri IPC boundary and macOS watcher; hostile parent/symlink replacement cannot escape the selected directory; deliberate interruption leaves old or complete new content; stale expected hashes fail; watcher output contains no temp files; closing the app revokes tokens and watchers.
+Expected: PASS against the real Tauri IPC boundary and macOS watcher; hostile parent/symlink replacement cannot escape or retarget the selected directory; deliberate interruption leaves old or complete new content; stale expected hashes fail; a cooperating concurrent writer is never lost; watcher output contains no temp/lock files or duplicate logical events; closing the app revokes tokens and watchers. The test contract does not claim exact CAS against writers that ignore `.studio-write.lock`.
 
 - [ ] **Step 6: Commit**
 

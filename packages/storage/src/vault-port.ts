@@ -7,6 +7,12 @@ export interface VaultEntry {
 }
 
 export interface WriteCondition {
+  /**
+   * Replace only the version with this content hash. Adapters guarantee this comparison within
+   * their documented mutation-coordination boundary. The desktop adapter coordinates Studio
+   * writers through the vault's `.studio-write.lock`; arbitrary tools that ignore that advisory
+   * lock are outside the exact compare-and-replace guarantee.
+   */
   expectedHash?: string;
 }
 

@@ -1,5 +1,6 @@
 use std::{
     fs,
+    os::fd::AsRawFd,
     sync::mpsc,
     time::{Duration, Instant},
 };
@@ -7,7 +8,7 @@ use std::{
 use serde_json::json;
 use tauri::{Listener, Manager, test, webview::InvokeRequest};
 
-use crate::{commands::vault::VaultRegistry, revoke_window, studio_builder};
+use crate::{commands::vault::VaultRegistry, handle_window_event, studio_builder};
 
 fn request(command: &str, body: serde_json::Value) -> InvokeRequest {
     InvokeRequest {
@@ -103,7 +104,7 @@ fn ipc_rejects_symlink_components_and_traversal() {
 }
 
 #[test]
-fn exact_cas_preserves_an_external_write_that_wins_before_commit() {
+fn cooperative_external_writer_is_never_clobbered_by_a_conditional_write() {
     let selected = tempfile::tempdir().unwrap();
     fs::write(selected.path().join("note.md"), "original").unwrap();
 
@@ -113,13 +114,65 @@ fn exact_cas_preserves_an_external_write_that_wins_before_commit() {
         .unwrap();
     let vault = registry.vault_for_test("main", &token).unwrap();
     let expected = vault.read_text("note.md").unwrap().hash;
+    let lock_file = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(selected.path().join(".studio-write.lock"))
+        .unwrap();
+    let path = selected.path().join("note.md");
+    let (locked_sender, locked_receiver) = mpsc::channel();
+    let external = std::thread::spawn(move || {
+        assert_eq!(
+            unsafe { libc::flock(lock_file.as_raw_fd(), libc::LOCK_EX) },
+            0
+        );
+        fs::write(path, "external").unwrap();
+        locked_sender.send(()).unwrap();
+        std::thread::sleep(Duration::from_millis(120));
+        assert_eq!(
+            unsafe { libc::flock(lock_file.as_raw_fd(), libc::LOCK_UN) },
+            0
+        );
+    });
+    locked_receiver.recv().unwrap();
+    let started = Instant::now();
+    let result = vault.write_text_atomic_for_test("note.md", "ours", Some(&expected));
+    let waited = started.elapsed();
+    external.join().unwrap();
+    assert!(matches!(
+        result,
+        Err(crate::commands::vault::VaultError::Conflict)
+    ));
+    assert!(
+        waited >= Duration::from_millis(80),
+        "write bypassed the shared lock"
+    );
+    assert_eq!(
+        fs::read_to_string(selected.path().join("note.md")).unwrap(),
+        "external"
+    );
+}
+
+#[test]
+fn uncooperative_external_writer_before_publish_is_detected_without_a_swap() {
+    let selected = tempfile::tempdir().unwrap();
+    fs::write(selected.path().join("note.md"), "original").unwrap();
+
+    let registry = VaultRegistry::default();
+    let token = registry
+        .register_selected_path_for_test("main", selected.path())
+        .unwrap();
+    let vault = registry.vault_for_test("main", &token).unwrap();
+    let expected = vault.read_text("note.md").unwrap().hash;
+    let external_path = selected.path().join("note.md");
 
     let result = vault.write_text_atomic_with_before_commit_for_test(
         "note.md",
         "ours",
         Some(&expected),
-        || fs::write(selected.path().join("note.md"), "external").unwrap(),
+        || fs::write(external_path, "external").unwrap(),
     );
+
     assert!(matches!(
         result,
         Err(crate::commands::vault::VaultError::Conflict)
@@ -155,17 +208,44 @@ fn no_clobber_move_preserves_an_external_destination() {
     );
 }
 
+fn collect_until_quiet(
+    receiver: &mpsc::Receiver<String>,
+    first_timeout: Duration,
+    quiet_period: Duration,
+) -> Vec<String> {
+    let mut payloads = Vec::new();
+    let mut deadline = Instant::now() + first_timeout;
+    while Instant::now() < deadline {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        match receiver.recv_timeout(remaining.min(Duration::from_millis(50))) {
+            Ok(payload) => {
+                payloads.push(payload);
+                deadline = Instant::now() + quiet_period;
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
+            Err(error) => panic!("watch channel disconnected: {error}"),
+        }
+    }
+    payloads
+}
+
 #[test]
-fn real_macos_watcher_emits_only_the_logical_committed_change_over_tauri() {
-    let selected = tempfile::tempdir().unwrap();
+fn watcher_follows_retained_root_after_selected_path_is_replaced() {
+    let parent = tempfile::tempdir().unwrap();
+    let selected = parent.path().join("selected");
+    let retained = parent.path().join("retained");
+    fs::create_dir(&selected).unwrap();
     let app = app();
     let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
         .build()
         .unwrap();
     let token = app
         .state::<VaultRegistry>()
-        .register_selected_path_for_test("main", selected.path())
+        .register_selected_path_for_test("main", &selected)
         .unwrap();
+
+    fs::rename(&selected, &retained).unwrap();
+    fs::create_dir(&selected).unwrap();
 
     let registration =
         invoke_mock(&webview, "vault_watch", json!({ "vaultToken": token })).unwrap();
@@ -174,6 +254,17 @@ fn real_macos_watcher_emits_only_the_logical_committed_change_over_tauri() {
     let listener_id = app.listen(event_name, move |event| {
         let _ = sender.send(event.payload().to_owned());
     });
+
+    fs::write(selected.join("outside.md"), "must not be watched").unwrap();
+    let outside_payloads = collect_until_quiet(
+        &receiver,
+        Duration::from_millis(350),
+        Duration::from_millis(200),
+    );
+    assert!(
+        outside_payloads.is_empty(),
+        "replacement path leaked: {outside_payloads:?}"
+    );
 
     invoke_mock(
         &webview,
@@ -187,20 +278,11 @@ fn real_macos_watcher_emits_only_the_logical_committed_change_over_tauri() {
     )
     .unwrap();
 
-    let deadline = Instant::now() + Duration::from_secs(5);
-    let mut payloads = Vec::new();
-    while Instant::now() < deadline {
-        match receiver.recv_timeout(Duration::from_millis(150)) {
-            Ok(payload) => {
-                payloads.push(payload);
-                if payloads.iter().any(|payload| payload.contains("note.md")) {
-                    break;
-                }
-            }
-            Err(mpsc::RecvTimeoutError::Timeout) => {}
-            Err(error) => panic!("watch channel disconnected: {error}"),
-        }
-    }
+    let payloads = collect_until_quiet(
+        &receiver,
+        Duration::from_secs(5),
+        Duration::from_millis(400),
+    );
     app.unlisten(listener_id);
 
     assert_eq!(
@@ -227,7 +309,7 @@ fn revoking_a_window_drops_tokens_and_watchers() {
         .unwrap();
     assert_eq!(registry.capability_count_for_test(), 1);
     drop(webview);
-    revoke_window(&registry, "main");
+    handle_window_event(&registry, "main", &tauri::WindowEvent::Destroyed);
     assert_eq!(registry.capability_count_for_test(), 0);
     assert!(registry.vault_for_test("main", &token).is_err());
 }

@@ -5,8 +5,10 @@ use tauri::{Manager, Runtime, WindowEvent};
 
 use commands::vault::VaultRegistry;
 
-fn revoke_window(registry: &VaultRegistry, label: &str) {
-    registry.revoke_owner(label);
+pub(crate) fn handle_window_event(registry: &VaultRegistry, label: &str, event: &WindowEvent) {
+    if matches!(event, WindowEvent::Destroyed) {
+        registry.revoke_owner(label);
+    }
 }
 
 pub fn studio_builder<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
@@ -26,9 +28,7 @@ pub fn studio_builder<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<
             commands::vault::vault_unwatch,
         ])
         .on_window_event(|window, event| {
-            if matches!(event, WindowEvent::Destroyed) {
-                revoke_window(&window.state::<VaultRegistry>(), window.label());
-            }
+            handle_window_event(&window.state::<VaultRegistry>(), window.label(), event);
         })
 }
 

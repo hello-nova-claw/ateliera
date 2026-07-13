@@ -1,11 +1,11 @@
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    ffi::CString,
+    ffi::{CStr, CString, OsStr},
     io::{Read, Write},
-    os::fd::AsRawFd,
+    os::{fd::AsRawFd, unix::ffi::OsStrExt},
     path::{Path, PathBuf},
     sync::{
-        Arc, Mutex, Weak,
+        Arc, Mutex, MutexGuard, Weak,
         atomic::{AtomicBool, Ordering},
     },
     time::Duration,
@@ -111,9 +111,22 @@ struct WatchHandle {
 
 pub struct Vault {
     root: Dir,
-    selected_path: PathBuf,
     write_lock: Mutex<()>,
+    write_lock_file: std::fs::File,
     watchers: Mutex<HashMap<String, WatchHandle>>,
+}
+
+struct WriteGuard<'a> {
+    _local: MutexGuard<'a, ()>,
+    file: &'a std::fs::File,
+}
+
+impl Drop for WriteGuard<'_> {
+    fn drop(&mut self) {
+        // SAFETY: `file` remains open for the guard's lifetime. Unlocking an already-unlocked
+        // descriptor is harmless, and there is no recovery action available during Drop.
+        let _ = unsafe { libc::flock(self.file.as_raw_fd(), libc::LOCK_UN) };
+    }
 }
 
 struct RegisteredVault {
@@ -136,7 +149,16 @@ impl VaultRegistry {
         // retain the resulting directory descriptor; later commands never reopen this path.
         let root = Dir::open_ambient_dir(selected_path, ambient_authority())
             .map_err(|_| VaultError::Unavailable)?;
-        let selected_path = selected_path.to_owned();
+        let mut lock_options = OpenOptions::new();
+        lock_options
+            .read(true)
+            .write(true)
+            .create(true)
+            .follow(FollowSymlinks::No);
+        let write_lock_file = root
+            .open_with(".studio-write.lock", &lock_options)
+            .map_err(map_path_error)?
+            .into_std();
         let token = Uuid::new_v4().simple().to_string();
         self.vaults
             .lock()
@@ -147,8 +169,8 @@ impl VaultRegistry {
                     owner: owner.to_owned(),
                     vault: Arc::new(Vault {
                         root,
-                        selected_path,
                         write_lock: Mutex::new(()),
+                        write_lock_file,
                         watchers: Mutex::new(HashMap::new()),
                     }),
                 },
@@ -281,18 +303,6 @@ fn rename_exclusive(from_dir: &Dir, from: &str, to_dir: &Dir, to: &str) -> Resul
     })
 }
 
-#[cfg(target_os = "macos")]
-fn rename_swap(directory: &Dir, left: &str, right: &str) -> Result<(), VaultError> {
-    const RENAME_SWAP: libc::c_uint = 0x0000_0002;
-    macos_rename(directory, left, directory, right, RENAME_SWAP).map_err(|error| {
-        if error.kind() == std::io::ErrorKind::NotFound {
-            VaultError::Conflict
-        } else {
-            VaultError::Unavailable
-        }
-    })
-}
-
 #[cfg(not(target_os = "macos"))]
 fn rename_exclusive(
     _from_dir: &Dir,
@@ -304,6 +314,63 @@ fn rename_exclusive(
 }
 
 impl Vault {
+    fn lock_writes(&self) -> Result<WriteGuard<'_>, VaultError> {
+        let local = self
+            .write_lock
+            .lock()
+            .map_err(|_| VaultError::Unavailable)?;
+        loop {
+            // SAFETY: the lock descriptor is retained by `self`, and `WriteGuard` ensures the
+            // advisory lock is released after the in-process mutex.
+            if unsafe { libc::flock(self.write_lock_file.as_raw_fd(), libc::LOCK_EX) } == 0 {
+                return Ok(WriteGuard {
+                    _local: local,
+                    file: &self.write_lock_file,
+                });
+            }
+            if std::io::Error::last_os_error().kind() != std::io::ErrorKind::Interrupted {
+                return Err(VaultError::Unavailable);
+            }
+        }
+    }
+
+    fn require_expected_hash(
+        directory: &Dir,
+        basename: &str,
+        expected: &str,
+    ) -> Result<(), VaultError> {
+        match read_file_nofollow(directory, basename) {
+            Ok(bytes) if hash(&bytes) == expected => Ok(()),
+            Err(VaultError::PathEscape) => Err(VaultError::PathEscape),
+            _ => Err(VaultError::Conflict),
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn retained_root_path(&self) -> Result<PathBuf, VaultError> {
+        let descriptor = self
+            .root
+            .try_clone()
+            .map_err(|_| VaultError::Unavailable)?
+            .into_std_file();
+        let mut buffer = [0 as libc::c_char; libc::PATH_MAX as usize];
+        // SAFETY: the descriptor is open, and `buffer` is writable for PATH_MAX bytes. macOS
+        // writes a NUL-terminated path for F_GETPATH on success.
+        let result =
+            unsafe { libc::fcntl(descriptor.as_raw_fd(), libc::F_GETPATH, buffer.as_mut_ptr()) };
+        if result == -1 {
+            return Err(VaultError::Unavailable);
+        }
+        // SAFETY: F_GETPATH guarantees NUL termination on success.
+        let bytes = unsafe { CStr::from_ptr(buffer.as_ptr()) }.to_bytes();
+        Ok(PathBuf::from(OsStr::from_bytes(bytes)))
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn retained_root_path(&self) -> Result<PathBuf, VaultError> {
+        Err(VaultError::Unavailable)
+    }
+
     pub fn read_text(&self, path: &str) -> Result<ReadTextResult, VaultError> {
         let parent = open_parent(&self.root, path, false)?;
         let bytes = read_file_nofollow(&parent.directory, &parent.basename)?;
@@ -329,11 +396,11 @@ impl Vault {
     where
         F: FnOnce(),
     {
-        let _write_guard = self
-            .write_lock
-            .lock()
-            .map_err(|_| VaultError::Unavailable)?;
+        let _write_guard = self.lock_writes()?;
         let parent = open_parent(&self.root, path, true)?;
+        if let Some(expected) = expected_hash {
+            Self::require_expected_hash(&parent.directory, &parent.basename, expected)?;
+        }
         let temporary = format!(".studio-{}.tmp", Uuid::new_v4().simple());
         let mut options = OpenOptions::new();
         options
@@ -352,37 +419,12 @@ impl Vault {
             before_commit();
 
             if let Some(expected) = expected_hash {
-                #[cfg(target_os = "macos")]
-                {
-                    rename_swap(&parent.directory, &temporary, &parent.basename)?;
-                    let observed =
-                        read_file_nofollow(&parent.directory, &temporary).map(|old| hash(&old));
-                    if !matches!(observed.as_deref(), Ok(actual) if actual == expected) {
-                        rename_swap(&parent.directory, &temporary, &parent.basename)
-                            .map_err(|_| VaultError::Unavailable)?;
-                        parent
-                            .directory
-                            .remove_file(&temporary)
-                            .map_err(|_| VaultError::Unavailable)?;
-                        sync_directory(&parent.directory)?;
-                        return Err(VaultError::Conflict);
-                    }
-                    parent
-                        .directory
-                        .remove_file(&temporary)
-                        .map_err(|_| VaultError::Unavailable)?;
-                }
-                #[cfg(not(target_os = "macos"))]
-                {
-                    let _ = expected;
-                    return Err(VaultError::Unavailable);
-                }
-            } else {
-                parent
-                    .directory
-                    .rename(&temporary, &parent.directory, &parent.basename)
-                    .map_err(map_path_error)?;
+                Self::require_expected_hash(&parent.directory, &parent.basename, expected)?;
             }
+            parent
+                .directory
+                .rename(&temporary, &parent.directory, &parent.basename)
+                .map_err(map_path_error)?;
             sync_directory(&parent.directory)?;
             Ok(hash(bytes))
         })();
@@ -410,10 +452,7 @@ impl Vault {
     }
 
     pub fn move_path(&self, from: &str, to: &str) -> Result<(), VaultError> {
-        let _write_guard = self
-            .write_lock
-            .lock()
-            .map_err(|_| VaultError::Unavailable)?;
+        let _write_guard = self.lock_writes()?;
         let from_parent = open_parent(&self.root, from, false)?;
         let metadata = from_parent
             .directory
@@ -434,10 +473,7 @@ impl Vault {
     }
 
     fn remove(&self, path: &str) -> Result<(), VaultError> {
-        let _write_guard = self
-            .write_lock
-            .lock()
-            .map_err(|_| VaultError::Unavailable)?;
+        let _write_guard = self.lock_writes()?;
         let parent = open_parent(&self.root, path, false)?;
         let metadata = parent
             .directory
@@ -567,7 +603,7 @@ impl Vault {
         })
         .map_err(|_| VaultError::Unavailable)?;
         watcher
-            .watch(&self.selected_path, RecursiveMode::Recursive)
+            .watch(&self.retained_root_path()?, RecursiveMode::Recursive)
             .map_err(|_| VaultError::Unavailable)?;
         self.watchers
             .lock()
@@ -599,6 +635,16 @@ impl Vault {
         F: FnOnce(),
     {
         self.write_atomic(path, text.as_bytes(), expected_hash, before_commit)
+    }
+
+    #[cfg(test)]
+    pub fn write_text_atomic_for_test(
+        &self,
+        path: &str,
+        text: &str,
+        expected_hash: Option<&str>,
+    ) -> Result<String, VaultError> {
+        self.write_atomic(path, text.as_bytes(), expected_hash, || {})
     }
 }
 

@@ -77,4 +77,21 @@ describe('Tauri vault IPC adapter', () => {
       id: 'watch-id',
     });
   });
+
+  it('unregisters the native watcher when event subscription fails', async () => {
+    const invoke = vi.fn(async (command: string) => {
+      if (command === 'vault_select') return { vaultToken: token };
+      if (command === 'vault_watch') return { id: 'watch-id', event: 'studio-vault-random' };
+      if (command === 'vault_unwatch') return undefined;
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    const listenError = new Error('listener unavailable');
+    const vault = await selectTauriVault(bridge(invoke, async () => { throw listenError; }));
+
+    await expect(vault?.watch(vi.fn())).rejects.toBe(listenError);
+    expect(invoke).toHaveBeenLastCalledWith('vault_unwatch', {
+      vaultToken: token,
+      id: 'watch-id',
+    });
+  });
 });

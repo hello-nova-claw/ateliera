@@ -42,7 +42,13 @@ function createTauriVault(vaultToken: VaultToken, bridge: TauriVaultBridge): Vau
     exists: (path) => call('vault_exists', { path }),
     watch: async (listener) => {
       const registration = await call<{ id: string; event: string }>('vault_watch', {});
-      const stopListening = await bridge.listen(registration.event, (payload) => listener(payload as VaultChange));
+      let stopListening: () => void;
+      try {
+        stopListening = await bridge.listen(registration.event, (payload) => listener(payload as VaultChange));
+      } catch (error) {
+        await call('vault_unwatch', { id: registration.id }).catch(() => undefined);
+        throw error;
+      }
       return () => { stopListening(); void call('vault_unwatch', { id: registration.id }); };
     },
   };
