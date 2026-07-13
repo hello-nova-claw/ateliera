@@ -407,6 +407,223 @@ describe('season service', () => {
     ).toBeNull();
   });
 
+  it('rejects every malformed priority disposition shape before reserving close', async () => {
+    const { seasons, studio } = setup();
+    let record = await completeWizard(
+      seasons,
+      await seasons.beginSeason({ title: 'Winter' }),
+    );
+    record = await seasons.activateSeason(record);
+    const malformed = [
+      {
+        priorities: ['thread', 'thread'],
+        dispositions: [
+          {
+            noteId: 'thread',
+            title: 'Thread',
+            expectedHash: 'hash',
+            disposition: 'archive' as const,
+          },
+          {
+            noteId: 'other',
+            title: 'Other',
+            expectedHash: 'hash',
+            disposition: 'archive' as const,
+          },
+        ],
+      },
+      { priorities: ['thread'], dispositions: [] },
+      {
+        priorities: ['thread', 'other'],
+        dispositions: [
+          {
+            noteId: 'thread',
+            title: 'Thread',
+            expectedHash: 'hash',
+            disposition: 'archive' as const,
+          },
+          {
+            noteId: 'thread',
+            title: 'Thread again',
+            expectedHash: 'hash',
+            disposition: 'release' as const,
+          },
+        ],
+      },
+      {
+        priorities: ['thread'],
+        dispositions: [
+          {
+            noteId: 'other',
+            title: 'Other',
+            expectedHash: 'hash',
+            disposition: 'archive' as const,
+          },
+        ],
+      },
+      {
+        priorities: ['thread'],
+        dispositions: [
+          {
+            noteId: 'thread',
+            title: 'Thread',
+            expectedHash: '   ',
+            disposition: 'archive' as const,
+          },
+        ],
+      },
+    ];
+
+    for (const candidate of malformed) {
+      await expect(
+        seasons.closeSeason(
+          {
+            ...record,
+            state: { ...record.state, priorities: candidate.priorities },
+          },
+          {
+            celebration: 'Enough.',
+            learning: 'Learning.',
+            identity: 'Becoming.',
+            dispositions: candidate.dispositions,
+          },
+        ),
+      ).rejects.toThrow('exactly one current disposition');
+    }
+    expect(
+      (await studio.seasonTransactions.readActive()).value.operation,
+    ).toBeNull();
+  });
+
+  it('preserves a closing checkpoint that has no durable journal', async () => {
+    const { seasons, studio } = setup();
+    let record = await completeWizard(
+      seasons,
+      await seasons.beginSeason({ title: 'Winter' }),
+    );
+    record = await seasons.activateSeason(record);
+    const observed = await studio.seasonTransactions.readActive();
+    await studio.seasonTransactions.compareAndSetActive(observed, {
+      ...observed.value,
+      revision: observed.value.revision + 1,
+      operation: {
+        id: 'missing-close-journal',
+        kind: 'closing',
+        targetNoteId: record.note.id,
+        targetPath: record.path,
+      },
+    });
+
+    await expect(seasons.loadCurrent()).rejects.toThrow('has no journal');
+    expect(
+      (await studio.seasonTransactions.readActive()).value.operation,
+    ).toMatchObject({ id: 'missing-close-journal' });
+  });
+
+  it('returns its archived season when a close reservation resumes first', async () => {
+    const { seasons, studio } = setup();
+    let record = await completeWizard(
+      seasons,
+      await seasons.beginSeason({ title: 'Winter' }),
+    );
+    record = await seasons.activateSeason(record);
+    const observed = await studio.seasonTransactions.readActive();
+    await studio.seasonTransactions.compareAndSetActive(observed, {
+      ...observed.value,
+      revision: observed.value.revision + 1,
+      operation: {
+        id: 'completed-close',
+        kind: 'closing',
+        targetNoteId: record.note.id,
+        targetPath: record.path,
+      },
+    });
+    vi.spyOn(studio, 'resumeSeasonCloseTransaction').mockResolvedValue({
+      season: {
+        ...record,
+        note: { ...record.note, status: 'archived' },
+      },
+      snapshot: {
+        manifestPath: '.studio/revisions/close/manifest.json',
+        manifest: {
+          version: 1,
+          id: 'close',
+          reason: 'season-close',
+          createdAt: '2026-07-14T00:00:00.000Z',
+          state: 'complete',
+          files: [],
+        },
+      },
+    });
+
+    await expect(
+      seasons.closeSeason(record, {
+        celebration: 'Enough.',
+        learning: 'Learning.',
+        identity: 'Becoming.',
+        dispositions: [],
+      }),
+    ).resolves.toMatchObject({ state: { status: 'archived' } });
+  });
+
+  it('clears only the close reservation when canonical preflight fails', async () => {
+    const { seasons, studio } = setup();
+    await studio.save({
+      note: note({
+        id: 'thread',
+        title: 'Thread',
+        rooms: ['life-landscape'],
+      }),
+      path: 'Life Landscape/thread.md',
+      expectedMissing: true,
+    });
+    let record = await seasons.beginSeason({ title: 'Winter' });
+    for (const step of [
+      'prior-reflection',
+      'feelings',
+      'priorities',
+      'decisions-practices',
+      'supports-constraints',
+      'enough',
+      'not-now',
+      'confirm',
+    ] as const) {
+      record = await seasons.saveStep(
+        record,
+        step,
+        step === 'prior-reflection'
+          ? { skippedPriorReflection: true }
+          : step === 'priorities'
+            ? { priorities: ['thread'] }
+            : {},
+      );
+    }
+    record = await seasons.activateSeason(record);
+
+    await expect(
+      seasons.closeSeason(record, {
+        celebration: 'Enough.',
+        learning: 'Learning.',
+        identity: 'Becoming.',
+        dispositions: [
+          {
+            noteId: 'thread',
+            title: 'Thread',
+            expectedHash: 'stale-hash',
+            disposition: 'archive',
+          },
+        ],
+      }),
+    ).rejects.toThrow('changed before close began');
+    expect(
+      (await studio.seasonTransactions.readActive()).value,
+    ).toMatchObject({
+      activeNoteId: record.note.id,
+      operation: null,
+    });
+    expect((await studio.load(record.path)).note.status).toBe('active');
+  });
+
   it('recovers malformed optional workflow fields conservatively', () => {
     const malformed = note({
       status: 'archived',
