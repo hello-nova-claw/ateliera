@@ -13,7 +13,7 @@ const MAX_SUFFIX_ATTEMPTS = 100;
 
 export interface TrashAttachmentRecord {
   path: string;
-  available: boolean;
+  availability: 'available' | 'missing' | 'unknown';
 }
 
 export interface TrashEntry {
@@ -57,6 +57,7 @@ export interface RestoredNoteResult {
   hash: string;
   relocated: boolean;
   missingAttachments: string[];
+  unknownAttachments: string[];
 }
 
 export interface NoteLifecycleService {
@@ -76,6 +77,15 @@ export class LifecyclePartialFailureError extends Error {
 
   constructor(message: string, readonly noteId: string, options?: ErrorOptions) {
     super(message, options);
+  }
+}
+
+export class LifecycleStorageUnavailableError extends Error {
+  override readonly name = 'LifecycleStorageUnavailableError';
+
+  constructor(readonly paths: string[], options?: ErrorOptions) {
+    super(`Storage availability could not be confirmed for: ${paths.join(', ')}`);
+    if (options?.cause !== undefined) this.cause = options.cause;
   }
 }
 
@@ -103,7 +113,9 @@ function isTrashEntry(value: unknown): value is TrashEntry {
     candidate.attachments.every((item) =>
       typeof item === 'object' && item !== null &&
       typeof (item as Partial<TrashAttachmentRecord>).path === 'string' &&
-      typeof (item as Partial<TrashAttachmentRecord>).available === 'boolean') &&
+      ['available', 'missing', 'unknown'].includes(
+        String((item as Partial<TrashAttachmentRecord>).availability),
+      )) &&
     (candidate.restorePath === undefined || typeof candidate.restorePath === 'string')
   );
 }
@@ -154,11 +166,35 @@ function restoredCandidate(path: string, attempt: number): string {
   return `${folder}${stem}--restored${attempt === 1 ? '' : `-${attempt}`}${extension}`;
 }
 
-async function available(vault: Pick<VaultPort, 'exists'>, path: string): Promise<boolean> {
+type Presence =
+  | { state: 'present' }
+  | { state: 'absent' }
+  | { state: 'unavailable'; error: unknown };
+
+async function presence(vault: Pick<VaultPort, 'exists'>, path: string): Promise<Presence> {
   try {
-    return await vault.exists(path);
+    return await vault.exists(path) ? { state: 'present' } : { state: 'absent' };
+  } catch (error) {
+    return { state: 'unavailable', error };
+  }
+}
+
+function requirePresence(result: Presence, path: string): 'present' | 'absent' {
+  if (result.state === 'unavailable') {
+    throw new LifecycleStorageUnavailableError([path], { cause: result.error });
+  }
+  return result.state;
+}
+
+async function contentMatches(
+  vault: Pick<VaultPort, 'readText'>,
+  path: string,
+  expectedHash: string,
+): Promise<'matches' | 'mismatch' | 'unavailable'> {
+  try {
+    return (await vault.readText(path)).hash === expectedHash ? 'matches' : 'mismatch';
   } catch {
-    return false;
+    return 'unavailable';
   }
 }
 
@@ -217,24 +253,58 @@ export function createNoteLifecycleService({
     const issues: string[] = [];
     const entries: TrashEntry[] = [];
     let changed = false;
+    const unavailablePaths: string[] = [];
     for (const entry of loaded.manifest.entries) {
-      const sourceExists = await available(vault, entry.originalPath);
-      const trashExists = await available(controlVault, entry.trashPath);
+      const sourcePresence = await presence(vault, entry.originalPath);
+      const trashPresence = await presence(controlVault, entry.trashPath);
+      if (sourcePresence.state === 'unavailable' || trashPresence.state === 'unavailable') {
+        entries.push(entry);
+        if (sourcePresence.state === 'unavailable') unavailablePaths.push(entry.originalPath);
+        if (trashPresence.state === 'unavailable') unavailablePaths.push(entry.trashPath);
+        continue;
+      }
+      const sourceExists = sourcePresence.state === 'present';
+      const trashExists = trashPresence.state === 'present';
       if (entry.state === 'prepared') {
         if (trashExists && !sourceExists) {
-          entries.push({ ...entry, state: 'trashed' });
-          changed = true;
+          const match = await contentMatches(controlVault, entry.trashPath, entry.originalHash);
+          if (match === 'matches') {
+            entries.push({ ...entry, state: 'trashed' });
+            changed = true;
+          } else {
+            entries.push(entry);
+            if (match === 'unavailable') unavailablePaths.push(entry.trashPath);
+            else issues.push(`Trash transaction for ${entry.id} has unexpected content and needs review.`);
+          }
         } else if (sourceExists && !trashExists) {
-          changed = true;
+          const match = await contentMatches(vault, entry.originalPath, entry.originalHash);
+          if (match === 'matches') changed = true;
+          else {
+            entries.push(entry);
+            if (match === 'unavailable') unavailablePaths.push(entry.originalPath);
+            else issues.push(`Trash transaction for ${entry.id} has unexpected content and needs review.`);
+          }
         } else {
           entries.push(entry);
           issues.push(`Trash transaction for ${entry.id} needs review.`);
         }
       } else if (entry.state === 'restoring') {
         const destination = entry.restorePath ?? entry.originalPath;
-        const destinationExists = await available(vault, destination);
+        const destinationPresence = await presence(vault, destination);
+        if (destinationPresence.state === 'unavailable') {
+          entries.push(entry);
+          unavailablePaths.push(destination);
+          continue;
+        }
+        const destinationExists = destinationPresence.state === 'present';
         if (destinationExists && !trashExists) {
-          changed = true;
+          const match = await contentMatches(vault, destination, entry.originalHash);
+          if (match === 'matches') changed = true;
+          else {
+            entries.push(entry);
+            if (match === 'unavailable') unavailablePaths.push(destination);
+            else issues.push(`Restore transaction for ${entry.id} has unexpected content and needs review.`);
+          }
         } else {
           entries.push(entry);
           issues.push(`Restore transaction for ${entry.id} needs review.`);
@@ -242,6 +312,9 @@ export function createNoteLifecycleService({
       } else {
         entries.push(entry);
       }
+    }
+    if (unavailablePaths.length > 0) {
+      throw new LifecycleStorageUnavailableError([...new Set(unavailablePaths)]);
     }
     if (changed) {
       loaded = await writeManifest(controlVault, {
@@ -265,13 +338,18 @@ export function createNoteLifecycleService({
         throw new VaultConflictError('This note is already represented in Trash.');
       }
       const trashPath = `.studio/Trash/items/${encodeURIComponent(id)}/${basename(current.path)}`;
-      if (await available(controlVault, trashPath)) {
+      const trashDestination = requirePresence(await presence(controlVault, trashPath), trashPath);
+      if (trashDestination === 'present') {
         throw new VaultConflictError('The reserved Trash destination is occupied.');
       }
-      const attachments = await Promise.all(current.note.attachments.map(async (path) => ({
-        path,
-        available: await available(vault, path),
-      })));
+      const attachments = await Promise.all(current.note.attachments.map(async (path) => {
+        const result = await presence(vault, path);
+        return {
+          path,
+          availability: result.state === 'present' ? 'available' as const
+            : result.state === 'absent' ? 'missing' as const : 'unknown' as const,
+        };
+      }));
       const entry: TrashEntry = {
         id,
         originalPath: current.path,
@@ -298,7 +376,9 @@ export function createNoteLifecycleService({
         });
         void loaded;
       } catch (error) {
-        if (!(await available(vault, current.path)) && await available(controlVault, trashPath)) {
+        const sourcePresence = await presence(vault, current.path);
+        const trashPresence = await presence(controlVault, trashPath);
+        if (sourcePresence.state === 'absent' && trashPresence.state === 'present') {
           await controlVault.moveOut(trashPath, current.path, {
             expectedHash: current.hash,
           }).catch(() => undefined);
@@ -328,12 +408,12 @@ export function createNoteLifecycleService({
       if (!parsed.ok) throw new TrashManifestError('The trashed note metadata is damaged.');
       let destination = entry.originalPath;
       let relocated = false;
-      if (await available(vault, destination)) {
+      if (requirePresence(await presence(vault, destination), destination) === 'present') {
         relocated = true;
         let found = false;
         for (let attempt = 1; attempt <= MAX_SUFFIX_ATTEMPTS; attempt += 1) {
           const candidate = restoredCandidate(entry.originalPath, attempt);
-          if (!(await available(vault, candidate))) {
+          if (requirePresence(await presence(vault, candidate), candidate) === 'absent') {
             destination = candidate;
             found = true;
             break;
@@ -368,8 +448,11 @@ export function createNoteLifecycleService({
       await updateDisposableIndex(() =>
         index.upsert(parsed.note, destination, restored.hash, indexedContent(parsed.note)));
       const missingAttachments: string[] = [];
+      const unknownAttachments: string[] = [];
       for (const attachment of entry.attachments) {
-        if (!(await available(vault, attachment.path))) missingAttachments.push(attachment.path);
+        const result = await presence(vault, attachment.path);
+        if (result.state === 'absent') missingAttachments.push(attachment.path);
+        if (result.state === 'unavailable') unknownAttachments.push(attachment.path);
       }
       return {
         note: parsed.note,
@@ -377,6 +460,7 @@ export function createNoteLifecycleService({
         hash: restored.hash,
         relocated,
         missingAttachments,
+        unknownAttachments,
       };
     }),
 
