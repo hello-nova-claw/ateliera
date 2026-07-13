@@ -227,6 +227,41 @@ describe('season service', () => {
     });
   });
 
+  it('refuses conflict repair when the checkpoint names no active candidate', async () => {
+    const { studio, seasons } = setup();
+    for (const id of ['first', 'second']) {
+      await studio.save({
+        note: note({
+          id,
+          cardType: 'season',
+          status: 'active',
+          rooms: ['current-season'],
+          extraFrontmatter: { season_id: id },
+        }),
+        path: `Current Season/${id}.md`,
+        expectedMissing: true,
+      });
+    }
+    const observed = await studio.seasonTransactions.readActive();
+    await studio.seasonTransactions.compareAndSetActive(observed, {
+      version: 1,
+      revision: observed.value.revision + 1,
+      activeNoteId: 'unrelated',
+      activePath: 'Current Season/unrelated.md',
+      operation: null,
+    });
+
+    await expect(seasons.repairActiveSeason('second')).rejects.toThrow(
+      'checkpoint no longer identifies an active candidate',
+    );
+    expect((await studio.load('Current Season/first.md')).note.status).toBe(
+      'active',
+    );
+    expect((await studio.load('Current Season/second.md')).note.status).toBe(
+      'active',
+    );
+  });
+
   it('updates an active season without treating a revision as failure', async () => {
     const { seasons } = setup();
     const begun = await seasons.beginSeason({ title: 'Winter' });
