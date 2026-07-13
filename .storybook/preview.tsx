@@ -8,7 +8,11 @@ import './preview.css';
 const preview: Preview = {
   decorators: [
     (Story) => (
-      <main aria-label="Component preview">
+      <main
+        aria-label="Component preview"
+        className="studio-app"
+        data-theme="chamomile"
+      >
         <h1 className="visually-hidden">Component preview</h1>
         <Story />
       </main>
