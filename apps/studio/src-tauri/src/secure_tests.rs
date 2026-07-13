@@ -198,6 +198,10 @@ fn ipc_reserves_the_internal_studio_namespace() {
     let attempts = [
         (
             "vault_read_text",
+            json!({ "vaultToken": token, "path": ".studio-vault-id" }),
+        ),
+        (
+            "vault_read_text",
             json!({ "vaultToken": token, "path": ".studio-write.lock" }),
         ),
         (
