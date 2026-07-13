@@ -29,7 +29,7 @@ it('renders the accepted editorial season cover and keeps Not now collapsed', ()
   expect(screen.getByText('This is a season of making room')).toBeVisible();
   expect(screen.getAllByRole('article', { name: /Priority/ })).toHaveLength(3);
   expect(screen.getByText('A useful first version.')).toBeVisible();
-  expect(screen.queryByText('A perfect whole-house system')).not.toBeInTheDocument();
+  expect(screen.getByText('A perfect whole-house system')).not.toBeVisible();
   fireEvent.click(screen.getByText('Not now'));
   expect(screen.getByText('A perfect whole-house system')).toBeVisible();
 });
@@ -57,9 +57,7 @@ it('shows interruptible wizard progress, validates step errors, and saves a step
 
 it('requires an explicit choice to retain a fourth priority', () => {
   render(<SeasonPage record={record({ status: 'draft' })} state="ready" wizardStep="priorities" />);
-  for (const name of ['Home', 'Studio', 'Family', 'Rest']) {
-    fireEvent.click(screen.getByRole('checkbox', { name }));
-  }
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Rest' }));
   expect(screen.getByText(/three priorities/i)).toBeVisible();
   expect(screen.getByRole('checkbox', { name: /keep all four/i })).toBeVisible();
 });
