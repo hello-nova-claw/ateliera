@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { createStudioService } from './studio-service';
+import { orderedProjection } from './projections';
+import { createViewStateRepository } from './view-state';
 import { RecordingIndex, note, seed } from './test-helpers';
 
 describe('room projections', () => {
@@ -50,11 +52,11 @@ describe('room projections', () => {
 
   it('returns one active season and separate reflection and celebration streams', async () => {
     const vault = await seed([
-      { path: 'Season/old.md', note: note({ id: 'old', cardType: 'season', rooms: ['current-season'], updated: '2026-07-12T10:00:00+10:00' }) },
-      { path: 'Season/new.md', note: note({ id: 'new', cardType: 'season', rooms: ['current-season', 'foyer'], updated: '2026-07-13T10:00:00+10:00' }) },
+      { path: 'Season/old.md', note: note({ id: 'old', cardType: 'season', semanticType: 'growth', rooms: ['current-season'], updated: '2026-07-12T10:00:00+10:00' }) },
+      { path: 'Season/new.md', note: note({ id: 'new', cardType: 'season', semanticType: 'growth', rooms: ['current-season', 'foyer'], updated: '2026-07-13T10:00:00+10:00' }) },
       { path: 'Reflection/r.md', note: note({ id: 'r', semanticType: 'reflection' }) },
       { path: 'Celebration/c.md', note: note({ id: 'c', semanticType: 'celebration' }) },
-      { path: 'Foyer/f.md', note: note({ id: 'f', display: { featured: true } }) },
+      { path: 'Foyer/f.md', note: note({ id: 'f', semanticType: 'foundations', display: { featured: true } }) },
     ]);
     const service = createStudioService({ vault, index: new RecordingIndex() });
 
@@ -64,5 +66,49 @@ describe('room projections', () => {
     const foyer = await service.projectFoyer();
     expect(foyer.currentSeason?.noteId).toBe('new');
     expect(foyer.featured.map((item) => item.noteId)).toEqual(['f', 'new']);
+  });
+
+  it('supports empty, excluded, generic-room, and untitled projections', async () => {
+    const bodyTitle = note({ id: 'explicit', body: 'Body becomes title', rooms: ['identity-studio'] });
+    const emptyTitle = note({ id: 'empty', body: '', rooms: ['identity-studio'] });
+    delete bodyTitle.title;
+    delete emptyTitle.title;
+    const vault = await seed([
+      { path: 'Notes/explicit.md', note: bodyTitle },
+      { path: 'Notes/empty.md', note: emptyTitle },
+      { path: 'Notes/excluded.md', note: note({ id: 'excluded', rooms: ['identity-studio'], extraFrontmatter: { excluded_from_views: true } }) },
+      { path: 'Notes/excluded2.md', note: note({ id: 'excluded2', rooms: ['identity-studio'], extraFrontmatter: { excluded: true } }) },
+      { path: 'Notes/included.md', note: note({ id: 'included', title: 'Included', rooms: ['identity-studio'], extraFrontmatter: { excluded: false, excluded_from_views: false } }) },
+      { path: 'Notes/possibility.md', note: note({ id: 'possibility', semanticType: 'uncharted' }) },
+      { path: 'Notes/win.md', note: note({ id: 'win', semanticType: 'celebration' }) },
+    ]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    const cards = await service.projectRoom('identity-studio');
+    expect(cards.map((card) => card.title)).toEqual(['Untitled', 'Body becomes title', 'Included']);
+    expect(await service.projectRoom('wisdom-garden')).toEqual([]);
+    expect((await service.projectRoom('uncharted')).map((card) => card.noteId)).toEqual(['possibility']);
+    expect((await service.projectRoom('reflection-garden')).some((card) => card.noteId === 'win')).toBe(true);
+    expect(await service.projectCurrentSeason()).toBeNull();
+  });
+
+  it('places an otherwise-sorted item after a manually ordered item', async () => {
+    const vault = await seed([
+      { path: 'Reflection/a.md', note: note({ id: 'a', title: 'Alpha' }) },
+      { path: 'Reflection/b.md', note: note({ id: 'b', title: 'Beta' }) },
+    ]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    await service.views.save('room:reflection-garden', ['b']);
+    expect((await service.projectRoom('reflection-garden')).map((card) => card.noteId)).toEqual(['b', 'a']);
+  });
+
+  it('defensively de-duplicates canonical notes supplied to a projection', async () => {
+    const vault = await seed([]);
+    const shared = note({ id: 'shared' });
+    const cards = await orderedProjection([
+      { note: shared, path: 'A.md', hash: 'a' },
+      { note: shared, path: 'B.md', hash: 'b' },
+    ], 'test', createViewStateRepository(vault));
+    expect(cards.map((card) => card.noteId)).toEqual(['shared']);
   });
 });

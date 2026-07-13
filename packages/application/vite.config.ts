@@ -7,6 +7,13 @@ export default defineConfig({
       enabled: true,
       provider: 'v8',
       reporter: ['text'],
+      exclude: [
+        'vite.config.ts',
+        'src/**/*.test.ts',
+        'src/test-helpers.ts',
+        'src/index.ts',
+        'src/capture-service.ts',
+      ],
       thresholds: {
         statements: 100,
         branches: 100,

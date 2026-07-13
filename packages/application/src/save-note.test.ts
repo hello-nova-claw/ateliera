@@ -1,5 +1,5 @@
 import { parseNote } from '@studio/content';
-import { VaultConflictError, createInMemoryVault } from '@studio/storage';
+import { createInMemoryVault } from '@studio/storage';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createStudioService } from './studio-service';
