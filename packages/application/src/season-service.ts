@@ -394,11 +394,47 @@ export function createSeasonService(
   }
 
   async function resumeActiveOperation(): Promise<SeasonRecord | null> {
-    const checkpoint = await studio.seasonTransactions.readActive();
+    let checkpoint = await studio.seasonTransactions.readActive();
     const operation = checkpoint.value.operation;
-    if (operation === null) return null;
+    if (operation === null) {
+      const pending = await studio.pendingSeasonCloseTransaction();
+      if (pending === null) return null;
+      if (
+        pending.stage === 'completed' &&
+        checkpoint.value.activeNoteId === null
+      ) {
+        return null;
+      }
+      const target = await loadProjection(pending.seasonPath);
+      if (target.note.id !== pending.seasonNoteId) {
+        throw new Error(
+          'The prepared season close no longer matches its canonical note.',
+        );
+      }
+      if (pending.stage !== 'completed' && target.state.status !== 'active') {
+        throw new Error(
+          'The prepared season close no longer targets an active season.',
+        );
+      }
+      checkpoint = await reserveActiveOperation('closing', target, {
+        observed: checkpoint,
+        operationId: pending.transactionId,
+      });
+      return resumeActiveOperation();
+    }
 
     if (operation.kind === 'closing') {
+      const pending = await studio.pendingSeasonCloseTransaction();
+      if (
+        pending === null ||
+        pending.transactionId !== operation.id ||
+        pending.seasonNoteId !== operation.targetNoteId ||
+        pending.seasonPath !== operation.targetPath
+      ) {
+        throw new Error(
+          'The season-close checkpoint does not match its durable journal. Preserve both for explicit repair.',
+        );
+      }
       const result = await studio.resumeSeasonCloseTransaction();
       if (result === null) {
         throw new Error(
@@ -459,8 +495,15 @@ export function createSeasonService(
   async function reserveActiveOperation(
     kind: 'activating' | 'repairing' | 'closing',
     target: SeasonRecord,
+    options: {
+      observed?: Awaited<
+        ReturnType<StudioService['seasonTransactions']['readActive']>
+      >;
+      operationId?: string;
+    } = {},
   ) {
-    const observed = await studio.seasonTransactions.readActive();
+    const observed =
+      options.observed ?? (await studio.seasonTransactions.readActive());
     if (
       observed.value.activeNoteId !== null &&
       observed.value.activeNoteId !== target.note.id
@@ -474,7 +517,9 @@ export function createSeasonService(
         activeNoteId: target.note.id,
         activePath: target.path,
         operation: {
-          id: `${kind}-${target.note.id}-${observed.value.revision + 1}`,
+          id:
+            options.operationId ??
+            `${kind}-${target.note.id}-${observed.value.revision + 1}`,
           kind,
           targetNoteId: target.note.id,
           targetPath: target.path,
@@ -590,7 +635,15 @@ export function createSeasonService(
         throw new Error('Another active season needs attention first.');
       }
       const normalized = normalizeCloseReflection(record.state, reflection);
-      const reservation = await reserveActiveOperation('closing', record);
+      const observed = await studio.seasonTransactions.readActive();
+      if (
+        observed.value.activeNoteId !== null &&
+        (observed.value.activeNoteId !== record.note.id ||
+          observed.value.activePath !== record.path)
+      ) {
+        throw new Error('Another active season needs attention first.');
+      }
+      const transactionId = `closing-${record.note.id}-${observed.value.revision + 1}`;
       const letterId = generateId();
       const created = now();
       const letter: StudioNote = {
@@ -617,7 +670,7 @@ export function createSeasonService(
         lineEnding: '\n',
       };
       const request: SeasonCloseRequest = {
-        transactionId: reservation.value.operation!.id,
+        transactionId,
         season: record,
         closedSeasonNote: noteWithState(
           record.note,
@@ -632,8 +685,18 @@ export function createSeasonService(
         })),
         letter,
       };
+      await studio.prepareSeasonCloseTransaction(request);
+      const reservation = await reserveActiveOperation('closing', record, {
+        observed,
+        operationId: transactionId,
+      });
       try {
-        const closed = await studio.closeSeasonTransaction(request);
+        const closed = await studio.resumeSeasonCloseTransaction();
+        if (closed === null) {
+          throw new Error(
+            'The prepared season-close journal disappeared before it could run.',
+          );
+        }
         await completeActiveOperation(reservation, true);
         return toRecord(closed.season);
       } catch (error) {

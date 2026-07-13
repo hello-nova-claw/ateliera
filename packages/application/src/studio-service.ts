@@ -59,6 +59,7 @@ import {
 } from './season-transaction-store';
 import {
   createSeasonCloseTransactionService,
+  type PendingSeasonClose,
   type SeasonCloseRequest,
   type SeasonCloseResult,
 } from './season-close-transaction';
@@ -182,6 +183,8 @@ export interface StudioService {
   restore(id: string): Promise<RestoreNoteResult>;
   reconcileTrash(): Promise<string[]>;
   snapshot(reason: RevisionReason, paths: string[]): Promise<RevisionSnapshot>;
+  prepareSeasonCloseTransaction(request: SeasonCloseRequest): Promise<void>;
+  pendingSeasonCloseTransaction(): Promise<PendingSeasonClose | null>;
   closeSeasonTransaction(
     request: SeasonCloseRequest,
   ): Promise<SeasonCloseResult>;
@@ -985,6 +988,16 @@ export function createStudioService(
     snapshot(reason, paths) {
       assertActive();
       return enqueueDurableMutation(() => revisions.create(reason, paths));
+    },
+    prepareSeasonCloseTransaction(request) {
+      assertActive();
+      return enqueueDurableMutation(() =>
+        seasonCloseTransactions.prepare(request),
+      );
+    },
+    pendingSeasonCloseTransaction() {
+      assertActive();
+      return seasonCloseTransactions.pending();
     },
     closeSeasonTransaction(request) {
       return finishSeasonClose(() => seasonCloseTransactions.close(request));
