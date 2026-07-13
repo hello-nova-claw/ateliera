@@ -14,6 +14,7 @@ import {
   type StudioCommand,
 } from '@studio/ui';
 import type { BrowserPersistenceStatus } from '@studio/storage/browser';
+import type { VaultPort } from '@studio/storage/portable';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { StudioProviders } from './providers';
 import {
@@ -25,7 +26,6 @@ import {
 } from './browser-studios';
 import { useTheme } from './theme-context';
 import { RoomRoute } from './RoomRoute';
-import { createAppStudioService } from './studio-service-factory';
 import { useStudioRouter, type StudioPath } from './router';
 import { themes, type ThemeId } from './themes';
 import { QuickCapture } from '../features/capture/QuickCapture';
@@ -42,6 +42,13 @@ const NoteEditorSession = lazy(() =>
 async function requestBrowserPersistence(): Promise<BrowserPersistenceStatus> {
   const { ensureBrowserPersistence } = await import('@studio/storage/browser');
   return ensureBrowserPersistence();
+}
+
+async function createAppStudioService(
+  vault: VaultPort,
+): Promise<StudioService> {
+  const factory = await import('./studio-service-factory');
+  return factory.createAppStudioService(vault);
 }
 
 function isNativeShell(): boolean {
@@ -318,7 +325,7 @@ function StudioApplication({
     if (vault === null) return false;
     setEditor(undefined);
     setActiveStudioId(`native:${vault.recoveryIdentity}`);
-    setService(createAppStudioService(vault));
+    setService(await createAppStudioService(vault));
     setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
     return true;
   }
@@ -335,7 +342,9 @@ function StudioApplication({
       activateBrowserStudio(localStorage, record.vaultId);
       setEditor(undefined);
       setActiveStudioId(record.vaultId);
-      setService(createAppStudioService(createBrowserVault(record.vaultId)));
+      setService(
+        await createAppStudioService(createBrowserVault(record.vaultId)),
+      );
       setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
       finishOnboarding();
     } catch (reason) {
@@ -386,7 +395,7 @@ function StudioApplication({
       setBrowserStudios(readBrowserStudios(localStorage));
       setEditor(undefined);
       setActiveStudioId(record.vaultId);
-      setService(createAppStudioService(vault));
+      setService(await createAppStudioService(vault));
       setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
       localStorage.setItem('studio:name', record.name);
       setCreateOpen(false);

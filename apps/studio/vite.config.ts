@@ -136,8 +136,31 @@ function studioServiceWorker(): Plugin {
   };
 }
 
+function studioEntryBudget(maxBytes = 500_000): Plugin {
+  return {
+    name: 'studio-entry-budget',
+    generateBundle(_options, bundle) {
+      for (const output of Object.values(bundle)) {
+        if (
+          output.type !== 'chunk' ||
+          !output.isEntry ||
+          output.name === 'studio-service-worker'
+        ) {
+          continue;
+        }
+        const bytes = Buffer.byteLength(output.code);
+        if (bytes > maxBytes) {
+          this.error(
+            `Startup entry ${output.fileName} is ${bytes.toLocaleString('en')} bytes; budget is ${maxBytes.toLocaleString('en')} bytes. Move non-startup work behind a dynamic import.`,
+          );
+        }
+      }
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), studioServiceWorker()],
+  plugins: [react(), studioEntryBudget(), studioServiceWorker()],
   build: {
     rollupOptions: {
       input:
