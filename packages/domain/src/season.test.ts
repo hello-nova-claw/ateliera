@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  activateSeasonState,
   PriorityLimitError,
   addSeasonPriority,
   createSeasonDraft,
@@ -61,5 +62,61 @@ describe('season domain', () => {
         endsOn: '2026-08-01',
       }),
     ).toThrow('End date');
+  });
+
+  it('accepts only real ISO calendar dates and supports explicit date clearing', () => {
+    const draft = createSeasonDraft('season-1', '2026-07-14T00:00:00.000Z');
+    expect(() =>
+      updateSeasonDraft(draft, 'name-dates', {
+        title: 'Winter',
+        startsOn: '2026-02-30',
+      }),
+    ).toThrow('YYYY-MM-DD');
+    expect(() =>
+      updateSeasonDraft(draft, 'name-dates', {
+        title: 'Winter',
+        startsOn: '2025-02-29',
+      }),
+    ).toThrow('YYYY-MM-DD');
+    const dated = updateSeasonDraft(draft, 'name-dates', {
+      title: 'Winter',
+      startsOn: '2028-02-29',
+      endsOn: '2028-03-01',
+    });
+    const cleared = updateSeasonDraft(dated, 'name-dates', {
+      title: 'Winter',
+      startsOn: null,
+      endsOn: null,
+    });
+    expect(cleared.startsOn).toBeUndefined();
+    expect(cleared.endsOn).toBeUndefined();
+  });
+
+  it('rejects fields outside a wizard step and protects lifecycle identity', () => {
+    const draft = createSeasonDraft('season-1', '2026-07-14T00:00:00.000Z');
+    expect(() =>
+      updateSeasonDraft(draft, 'feelings', {
+        feelings: ['calm'],
+        // A JavaScript caller can bypass TypeScript, so the domain boundary must still reject it.
+        status: 'active',
+      } as never),
+    ).toThrow('not accepted');
+    expect(() =>
+      updateSeasonDraft(draft, 'priorities', {
+        priorities: ['one', 'two', 'three', 'four'],
+      }),
+    ).toThrow(PriorityLimitError);
+  });
+
+  it('activates only a draft confirmed through the confirm step', () => {
+    const draft = createSeasonDraft('season-1', '2026-07-14T00:00:00.000Z');
+    const forged = {
+      ...draft,
+      title: 'Winter',
+      completedSteps: ['confirm'] as const,
+    };
+    expect(() => activateSeasonState(forged)).toThrow('all earlier steps');
+    const archived = { ...draft, status: 'archived' as const };
+    expect(() => activateSeasonState(archived)).toThrow('draft');
   });
 });
