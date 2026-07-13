@@ -13,6 +13,7 @@ This report describes the current implementation. It intentionally does not clai
 - `60d2bff` — replace swap/rollback CAS with the documented cooperative locking boundary, retain watcher identity, and clean up failed subscriptions
 - `646d485` — keep generated Rust toolchains and build output outside lint scope
 - `c0fb671` — reserve internal control paths, prove two-selection concurrency, and verify watcher identity through registration
+- `0e56612` — reserve control paths case-insensitively for default macOS filesystems
 
 All commits are authored solely by Anna McPhee and contain no attribution trailers.
 
@@ -22,7 +23,7 @@ All commits are authored solely by Anna McPhee and contain no attribution traile
 - Rust immediately opens and retains the selected directory as a `cap_std::fs::Dir`.
 - The webview receives a random opaque token scoped to its owning window label; it never receives a reusable native path capability.
 - Public operations validate normalized relative paths, open every parent component relative to retained directory descriptors, and do not follow symlinks.
-- Absolute paths, parent traversal, NULs, Windows separators/drives, symlink components, special files, invalid tokens, and every path component beginning `.studio-` are rejected with the typed `path_escape` or `unavailable` error.
+- Absolute paths, parent traversal, NULs, Windows separators/drives, symlink components, special files, invalid tokens, and every ASCII case variant of a path component beginning `.studio-` are rejected with the typed `path_escape` or `unavailable` error. Case-insensitive reservation is required for default macOS volumes.
 - `.studio-*` is a reserved internal namespace. Public text/binary read and write, move source and destination, remove, exists, and prefixed list calls cannot address it. Unprefixed list, snapshots, and logical watcher output omit it.
 
 ## Mutation and conflict model
@@ -85,7 +86,7 @@ GREEN:
 - `pnpm tauri:test`: 14 passed.
   - production builder lifecycle callback wiring assertion;
   - `WindowEvent::Destroyed` capability revocation branch;
-  - reserved `.studio-*` component validation;
+  - case-insensitive reserved `.studio-*` component validation;
   - complete public IPC denial for internal text/binary/list/move/remove/exists paths;
   - retained capability survives selected pathname replacement;
   - forged ambient pathname token rejection;

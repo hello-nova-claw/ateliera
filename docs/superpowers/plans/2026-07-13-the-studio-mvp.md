@@ -650,7 +650,7 @@ Expected: FAIL because the retained capability registry, descriptor-relative ope
 
 - [ ] **Step 3: Implement native selection and capability-scoped commands**
 
-Open/select the vault through the native desktop flow. Retain a `cap_std::fs::Dir` or equivalent open-directory capability in Rust and return only a random opaque token to the webview. Every list/read/write/move/remove/watch operation resolves relative components and opens files descriptor-relative from that retained root; validation must not return an ambient absolute path for later reopening. Reject absolute, parent, NUL, symlink, special-file, invalid-token, and reserved `.studio-*` component inputs. Revoke tokens and stop watchers when the owning window/app closes. Do not grant blanket filesystem scope.
+Open/select the vault through the native desktop flow. Retain a `cap_std::fs::Dir` or equivalent open-directory capability in Rust and return only a random opaque token to the webview. Every list/read/write/move/remove/watch operation resolves relative components and opens files descriptor-relative from that retained root; validation must not return an ambient absolute path for later reopening. Reject absolute, parent, NUL, symlink, special-file, invalid-token, and ASCII case-insensitive reserved `.studio-*` component inputs. Revoke tokens and stop watchers when the owning window/app closes. Do not grant blanket filesystem scope.
 
 - [ ] **Step 4: Connect TypeScript adapter and normalize logical changes**
 
