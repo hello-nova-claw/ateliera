@@ -138,6 +138,7 @@ function AutosaveEditor({
     setActionState('busy');
     setActionError(undefined);
     try {
+      await service.snapshot('conflict-resolution', [initial.path]);
       await saveUniqueSibling(service, initial.path, conflictLocal);
       recovery.remove(studioId, initial.path);
       onClose();
@@ -152,10 +153,24 @@ function AutosaveEditor({
     }
   }
 
-  function keepOther(): void {
+  async function keepOther(): Promise<void> {
     if (actionInFlight.current) return;
-    recovery.remove(studioId, initial.path);
-    onClose();
+    actionInFlight.current = true;
+    setActionState('busy');
+    setActionError(undefined);
+    try {
+      await service.snapshot('conflict-resolution', [initial.path]);
+      recovery.remove(studioId, initial.path);
+      onClose();
+    } catch (reason) {
+      actionInFlight.current = false;
+      setActionState('error');
+      setActionError(
+        reason instanceof Error
+          ? `${reason.message} Both versions are still preserved; try again.`
+          : 'The snapshot could not be created. Both versions are still preserved; try again.',
+      );
+    }
   }
 
   async function mergeManually(): Promise<void> {
@@ -164,6 +179,7 @@ function AutosaveEditor({
     setActionState('busy');
     setActionError(undefined);
     try {
+      await service.snapshot('conflict-resolution', [initial.path]);
       if (recoveryConflict !== undefined) {
         setRecoveryConflict(undefined);
         autosave.update({
@@ -205,7 +221,7 @@ function AutosaveEditor({
         }}
         onFlush={autosave.flush}
         onKeepMine={() => void keepMine()}
-        onKeepOther={keepOther}
+        onKeepOther={() => void keepOther()}
         onManualMerge={() => void mergeManually()}
         onRestoreDraft={() => {
           if (pending.kind !== 'recoverable') return;

@@ -59,6 +59,17 @@ function mockService(overrides: Partial<StudioService> = {}): StudioService {
     trash: vi.fn(),
     restore: vi.fn(),
     reconcileTrash: vi.fn(async () => []),
+    snapshot: vi.fn(async () => ({
+      manifestPath: '.studio/backups/test/manifest.json',
+      manifest: {
+        version: 1,
+        id: 'test',
+        reason: 'conflict-resolution',
+        createdAt: '2026-07-13T00:00:00.000Z',
+        state: 'complete',
+        files: [],
+      },
+    })),
     start: vi.fn(),
     subscribe: vi.fn(() => vi.fn()),
     views: {} as StudioService['views'],
@@ -166,7 +177,7 @@ it('turns rapid duplicate Keep mine activation into exactly one durable write', 
   fireEvent.click(action);
   fireEvent.click(action);
 
-  expect(save).toHaveBeenCalledOnce();
+  await waitFor(() => expect(save).toHaveBeenCalledOnce());
   expect(screen.getByRole('button', { name: 'Keeping mine…' })).toBeDisabled();
   await act(async () => finish?.());
 });
@@ -191,6 +202,29 @@ it('preserves recovery and enables retry when sibling creation fails', async () 
   expect(createDraftRecoveryStore(sessionStorage).read('studio-a', initial.path)).not.toBeNull();
 });
 
+it('keeps both versions when a required conflict snapshot cannot be created', async () => {
+  seedStaleDraft();
+  const onClose = vi.fn();
+  const service = mockService({
+    snapshot: vi.fn().mockRejectedValue(new Error('Snapshot storage unavailable')),
+  });
+  render(
+    <NoteEditorSession
+      initial={initial}
+      onClose={onClose}
+      requestClose={0}
+      service={service}
+      studioId="studio-a"
+    />,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Keep other' }));
+  expect(await screen.findByText(/Snapshot storage unavailable.*Both versions are still preserved/i))
+    .toBeVisible();
+  expect(onClose).not.toHaveBeenCalled();
+  expect(createDraftRecoveryStore(sessionStorage).read('studio-a', initial.path)).not.toBeNull();
+});
+
 it('merges a stale draft explicitly and saves against the current durable hash', async () => {
   vi.useFakeTimers();
   seedStaleDraft();
@@ -206,7 +240,8 @@ it('merges a stale draft explicitly and saves against the current durable hash',
   );
 
   fireEvent.click(screen.getByRole('button', { name: 'Merge manually' }));
-  expect(screen.queryByText('Another version exists')).not.toBeInTheDocument();
+  await act(async () => Promise.resolve());
+  expect(screen.queryByRole('heading', { name: 'Another version exists' })).not.toBeInTheDocument();
   expect(screen.getByLabelText('Markdown body')).toHaveTextContent('Local unsaved words');
   expect(screen.getByLabelText('Markdown body')).toHaveTextContent('Durable words');
 

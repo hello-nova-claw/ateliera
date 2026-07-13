@@ -11,8 +11,15 @@ import type { IndexEntry, IndexPort } from '@studio/index';
 import {
   VaultConflictError,
   VaultUnavailableError,
+  createRevisionStore,
 } from '@studio/storage/portable';
-import type { VaultChange, VaultPort } from '@studio/storage/portable';
+import type {
+  RevisionReason,
+  RevisionSnapshot,
+  RevisionStore,
+  VaultChange,
+  VaultPort,
+} from '@studio/storage/portable';
 
 import {
   type ActiveSeasonProjection,
@@ -85,6 +92,7 @@ export interface StudioServiceDependencies {
   /** Compatibility hook; production recovery uses the safe timer-backed default. */
   scheduleIndexRebuild?: (rebuild: () => Promise<void>) => void;
   timers?: StudioTimers;
+  revisions?: RevisionStore;
 }
 
 export interface StudioService {
@@ -100,6 +108,7 @@ export interface StudioService {
   trash(id: string): Promise<TrashedNoteResult>;
   restore(id: string): Promise<RestoredNoteResult>;
   reconcileTrash(): Promise<string[]>;
+  snapshot(reason: RevisionReason, paths: string[]): Promise<RevisionSnapshot>;
   repairs(): Promise<StudioRepairItem[]>;
   rebuildIndex(): Promise<void>;
   indexState(): 'ready' | 'stale' | 'rebuilding';
@@ -162,6 +171,7 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   const generateId = dependencies.generateId ?? (() => createNoteId(clock().valueOf()));
   const timers = dependencies.timers ?? defaultTimers;
   const views = createViewStateRepository(dependencies.vault);
+  const revisions = dependencies.revisions ?? createRevisionStore(dependencies.vault, { clock });
   const noteLifecycle = createNoteLifecycleService({
     vault: dependencies.vault,
     index: dependencies.index,
@@ -638,6 +648,7 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
       );
     },
     reconcileTrash() { assertActive(); return noteLifecycle.reconcile(); },
+    snapshot(reason, paths) { assertActive(); return revisions.create(reason, paths); },
     async repairs() { assertActive(); return (await scan()).repairs; },
     rebuildIndex,
     indexState() { return state; },

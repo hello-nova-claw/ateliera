@@ -84,6 +84,7 @@ function studioService(overrides: Partial<StudioService> = {}) {
     trash: vi.fn(),
     restore: vi.fn(),
     reconcileTrash: vi.fn(async () => []),
+    snapshot: vi.fn(),
     repairs: vi.fn(async () => []),
     rebuildIndex: vi.fn(async () => undefined),
     indexState: vi.fn(() => 'ready' as const),
