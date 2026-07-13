@@ -1,5 +1,7 @@
 import { VaultUnavailableError } from './conflict';
 import type { VaultPort } from './vault-port';
+import { createStudioControlVault } from './studio-control-vault';
+import type { StudioControlVault } from './studio-control-vault';
 
 export type RevisionReason =
   | 'migration'
@@ -67,7 +69,7 @@ function parseManifest(text: string): RevisionManifest | null {
   }
 }
 
-async function removeSnapshot(vault: VaultPort, manifestPath: string): Promise<void> {
+async function removeSnapshot(vault: StudioControlVault, manifestPath: string): Promise<void> {
   const root = manifestPath.slice(0, -'/manifest.json'.length);
   const entries = (await vault.list(root))
     .filter((entry) => entry.kind === 'file')
@@ -92,6 +94,7 @@ export function createRevisionStore(
   const clock = options.clock ?? (() => new Date());
   const generateId = options.generateId ?? (() => crypto.randomUUID());
   const retentionDays = options.retentionDays ?? 30;
+  const control = createStudioControlVault(vault);
 
   return {
     async create(reason, sourcePaths) {
@@ -107,7 +110,7 @@ export function createRevisionStore(
         state: 'writing',
         files: [],
       };
-      let manifestWrite = await vault.writeTextAtomic(path, manifestText(manifest), {
+      let manifestWrite = await control.writeTextAtomic(path, manifestText(manifest), {
         expectedMissing: true,
       });
       try {
@@ -118,23 +121,23 @@ export function createRevisionStore(
           if (entry === undefined) throw new VaultUnavailableError(`Cannot snapshot ${originalPath}.`);
           const bytes = await vault.readBinary(originalPath);
           const snapshotPath = copyPath(root, originalPath);
-          const copied = await vault.writeBinaryAtomic(snapshotPath, bytes, { expectedMissing: true });
+          const copied = await control.writeBinaryAtomic(snapshotPath, bytes, { expectedMissing: true });
           manifest = {
             ...manifest,
             files: [...manifest.files, { originalPath, snapshotPath, hash: copied.hash }],
           };
-          manifestWrite = await vault.writeTextAtomic(path, manifestText(manifest), {
+          manifestWrite = await control.writeTextAtomic(path, manifestText(manifest), {
             expectedHash: manifestWrite.hash,
           });
         }
         manifest = { ...manifest, state: 'complete' };
-        await vault.writeTextAtomic(path, manifestText(manifest), {
+        await control.writeTextAtomic(path, manifestText(manifest), {
           expectedHash: manifestWrite.hash,
         });
         return { manifest, manifestPath: path };
       } catch (error) {
         manifest = { ...manifest, state: 'incomplete' };
-        await vault.writeTextAtomic(path, manifestText(manifest), {
+        await control.writeTextAtomic(path, manifestText(manifest), {
           expectedHash: manifestWrite.hash,
         }).catch(() => undefined);
         throw error;
@@ -142,14 +145,14 @@ export function createRevisionStore(
     },
 
     async prune() {
-      const entries = await vault.list('.studio/backups').catch((error: unknown) => {
+      const entries = await control.list('.studio/backups').catch((error: unknown) => {
         if (error instanceof VaultUnavailableError) return [];
         throw error;
       });
       const snapshots: RevisionSnapshot[] = [];
       for (const entry of entries) {
         if (entry.kind !== 'file' || !entry.path.endsWith('/manifest.json')) continue;
-        const file = await vault.readText(entry.path);
+        const file = await control.readText(entry.path);
         const manifest = parseManifest(file.text);
         if (manifest !== null) snapshots.push({ manifest, manifestPath: entry.path });
       }
@@ -162,7 +165,7 @@ export function createRevisionStore(
         const expired = !Number.isFinite(created) || now - created >= retentionDays * 86_400_000;
         const duplicateDay = newestDay.has(day);
         if (expired || duplicateDay) {
-          await removeSnapshot(vault, snapshot.manifestPath);
+          await removeSnapshot(control, snapshot.manifestPath);
         } else {
           newestDay.add(day);
         }

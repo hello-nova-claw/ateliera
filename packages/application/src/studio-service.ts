@@ -28,9 +28,17 @@ import {
 } from './projections';
 import { createViewStateRepository } from './view-state';
 import type { ViewStateRepository } from './view-state';
+import {
+  createNoteLifecycleService,
+  type RestoredNoteResult,
+  type TrashedNoteResult,
+} from './note-lifecycle';
 
 export type StudioEvent =
   | { kind: 'note-saved'; noteId: string; path: string }
+  | { kind: 'note-archived' | 'note-unarchived'; noteId: string; path: string }
+  | { kind: 'note-trashed'; noteId: string }
+  | { kind: 'note-restored'; noteId: string; path: string; relocated: boolean }
   | { kind: 'index-stale' }
   | { kind: 'index-rebuilt' };
 
@@ -87,6 +95,11 @@ export interface StudioService {
   capture(input: CaptureNoteInput): Promise<SavedNote>;
   load(path: string): Promise<SavedNote>;
   save(input: SaveNoteInput): Promise<SavedNote>;
+  archive(id: string): Promise<SavedNote>;
+  unarchive(id: string): Promise<SavedNote>;
+  trash(id: string): Promise<TrashedNoteResult>;
+  restore(id: string): Promise<RestoredNoteResult>;
+  reconcileTrash(): Promise<string[]>;
   repairs(): Promise<StudioRepairItem[]>;
   rebuildIndex(): Promise<void>;
   indexState(): 'ready' | 'stale' | 'rebuilding';
@@ -149,6 +162,11 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
   const generateId = dependencies.generateId ?? (() => createNoteId(clock().valueOf()));
   const timers = dependencies.timers ?? defaultTimers;
   const views = createViewStateRepository(dependencies.vault);
+  const noteLifecycle = createNoteLifecycleService({
+    vault: dependencies.vault,
+    index: dependencies.index,
+    clock,
+  });
   const listeners = new Set<StudioEventListener>();
   if (dependencies.publish !== undefined) listeners.add(dependencies.publish);
 
@@ -441,6 +459,23 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     return operation;
   }
 
+  async function finishLifecycle<T>(
+    operation: () => Promise<T>,
+    event: (result: T) => StudioEvent,
+  ): Promise<T> {
+    assertActive();
+    const result = await operation();
+    durableGeneration += 1;
+    markIndexStale();
+    try {
+      await rebuildIndex();
+    } catch {
+      scheduleRecovery();
+    }
+    emit(event(result));
+    return result;
+  }
+
   const service: StudioService = {
     views,
 
@@ -573,6 +608,36 @@ export function createStudioService(dependencies: StudioServiceDependencies): St
     },
 
     save,
+    archive(id) {
+      return finishLifecycle(
+        () => noteLifecycle.archive(id),
+        (result) => ({ kind: 'note-archived', noteId: id, path: result.path }),
+      );
+    },
+    unarchive(id) {
+      return finishLifecycle(
+        () => noteLifecycle.unarchive(id),
+        (result) => ({ kind: 'note-unarchived', noteId: id, path: result.path }),
+      );
+    },
+    trash(id) {
+      return finishLifecycle(
+        () => noteLifecycle.trash(id),
+        () => ({ kind: 'note-trashed', noteId: id }),
+      );
+    },
+    restore(id) {
+      return finishLifecycle(
+        () => noteLifecycle.restore(id),
+        (result) => ({
+          kind: 'note-restored',
+          noteId: id,
+          path: result.path,
+          relocated: result.relocated,
+        }),
+      );
+    },
+    reconcileTrash() { assertActive(); return noteLifecycle.reconcile(); },
     async repairs() { assertActive(); return (await scan()).repairs; },
     rebuildIndex,
     indexState() { return state; },
