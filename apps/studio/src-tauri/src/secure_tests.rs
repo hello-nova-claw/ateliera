@@ -98,7 +98,10 @@ fn native_recovery_identity_survives_reselection_without_disclosing_the_vault_pa
         .register_selected_path_selection_for_test("main", second_vault.path())
         .unwrap();
 
-    assert_eq!(first_selection.recovery_identity, reselected.recovery_identity);
+    assert_eq!(
+        first_selection.recovery_identity,
+        reselected.recovery_identity
+    );
     assert_ne!(first_selection.vault_token, reselected.vault_token);
     assert_ne!(reselected.recovery_identity, different.recovery_identity);
     assert_eq!(reselected.recovery_identity.len(), 32);

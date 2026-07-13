@@ -294,7 +294,7 @@ function StudioApplication({
     const vault = await selectTauriVault();
     if (vault === null) return false;
     setEditor(undefined);
-    setActiveStudioId(`session:${crypto.randomUUID()}`);
+    setActiveStudioId(`native:${vault.recoveryIdentity}`);
     setService(createAppStudioService(vault));
     setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
     return true;

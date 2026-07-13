@@ -26,6 +26,8 @@ use crate::security::path_guard::{
     is_internal_component, map_path_error, open_parent, validate_relative,
 };
 
+const VAULT_RECOVERY_ID_PATH: &str = ".studio-vault-id";
+
 #[derive(Debug, thiserror::Error)]
 pub enum VaultError {
     #[error("path_escape")]
@@ -49,6 +51,7 @@ impl Serialize for VaultError {
 #[serde(rename_all = "camelCase")]
 pub struct VaultSelection {
     pub vault_token: String,
+    pub recovery_identity: String,
 }
 
 #[derive(Serialize)]
@@ -156,7 +159,7 @@ impl VaultRegistry {
         &self,
         owner: &str,
         selected_path: &Path,
-    ) -> Result<String, VaultError> {
+    ) -> Result<VaultSelection, VaultError> {
         // Native selection is the only ambient-authority boundary. Open it immediately and
         // retain the resulting directory descriptor; later commands never reopen this path.
         let root = Dir::open_ambient_dir(selected_path, ambient_authority())
@@ -171,23 +174,27 @@ impl VaultRegistry {
             .open_with(".studio-write.lock", &lock_options)
             .map_err(map_path_error)?
             .into_std();
-        let token = Uuid::new_v4().simple().to_string();
+        let vault = Arc::new(Vault {
+            root,
+            write_lock: Mutex::new(()),
+            write_lock_file,
+            watchers: Mutex::new(HashMap::new()),
+        });
+        let selection = VaultSelection {
+            vault_token: Uuid::new_v4().simple().to_string(),
+            recovery_identity: vault.recovery_identity()?,
+        };
         self.vaults
             .lock()
             .map_err(|_| VaultError::Unavailable)?
             .insert(
-                token.clone(),
+                selection.vault_token.clone(),
                 RegisteredVault {
                     owner: owner.to_owned(),
-                    vault: Arc::new(Vault {
-                        root,
-                        write_lock: Mutex::new(()),
-                        write_lock_file,
-                        watchers: Mutex::new(HashMap::new()),
-                    }),
+                    vault,
                 },
             );
-        Ok(token)
+        Ok(selection)
     }
 
     fn vault(&self, owner: &str, token: &str) -> Result<Arc<Vault>, VaultError> {
@@ -217,6 +224,16 @@ impl VaultRegistry {
         owner: &str,
         path: &Path,
     ) -> Result<String, VaultError> {
+        self.register_selected_path(owner, path)
+            .map(|selection| selection.vault_token)
+    }
+
+    #[cfg(test)]
+    pub fn register_selected_path_selection_for_test(
+        &self,
+        owner: &str,
+        path: &Path,
+    ) -> Result<VaultSelection, VaultError> {
         self.register_selected_path(owner, path)
     }
 
@@ -355,6 +372,75 @@ impl Vault {
                 return Err(VaultError::Unavailable);
             }
         }
+    }
+
+    fn parse_recovery_identity(bytes: &[u8]) -> Result<String, VaultError> {
+        let identity = std::str::from_utf8(bytes).map_err(|_| VaultError::Unavailable)?;
+        let is_version_four = identity.as_bytes().get(12) == Some(&b'4');
+        let has_rfc_variant =
+            matches!(identity.as_bytes().get(16), Some(b'8' | b'9' | b'a' | b'b'));
+        if identity.len() != 32
+            || !identity
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            || !is_version_four
+            || !has_rfc_variant
+        {
+            return Err(VaultError::Unavailable);
+        }
+        Ok(identity.to_owned())
+    }
+
+    fn read_recovery_identity(&self) -> Result<String, VaultError> {
+        Self::parse_recovery_identity(&read_file_nofollow(&self.root, VAULT_RECOVERY_ID_PATH)?)
+    }
+
+    fn recovery_identity(&self) -> Result<String, VaultError> {
+        let _write_guard = self.lock_writes()?;
+        match self.root.symlink_metadata(VAULT_RECOVERY_ID_PATH) {
+            Ok(metadata) => {
+                if !metadata.is_file() || metadata.file_type().is_symlink() {
+                    return Err(VaultError::Unavailable);
+                }
+                return self.read_recovery_identity();
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(map_path_error(error)),
+        }
+
+        let identity = Uuid::new_v4().simple().to_string();
+        let temporary = format!(".studio-{}.tmp", Uuid::new_v4().simple());
+        let mut options = OpenOptions::new();
+        options
+            .create_new(true)
+            .write(true)
+            .follow(FollowSymlinks::No);
+        let mut file = self
+            .root
+            .open_with(&temporary, &options)
+            .map_err(map_path_error)?;
+        let publish = (|| {
+            file.write_all(identity.as_bytes())
+                .map_err(|_| VaultError::Unavailable)?;
+            file.flush().map_err(|_| VaultError::Unavailable)?;
+            file.sync_all().map_err(|_| VaultError::Unavailable)?;
+            drop(file);
+            match rename_exclusive(&self.root, &temporary, &self.root, VAULT_RECOVERY_ID_PATH) {
+                Ok(()) => {
+                    sync_directory(&self.root)?;
+                    Ok(identity)
+                }
+                Err(VaultError::Conflict) => {
+                    let _ = self.root.remove_file(&temporary);
+                    self.read_recovery_identity()
+                }
+                Err(error) => Err(error),
+            }
+        })();
+        if publish.is_err() {
+            let _ = self.root.remove_file(&temporary);
+        }
+        publish
     }
 
     fn require_expected_hash(
@@ -996,9 +1082,7 @@ pub fn vault_select<R: Runtime>(
     else {
         return Ok(None);
     };
-    Ok(Some(VaultSelection {
-        vault_token: state.register_selected_path(window.label(), &path)?,
-    }))
+    Ok(Some(state.register_selected_path(window.label(), &path)?))
 }
 
 #[tauri::command]
