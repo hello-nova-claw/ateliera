@@ -50,7 +50,7 @@ test('captured note survives reload while offline', async ({
   page,
   context,
   browserName,
-}) => {
+}, testInfo) => {
   const disposableServer =
     browserName === 'webkit' ? await startDisposableStudioServer() : undefined;
   await page.goto(disposableServer?.origin ?? '/');
@@ -61,6 +61,10 @@ test('captured note survives reload while offline', async ({
   await page.getByRole('button', { name: 'Remember' }).click();
   await expect(page.getByText('The hill')).toBeVisible();
   await expect(page.getByText('Ready offline')).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath('offline-capture-ready.png'),
+    fullPage: true,
+  });
 
   if (browserName === 'webkit') {
     await disposableServer?.stop();
