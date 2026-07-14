@@ -61,6 +61,140 @@ describe('StudioSearchService retrieval', () => {
     expect(facets).toHaveBeenCalledWith('calm', filters);
   });
 
+  it('uses the warm index and reads only the inspected Markdown source', async () => {
+    const inspected = note({
+      id: 'inspected', title: 'Inspected',
+      body: '[Forward](studio://note/forward), [[Missing]], and [[Shared]]',
+    });
+    const backlink = note({
+      id: 'backlink', title: 'Backlink', body: '[Inspected](studio://note/inspected)',
+    });
+    const forward = note({ id: 'forward', title: 'Forward', body: '' });
+    const firstShared = note({ id: 'shared-a', title: 'Shared', body: '' });
+    const secondShared = note({ id: 'shared-b', title: 'Shared', body: '' });
+    const vault = await seed([
+      { path: 'Notes/Inspected.md', note: inspected },
+      { path: 'Notes/Backlink.md', note: backlink },
+      { path: 'Notes/Forward.md', note: forward },
+      { path: 'Notes/Shared A.md', note: firstShared },
+      { path: 'Notes/Shared B.md', note: secondShared },
+    ]);
+    for (const [path, indexedNote] of [
+      ['Notes/Inspected.md', inspected],
+      ['Notes/Backlink.md', backlink],
+      ['Notes/Forward.md', forward],
+      ['Notes/Shared A.md', firstShared],
+      ['Notes/Shared B.md', secondShared],
+    ] as const) {
+      const file = await vault.readText(path);
+      await index.upsert(indexedNote, path, file.hash);
+    }
+    const list = vi.spyOn(vault, 'list');
+    const read = vi.spyOn(vault, 'readText');
+    const backlinks = vi.spyOn(index, 'backlinks').mockResolvedValue([
+      'backlink', 'inspected', 'backlink',
+    ]);
+    const forwardLinks = vi.spyOn(index, 'forwardLinks').mockResolvedValue([
+      {
+        sourceId: 'inspected', kind: 'id', target: 'forward',
+        label: 'Forward', targetId: 'forward',
+      },
+      { sourceId: 'inspected', kind: 'wiki', target: 'Missing', label: 'Missing' },
+      {
+        sourceId: 'inspected', kind: 'wiki', target: 'Shared', label: 'Shared',
+        candidateIds: ['shared-b', 'shared-a', 'shared-b'],
+      },
+    ]);
+    const getManyById = vi.spyOn(index, 'getManyById');
+    const service = createStudioSearchService({ vault, index, revisions: revisions() });
+
+    const result = await service.inspect('inspected');
+
+    expect(result).toMatchObject({
+      note: { id: 'inspected' },
+      backlinks: [{ id: 'backlink', path: 'Notes/Backlink.md', title: 'Backlink' }],
+      forwardLinks: [
+        { occurrence: 0, targetId: 'forward', state: 'resolved' },
+        { occurrence: 1, state: 'broken' },
+        { occurrence: 2, state: 'ambiguous', candidateIds: ['shared-a', 'shared-b'] },
+      ],
+    });
+    expect(result?.forwardLinks[0]).toMatchObject({
+      start: inspected.body.indexOf('[Forward]'),
+      end: inspected.body.indexOf('[Forward]') + '[Forward](studio://note/forward)'.length,
+    });
+    expect(list).not.toHaveBeenCalled();
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(backlinks).toHaveBeenCalledWith('inspected');
+    expect(forwardLinks).toHaveBeenCalledWith('inspected');
+    expect(getManyById).toHaveBeenCalledWith([
+      'backlink', 'forward', 'shared-b', 'shared-a',
+    ]);
+  });
+
+  it('falls back to Markdown authority when indexed related references are stale', async () => {
+    const target = note({ id: 'target', title: 'Target', body: '' });
+    const backlink = note({
+      id: 'backlink', title: 'Backlink', body: '[Target](studio://note/target)',
+    });
+    const vault = await seed([
+      { path: 'Target.md', note: target },
+      { path: 'Backlink.md', note: backlink },
+    ]);
+    const targetFile = await vault.readText('Target.md');
+    await index.upsert(target, 'Target.md', targetFile.hash);
+    vi.spyOn(index, 'backlinks').mockResolvedValue(['backlink', 'missing', 'backlink']);
+    vi.spyOn(index, 'getManyById').mockResolvedValue([]);
+    const list = vi.spyOn(vault, 'list');
+    const service = createStudioSearchService({ vault, index, revisions: revisions() });
+
+    await expect(service.inspect('target')).resolves.toMatchObject({
+      backlinks: [{ id: 'backlink', path: 'Backlink.md', title: 'Backlink' }],
+    });
+    expect(list).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to the canonical current file when the indexed revision changed', async () => {
+    const original = note({ id: 'target', title: 'Before', body: '' });
+    const current = note({ id: 'target', title: 'After', body: '[[Missing]]' });
+    const vault = await seed([{ path: 'Current.md', note: current }]);
+    await index.upsert(original, 'Current.md', '0'.repeat(64));
+    const service = createStudioSearchService({ vault, index, revisions: revisions() });
+
+    await expect(service.inspect('target')).resolves.toMatchObject({
+      note: { title: 'After' }, path: 'Current.md',
+      forwardLinks: [{ occurrence: 0, state: 'broken' }],
+    });
+  });
+
+  it('falls back when the disposable index cannot be read', async () => {
+    const target = note({ id: 'target', title: 'Canonical', body: '' });
+    const vault = await seed([{ path: 'Target.md', note: target }]);
+    vi.spyOn(index, 'getById').mockRejectedValue(new Error('index unavailable'));
+    const service = createStudioSearchService({ vault, index, revisions: revisions() });
+
+    await expect(service.inspect('target')).resolves.toMatchObject({
+      note: { title: 'Canonical' }, path: 'Target.md',
+    });
+  });
+
+  it('falls back when indexed links do not describe the authoritative body', async () => {
+    const target = note({ id: 'target', title: 'Target', body: '[[Missing]]' });
+    const vault = await seed([{ path: 'Target.md', note: target }]);
+    const file = await vault.readText('Target.md');
+    await index.upsert(target, 'Target.md', file.hash);
+    vi.spyOn(index, 'forwardLinks').mockResolvedValue([
+      { sourceId: 'target', kind: 'wiki', target: 'Different', label: 'Missing' },
+    ]);
+    const list = vi.spyOn(vault, 'list');
+    const service = createStudioSearchService({ vault, index, revisions: revisions() });
+
+    await expect(service.inspect('target')).resolves.toMatchObject({
+      forwardLinks: [{ target: 'Missing', state: 'broken' }],
+    });
+    expect(list).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects oversized queries, filters, paths, IDs, and occurrences before adapters run', async () => {
     const vault = await seed([]);
     const service = createStudioSearchService({ vault, index, revisions: revisions() });

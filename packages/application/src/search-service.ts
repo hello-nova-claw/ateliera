@@ -11,6 +11,8 @@ import {
 import type { EditableMarkdownLink, MarkdownLinkEdit } from '@studio/content';
 import type { ParseError, StudioNote } from '@studio/domain';
 import type {
+  IndexedLink,
+  IndexedNoteRecord,
   SearchFacets,
   SearchFilters,
   SearchHit,
@@ -288,6 +290,92 @@ function createResolver(documents: CanonicalDocument[]): Resolver {
   };
 }
 
+function inspectionFromDocuments(
+  documents: CanonicalDocument[],
+  id: string,
+): StudioSearchInspection | null {
+  const canonical = documents.find((document) => !document.duplicate && document.note.id === id);
+  if (!canonical) return null;
+  const resolver = createResolver(documents);
+  const forwardLinks = editableMarkdownLinks(canonical.note.body).map((link) => ({
+    occurrence: link.index, linkKind: link.kind, target: link.target,
+    label: link.label, start: link.start, end: link.end,
+    ...resolver.resolve(canonical.path, link),
+  }));
+  const backlinks = documents
+    .filter((document) => !document.duplicate && document.note.id !== id)
+    .filter((document) => editableMarkdownLinks(document.note.body).some((link) => {
+      const resolution = resolver.resolve(document.path, link);
+      return resolution.state === 'resolved' && resolution.targetId === id;
+    }))
+    .map((document) => ({
+      id: document.note.id, path: document.path, title: title(document.note),
+    }))
+    .sort((left, right) => left.title.localeCompare(right.title, 'en') || left.id.localeCompare(right.id, 'en'));
+  return {
+    note: canonical.note, path: canonical.path, hash: canonical.hash,
+    backlinks, forwardLinks,
+  };
+}
+
+function indexedLinksMatchSource(
+  sourceLinks: EditableMarkdownLink[],
+  indexedLinks: IndexedLink[],
+): boolean {
+  const identity = (link: Pick<EditableMarkdownLink, 'kind' | 'target' | 'label'>) =>
+    `${link.kind}\u0000${link.target}\u0000${link.label}`;
+  return sourceLinks.length === indexedLinks.length && sourceLinks.every((source, position) => {
+    return identity(source) === identity(indexedLinks[position]!);
+  });
+}
+
+function distinctIds(ids: readonly string[]): string[] {
+  return [...new Set(ids)];
+}
+
+function warmInspection(
+  source: IndexedNoteRecord,
+  note: StudioNote,
+  sourceLinks: EditableMarkdownLink[],
+  indexedLinks: IndexedLink[],
+  backlinkIds: string[],
+  related: IndexedNoteRecord[],
+): StudioSearchInspection | null {
+  if (!indexedLinksMatchSource(sourceLinks, indexedLinks)) return null;
+  const backlinkIdList = distinctIds(backlinkIds).filter((id) => id !== note.id);
+  const expectedRelatedIds = distinctIds([
+    ...backlinkIdList,
+    ...indexedLinks.flatMap((link) => [
+      ...(link.targetId ? [link.targetId] : []),
+      ...(link.candidateIds ?? []),
+    ]),
+  ]);
+  const relatedById = new Map(related.map((record) => [record.note.id, record]));
+  if (expectedRelatedIds.some((id) => !relatedById.has(id))) return null;
+  const backlinks = backlinkIdList
+    .map((id) => {
+      const record = relatedById.get(id)!;
+      return { id, path: record.path, title: title(record.note) };
+    })
+    .sort((left, right) => left.title.localeCompare(right.title, 'en') || left.id.localeCompare(right.id, 'en'));
+  const forwardLinks = sourceLinks.map((link, position): InspectedForwardLink => {
+    const indexed = indexedLinks[position]!;
+    const base = {
+      occurrence: link.index, linkKind: link.kind, target: link.target,
+      label: link.label, start: link.start, end: link.end,
+    };
+    if (indexed.targetId) return { ...base, state: 'resolved', targetId: indexed.targetId };
+    const candidateIds = distinctIds(indexed.candidateIds ?? [])
+      .sort((left, right) => left.localeCompare(right, 'en'));
+    return candidateIds.length > 1
+      ? { ...base, state: 'ambiguous', candidateIds }
+      : { ...base, state: 'broken' };
+  });
+  return {
+    note, path: source.path, hash: source.hash, backlinks, forwardLinks,
+  };
+}
+
 function safeExtraFrontmatter(frontmatter: Record<string, unknown>): Record<string, unknown> {
   const recognized = new Set<string>(recognizedFrontmatterKeys);
   return Object.fromEntries(Object.entries(frontmatter).filter(([key]) => !recognized.has(key)));
@@ -372,29 +460,34 @@ export function createStudioSearchService({
     },
     async inspect(id) {
       validateId(id);
-      const { documents } = await scanVault(vault);
-      const canonical = documents.find((document) => !document.duplicate && document.note.id === id);
-      if (!canonical) return null;
-      const resolver = createResolver(documents);
-      const forwardLinks = editableMarkdownLinks(canonical.note.body).map((link) => ({
-        occurrence: link.index, linkKind: link.kind, target: link.target,
-        label: link.label, start: link.start, end: link.end,
-        ...resolver.resolve(canonical.path, link),
-      }));
-      const backlinks = documents
-        .filter((document) => !document.duplicate && document.note.id !== id)
-        .filter((document) => editableMarkdownLinks(document.note.body).some((link) => {
-          const resolution = resolver.resolve(document.path, link);
-          return resolution.state === 'resolved' && resolution.targetId === id;
-        }))
-        .map((document) => ({
-          id: document.note.id, path: document.path, title: title(document.note),
-        }))
-        .sort((left, right) => left.title.localeCompare(right.title, 'en') || left.id.localeCompare(right.id, 'en'));
-      return {
-        note: canonical.note, path: canonical.path, hash: canonical.hash,
-        backlinks, forwardLinks,
-      };
+      try {
+        const indexed = await index.getById(id);
+        if (indexed?.note.id === id) {
+          const file = await vault.readText(indexed.path);
+          const parsed = parseNote(file.text);
+          if (file.hash === indexed.hash && parsed.ok && parsed.note.id === id) {
+            const sourceLinks = editableMarkdownLinks(parsed.note.body);
+            const [backlinkIds, indexedLinks] = await Promise.all([
+              index.backlinks(id), index.forwardLinks(id),
+            ]);
+            const relatedIds = distinctIds([
+              ...distinctIds(backlinkIds).filter((backlinkId) => backlinkId !== id),
+              ...indexedLinks.flatMap((link) => [
+                ...(link.targetId ? [link.targetId] : []),
+                ...(link.candidateIds ?? []),
+              ]),
+            ]);
+            const related = await index.getManyById(relatedIds);
+            const inspection = warmInspection(
+              indexed, parsed.note, sourceLinks, indexedLinks, backlinkIds, related,
+            );
+            if (inspection) return inspection;
+          }
+        }
+      } catch {
+        // A disposable index can be missing or stale; canonical Markdown remains authoritative.
+      }
+      return inspectionFromDocuments((await scanVault(vault)).documents, id);
     },
     async repairQueue() {
       const { documents, metadata } = await scanVault(vault);
