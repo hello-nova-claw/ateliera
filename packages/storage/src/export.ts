@@ -3,6 +3,7 @@ import {
   PORTABLE_EXPORT_VERSION,
   PORTABLE_FORMAT,
   PORTABLE_MANIFEST_PATH,
+  PORTABLE_MAX_USER_FILES,
   PORTABLE_NOTE_SCHEMA_VERSION,
   PORTABLE_SETTINGS_SCHEMA_VERSION,
   PortableVaultError,
@@ -64,6 +65,12 @@ async function assertSourceUnchanged(
       if (disposition === 'cache') {
         if (excludedKeys.has(key)) throw sourceChanged();
         excludedKeys.add(key);
+        if (excludedCaches.length >= PORTABLE_MAX_USER_FILES) {
+          throw new PortableVaultError(
+            'archive-too-large',
+            `Portable exports support at most ${PORTABLE_MAX_USER_FILES} excluded cache paths.`,
+          );
+        }
         excludedCaches.push(path);
         continue;
       }
@@ -121,6 +128,12 @@ export async function exportVault(
           throw new PortableVaultError('path-collision', `Excluded cache paths collide: ${path}.`);
         }
         excludedKeys.add(key);
+        if (excludedCaches.length >= PORTABLE_MAX_USER_FILES) {
+          throw new PortableVaultError(
+            'archive-too-large',
+            `Portable exports support at most ${PORTABLE_MAX_USER_FILES} excluded cache paths.`,
+          );
+        }
         excludedCaches.push(path);
       }
       continue;
