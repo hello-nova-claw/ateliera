@@ -24,7 +24,9 @@ const MAX_FILTER_VALUES = 100;
 const MAX_FILTER_VALUE_LENGTH = 256;
 const MAX_NOTE_ID_LENGTH = 128;
 const MAX_PATH_LENGTH = 1_024;
+export const MAX_REPAIR_SOURCE_BYTES = 8 * 1_024 * 1_024;
 const UNSAFE_NOTE_ID = new RegExp(String.raw`[\u0000-\u001f\u007f-\u009f/\\?#]`, 'u');
+const SHA256 = /^[a-f0-9]{64}$/u;
 
 interface CanonicalDocument {
   note: StudioNote;
@@ -305,6 +307,22 @@ function assertValidRepair(note: StudioNote): string {
   return text;
 }
 
+async function validateRepairSource(sourceText: string, expectedHash: string): Promise<void> {
+  if (!SHA256.test(expectedHash)) throw new RangeError('The expected revision must be a SHA-256 hash.');
+  if (sourceText.length > MAX_REPAIR_SOURCE_BYTES) {
+    throw new RangeError('This note is too large to repair in the inspector.');
+  }
+  const bytes = new TextEncoder().encode(sourceText);
+  if (bytes.byteLength > MAX_REPAIR_SOURCE_BYTES) {
+    throw new RangeError('This note is too large to repair in the inspector.');
+  }
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', Uint8Array.from(bytes).buffer));
+  const actual = [...digest].map((value) => value.toString(16).padStart(2, '0')).join('');
+  if (actual !== expectedHash) {
+    throw new RangeError('The displayed source does not match its expected revision. Refresh before repairing.');
+  }
+}
+
 function repairOccurrence(item: StudioSearchRepairItem): number {
   return item.kind === 'broken-link' ? item.occurrence : -1;
 }
@@ -401,6 +419,7 @@ export function createStudioSearchService({
     },
     async repairMetadata(input) {
       validatePath(input.path);
+      await validateRepairSource(input.sourceText, input.expectedHash);
       const source = inspectRepairSource(input.sourceText);
       const note: StudioNote = {
         ...input.metadata,
@@ -419,6 +438,7 @@ export function createStudioSearchService({
       if (!Number.isSafeInteger(input.occurrence) || input.occurrence < 0) {
         throw new RangeError('A non-negative link occurrence is required.');
       }
+      await validateRepairSource(input.sourceText, input.expectedHash);
       const parsed = parseNote(input.sourceText);
       if (!parsed.ok) throw new Error('Repair the note metadata before repairing its links.');
       const note: StudioNote = {

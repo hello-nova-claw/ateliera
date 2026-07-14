@@ -5,6 +5,7 @@ import { VaultConflictError } from '@studio/storage/portable';
 import type { RevisionStore } from '@studio/storage/portable';
 
 import {
+  MAX_REPAIR_SOURCE_BYTES,
   SearchRepairConflictError,
   createStudioSearchService,
 } from './search-service';
@@ -210,6 +211,30 @@ describe('StudioSearchService repair queue', () => {
 });
 
 describe('StudioSearchService repairs', () => {
+  it('rejects malformed hashes, mismatched displayed source, and oversized repair payloads', async () => {
+    const vault = await seed([{ path: 'Source.md', note: note({ id: 'source', body: '[[Missing]]' }) }]);
+    const source = await vault.readText('Source.md');
+    const service = createStudioSearchService({
+      vault, index: new RecordingIndex(), revisions: revisions(),
+    });
+    await expect(service.repairLink({
+      path: 'Source.md', expectedHash: 'not-a-hash', sourceText: source.text,
+      occurrence: 0, edit: { kind: 'remove' },
+    })).rejects.toThrow('SHA-256');
+    await expect(service.repairLink({
+      path: 'Source.md', expectedHash: source.hash, sourceText: serializeNote(note({ id: 'other' })),
+      occurrence: 0, edit: { kind: 'remove' },
+    })).rejects.toThrow('displayed source');
+    await expect(service.repairMetadata({
+      path: 'Source.md', expectedHash: source.hash,
+      sourceText: 'x'.repeat(MAX_REPAIR_SOURCE_BYTES + 1), metadata: note(),
+    })).rejects.toThrow('too large');
+    await expect(service.repairMetadata({
+      path: 'Source.md', expectedHash: source.hash,
+      sourceText: 'é'.repeat(Math.floor(MAX_REPAIR_SOURCE_BYTES / 2) + 1), metadata: note(),
+    })).rejects.toThrow('too large');
+  });
+
   it('snapshots before metadata repair and preserves body, CRLF, attachments, and safe unknown keys', async () => {
     const events: string[] = [];
     const vault = await seed([]);
@@ -381,6 +406,7 @@ describe('StudioSearchService repairs', () => {
   it('does not hide non-conflict storage failures or malformed link-source metadata', async () => {
     const vault = await seed([{ path: 'Source.md', note: note({ id: 'source', body: '[[Missing]]' }) }]);
     const source = await vault.readText('Source.md');
+    const malformed = await vault.writeTextAtomic('Malformed.md', 'not a note');
     vault.writeTextAtomic = vi.fn().mockRejectedValue(new Error('storage offline'));
     const service = createStudioSearchService({
       vault, index: new RecordingIndex(), revisions: revisions(),
@@ -390,7 +416,7 @@ describe('StudioSearchService repairs', () => {
       occurrence: 0, edit: { kind: 'remove' },
     })).rejects.toThrow('storage offline');
     await expect(service.repairLink({
-      path: 'Source.md', expectedHash: source.hash, sourceText: 'not a note',
+      path: 'Source.md', expectedHash: malformed.hash, sourceText: 'not a note',
       occurrence: 0, edit: { kind: 'remove' },
     })).rejects.toThrow('metadata');
   });
