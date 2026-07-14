@@ -134,15 +134,21 @@ export function useReflection(
       model.cards
         .filter((card) => card.coverReference !== undefined)
         .map(async (card) => {
-          const media = await service.resolveCover(card.path);
-          if (media.kind !== 'available') return { noteId: card.noteId } as const;
-          const url = URL.createObjectURL(new Blob([media.bytes], { type: media.mimeType }));
-          if (!current) {
-            URL.revokeObjectURL(url);
+          try {
+            const media = await service.resolveCover(card.path);
+            if (media.kind !== 'available') return { noteId: card.noteId } as const;
+            const url = URL.createObjectURL(
+              new Blob([media.bytes], { type: media.mimeType }),
+            );
+            if (!current) {
+              URL.revokeObjectURL(url);
+              return { noteId: card.noteId } as const;
+            }
+            urls.push(url);
+            return { noteId: card.noteId, url } as const;
+          } catch {
             return { noteId: card.noteId } as const;
           }
-          urls.push(url);
-          return { noteId: card.noteId, url } as const;
         }),
     ).then((items) => {
       if (!current) return;
@@ -152,11 +158,6 @@ export function useReflection(
       setImageUnavailableIds(new Set(
         items.flatMap((item) => 'url' in item ? [] : [item.noteId]),
       ));
-    }).catch(() => {
-      if (current) {
-        setImageUrls({});
-        setImageUnavailableIds(new Set());
-      }
     });
     return () => {
       current = false;
