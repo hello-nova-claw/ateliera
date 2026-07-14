@@ -2,7 +2,15 @@ import { createHash } from 'node:crypto';
 
 import { PathEscapeError, VaultConflictError, VaultUnavailableError } from './conflict';
 import { isPublicNotePath } from './vault-port';
-import type { MoveCondition, VaultChange, VaultEntry, VaultPort, WriteCondition } from './vault-port';
+import type {
+  MoveCondition,
+  VaultAtomicWriteBatch,
+  VaultAtomicWriteResult,
+  VaultChange,
+  VaultEntry,
+  VaultPort,
+  WriteCondition,
+} from './vault-port';
 
 interface StoredFile {
   bytes: Uint8Array;
@@ -61,6 +69,11 @@ class InMemoryVault implements VaultPort {
   readonly #listeners = new Set<(event: VaultChange) => void>();
   readonly #encoder = new TextEncoder();
   readonly #decoder = new TextDecoder('utf-8', { fatal: true });
+  #revision = 0n;
+
+  async getRevision(): Promise<string> {
+    return this.#revision.toString();
+  }
 
   async list(prefix?: string): Promise<VaultEntry[]> {
     if (prefix !== undefined) validatePath(prefix);
@@ -127,6 +140,7 @@ class InMemoryVault implements VaultPort {
 
     this.#files.delete(sourcePath);
     this.#files.set(destinationPath, file);
+    this.#advanceRevision();
     this.#emit({ kind: 'moved', path: destinationPath, previousPath: sourcePath, hash: file.hash });
   }
 
@@ -148,11 +162,50 @@ class InMemoryVault implements VaultPort {
       throw new VaultConflictError();
     }
     if (!this.#files.delete(validPath)) throw new VaultUnavailableError();
+    this.#advanceRevision();
     this.#emit({ kind: 'removed', path: validPath });
   }
 
   async exists(path: string): Promise<boolean> {
     return this.#files.has(validatePath(path));
+  }
+
+  async writeBatchAtomic(input: VaultAtomicWriteBatch): Promise<VaultAtomicWriteResult> {
+    if (input.expectedRevision !== this.#revision.toString()) {
+      throw new VaultConflictError();
+    }
+    const paths = new Set<string>();
+    const prepared = input.writes.map((write) => {
+      const path = validatePath(write.path);
+      if (paths.has(path)) throw new VaultConflictError('A batch cannot write the same path twice.');
+      paths.add(path);
+      if (write.expectedHash !== undefined && write.expectedMissing) {
+        throw new VaultConflictError('A batch write condition is invalid.');
+      }
+      const previous = this.#files.get(path);
+      if (write.expectedMissing && previous !== undefined) throw new VaultConflictError();
+      if (write.expectedHash !== undefined && previous?.hash !== write.expectedHash) {
+        throw new VaultConflictError();
+      }
+      const bytes = write.bytes.slice();
+      return { path, bytes, hash: digest(bytes), previous };
+    });
+
+    for (const write of prepared) {
+      this.#files.set(write.path, { bytes: write.bytes, hash: write.hash });
+    }
+    if (prepared.length > 0) this.#advanceRevision();
+    for (const write of prepared) {
+      this.#emit({
+        kind: write.previous === undefined ? 'created' : 'modified',
+        path: write.path,
+        hash: write.hash,
+      });
+    }
+    return {
+      revision: this.#revision.toString(),
+      results: prepared.map(({ path, hash }) => ({ path, hash })),
+    };
   }
 
   async watch(listener: (event: VaultChange) => void): Promise<() => void> {
@@ -182,8 +235,13 @@ class InMemoryVault implements VaultPort {
     const bytes = sourceBytes.slice();
     const hash = digest(bytes);
     this.#files.set(path, { bytes, hash });
+    this.#advanceRevision();
     this.#emit({ kind: previous === undefined ? 'created' : 'modified', path, hash });
     return { hash };
+  }
+
+  #advanceRevision(): void {
+    this.#revision += 1n;
   }
 
   #emit(event: VaultChange): void {

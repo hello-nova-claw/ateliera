@@ -152,7 +152,7 @@ export function vaultContract(name: string, createVault: () => Promise<VaultPort
         getRevision(): Promise<string>;
         writeBatchAtomic(input: {
           expectedRevision: string;
-          writes: readonly Array<{
+          writes: ReadonlyArray<{
             path: string;
             bytes: Uint8Array;
             expectedMissing: true;
@@ -184,7 +184,7 @@ export function vaultContract(name: string, createVault: () => Promise<VaultPort
         getRevision(): Promise<string>;
         writeBatchAtomic(input: {
           expectedRevision: string;
-          writes: readonly Array<{
+          writes: ReadonlyArray<{
             path: string;
             bytes: Uint8Array;
             expectedMissing: true;

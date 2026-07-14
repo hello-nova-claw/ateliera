@@ -5,6 +5,10 @@ export type {
   VaultEntry,
   VaultPort,
   VaultUserStateEntry,
+  VaultAtomicWriteBatch,
+  VaultAtomicWriteResult,
+  VaultBatchWrite,
+  VaultBatchWriteResult,
   WriteCondition,
 } from './vault-port';
 export { createStudioControlVault } from './studio-control-vault';

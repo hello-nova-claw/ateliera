@@ -43,7 +43,38 @@ export type VaultChange =
   | { kind: 'moved'; path: string; previousPath: string; hash: string }
   | { kind: 'removed'; path: string };
 
+export interface VaultBatchWrite {
+  path: string;
+  bytes: Uint8Array;
+  /** Replace only the version with this content hash. */
+  expectedHash?: string;
+  /** Create only when the path does not exist. */
+  expectedMissing?: true;
+}
+
+export interface VaultBatchWriteResult {
+  path: string;
+  hash: string;
+}
+
+export interface VaultAtomicWriteBatch {
+  /** Exact monotonic adapter revision observed before preparing the batch. */
+  expectedRevision: string;
+  writes: readonly VaultBatchWrite[];
+}
+
+export interface VaultAtomicWriteResult {
+  /** Monotonic adapter revision after the whole batch became visible. */
+  revision: string;
+  results: readonly VaultBatchWriteResult[];
+}
+
 export interface VaultPort {
+  /**
+   * Opaque decimal generation that advances on every successful authoritative mutation.
+   * Revisions never rewind or reuse a prior value, including when content returns to prior bytes.
+   */
+  getRevision(): Promise<string>;
   list(prefix?: string): Promise<VaultEntry[]>;
   readText(path: string): Promise<{ text: string; hash: string }>;
   writeTextAtomic(
@@ -57,6 +88,8 @@ export interface VaultPort {
     bytes: Uint8Array,
     condition?: WriteCondition,
   ): Promise<{ hash: string }>;
+  /** Validate and publish every write under one adapter mutation boundary, or publish none. */
+  writeBatchAtomic(input: VaultAtomicWriteBatch): Promise<VaultAtomicWriteResult>;
   move(from: string, to: string, condition?: MoveCondition): Promise<void>;
   remove(path: string, condition?: WriteCondition): Promise<void>;
   exists(path: string): Promise<boolean>;
