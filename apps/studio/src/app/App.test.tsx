@@ -202,6 +202,24 @@ it('renders the Studio landmark', async () => {
   expect(screen.queryByText('Ready offline')).not.toBeInTheDocument();
 });
 
+it('makes live shell connectivity available to local-first rooms', async () => {
+  history.replaceState(null, '', '/uncharted');
+  let online = true;
+  const onlineSpy = vi.spyOn(navigator, 'onLine', 'get').mockImplementation(
+    () => online,
+  );
+  const fixture = studioService();
+  render(<App studioId="studio:first" studioService={fixture.service} />);
+  expect(await screen.findByRole('heading', { name: 'What if…?' })).toBeVisible();
+
+  online = false;
+  fireEvent(window, new Event('offline'));
+  expect(
+    await screen.findByText('Stored locally. This room remains available offline.'),
+  ).toBeVisible();
+  onlineSpy.mockRestore();
+});
+
 it('projects the Foyer through the active Studio and opens its canonical note', async () => {
   const becoming = {
     ...projection('I am practicing creating from calm.'),
