@@ -89,7 +89,6 @@ describe('SearchRoom', () => {
     render(<SearchRoom service={searchService} />);
 
     const result = await screen.findByRole('button', { name: 'The quiet hill' });
-    result.focus();
     fireEvent.click(result);
 
     expect(await screen.findByRole('dialog', { name: 'Inspect The quiet hill' })).toBeVisible();
