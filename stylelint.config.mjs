@@ -1,6 +1,11 @@
 export default {
   extends: ['stylelint-config-standard'],
-  ignoreFiles: ['**/dist/**', '**/node_modules/**', 'artifacts/**'],
+  ignoreFiles: [
+    '**/dist/**',
+    '**/node_modules/**',
+    '**/target/**',
+    'artifacts/**',
+  ],
   rules: {
     'declaration-no-important': true,
     'selector-class-pattern': [
