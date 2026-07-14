@@ -2486,8 +2486,7 @@ pub fn vault_read_binary_bounded<R: Runtime>(
     max_bytes: u64,
 ) -> Result<Response, VaultError> {
     Ok(Response::new(
-        selected_vault(&window, &state, &vault_token)?
-            .read_binary_bounded(&path, max_bytes)?,
+        selected_vault(&window, &state, &vault_token)?.read_binary_bounded(&path, max_bytes)?,
     ))
 }
 
@@ -2501,8 +2500,7 @@ pub fn vault_read_binary_chunk<R: Runtime>(
     length: u32,
 ) -> Result<Response, VaultError> {
     Ok(Response::new(
-        selected_vault(&window, &state, &vault_token)?
-            .read_binary_chunk(&path, offset, length)?,
+        selected_vault(&window, &state, &vault_token)?.read_binary_chunk(&path, offset, length)?,
     ))
 }
 
