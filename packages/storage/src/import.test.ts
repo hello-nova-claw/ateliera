@@ -172,6 +172,14 @@ describe('portable vault import', () => {
     await expect(target.readText('Inbox/conflict.md')).resolves.toMatchObject({
       text: note('local', 'local'),
     });
+
+    await expect(applyVaultImport(target, plan, {
+      confirm: true,
+      conflicts: { 'Inbox/conflict.md': 'overwrite' },
+    })).resolves.toEqual({ created: 0, overwritten: 1, skipped: 0 });
+    await expect(target.readText('Inbox/conflict.md')).resolves.toMatchObject({
+      text: note('incoming', 'incoming'),
+    });
   });
 
   it('accepts only exact own-property conflict resolutions', async () => {
