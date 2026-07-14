@@ -1,4 +1,5 @@
 import type { StudioSearchService } from '@studio/application';
+import type { SearchHit } from '@studio/index';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -10,14 +11,15 @@ const facets = {
 };
 
 function service(): StudioSearchService {
+  const calmHit: SearchHit = {
+    id: 'calm', path: 'calm.md', title: 'Calm', snippet: 'Calm',
+    highlightRanges: [{ start: 0, end: 4 }], score: 1,
+    semanticType: 'reflection', cardType: 'text', status: 'active',
+    updated: '2026-07-14T00:00:00.000Z',
+    matchReason: { field: 'title', strategy: 'keyword', text: 'calm' },
+  };
   return {
-    search: vi.fn(async (query) => query === 'calm' ? [{
-      id: 'calm', path: 'calm.md', title: 'Calm', snippet: 'Calm',
-      highlightRanges: [{ start: 0, end: 4 }], score: 1,
-      semanticType: 'reflection', cardType: 'text', status: 'active',
-      updated: '2026-07-14T00:00:00.000Z',
-      matchReason: { field: 'title', strategy: 'keyword', text: 'calm' },
-    }] : []),
+    search: vi.fn(async (query) => query === 'calm' ? [calmHit] : []),
     searchFacets: vi.fn(async () => facets),
     inspect: vi.fn(async () => null),
     repairQueue: vi.fn(async () => []),
