@@ -27,7 +27,8 @@ use tauri::{
 use uuid::Uuid;
 
 use crate::security::path_guard::{
-    is_internal_component, map_path_error, open_parent, validate_relative,
+    is_internal_component, map_path_error, open_existing_parent_optional, open_parent,
+    validate_relative,
 };
 
 const VAULT_RECOVERY_ID_PATH: &str = ".studio-vault-id";
@@ -579,6 +580,31 @@ where
     Ok(bytes)
 }
 
+fn read_recovery_payload_after_stat<F>(
+    directory: &Dir,
+    basename: &str,
+    retained: &mut usize,
+    maximum: usize,
+    after_stat: F,
+) -> Result<Vec<u8>, VaultError>
+where
+    F: FnOnce(),
+{
+    let remaining = maximum
+        .checked_sub(*retained)
+        .ok_or(VaultError::Unavailable)?;
+    let bytes = read_exact_bounded_after_stat(
+        open_file_nofollow(directory, basename)?,
+        remaining,
+        after_stat,
+    )?;
+    *retained = retained
+        .checked_add(bytes.len())
+        .filter(|total| *total <= maximum)
+        .ok_or(VaultError::Unavailable)?;
+    Ok(bytes)
+}
+
 fn sync_directory(directory: &Dir) -> Result<(), VaultError> {
     directory
         .try_clone()
@@ -841,10 +867,16 @@ impl Vault {
 
     fn cleanup_batch_journal_locked(&self) -> Result<(), VaultError> {
         match self.root.symlink_metadata(BATCH_JOURNAL_PATH) {
-            Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => self
-                .root
-                .remove_dir_all(BATCH_JOURNAL_PATH)
-                .map_err(map_path_error)?,
+            Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => {
+                let directory = self
+                    .root
+                    .open_dir_nofollow(BATCH_JOURNAL_PATH)
+                    .map_err(map_path_error)?;
+                self.retire_batch_journal_manifest_locked(&directory)?;
+                self.root
+                    .remove_dir_all(BATCH_JOURNAL_PATH)
+                    .map_err(map_path_error)?;
+            }
             Ok(_) => self
                 .root
                 .remove_file(BATCH_JOURNAL_PATH)
@@ -853,6 +885,14 @@ impl Vault {
             Err(error) => return Err(map_path_error(error)),
         }
         sync_directory(&self.root)
+    }
+
+    fn retire_batch_journal_manifest_locked(&self, directory: &Dir) -> Result<(), VaultError> {
+        match directory.remove_file(BATCH_JOURNAL_MANIFEST) {
+            Ok(()) => sync_directory(directory),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(map_path_error(error)),
+        }
     }
 
     fn validate_journal(journal: &BatchJournal) -> Result<(), VaultError> {
@@ -927,10 +967,9 @@ impl Vault {
 
     fn cleanup_staged_temps_locked(&self, journal: &BatchJournal) -> Result<(), VaultError> {
         for entry in &journal.entries {
-            let parent = match open_parent(&self.root, &entry.path, false) {
-                Ok(parent) => parent,
-                Err(VaultError::Unavailable) => continue,
-                Err(error) => return Err(error),
+            let parent = match open_existing_parent_optional(&self.root, &entry.path)? {
+                Some(parent) => parent,
+                None => continue,
             };
             match parent.directory.symlink_metadata(&entry.temporary) {
                 Ok(_) => {
@@ -947,16 +986,25 @@ impl Vault {
         Ok(())
     }
 
-    fn read_optional_target_locked(&self, path: &str) -> Result<Option<Vec<u8>>, VaultError> {
-        let parent = match open_parent(&self.root, path, false) {
-            Ok(parent) => parent,
-            Err(VaultError::Unavailable) => return Ok(None),
-            Err(error) => return Err(error),
+    fn read_optional_target_locked(
+        &self,
+        path: &str,
+        retained: &mut usize,
+    ) -> Result<Option<Vec<u8>>, VaultError> {
+        let parent = match open_existing_parent_optional(&self.root, path)? {
+            Some(parent) => parent,
+            None => return Ok(None),
         };
         match parent.directory.symlink_metadata(&parent.basename) {
-            Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => Ok(Some(
-                read_file_nofollow_bounded(&parent.directory, &parent.basename, MAX_BATCH_BYTES)?,
-            )),
+            Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => {
+                Ok(Some(read_recovery_payload_after_stat(
+                    &parent.directory,
+                    &parent.basename,
+                    retained,
+                    MAX_BATCH_BYTES,
+                    || {},
+                )?))
+            }
             Ok(_) => Err(VaultError::PathEscape),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
             Err(error) => Err(map_path_error(error)),
@@ -966,16 +1014,22 @@ impl Vault {
     fn read_optional_staged_locked(
         &self,
         entry: &BatchJournalEntry,
+        retained: &mut usize,
     ) -> Result<Option<Vec<u8>>, VaultError> {
-        let parent = match open_parent(&self.root, &entry.path, false) {
-            Ok(parent) => parent,
-            Err(VaultError::Unavailable) => return Ok(None),
-            Err(error) => return Err(error),
+        let parent = match open_existing_parent_optional(&self.root, &entry.path)? {
+            Some(parent) => parent,
+            None => return Ok(None),
         };
         match parent.directory.symlink_metadata(&entry.temporary) {
-            Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => Ok(Some(
-                read_file_nofollow_bounded(&parent.directory, &entry.temporary, MAX_BATCH_BYTES)?,
-            )),
+            Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => {
+                Ok(Some(read_recovery_payload_after_stat(
+                    &parent.directory,
+                    &entry.temporary,
+                    retained,
+                    MAX_BATCH_BYTES,
+                    || {},
+                )?))
+            }
             Ok(_) => Err(VaultError::PathEscape),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
             Err(error) => Err(map_path_error(error)),
@@ -999,10 +1053,9 @@ impl Vault {
         &self,
         entry: &BatchJournalEntry,
     ) -> Result<(Option<usize>, Option<usize>), VaultError> {
-        let parent = match open_parent(&self.root, &entry.path, false) {
-            Ok(parent) => parent,
-            Err(VaultError::Unavailable) => return Ok((None, None)),
-            Err(error) => return Err(error),
+        let parent = match open_existing_parent_optional(&self.root, &entry.path)? {
+            Some(parent) => parent,
+            None => return Ok((None, None)),
         };
         Ok((
             Self::optional_regular_file_len(&parent.directory, &parent.basename)?,
@@ -1074,7 +1127,7 @@ impl Vault {
         // Preflight pass 1: load and checksum every prior-state payload before inspecting or
         // changing any target. Publishing/committed journals must have the complete backup set.
         let mut backups = Vec::with_capacity(journal.entries.len());
-        let mut backup_bytes = 0usize;
+        let mut retained_bytes = 0usize;
         for entry in &journal.entries {
             let previous = match (&entry.previous_backup, &entry.previous_hash) {
                 (Some(backup), Some(previous_hash)) => {
@@ -1082,10 +1135,12 @@ impl Vault {
                         Ok(metadata)
                             if metadata.is_file() && !metadata.file_type().is_symlink() =>
                         {
-                            Some(read_file_nofollow_bounded(
+                            Some(read_recovery_payload_after_stat(
                                 directory,
                                 backup,
-                                MAX_BATCH_BYTES.saturating_sub(backup_bytes),
+                                &mut retained_bytes,
+                                MAX_BATCH_BYTES,
+                                || {},
                             )?)
                         }
                         Err(error)
@@ -1096,13 +1151,10 @@ impl Vault {
                         }
                         _ => return Err(VaultError::Unavailable),
                     };
-                    if let Some(bytes) = &bytes {
-                        backup_bytes = backup_bytes
-                            .checked_add(bytes.len())
-                            .ok_or(VaultError::Unavailable)?;
-                        if backup_bytes > MAX_BATCH_BYTES || hash(bytes) != *previous_hash {
-                            return Err(VaultError::Unavailable);
-                        }
+                    if let Some(bytes) = &bytes
+                        && hash(bytes) != *previous_hash
+                    {
+                        return Err(VaultError::Unavailable);
                     }
                     bytes
                 }
@@ -1117,8 +1169,8 @@ impl Vault {
         let mut targets = Vec::with_capacity(journal.entries.len());
         let mut staged = Vec::with_capacity(journal.entries.len());
         for entry in &journal.entries {
-            let current = self.read_optional_target_locked(&entry.path)?;
-            let staged_bytes = self.read_optional_staged_locked(entry)?;
+            let current = self.read_optional_target_locked(&entry.path, &mut retained_bytes)?;
+            let staged_bytes = self.read_optional_staged_locked(entry, &mut retained_bytes)?;
             if staged_bytes
                 .as_ref()
                 .is_some_and(|bytes| hash(bytes) != entry.new_hash)
@@ -2688,22 +2740,17 @@ mod tests {
         let root = Dir::open_ambient_dir(directory.path(), ambient_authority()).unwrap();
         let mut retained = 0usize;
 
-        let first = read_recovery_payload_after_stat(&root, "first.bin", &mut retained, 16, || {})
-            .unwrap();
+        let first =
+            read_recovery_payload_after_stat(&root, "first.bin", &mut retained, 16, || {}).unwrap();
         assert_eq!(first, b"12345678");
-        let result = read_recovery_payload_after_stat(
-            &root,
-            "second.bin",
-            &mut retained,
-            16,
-            || {
+        let result =
+            read_recovery_payload_after_stat(&root, "second.bin", &mut retained, 16, || {
                 let file = std::fs::OpenOptions::new()
                     .append(true)
                     .open(directory.path().join("second.bin"))
                     .unwrap();
                 file.set_len(9).unwrap();
-            },
-        );
+            });
 
         assert!(matches!(result, Err(VaultError::Unavailable)));
         assert_eq!(retained, 8);
@@ -3093,10 +3140,7 @@ mod tests {
         std::fs::write(journal.join(BATCH_JOURNAL_MANIFEST), b"{}").unwrap();
         std::fs::write(journal.join("previous-0.bin"), b"evidence").unwrap();
 
-        let journal_directory = vault
-            .root
-            .open_dir_nofollow(BATCH_JOURNAL_PATH)
-            .unwrap();
+        let journal_directory = vault.root.open_dir_nofollow(BATCH_JOURNAL_PATH).unwrap();
         vault
             .retire_batch_journal_manifest_locked(&journal_directory)
             .unwrap();

@@ -150,9 +150,11 @@ mod tests {
     fn optional_parent_only_treats_confirmed_not_found_as_absent() {
         let root = tempfile::tempdir().unwrap();
         let directory = Dir::open_ambient_dir(root.path(), ambient_authority()).unwrap();
-        assert!(open_existing_parent_optional(&directory, "missing/note.md")
-            .unwrap()
-            .is_none());
+        assert!(
+            open_existing_parent_optional(&directory, "missing/note.md")
+                .unwrap()
+                .is_none()
+        );
 
         std::fs::write(root.path().join("blocked"), b"not a directory").unwrap();
         assert!(matches!(
