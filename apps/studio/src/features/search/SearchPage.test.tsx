@@ -32,6 +32,7 @@ const model: SearchPageModel = {
       status: 'active',
       updated: '2026-07-14T01:00:00.000Z',
       matchReason: { field: 'body', strategy: 'keyword', text: 'calm' },
+      matchContext: { field: 'tags', text: 'calm practice' },
     },
   ],
   state: 'ready',
@@ -48,6 +49,7 @@ describe('SearchPage', () => {
     expect(result.querySelector('script')).toBeNull();
     expect(within(result).getByText('calm', { selector: 'mark' })).toBeVisible();
     expect(within(result).getByText('Matched in the note')).toBeVisible();
+    expect(within(result).getByText('Tag · calm practice')).toBeVisible();
   });
 
   it('exposes every typed filter and reports changes without hiding the query', () => {
