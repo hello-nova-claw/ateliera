@@ -118,6 +118,11 @@ async function enrichReflectionFixture(page: Page): Promise<void> {
       modifiedAt: new Date().toISOString(),
     });
     const nowText = decoder.decode(now.bytes)
+      .replace('life_areas: []', 'life_areas:\n  - missing-life-area')
+      .replace(
+        'seasons: []',
+        'seasons:\n  - missing-season\n  - historical-season',
+      )
       .replace('tags: []', 'tags:\n  - calm')
       .replace(
         'schema_version: 1',
@@ -157,11 +162,33 @@ privacy: { sensitivity: private, ai_access: ask }
 ---
 A resting identity.
 `);
+    const historicalSeason = encoder.encode(`---
+schema_version: 1
+id: historical-season-note
+title: A Historical Season
+card_type: season
+semantic_type: foundations
+status: archived
+rooms:
+  - current-season
+life_areas: []
+seasons: []
+tags: []
+created: 2025-01-01T09:00:00.000Z
+updated: 2025-03-31T09:00:00.000Z
+attachments: []
+display: { featured: false }
+privacy: { sensitivity: private, ai_access: ask }
+season_id: historical-season
+---
+A season that has ended.
+`);
     const malformed = encoder.encode('---\nid: broken\n---\nWords remain recoverable.\n');
     const values = await Promise.all([
       put(now.path, encoder.encode(nowText), now),
       put(then.path, encoder.encode(thenText), then),
       put('Identity Studio/resting.md', archived),
+      put('Current Season/historical.md', historicalSeason),
       put('Reflection Garden/broken.md', malformed),
       put('Attachments/garden.png', png),
     ]);
@@ -309,6 +336,19 @@ test('renders themes, then and now, real media, and calm repair states from cano
   await expect(page.getByText('This image is not available here. The entry remains intact.')).toBeVisible();
   await expect(page.getByText('The connected note missing-target is not available here.')).toBeVisible();
   await expect(page.getByText('The connected note archived-target is archived.')).toBeVisible();
+  await expect(page.getByText(
+    'The connected life area missing-life-area is not available here.',
+  )).toBeVisible();
+  await expect(page.getByText(
+    'The connected season missing-season is not available here.',
+  )).toBeVisible();
+  await expect(page.getByText(
+    'The connected season A Historical Season is historical.',
+  )).toBeVisible();
+  await expect(page.getByRole('button', {
+    name: /Open.*(?:missing-life-area|missing-season|historical-season)/,
+  })).toHaveCount(0);
+  await expect(page).toHaveURL(/\/reflection$/u);
 
   await page.getByRole('tab', { name: 'Themes' }).click();
   await page.getByRole('button', { name: 'calm, 1 entry' }).click();
