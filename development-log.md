@@ -218,3 +218,13 @@
 - Added accepted Storybook fixtures for sparse, empty, dense, long-text, dark, loading, malformed, offline, responsive, 200% zoom, forced-color, and reduced-motion states. Visual review confirmed the restrained purple Uncharted composition and blue/orange editorial Reflection stream at desktop and mobile widths.
 - The full browser gate exposed an existing Landscape resilience gap: after an exact-hash move conflict preserved another writer's durable version, the visible projection remained stale. Landscape now reprojects on failed moves while retaining the open menu and exact retry focus; a real IndexedDB conflict passes in Chromium and WebKit.
 - Final verification passed 947 workspace tests, typecheck, ESLint/stylelint, the production build, 113 of 132 production Playwright cases with 19 intentional browser/layout skips, and all 60 visual/axe checks. Uncharted and Reflection Garden are implemented and ready for independent review.
+
+## 2026-07-14 — Uncharted and Reflection Garden review remediation
+
+- Made Reflection Garden chronology derive exclusively from canonical `created` timestamps with stable note-ID tie-breaking; incidental room order and later edits cannot reorder the garden.
+- Preserved evidence as canonical kind-and-ID relationships, including duplicate labels, and added actionable note, life-area, and season navigation. Missing and archived targets remain visible as calm repair states without inventing a destination.
+- Isolated every reflection image resolution so one missing, unsafe, malformed, or throwing asset cannot suppress its siblings. Every created blob URL is revoked on replacement, cancellation, and unmount.
+- Serialized repeated invitation and evidence actions, refreshed projections in success and failure paths, preserved the exact draft or selection after conflict, and restored focus to the stable retry control after the refreshed card renders.
+- Connected room availability to live browser connectivity rather than a static label. Both rooms expose their local-only offline state and remain writable while Playwright has network access disabled.
+- Added production IndexedDB conflict, duplicate-action, retry-focus, canonical navigation, theme, Then & Now, available/missing media, malformed-note, missing/archived evidence, and offline-write coverage across Chromium, mobile Chromium, and WebKit.
+- Review-remediation verification passed typecheck, ESLint/stylelint, all 959 workspace tests, and the complete 24-case focused production Playwright matrix with 17 passes and seven intentional browser/layout skips.
