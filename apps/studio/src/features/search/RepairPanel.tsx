@@ -1,7 +1,8 @@
-import type {
-  BrokenLinkRepairItem,
-  MetadataRepairItem,
-  StudioSearchRepairItem,
+import {
+  SearchRepairConflictError,
+  type BrokenLinkRepairItem,
+  type MetadataRepairItem,
+  type StudioSearchRepairItem,
 } from '@studio/application';
 import { inspectRepairSource } from '@studio/content';
 import {
@@ -28,6 +29,29 @@ export interface RepairPanelProps {
     item: MetadataRepairItem,
     metadata: StudioNote,
   ) => Promise<void> | void;
+}
+
+interface RepairConflictView {
+  attemptedText: string;
+  durableText: string;
+}
+
+function conflictFrom(reason: unknown): RepairConflictView | undefined {
+  return reason instanceof SearchRepairConflictError
+    ? { attemptedText: reason.attemptedText, durableText: reason.durableText }
+    : undefined;
+}
+
+function RepairConflict({ conflict }: { conflict: RepairConflictView }) {
+  return (
+    <section aria-label="Repair conflict versions" className="repair-card__conflict">
+      <h4>Review both versions</h4>
+      <div>
+        <section><h5>Your attempted repair</h5><pre>{conflict.attemptedText}</pre></section>
+        <section><h5>Current stored note</h5><pre>{conflict.durableText}</pre></section>
+      </div>
+    </section>
+  );
 }
 
 function stringValue(value: unknown, fallback = ''): string {
@@ -137,6 +161,7 @@ function MetadataRepair({
   const [draft, setDraft] = useState(() => metadataFromItem(item));
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
+  const [conflict, setConflict] = useState<RepairConflictView>();
   const button = useRef<HTMLButtonElement>(null);
 
   function setList(key: 'rooms' | 'lifeAreas' | 'seasons' | 'tags', value: string) {
@@ -165,11 +190,15 @@ function MetadataRepair({
           if (!onRepair || busy) return;
           setBusy(true);
           setMessage(undefined);
+          setConflict(undefined);
           void Promise.resolve(onRepair(item, draft)).then(
             () => setMessage('Metadata repaired.'),
-            (reason: unknown) => setMessage(
-              reason instanceof Error ? reason.message : 'This metadata could not be repaired.',
-            ),
+            (reason: unknown) => {
+              setConflict(conflictFrom(reason));
+              setMessage(
+                reason instanceof Error ? reason.message : 'This metadata could not be repaired.',
+              );
+            },
           ).finally(() => {
             setBusy(false);
             requestAnimationFrame(() => requestAnimationFrame(() => button.current?.focus()));
@@ -241,6 +270,7 @@ function MetadataRepair({
         </button>
       </form>
       {message && <p className="repair-card__message" role={message.includes('repaired.') ? 'status' : 'alert'}>{message}</p>}
+      {conflict && <RepairConflict conflict={conflict} />}
     </article>
   );
 }
@@ -256,6 +286,7 @@ function BrokenLinkRepair({
   const [target, setTarget] = useState(item.target);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
+  const [conflict, setConflict] = useState<RepairConflictView>();
   const pending = useRef(false);
   const relink = useRef<HTMLButtonElement>(null);
   const remove = useRef<HTMLButtonElement>(null);
@@ -265,11 +296,15 @@ function BrokenLinkRepair({
     pending.current = true;
     setBusy(true);
     setMessage(undefined);
+    setConflict(undefined);
     void Promise.resolve(onRepair(item, edit)).then(
       () => setMessage(edit.kind === 'remove' ? 'Link removed.' : 'Link repaired.'),
-      (reason: unknown) => setMessage(
-        reason instanceof Error ? reason.message : 'This link could not be repaired.',
-      ),
+      (reason: unknown) => {
+        setConflict(conflictFrom(reason));
+        setMessage(
+          reason instanceof Error ? reason.message : 'This link could not be repaired.',
+        );
+      },
     ).finally(() => {
       pending.current = false;
       setBusy(false);
@@ -320,6 +355,7 @@ function BrokenLinkRepair({
         </button>
       </div>
       {message && <p className="repair-card__message" role={message.endsWith('repaired.') || message.endsWith('removed.') ? 'status' : 'alert'}>{message}</p>}
+      {conflict && <RepairConflict conflict={conflict} />}
     </article>
   );
 }

@@ -141,9 +141,32 @@
   overflow-wrap: anywhere;
 }
 
+.repair-card__conflict {
+  margin-block-start: var(--studio-space-4);
+  padding-block-start: var(--studio-space-4);
+  border-block-start: 1px solid var(--studio-stock-celebration-edge);
+}
+
+.repair-card__conflict h4,
+.repair-card__conflict h5 {
+  margin: 0;
+  color: var(--studio-color-ink-strong);
+}
+
+.repair-card__conflict > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--studio-space-3);
+  margin-block-start: var(--studio-space-3);
+}
+
 @media (width < 48rem) {
   .repair-card__form,
   .repair-card__link-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .repair-card__conflict > div {
     grid-template-columns: 1fr;
   }
 }
