@@ -198,7 +198,7 @@ async function mutateIndexedDbText(
 
 test('repairs malformed metadata without changing the body or unknown safe keys', async ({
   page,
-}) => {
+}, testInfo) => {
   await createLocalStudio(page);
   await seedRepairFixture(page);
 
@@ -211,6 +211,12 @@ test('repairs malformed metadata without changing the body or unknown safe keys'
   await expect(repair.getByLabel('Title')).toHaveValue('Kept title');
   await expect(repair.getByLabel('Created')).toHaveValue('yesterday');
   await expect(repair.getByLabel('Updated')).toHaveValue('tomorrow');
+  const screenshot = testInfo.outputPath('metadata-repair-timestamps.png');
+  await page.screenshot({ path: screenshot, fullPage: true });
+  await testInfo.attach('metadata-repair-timestamps', {
+    path: screenshot,
+    contentType: 'image/png',
+  });
   await repair.getByLabel('Created').fill('2026-07-13T00:00:00.000Z');
   await repair.getByLabel('Updated').fill('2026-07-14T00:00:00.000Z');
   await repair.getByLabel('Stable note ID').fill('repaired-metadata');
