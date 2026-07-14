@@ -19,7 +19,7 @@ describe('content-redacted diagnostics', () => {
         outcome: 'error',
         durationMs: 18.75,
         errorCode: 'vault-conflict',
-        fileId: '01JTESTNOTE',
+        fileId: '01J00000000000000000000000',
         fileHash: 'a'.repeat(64),
         itemCount: 1,
         byteCount: 240,
@@ -46,7 +46,7 @@ describe('content-redacted diagnostics', () => {
         outcome: 'error',
         durationMs: 18.75,
         errorCode: 'vault-conflict',
-        fileId: '01JTESTNOTE',
+        fileId: '01J00000000000000000000000',
         fileHash: 'a'.repeat(64),
         itemCount: 1,
         byteCount: 240,
@@ -76,6 +76,21 @@ describe('content-redacted diagnostics', () => {
 
     expect(report.entries).toEqual([]);
     expect(JSON.stringify(report)).not.toMatch(/private|Users/);
+
+    const invalidTime = buildDiagnostics({
+      generatedAt,
+      entries: [{ operation: 'save', occurredAt: 42, outcome: 'ok' }],
+    });
+    expect(invalidTime.entries).toEqual([]);
+  });
+
+  it('fails closed when report metadata is malformed', () => {
+    expect(() => buildDiagnostics({ generatedAt: 'private words', entries: [] })).toThrow(
+      'Invalid diagnostics input.',
+    );
+    expect(() => buildDiagnostics({ generatedAt, entries: null as never })).toThrow(
+      'Invalid diagnostics input.',
+    );
   });
 
   it('extracts only an own, technical error code and never an error message or stack', () => {
@@ -88,6 +103,8 @@ describe('content-redacted diagnostics', () => {
     expect(diagnosticsErrorCode(coded)).toBe('index-stale');
     expect(diagnosticsErrorCode(inherited)).toBe('unexpected-error');
     expect(diagnosticsErrorCode({ code: '/Users/anna/private' })).toBe('unexpected-error');
+    expect(diagnosticsErrorCode({ code: 'private_words' })).toBe('unexpected-error');
+    expect(diagnosticsErrorCode({ code: 42 })).toBe('unexpected-error');
     expect(diagnosticsErrorCode('private words')).toBe('unexpected-error');
   });
 
@@ -97,7 +114,7 @@ describe('content-redacted diagnostics', () => {
       operation: 'save' as const,
       occurredAt: '2026-07-14T03:01:05.000Z',
       outcome: 'ok' as const,
-      fileId: 'NOTE-ONE',
+      fileId: '01J00000000000000000000000',
     };
 
     expect(recorder.record(first)).toBe(true);
@@ -128,6 +145,18 @@ describe('content-redacted diagnostics', () => {
     ]);
     recorder.clear();
     expect(recorder.entries()).toEqual([]);
+  });
+
+  it('rejects unsafe retention bounds', () => {
+    expect(() => createDiagnosticsRecorder({ maximumEntries: 0 })).toThrow(
+      'Invalid diagnostics retention limit.',
+    );
+    expect(() => createDiagnosticsRecorder({ maximumEntries: 1.5 })).toThrow(
+      'Invalid diagnostics retention limit.',
+    );
+    expect(() => createDiagnosticsRecorder({ maximumEntries: 10_001 })).toThrow(
+      'Invalid diagnostics retention limit.',
+    );
   });
 
   it('previews the exact UTF-8 payload that will be exported', () => {
