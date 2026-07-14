@@ -204,7 +204,9 @@ test('searches the production local index, persists filters, and renders importe
       }];
     });
   })).toEqual([]);
-  await page.screenshot({ path: testInfo.outputPath('search-room.png'), fullPage: true });
+  const screenshot = testInfo.outputPath('search-room.png');
+  await page.screenshot({ path: screenshot, fullPage: true });
+  await testInfo.attach('search-room', { path: screenshot, contentType: 'image/png' });
 });
 
 test('opens the Inspector with backlinks, traps focus, and restores the invoking result', async ({
