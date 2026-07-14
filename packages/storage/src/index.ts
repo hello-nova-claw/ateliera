@@ -56,9 +56,14 @@ export type {
   VaultImportItem,
   VaultImportPlan,
 } from './import';
-export { createVaultBackup, restoreVaultBackup } from './backup';
+export {
+  createVaultBackup,
+  restoreVaultBackup,
+  runWithPreMigrationBackup,
+} from './backup';
 export type {
   CreateVaultBackupOptions,
+  PersistVaultBackup,
   VaultBackup,
   VaultBackupReason,
 } from './backup';

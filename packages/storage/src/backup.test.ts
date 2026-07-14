@@ -1,7 +1,11 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 
 import { createInMemoryVault } from './in-memory-vault';
-import { createVaultBackup, restoreVaultBackup } from './backup';
+import {
+  createVaultBackup,
+  restoreVaultBackup,
+  runWithPreMigrationBackup,
+} from './backup';
 
 it('creates a named portable backup and restores it', async () => {
   const source = createInMemoryVault();
@@ -15,4 +19,41 @@ it('creates a named portable backup and restores it', async () => {
   const target = createInMemoryVault();
   await restoreVaultBackup(target, backup.bytes, { confirm: true });
   await expect(target.readText('Inbox/hill.md')).resolves.toMatchObject({ text: '# Hill\n' });
+});
+
+it('persists a complete backup before allowing a migration to mutate the vault', async () => {
+  const vault = createInMemoryVault();
+  await vault.writeTextAtomic('Notes/before.md', 'before');
+  const order: string[] = [];
+
+  await runWithPreMigrationBackup(
+    vault,
+    async (backup) => {
+      order.push(`backup:${backup.reason}`);
+      const restored = createInMemoryVault();
+      await restoreVaultBackup(restored, backup.bytes, { confirm: true });
+      expect((await restored.readText('Notes/before.md')).text).toBe('before');
+    },
+    async () => {
+      order.push('migration');
+      await vault.writeTextAtomic('Notes/after.md', 'after');
+    },
+    { generatedAt: '2026-07-14T10:00:00.000Z' },
+  );
+
+  expect(order).toEqual(['backup:pre-migration', 'migration']);
+});
+
+it('does not begin a migration when its automatic backup cannot be persisted', async () => {
+  const vault = createInMemoryVault();
+  const migration = vi.fn(async () => undefined);
+
+  await expect(runWithPreMigrationBackup(
+    vault,
+    async () => {
+      throw new Error('backup destination unavailable');
+    },
+    migration,
+  )).rejects.toThrow('backup destination unavailable');
+  expect(migration).not.toHaveBeenCalled();
 });

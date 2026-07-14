@@ -17,6 +17,8 @@ export interface VaultBackup {
   reason: VaultBackupReason;
 }
 
+export type PersistVaultBackup = (backup: VaultBackup) => Promise<void>;
+
 function backupFileName(generatedAt: string): string {
   const [date, time = '000000.000Z'] = generatedAt.split('T');
   return `the-studio-backup-${date}T${time.replace(/:/g, '').replace('.000', '')}.zip`;
@@ -41,4 +43,22 @@ export async function restoreVaultBackup(
   options: ApplyVaultImportOptions,
 ) {
   return importVault(vault, bytes, options);
+}
+
+/**
+ * The mandatory mutation boundary for schema migrations. The migration cannot
+ * begin until a complete portable backup has been accepted by durable storage.
+ */
+export async function runWithPreMigrationBackup<T>(
+  vault: VaultPort,
+  persistBackup: PersistVaultBackup,
+  migrate: () => Promise<T>,
+  options: ExportVaultOptions = {},
+): Promise<T> {
+  const backup = await createVaultBackup(vault, {
+    ...options,
+    reason: 'pre-migration',
+  });
+  await persistBackup(backup);
+  return migrate();
 }
