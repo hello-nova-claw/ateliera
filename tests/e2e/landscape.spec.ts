@@ -251,12 +251,14 @@ test('keyboard menu restores focus after reorder, link, and reparented move', as
   ).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(trigger).toBeFocused();
+  await expect(trigger).toBeEnabled();
 
   await page.keyboard.press('Enter');
   const link = page.getByRole('menuitem', { name: 'Also show in Family' });
   await link.focus();
   await page.keyboard.press('Enter');
   await expect(trigger).toBeFocused();
+  await expect(trigger).toBeEnabled();
 
   await page.keyboard.press('Enter');
   const move = page.getByRole('menuitem', { name: /Move to Practices/ });
