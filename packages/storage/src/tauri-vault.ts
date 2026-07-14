@@ -54,6 +54,40 @@ export interface TauriVault extends VaultPort {
   recoveryIdentity: string;
 }
 
+export type TauriBackupSaveStatus = 'cancelled' | 'saved';
+
+export async function saveTauriVaultBackup(
+  bytes: Uint8Array,
+  suggestedFileName: string,
+  bridge: TauriVaultBridge = defaultBridge,
+): Promise<TauriBackupSaveStatus> {
+  if (
+    bytes.byteLength > 512 * 1024 * 1024 ||
+    bytes.byteLength < 4 ||
+    ![0x50, 0x4b, 0x03, 0x04].every((byte, index) => bytes[index] === byte) ||
+    suggestedFileName.length === 0 ||
+    suggestedFileName.length > 160 ||
+    suggestedFileName.includes('/') ||
+    suggestedFileName.includes('\\') ||
+    !suggestedFileName.toLocaleLowerCase('en').endsWith('.zip')
+  ) {
+    throw new VaultUnavailableError();
+  }
+  let response: unknown;
+  try {
+    response = await bridge.invoke('backup_save_zip', {
+      bytes: [...bytes],
+      suggestedFileName,
+    });
+  } catch (error) {
+    translate(error);
+  }
+  if (response !== 'cancelled' && response !== 'saved') {
+    throw new VaultUnavailableError();
+  }
+  return response;
+}
+
 function createTauriVault(
   vaultToken: VaultToken,
   recoveryIdentity: string,

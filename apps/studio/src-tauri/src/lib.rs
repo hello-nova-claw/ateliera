@@ -15,6 +15,7 @@ pub fn studio_builder<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<
     builder
         .manage(VaultRegistry::default())
         .invoke_handler(tauri::generate_handler![
+            commands::backup::backup_save_zip,
             commands::vault::vault_select,
             commands::vault::vault_list,
             commands::vault::vault_read_text,

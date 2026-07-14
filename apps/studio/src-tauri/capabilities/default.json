@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Allows the Studio webview to call only the vault commands that enforce the selected root.",
+  "description": "Allows the Studio webview to call only guarded vault commands and the user-chosen backup destination command.",
   "windows": ["main"],
   "permissions": ["core:default"]
 }

@@ -32,6 +32,38 @@ fn app() -> tauri::App<test::MockRuntime> {
         .unwrap()
 }
 
+#[test]
+fn backup_destination_write_is_atomic_and_private_by_contract() {
+    let directory = tempfile::tempdir().unwrap();
+    let destination = directory.path().join("studio-backup.zip");
+    fs::write(&destination, b"previous").unwrap();
+
+    crate::commands::backup::write_backup_atomically_for_test(&destination, b"PK\x03\x04safe")
+        .unwrap();
+
+    assert_eq!(fs::read(&destination).unwrap(), b"PK\x03\x04safe");
+    assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
+}
+
+#[test]
+fn backup_destination_rejects_unsafe_names_and_non_zip_paths() {
+    assert!(crate::commands::backup::validate_backup_name_for_test("../private.zip").is_err());
+    assert!(crate::commands::backup::validate_backup_name_for_test("backup.txt").is_err());
+    assert!(crate::commands::backup::validate_backup_name_for_test("backup.zip").is_ok());
+
+    let directory = tempfile::tempdir().unwrap();
+    let destination = directory.path().join("backup.txt");
+    assert!(
+        crate::commands::backup::write_backup_atomically_for_test(&destination, b"data").is_err()
+    );
+    assert!(!destination.exists());
+    let disguised = directory.path().join("disguised.zip");
+    assert!(
+        crate::commands::backup::write_backup_atomically_for_test(&disguised, b"data").is_err()
+    );
+    assert!(!disguised.exists());
+}
+
 fn invoke_mock(
     webview: &tauri::WebviewWindow<test::MockRuntime>,
     command: &str,

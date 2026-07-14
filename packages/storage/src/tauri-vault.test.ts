@@ -5,7 +5,11 @@ import {
   VaultConflictError,
   VaultUnavailableError,
 } from './conflict';
-import { selectTauriVault, type TauriVaultBridge } from './tauri-vault';
+import {
+  saveTauriVaultBackup,
+  selectTauriVault,
+  type TauriVaultBridge,
+} from './tauri-vault';
 import { createStudioControlVault } from './studio-control-vault';
 
 const token = '0123456789abcdef0123456789abcdef';
@@ -25,6 +29,33 @@ function bridge(
 }
 
 describe('Tauri vault IPC adapter', () => {
+  it('saves backup bytes through a path-private native destination picker', async () => {
+    const invoke = vi.fn(async () => 'saved');
+    await expect(saveTauriVaultBackup(
+      new Uint8Array([0x50, 0x4b, 0x03, 0x04]),
+      'the-studio-backup-2026-07-14.zip',
+      bridge(invoke),
+    )).resolves.toBe('saved');
+    expect(invoke).toHaveBeenCalledWith('backup_save_zip', {
+      bytes: [0x50, 0x4b, 0x03, 0x04],
+      suggestedFileName: 'the-studio-backup-2026-07-14.zip',
+    });
+    expect(JSON.stringify(invoke.mock.calls)).not.toContain('/Users/');
+  });
+
+  it('accepts cancellation but rejects malformed native backup responses', async () => {
+    await expect(saveTauriVaultBackup(
+      new Uint8Array([0x50, 0x4b, 0x03, 0x04]),
+      'backup.zip',
+      bridge(async () => 'cancelled'),
+    )).resolves.toBe('cancelled');
+    await expect(saveTauriVaultBackup(
+      new Uint8Array([0x50, 0x4b, 0x03, 0x04]),
+      'backup.zip',
+      bridge(async () => '/Users/private/backup.zip'),
+    )).rejects.toBeInstanceOf(VaultUnavailableError);
+  });
+
   it('returns null when native folder selection is cancelled', async () => {
     const invoke = vi.fn(async () => null);
     await expect(selectTauriVault(bridge(invoke))).resolves.toBeNull();
