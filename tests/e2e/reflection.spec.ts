@@ -24,6 +24,65 @@ async function openUncharted(page: Page): Promise<void> {
   await expect(page.getByRole('heading', { level: 1, name: 'What if…?' })).toBeVisible();
 }
 
+async function beginSeason(page: Page): Promise<void> {
+  await page.getByRole('link', { name: 'Current Season' }).click();
+  await page.getByRole('button', { name: 'Begin a season' }).click();
+  await page.getByLabel('Season name').fill('Making room');
+  await page.getByLabel('Starts').fill('2026-07-14');
+  await page.getByLabel('Ends').fill('2026-09-30');
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByLabel('Skip this reflection for now').check();
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByLabel('This is a season of…').fill('making room');
+  await page.getByLabel(/How should it feel/).fill('Calm');
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByLabel('New Landscape priority').fill('Home');
+  await page.getByRole('button', { name: 'Create Landscape priority' }).click();
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByLabel('Decisions and experiments — 30 days').fill('Keep it small');
+  await page.getByLabel(/Practices/).fill('Return gently');
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByLabel('Support available').fill('Time');
+  await page.getByLabel('Real constraints').fill('Energy');
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByLabel('What will be enough?').fill('One useful connection.');
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByLabel(/intentionally setting down/).fill('Urgency');
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('button', { name: 'Begin this season' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Making room' })).toBeVisible();
+}
+
+async function putIndexedDbText(page: Page, path: string, text: string): Promise<void> {
+  await page.evaluate(async ({ path, text }) => {
+    const active = localStorage.getItem('studio:active-browser-studio');
+    if (!active) throw new Error('No active Studio');
+    const request = indexedDB.open('the-studio-browser-vaults', 2);
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.addEventListener('success', () => resolve(request.result), { once: true });
+      request.addEventListener('error', () => reject(request.error), { once: true });
+    });
+    const bytes = new TextEncoder().encode(text);
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    const hash = [...new Uint8Array(digest)]
+      .map((byte) => byte.toString(16).padStart(2, '0')).join('');
+    const write = database.transaction('files', 'readwrite');
+    write.objectStore('files').put({
+      key: `${active}\u0000${path}`,
+      vault: active,
+      path,
+      bytes: bytes.buffer,
+      hash,
+      modifiedAt: new Date().toISOString(),
+    });
+    await new Promise<void>((resolve, reject) => {
+      write.addEventListener('complete', () => resolve(), { once: true });
+      write.addEventListener('error', () => reject(write.error), { once: true });
+    });
+    database.close();
+  }, { path, text });
+}
+
 async function replaceIndexedDbText(
   page: Page,
   pathPrefix: string,
@@ -298,6 +357,53 @@ test('serializes conflicted evidence, retries, and opens the canonical target', 
   await expect(page.getByLabel('Title')).toHaveValue('Evidence target');
   await page.getByRole('button', { name: 'Close editor' }).click();
   await expect(evidence).toBeFocused();
+});
+
+test('revalidates life-area and season evidence at click time without fallback navigation', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'mobile-chromium', 'Desktop Chromium and WebKit prove click-time races.');
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator.storage, 'getDirectory', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+  await createLocalStudio(page);
+  await beginSeason(page);
+  await openReflection(page);
+  await page.getByLabel('A sentence to keep').fill('Targets can change after rendering');
+  await page.getByRole('button', { name: 'Keep reflection' }).click();
+  await expect(page.getByRole('heading', { name: 'Targets can change after rendering' })).toBeVisible();
+
+  const select = page.getByLabel('Connect evidence');
+  await select.selectOption({ label: 'Home' });
+  await page.getByRole('button', { name: 'Connect' }).click();
+  const home = page.getByRole('button', { name: 'Open Home, home' });
+  await expect(home).toBeVisible();
+  await select.selectOption({ label: 'Making room' });
+  await page.getByRole('button', { name: 'Connect' }).click();
+  const season = page.getByRole('button', { name: /Open Making room,/ });
+  await expect(season).toBeVisible();
+
+  await putIndexedDbText(page, '.studio/config/landscape-areas.json', `${JSON.stringify({
+    version: 1,
+    areas: [{ id: 'home', title: 'Home', hidden: true, order: 0 }],
+  }, null, 2)}\n`);
+  await replaceIndexedDbText(
+    page,
+    'Current Season/',
+    'season_id:',
+    'season_id: replacement-\noriginal_season_id:',
+  );
+
+  await home.click();
+  await expect(page.getByText('The connected life area Home is no longer available.')).toBeVisible();
+  await expect(home).toBeFocused();
+  await expect(page).toHaveURL(/\/reflection$/u);
+
+  await season.click();
+  await expect(page.getByText('The connected season Making room is no longer available.')).toBeVisible();
+  await expect(season).toBeFocused();
+  await expect(page).toHaveURL(/\/reflection$/u);
 });
 
 test('renders themes, then and now, real media, and calm repair states from canonical files', async ({ page }, testInfo) => {

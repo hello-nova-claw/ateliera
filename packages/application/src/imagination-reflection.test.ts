@@ -502,7 +502,10 @@ describe('Uncharted and Reflection Garden application behavior', () => {
       targetState: 'archived',
     });
 
-    await service.lifeAreas.save([], hidden.revision);
+    await service.lifeAreas.save(
+      [{ id: 'family', title: 'Family', hidden: false, order: 0 }],
+      hidden.revision,
+    );
     await expect(
       service.resolveReflectionEvidenceTarget({ kind: 'life-area', id: 'home' }),
     ).resolves.toEqual({
