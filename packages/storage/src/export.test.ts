@@ -17,6 +17,14 @@ describe('portable vault export', () => {
     await source.writeBinaryAtomic('Attachments/hill.jpg', new Uint8Array([0xff, 0xd8, 0xff]));
     await source.writeTextAtomic('.studio/settings/theme.json', '{"theme":"chamomile"}');
     await source.writeTextAtomic('.studio/config/landscape-areas.json', '{"areas":["home"]}');
+    await source.writeTextAtomic(
+      '.studio/views/life-landscape.json',
+      '{"version":1,"manualOrder":["note-1"]}',
+    );
+    await source.writeTextAtomic(
+      '.studio/seasons/winter-draft.json',
+      '{"version":1,"step":"priorities"}',
+    );
     await source.writeTextAtomic('.studio/Trash/note-2/old.md', '# Recoverable words\n');
     await source.writeTextAtomic('.studio/index/search.sqlite', 'disposable');
     await source.writeTextAtomic('.studio/import-stage/old/file.md', 'transient');
@@ -27,8 +35,16 @@ describe('portable vault export', () => {
 
     expect(await snapshot(target)).toEqual([
       ['.studio/config/landscape-areas.json', new TextEncoder().encode('{"areas":["home"]}')],
+      [
+        '.studio/seasons/winter-draft.json',
+        new TextEncoder().encode('{"version":1,"step":"priorities"}'),
+      ],
       ['.studio/settings/theme.json', new TextEncoder().encode('{"theme":"chamomile"}')],
       ['.studio/Trash/note-2/old.md', new TextEncoder().encode('# Recoverable words\n')],
+      [
+        '.studio/views/life-landscape.json',
+        new TextEncoder().encode('{"version":1,"manualOrder":["note-1"]}'),
+      ],
       ['Attachments/hill.jpg', new Uint8Array([0xff, 0xd8, 0xff])],
       ['Foyer/vision.md', new TextEncoder().encode('---\nschema_version: 1\nid: note-1\n---\n# Vision\n')],
     ]);

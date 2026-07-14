@@ -111,13 +111,14 @@ export function exportDisposition(path: string): ExportDisposition {
     lower === '.studio/config.json' ||
     lower.startsWith('.studio/settings/') ||
     lower.startsWith('.studio/config/') ||
+    lower.startsWith('.studio/views/') ||
+    lower.startsWith('.studio/seasons/') ||
     lower.startsWith('.studio/trash/')
   ) return 'include';
   if (
     lower.startsWith('.studio/index/') ||
     lower.startsWith('.studio/cache/') ||
     lower.startsWith('.studio/thumbnails/') ||
-    lower.startsWith('.studio/views/') ||
     lower.startsWith('.studio/import-stage/') ||
     lower.startsWith('.studio/import-backup/') ||
     lower.startsWith('.studio/tmp/') ||
