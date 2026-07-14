@@ -1,0 +1,18 @@
+The Studio subagent-driven development ledger
+Branch: feat/studio-mvp
+Base: cc7e0a6
+Task 1: complete (commits cc7e0a6..ad74610, review clean)
+Task 2: complete (commits ad74610..e73be8e, review approved; minor: tokenize Storybook preview width)
+Task 3: complete (commits e73be8e..f471284, review clean)
+Task 4: complete (commits f471284..595c5bb, review clean)
+Task 5: complete (commits f7a8fb8..aabbe1d, final security review approved; capability-rooted desktop vault, cooperative CAS boundary, retained-capability watcher reconciliation)
+Task 6: complete (commits c5f9ce9..6b49b59, final browser and cross-adapter reviews approved; pinned OPFS/IndexedDB vault, transactional browser ZIP portability, installable offline PWA)
+Task 7: complete (commits 47f4f1b..dcbaf6b, final review approved; real FTS5 index, deterministic repairable rebuild, CommonMark/GFM link graph, native/worker execution boundary)
+Task 8: complete (commits 271d5d1..3855b6c, final review approved; durable application services, generation-safe index reconciliation, lifecycle/watch handling, room projections)
+Task 9: complete (commits 1d22162..eee0f8f, final visual/offline review approved; responsive shell, named onboarding, seven themes, self-hosted fonts, lazy routes, full precache)
+Task 10: complete (commits 39391ba..e5a816d, final durability/visual/native review approved; atomic capture, lazy Markdown editor, serialized autosave, Studio-scoped recovery, explicit conflict resolution, guarded navigation, stable opaque native vault identity)
+Task 11: complete (commits fc20000..df842e7, final lifecycle/security/concurrency review approved; reversible Archive, CAS-journaled Trash/restore, strict manifests, bounded exact-byte revisions, cross-adapter conditional moves, Markdown-authoritative lookup)
+Task 12: complete (commits cba6799..dbeb39f, final design/media/accessibility review approved; canonical Foyer projection, atomic invitations, secure private cover media, exact-hash cover clearing, editorial responsive composition, first-load skeleton)
+Task 13: complete (commits 0cba901..a49ad01, final interaction/config/accessibility review approved; Matrix/Focus/Lens, displayed-hash CAS, mouse/touch drag, keyboard movement, custom areas, sticky matrix, Undo, horizons)
+Task 14: complete (through final season transaction remediation, independent review approved; nine-step wizard, exact-CAS active coordination, resumable byte-verified close journal, five explicit dispositions, season-last archival)
+Task 15: complete (through final canonical-evidence remediation, independent review approved; pressure-free Uncharted, chronological Reflection Garden, isolated private media, click-time exact target revalidation, offline-safe local writes)
