@@ -22,12 +22,20 @@ export interface StoredBrowserFile {
 
 export interface BrowserVaultStore {
   entries(): Promise<ReadonlyArray<readonly [string, StoredBrowserFile]>>;
+  metadataEntries?(): Promise<ReadonlyArray<BrowserVaultStoreMetadata>>;
   read(path: string): Promise<StoredBrowserFile | undefined>;
   getRevision(): Promise<string>;
   mutateAtomic(
     expectedRevision: string,
     mutations: readonly BrowserVaultStoreMutation[],
   ): Promise<string>;
+}
+
+export interface BrowserVaultStoreMetadata {
+  path: string;
+  size: number;
+  modifiedAt: string;
+  hash?: string;
 }
 
 export type BrowserVaultStoreMutation =
@@ -88,11 +96,13 @@ const SHA256_HASH = /^[a-f0-9]{64}$/;
 const OPFS_BATCH_JOURNAL = '.studio-opfs-batch';
 const OPFS_BATCH_MANIFEST = `${OPFS_BATCH_JOURNAL}/manifest.json`;
 const OPFS_BATCH_PROGRESS = `${OPFS_BATCH_JOURNAL}/progress`;
+const OPFS_METADATA_DIRECTORY = '.studio-opfs-metadata';
 const MAX_ATOMIC_BATCH_WRITES = 9_999;
 const MAX_ATOMIC_FILE_BYTES = 64 * 1024 * 1024;
 const MAX_ATOMIC_JOURNAL_BYTES = 512 * 1024 * 1024;
 const MAX_OPFS_MANIFEST_BYTES = 16 * 1024 * 1024;
 const MAX_OPFS_PROGRESS_BYTES = String(MAX_ATOMIC_BATCH_WRITES).length;
+const MAX_OPFS_METADATA_BYTES = 4 * 1024;
 const locks = new Map<string, Promise<void>>();
 interface WatchHub {
   channel?: BroadcastChannel;
@@ -362,7 +372,16 @@ class BrowserVault implements VaultPort {
     return withVaultLock(this.name, async () => {
       const store = await this.storePromise;
       const entries = new Map<string, VaultEntry>();
-      for (const [path, file] of await store.entries()) {
+      const metadata = store.metadataEntries === undefined
+        ? (await store.entries()).map(([path, file]) => ({
+            path,
+            size: file.bytes.byteLength,
+            modifiedAt: file.modifiedAt,
+            hash: file.hash,
+          }))
+        : await store.metadataEntries();
+      for (const file of metadata) {
+        const { path } = file;
         try {
           validatePath(path);
         } catch {
@@ -374,9 +393,9 @@ class BrowserVault implements VaultPort {
         entries.set(path, {
           path,
           kind: 'file',
-          size: file.bytes.byteLength,
+          size: file.size,
           modifiedAt: file.modifiedAt,
-          contentHash: file.hash,
+          ...(file.hash === undefined ? {} : { contentHash: file.hash }),
         });
       }
       return [...entries.values()]
@@ -905,6 +924,95 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
     }
   }
 
+  async function fileMetadata(path: string): Promise<{ size: number; lastModified: number }> {
+    const { directory, name: filename } = await directoryForPath(root, path, false);
+    const file = await (await directory.getFileHandle(filename)).getFile();
+    return { size: file.size, lastModified: file.lastModified };
+  }
+
+  async function metadataPath(path: string): Promise<string> {
+    return `${OPFS_METADATA_DIRECTORY}/${await digest(encoder.encode(path))}.json`;
+  }
+
+  async function writeFileMetadata(path: string, file: StoredBrowserFile): Promise<void> {
+    const observed = await fileMetadata(path);
+    const bytes = encoder.encode(`${JSON.stringify({
+      version: 1,
+      path,
+      hash: file.hash,
+      size: observed.size,
+      lastModified: observed.lastModified,
+    })}\n`);
+    if (bytes.byteLength > MAX_OPFS_METADATA_BYTES) {
+      throw new VaultUnavailableError('The OPFS file metadata is too large.');
+    }
+    await writeFile(await metadataPath(path), {
+      bytes,
+      hash: await digest(bytes),
+      modifiedAt: new Date().toISOString(),
+    });
+  }
+
+  async function removeFileMetadata(path: string): Promise<void> {
+    await removeFileIfPresent(await metadataPath(path));
+  }
+
+  async function publishFile(path: string, file: StoredBrowserFile): Promise<void> {
+    await writeFile(path, file);
+    await writeFileMetadata(path, file);
+  }
+
+  async function removePublishedFile(path: string): Promise<void> {
+    await removeFileIfPresent(path);
+    await removeFileMetadata(path);
+  }
+
+  async function readFileMetadata(
+    path: string,
+    observed: { size: number; lastModified: number },
+  ): Promise<string | undefined> {
+    const sidecar = await readFile(await metadataPath(path), MAX_OPFS_METADATA_BYTES);
+    if (sidecar === undefined) return undefined;
+    let value: unknown;
+    try {
+      value = JSON.parse(decoder.decode(sidecar.bytes));
+    } catch {
+      return undefined;
+    }
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+    const metadata = value as Record<string, unknown>;
+    if (!hasExactKeys(metadata, ['hash', 'lastModified', 'path', 'size', 'version']) ||
+      metadata.version !== 1 || metadata.path !== path ||
+      metadata.size !== observed.size || metadata.lastModified !== observed.lastModified ||
+      typeof metadata.hash !== 'string' || !SHA256_HASH.test(metadata.hash)) return undefined;
+    return metadata.hash;
+  }
+
+  async function walkMetadata(
+    directory: FileSystemDirectoryHandleLike,
+    prefix = '',
+  ): Promise<BrowserVaultStoreMetadata[]> {
+    const results: BrowserVaultStoreMetadata[] = [];
+    for await (const [entryName, handle] of directory.entries()) {
+      if (entryName.slice(0, '.studio-'.length).toLocaleLowerCase('en') === '.studio-') continue;
+      const path = prefix === '' ? entryName : `${prefix}/${entryName}`;
+      if (handle.kind === 'directory') {
+        results.push(...await walkMetadata(handle, path));
+        continue;
+      }
+      const file = await handle.getFile();
+      const observed = { size: file.size, lastModified: file.lastModified };
+      const hash = await readFileMetadata(path, observed);
+      results.push({
+        path,
+        size: observed.size,
+        modifiedAt: new Date(observed.lastModified).toISOString(),
+        ...(hash === undefined ? {} : { hash }),
+      });
+    }
+    return results;
+  }
+
   const revisionPath = '.studio-revision';
   async function getRevision(): Promise<string> {
     const revision = await readFile(revisionPath);
@@ -982,8 +1090,8 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
   ): Promise<void> {
     for (const [index, entry] of manifest.entries.entries()) {
       const file = payloads[index]?.[side];
-      if (file === undefined) await removeFileIfPresent(entry.path);
-      else await writeFile(entry.path, file);
+      if (file === undefined) await removePublishedFile(entry.path);
+      else await publishFile(entry.path, file);
     }
   }
 
@@ -1023,6 +1131,7 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
 
   return {
     entries: () => walk(root),
+    metadataEntries: () => walkMetadata(root),
     read: readFile,
     getRevision,
     async mutateAtomic(expectedRevision, mutations) {
@@ -1100,8 +1209,8 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
         });
         manifestDurable = true;
         for (const [index, entry] of prepared.entries()) {
-          if (entry.after === undefined) await removeFileIfPresent(entry.mutation.path);
-          else await writeFile(entry.mutation.path, entry.after);
+          if (entry.after === undefined) await removePublishedFile(entry.mutation.path);
+          else await publishFile(entry.mutation.path, entry.after);
           const progressBytes = encoder.encode(String(index + 1));
           await writeFile(OPFS_BATCH_PROGRESS, {
             bytes: progressBytes,
