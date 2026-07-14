@@ -7,7 +7,7 @@ const fixture = resolve(process.cwd(), fixtureArgument);
 const command = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 const result = spawnSync(
   command,
-  ['exec', 'vitest', 'run', 'packages/storage/src/restore-drill.test.ts'],
+  ['exec', 'vitest', 'run', 'packages/application/src/restore-drill.test.ts'],
   {
     cwd: process.cwd(),
     env: { ...process.env, STUDIO_RESTORE_FIXTURE: fixture },
