@@ -19,7 +19,11 @@ use cap_std::{
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tauri::{AppHandle, Emitter, Runtime, State, WebviewWindow};
+use tauri::{
+    AppHandle, Emitter, Runtime, State, WebviewWindow,
+    http::HeaderMap,
+    ipc::{InvokeBody, Request, Response},
+};
 use uuid::Uuid;
 
 use crate::security::path_guard::{
@@ -27,6 +31,11 @@ use crate::security::path_guard::{
 };
 
 const VAULT_RECOVERY_ID_PATH: &str = ".studio-vault-id";
+const VAULT_REVISION_PATH: &str = ".studio-revision";
+const VAULT_TOKEN_HEADER: &str = "x-studio-vault-token";
+const BATCH_MAGIC: &[u8; 8] = b"STUDIOB1";
+const MAX_BATCH_BYTES: usize = 512 * 1024 * 1024;
+const MAX_BATCH_WRITES: usize = 9_999;
 
 fn is_user_note_path(path: &str) -> bool {
     if path.to_ascii_lowercase().starts_with(".studio/") {
@@ -66,6 +75,34 @@ pub struct VaultSelection {
 #[serde(rename_all = "camelCase")]
 pub struct HashResult {
     pub hash: String,
+}
+
+#[derive(Debug)]
+struct AtomicBatchWrite {
+    path: String,
+    bytes: Vec<u8>,
+    expected_hash: Option<String>,
+    expected_missing: bool,
+}
+
+#[derive(Debug)]
+struct AtomicBatch {
+    expected_revision: u64,
+    expected_user_state: Option<Vec<ExpectedUserState>>,
+    writes: Vec<AtomicBatchWrite>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AtomicBatchResult {
+    revision: String,
+    results: Vec<AtomicBatchWriteResult>,
+}
+
+#[derive(Serialize)]
+struct AtomicBatchWriteResult {
+    path: String,
+    hash: String,
 }
 
 #[derive(Serialize)]
@@ -195,6 +232,7 @@ impl VaultRegistry {
             write_lock_file,
             watchers: Mutex::new(HashMap::new()),
         });
+        vault.get_revision()?;
         let selection = VaultSelection {
             vault_token: Uuid::new_v4().simple().to_string(),
             recovery_identity: vault.recovery_identity()?,
@@ -265,6 +303,147 @@ impl VaultRegistry {
 
 fn hash(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
+}
+
+struct BatchCursor<'a> {
+    bytes: &'a [u8],
+    offset: usize,
+}
+
+impl<'a> BatchCursor<'a> {
+    fn take(&mut self, length: usize) -> Result<&'a [u8], VaultError> {
+        let end = self
+            .offset
+            .checked_add(length)
+            .ok_or(VaultError::Unavailable)?;
+        let value = self
+            .bytes
+            .get(self.offset..end)
+            .ok_or(VaultError::Unavailable)?;
+        self.offset = end;
+        Ok(value)
+    }
+
+    fn byte(&mut self) -> Result<u8, VaultError> {
+        Ok(self.take(1)?[0])
+    }
+
+    fn u32(&mut self) -> Result<usize, VaultError> {
+        let bytes: [u8; 4] = self
+            .take(4)?
+            .try_into()
+            .map_err(|_| VaultError::Unavailable)?;
+        Ok(u32::from_le_bytes(bytes) as usize)
+    }
+
+    fn string(&mut self) -> Result<String, VaultError> {
+        let length = self.u32()?;
+        if length > 1024 {
+            return Err(VaultError::PathEscape);
+        }
+        String::from_utf8(self.take(length)?.to_vec()).map_err(|_| VaultError::PathEscape)
+    }
+}
+
+fn parse_revision(value: &str) -> Result<u64, VaultError> {
+    if value.is_empty()
+        || (value.len() > 1 && value.starts_with('0'))
+        || !value.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return Err(VaultError::Conflict);
+    }
+    value.parse().map_err(|_| VaultError::Conflict)
+}
+
+fn is_canonical_hash(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn decode_atomic_batch(body: &InvokeBody) -> Result<AtomicBatch, VaultError> {
+    let InvokeBody::Raw(bytes) = body else {
+        return Err(VaultError::Unavailable);
+    };
+    if bytes.len() > MAX_BATCH_BYTES {
+        return Err(VaultError::Unavailable);
+    }
+    let mut cursor = BatchCursor { bytes, offset: 0 };
+    if cursor.take(BATCH_MAGIC.len())? != BATCH_MAGIC {
+        return Err(VaultError::Unavailable);
+    }
+    let expected_revision = parse_revision(&cursor.string()?)?;
+    let state_present = cursor.byte()?;
+    if state_present > 1 {
+        return Err(VaultError::Unavailable);
+    }
+    let state_count = cursor.u32()?;
+    if state_count > MAX_BATCH_WRITES || (state_present == 0 && state_count != 0) {
+        return Err(VaultError::Unavailable);
+    }
+    let mut expected_user_state = Vec::with_capacity(state_count);
+    for _ in 0..state_count {
+        let path = cursor.string()?;
+        validate_relative(&path)?;
+        let hash = cursor.string()?;
+        if !is_canonical_hash(&hash) {
+            return Err(VaultError::Unavailable);
+        }
+        expected_user_state.push(ExpectedUserState { path, hash });
+    }
+    let count = cursor.u32()?;
+    if count > MAX_BATCH_WRITES {
+        return Err(VaultError::Unavailable);
+    }
+    let mut writes = Vec::with_capacity(count);
+    let mut paths = HashSet::with_capacity(count);
+    for _ in 0..count {
+        let path = cursor.string()?;
+        validate_relative(&path)?;
+        if !paths.insert(path.clone()) {
+            return Err(VaultError::Conflict);
+        }
+        let flags = cursor.byte()?;
+        if flags & !3 != 0 || flags == 3 {
+            return Err(VaultError::Unavailable);
+        }
+        let expected_hash = if flags & 2 == 0 {
+            None
+        } else {
+            let value = cursor.string()?;
+            if !is_canonical_hash(&value) {
+                return Err(VaultError::Unavailable);
+            }
+            Some(value)
+        };
+        let length = cursor.u32()?;
+        if length > 64 * 1024 * 1024 {
+            return Err(VaultError::Unavailable);
+        }
+        writes.push(AtomicBatchWrite {
+            path,
+            bytes: cursor.take(length)?.to_vec(),
+            expected_hash,
+            expected_missing: flags & 1 != 0,
+        });
+    }
+    if cursor.offset != bytes.len() {
+        return Err(VaultError::Unavailable);
+    }
+    Ok(AtomicBatch {
+        expected_revision,
+        expected_user_state: (state_present == 1).then_some(expected_user_state),
+        writes,
+    })
+}
+
+fn request_vault_token(headers: &HeaderMap) -> Result<&str, VaultError> {
+    headers
+        .get(VAULT_TOKEN_HEADER)
+        .ok_or(VaultError::Unavailable)?
+        .to_str()
+        .map_err(|_| VaultError::Unavailable)
 }
 
 fn open_file_nofollow(directory: &Dir, basename: &str) -> Result<cap_std::fs::File, VaultError> {
@@ -458,6 +637,65 @@ impl Vault {
         publish
     }
 
+    fn write_internal_locked(&self, path: &str, bytes: &[u8]) -> Result<(), VaultError> {
+        let temporary = format!(".studio-{}.tmp", Uuid::new_v4().simple());
+        let mut options = OpenOptions::new();
+        options
+            .create_new(true)
+            .write(true)
+            .follow(FollowSymlinks::No);
+        let mut file = self
+            .root
+            .open_with(&temporary, &options)
+            .map_err(map_path_error)?;
+        let result = (|| {
+            file.write_all(bytes).map_err(|_| VaultError::Unavailable)?;
+            file.flush().map_err(|_| VaultError::Unavailable)?;
+            file.sync_all().map_err(|_| VaultError::Unavailable)?;
+            drop(file);
+            self.root
+                .rename(&temporary, &self.root, path)
+                .map_err(map_path_error)?;
+            sync_directory(&self.root)
+        })();
+        if result.is_err() {
+            let _ = self.root.remove_file(&temporary);
+        }
+        result
+    }
+
+    fn revision_locked(&self) -> Result<u64, VaultError> {
+        match self.root.symlink_metadata(VAULT_REVISION_PATH) {
+            Ok(metadata) => {
+                if !metadata.is_file() || metadata.file_type().is_symlink() {
+                    return Err(VaultError::Unavailable);
+                }
+                let bytes = read_file_nofollow(&self.root, VAULT_REVISION_PATH)?;
+                let value = std::str::from_utf8(&bytes).map_err(|_| VaultError::Unavailable)?;
+                parse_revision(value).map_err(|_| VaultError::Unavailable)
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                self.write_internal_locked(VAULT_REVISION_PATH, b"0")?;
+                Ok(0)
+            }
+            Err(error) => Err(map_path_error(error)),
+        }
+    }
+
+    fn reserve_revision_locked(&self) -> Result<u64, VaultError> {
+        let next = self
+            .revision_locked()?
+            .checked_add(1)
+            .ok_or(VaultError::Unavailable)?;
+        self.write_internal_locked(VAULT_REVISION_PATH, next.to_string().as_bytes())?;
+        Ok(next)
+    }
+
+    fn get_revision(&self) -> Result<String, VaultError> {
+        let _write_guard = self.lock_writes()?;
+        Ok(self.revision_locked()?.to_string())
+    }
+
     fn require_expected_hash(
         directory: &Dir,
         basename: &str,
@@ -570,6 +808,11 @@ impl Vault {
     }
 
     pub fn read_text(&self, path: &str) -> Result<ReadTextResult, VaultError> {
+        let _write_guard = self.lock_writes()?;
+        self.read_text_unlocked(path)
+    }
+
+    fn read_text_unlocked(&self, path: &str) -> Result<ReadTextResult, VaultError> {
         let parent = open_parent(&self.root, path, false)?;
         let bytes = read_file_nofollow(&parent.directory, &parent.basename)?;
         let text = String::from_utf8(bytes.clone()).map_err(|_| VaultError::Unavailable)?;
@@ -580,6 +823,11 @@ impl Vault {
     }
 
     fn read_binary(&self, path: &str) -> Result<Vec<u8>, VaultError> {
+        let _write_guard = self.lock_writes()?;
+        self.read_binary_unlocked(path)
+    }
+
+    fn read_binary_unlocked(&self, path: &str) -> Result<Vec<u8>, VaultError> {
         let parent = open_parent(&self.root, path, false)?;
         read_file_nofollow(&parent.directory, &parent.basename)
     }
@@ -629,6 +877,7 @@ impl Vault {
                 expected_missing,
             )?;
             self.require_user_state(expected_user_state)?;
+            self.reserve_revision_locked()?;
             if expected_missing {
                 rename_exclusive(
                     &parent.directory,
@@ -691,9 +940,246 @@ impl Vault {
         })
     }
 
+    fn publish_bytes_locked(&self, path: &str, bytes: &[u8]) -> Result<(), VaultError> {
+        let parent = open_parent(&self.root, path, true)?;
+        let temporary = format!(".studio-{}.tmp", Uuid::new_v4().simple());
+        let mut options = OpenOptions::new();
+        options
+            .create_new(true)
+            .write(true)
+            .follow(FollowSymlinks::No);
+        let mut file = parent
+            .directory
+            .open_with(&temporary, &options)
+            .map_err(map_path_error)?;
+        let result = (|| {
+            file.write_all(bytes).map_err(|_| VaultError::Unavailable)?;
+            file.flush().map_err(|_| VaultError::Unavailable)?;
+            file.sync_all().map_err(|_| VaultError::Unavailable)?;
+            drop(file);
+            parent
+                .directory
+                .rename(&temporary, &parent.directory, &parent.basename)
+                .map_err(map_path_error)?;
+            sync_directory(&parent.directory)
+        })();
+        if result.is_err() {
+            let _ = parent.directory.remove_file(&temporary);
+        }
+        result
+    }
+
+    fn write_batch_atomic_inner(
+        &self,
+        batch: AtomicBatch,
+        fail_before_publication: Option<usize>,
+        after_publication: Option<&dyn Fn(usize)>,
+    ) -> Result<AtomicBatchResult, VaultError> {
+        struct PreparedWrite {
+            path: String,
+            temporary: String,
+            previous: Option<Vec<u8>>,
+            expected_hash: Option<String>,
+            expected_missing: bool,
+            hash: String,
+        }
+
+        if batch.writes.is_empty() || batch.writes.len() > MAX_BATCH_WRITES {
+            return Err(VaultError::Unavailable);
+        }
+        let _write_guard = self.lock_writes()?;
+        if self.revision_locked()? != batch.expected_revision {
+            return Err(VaultError::Conflict);
+        }
+        self.require_user_state(batch.expected_user_state.as_deref())?;
+        let mut seen = HashSet::with_capacity(batch.writes.len());
+        let mut prepared: Vec<PreparedWrite> = Vec::with_capacity(batch.writes.len());
+        for write in batch.writes {
+            if !seen.insert(write.path.clone()) {
+                for write in &prepared {
+                    if let Ok(parent) = open_parent(&self.root, &write.path, false) {
+                        let _ = parent.directory.remove_file(&write.temporary);
+                    }
+                }
+                return Err(VaultError::Conflict);
+            }
+            let prepare_result = (|| {
+                let parent = open_parent(&self.root, &write.path, true)?;
+                Self::require_write_condition(
+                    &parent.directory,
+                    &parent.basename,
+                    write.expected_hash.as_deref(),
+                    write.expected_missing,
+                )?;
+                let previous = match parent.directory.symlink_metadata(&parent.basename) {
+                    Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => {
+                        Some(read_file_nofollow(&parent.directory, &parent.basename)?)
+                    }
+                    Ok(_) => return Err(VaultError::PathEscape),
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+                    Err(error) => return Err(map_path_error(error)),
+                };
+                let temporary = format!(".studio-{}.tmp", Uuid::new_v4().simple());
+                let mut options = OpenOptions::new();
+                options
+                    .create_new(true)
+                    .write(true)
+                    .follow(FollowSymlinks::No);
+                let mut file = parent
+                    .directory
+                    .open_with(&temporary, &options)
+                    .map_err(map_path_error)?;
+                let write_result = file
+                    .write_all(&write.bytes)
+                    .and_then(|_| file.flush())
+                    .and_then(|_| file.sync_all());
+                if let Err(error) = write_result {
+                    let _ = parent.directory.remove_file(&temporary);
+                    return Err(map_path_error(error));
+                }
+                Ok(PreparedWrite {
+                    path: write.path,
+                    temporary,
+                    previous,
+                    expected_hash: write.expected_hash,
+                    expected_missing: write.expected_missing,
+                    hash: hash(&write.bytes),
+                })
+            })();
+            match prepare_result {
+                Ok(write) => prepared.push(write),
+                Err(error) => {
+                    for write in &prepared {
+                        if let Ok(parent) = open_parent(&self.root, &write.path, false) {
+                            let _ = parent.directory.remove_file(&write.temporary);
+                        }
+                    }
+                    return Err(error);
+                }
+            }
+        }
+
+        if let Err(error) = self.require_user_state(batch.expected_user_state.as_deref()) {
+            for write in &prepared {
+                if let Ok(parent) = open_parent(&self.root, &write.path, false) {
+                    let _ = parent.directory.remove_file(&write.temporary);
+                }
+            }
+            return Err(error);
+        }
+        let revision = match self.reserve_revision_locked() {
+            Ok(revision) => revision,
+            Err(error) => {
+                for write in &prepared {
+                    if let Ok(parent) = open_parent(&self.root, &write.path, false) {
+                        let _ = parent.directory.remove_file(&write.temporary);
+                    }
+                }
+                return Err(error);
+            }
+        };
+        let mut applied = Vec::new();
+        let publish_result = (|| {
+            for (index, write) in prepared.iter().enumerate() {
+                if fail_before_publication == Some(index) {
+                    return Err(VaultError::Unavailable);
+                }
+                let parent = open_parent(&self.root, &write.path, true)?;
+                Self::require_write_condition(
+                    &parent.directory,
+                    &parent.basename,
+                    write.expected_hash.as_deref(),
+                    write.expected_missing,
+                )?;
+                if write.expected_missing {
+                    rename_exclusive(
+                        &parent.directory,
+                        &write.temporary,
+                        &parent.directory,
+                        &parent.basename,
+                    )?;
+                } else {
+                    parent
+                        .directory
+                        .rename(&write.temporary, &parent.directory, &parent.basename)
+                        .map_err(map_path_error)?;
+                }
+                applied.push(index);
+                sync_directory(&parent.directory)?;
+                if let Some(callback) = after_publication {
+                    callback(index);
+                }
+            }
+            Ok(())
+        })();
+
+        if let Err(error) = publish_result {
+            let mut rollback_failed = false;
+            for index in applied.into_iter().rev() {
+                let write = &prepared[index];
+                let rollback = if let Some(previous) = &write.previous {
+                    match open_parent(&self.root, &write.path, false).and_then(|parent| {
+                        Self::require_expected_hash(
+                            &parent.directory,
+                            &parent.basename,
+                            &write.hash,
+                        )
+                    }) {
+                        Ok(()) => self.publish_bytes_locked(&write.path, previous),
+                        Err(error) => Err(error),
+                    }
+                } else {
+                    match open_parent(&self.root, &write.path, false) {
+                        Ok(parent) => Self::require_expected_hash(
+                            &parent.directory,
+                            &parent.basename,
+                            &write.hash,
+                        )
+                        .and_then(|_| {
+                            parent
+                                .directory
+                                .remove_file(&parent.basename)
+                                .map_err(map_path_error)
+                        })
+                        .and_then(|_| sync_directory(&parent.directory)),
+                        Err(error) => Err(error),
+                    }
+                };
+                if rollback.is_err() {
+                    rollback_failed = true;
+                }
+            }
+            for write in &prepared {
+                if let Ok(parent) = open_parent(&self.root, &write.path, false) {
+                    let _ = parent.directory.remove_file(&write.temporary);
+                }
+            }
+            return Err(if rollback_failed {
+                VaultError::Unavailable
+            } else {
+                error
+            });
+        }
+
+        Ok(AtomicBatchResult {
+            revision: revision.to_string(),
+            results: prepared
+                .into_iter()
+                .map(|write| AtomicBatchWriteResult {
+                    path: write.path,
+                    hash: write.hash,
+                })
+                .collect(),
+        })
+    }
+
+    fn write_batch_atomic(&self, batch: AtomicBatch) -> Result<AtomicBatchResult, VaultError> {
+        self.write_batch_atomic_inner(batch, None, None)
+    }
+
     fn user_note_state(&self) -> Result<Vec<ExpectedUserState>, VaultError> {
         let mut state = self
-            .list(None)?
+            .list_unlocked(None)?
             .into_iter()
             .filter(|entry| entry.kind == "file" && is_user_note_path(&entry.path))
             .map(|entry| {
@@ -742,6 +1228,7 @@ impl Vault {
         }
         self.require_user_state(expected_user_state)?;
         let to_parent = open_parent(&self.root, to, true)?;
+        self.reserve_revision_locked()?;
         rename_exclusive(
             &from_parent.directory,
             &from_parent.basename,
@@ -775,6 +1262,7 @@ impl Vault {
             Self::require_expected_hash(&parent.directory, &parent.basename, expected)?;
         }
         self.require_user_state(expected_user_state)?;
+        self.reserve_revision_locked()?;
         parent
             .directory
             .remove_file(&parent.basename)
@@ -783,6 +1271,11 @@ impl Vault {
     }
 
     fn exists(&self, path: &str) -> Result<bool, VaultError> {
+        let _write_guard = self.lock_writes()?;
+        self.exists_unlocked(path)
+    }
+
+    fn exists_unlocked(&self, path: &str) -> Result<bool, VaultError> {
         let parent = match open_parent(&self.root, path, false) {
             Ok(parent) => parent,
             Err(VaultError::Unavailable) => return Ok(false),
@@ -797,6 +1290,11 @@ impl Vault {
     }
 
     fn list(&self, prefix: Option<&str>) -> Result<Vec<VaultEntry>, VaultError> {
+        let _write_guard = self.lock_writes()?;
+        self.list_unlocked(prefix)
+    }
+
+    fn list_unlocked(&self, prefix: Option<&str>) -> Result<Vec<VaultEntry>, VaultError> {
         let mut entries = Vec::new();
         match prefix {
             None => collect_entries(&self.root, "", &mut entries)?,
@@ -829,6 +1327,8 @@ impl Vault {
     }
 
     fn snapshot(&self) -> Result<BTreeMap<String, SnapshotFile>, VaultError> {
+        // Watch reconciliation must never observe or emit an intermediate batch state.
+        let _write_guard = self.lock_writes()?;
         let mut entries = Vec::new();
         collect_entries(&self.root, "", &mut entries)?;
         Ok(entries
@@ -1179,8 +1679,30 @@ pub fn vault_read_binary<R: Runtime>(
     state: State<'_, VaultRegistry>,
     vault_token: String,
     path: String,
-) -> Result<Vec<u8>, VaultError> {
-    selected_vault(&window, &state, &vault_token)?.read_binary(&path)
+) -> Result<Response, VaultError> {
+    Ok(Response::new(
+        selected_vault(&window, &state, &vault_token)?.read_binary(&path)?,
+    ))
+}
+
+#[tauri::command]
+pub fn vault_get_revision<R: Runtime>(
+    window: WebviewWindow<R>,
+    state: State<'_, VaultRegistry>,
+    vault_token: String,
+) -> Result<String, VaultError> {
+    selected_vault(&window, &state, &vault_token)?.get_revision()
+}
+
+#[tauri::command]
+pub fn vault_write_batch_atomic<R: Runtime>(
+    window: WebviewWindow<R>,
+    state: State<'_, VaultRegistry>,
+    request: Request<'_>,
+) -> Result<AtomicBatchResult, VaultError> {
+    let vault_token = request_vault_token(request.headers())?;
+    let batch = decode_atomic_batch(request.body())?;
+    selected_vault(&window, &state, vault_token)?.write_batch_atomic(batch)
 }
 
 #[tauri::command]
@@ -1304,6 +1826,245 @@ pub fn vault_unwatch<R: Runtime>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn selected_vault() -> (tempfile::TempDir, Arc<Vault>) {
+        let directory = tempfile::tempdir().unwrap();
+        let registry = VaultRegistry::default();
+        let selection = registry
+            .register_selected_path("test", directory.path())
+            .unwrap();
+        let vault = registry.vault("test", &selection.vault_token).unwrap();
+        (directory, vault)
+    }
+
+    fn push_string(bytes: &mut Vec<u8>, value: &str) {
+        bytes.extend_from_slice(&(value.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(value.as_bytes());
+    }
+
+    #[test]
+    fn raw_batch_envelope_preserves_binary_bytes_without_json_expansion() {
+        let mut bytes = BATCH_MAGIC.to_vec();
+        push_string(&mut bytes, "12");
+        bytes.push(0);
+        bytes.extend_from_slice(&0_u32.to_le_bytes());
+        bytes.extend_from_slice(&1_u32.to_le_bytes());
+        push_string(&mut bytes, ".studio/assets/image.bin");
+        bytes.push(1);
+        let payload = [0, 1, 2, 127, 128, 255];
+        bytes.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(&payload);
+
+        let decoded = decode_atomic_batch(&InvokeBody::Raw(bytes.clone())).unwrap();
+        assert_eq!(decoded.expected_revision, 12);
+        assert_eq!(decoded.expected_user_state, None);
+        assert_eq!(decoded.writes[0].bytes, payload);
+        assert!(bytes.len() < 80);
+        assert!(matches!(
+            decode_atomic_batch(&InvokeBody::Json(r#"{"bytes":[0,1,2,127,128,255]}"#.into())),
+            Err(VaultError::Unavailable)
+        ));
+    }
+
+    #[test]
+    fn revision_is_monotonic_across_aba_writes_and_reopen() {
+        let (directory, vault) = selected_vault();
+        assert_eq!(vault.get_revision().unwrap(), "0");
+
+        vault
+            .write_text_atomic("note.md", "a", None, false, None)
+            .unwrap();
+        let first = parse_revision(&vault.get_revision().unwrap()).unwrap();
+        vault
+            .write_text_atomic("note.md", "b", None, false, None)
+            .unwrap();
+        let second = parse_revision(&vault.get_revision().unwrap()).unwrap();
+        vault
+            .write_text_atomic("note.md", "a", None, false, None)
+            .unwrap();
+        let third = parse_revision(&vault.get_revision().unwrap()).unwrap();
+
+        assert!(first < second && second < third);
+        drop(vault);
+
+        let reopened = VaultRegistry::default();
+        let selection = reopened
+            .register_selected_path("reopen", directory.path())
+            .unwrap();
+        assert_eq!(
+            reopened
+                .vault("reopen", &selection.vault_token)
+                .unwrap()
+                .get_revision()
+                .unwrap(),
+            third.to_string()
+        );
+    }
+
+    #[test]
+    fn atomic_batch_rolls_back_every_published_file_on_failure() {
+        let (_directory, vault) = selected_vault();
+        vault
+            .write_text_atomic("first.md", "before", None, false, None)
+            .unwrap();
+        let expected_revision = parse_revision(&vault.get_revision().unwrap()).unwrap();
+        let result = vault.write_batch_atomic_inner(
+            AtomicBatch {
+                expected_revision,
+                expected_user_state: None,
+                writes: vec![
+                    AtomicBatchWrite {
+                        path: "first.md".into(),
+                        bytes: b"after".to_vec(),
+                        expected_hash: Some(hash(b"before")),
+                        expected_missing: false,
+                    },
+                    AtomicBatchWrite {
+                        path: "second.bin".into(),
+                        bytes: vec![0, 1, 2, 255],
+                        expected_hash: None,
+                        expected_missing: true,
+                    },
+                ],
+            },
+            Some(1),
+            None,
+        );
+
+        assert!(matches!(result, Err(VaultError::Unavailable)));
+        assert_eq!(vault.read_binary("first.md").unwrap(), b"before");
+        assert!(!vault.exists("second.bin").unwrap());
+        assert!(parse_revision(&vault.get_revision().unwrap()).unwrap() > expected_revision);
+    }
+
+    #[test]
+    fn atomic_batch_publishes_all_files_under_one_revision() {
+        let (_directory, vault) = selected_vault();
+        let expected_revision = parse_revision(&vault.get_revision().unwrap()).unwrap();
+        let result = vault
+            .write_batch_atomic(AtomicBatch {
+                expected_revision,
+                expected_user_state: Some(vec![]),
+                writes: vec![
+                    AtomicBatchWrite {
+                        path: "one.md".into(),
+                        bytes: b"one".to_vec(),
+                        expected_hash: None,
+                        expected_missing: true,
+                    },
+                    AtomicBatchWrite {
+                        path: ".studio/assets/two.bin".into(),
+                        bytes: vec![0, 255, 7],
+                        expected_hash: None,
+                        expected_missing: true,
+                    },
+                ],
+            })
+            .unwrap();
+
+        assert_eq!(
+            parse_revision(&result.revision).unwrap(),
+            expected_revision + 1
+        );
+        assert_eq!(vault.read_binary("one.md").unwrap(), b"one");
+        assert_eq!(
+            vault.read_binary(".studio/assets/two.bin").unwrap(),
+            vec![0, 255, 7]
+        );
+    }
+
+    #[test]
+    fn public_readers_cannot_observe_a_partially_published_batch() {
+        let (_directory, vault) = selected_vault();
+        let expected_revision = parse_revision(&vault.get_revision().unwrap()).unwrap();
+        let publishing_vault = Arc::clone(&vault);
+        let (published, wait_for_release) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel();
+        let (batch_done, batch_result) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let after_publication = |index| {
+                if index == 0 {
+                    published.send(()).unwrap();
+                    released.recv().unwrap();
+                }
+            };
+            let result = publishing_vault.write_batch_atomic_inner(
+                AtomicBatch {
+                    expected_revision,
+                    expected_user_state: None,
+                    writes: vec![
+                        AtomicBatchWrite {
+                            path: "first.bin".into(),
+                            bytes: b"first".to_vec(),
+                            expected_hash: None,
+                            expected_missing: true,
+                        },
+                        AtomicBatchWrite {
+                            path: "second.bin".into(),
+                            bytes: b"second".to_vec(),
+                            expected_hash: None,
+                            expected_missing: true,
+                        },
+                    ],
+                },
+                None,
+                Some(&after_publication),
+            );
+            batch_done.send(result).unwrap();
+        });
+        wait_for_release
+            .recv_timeout(Duration::from_secs(1))
+            .unwrap();
+
+        let observing_vault = Arc::clone(&vault);
+        let (read_done, read_result) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            read_done
+                .send(observing_vault.read_binary("first.bin"))
+                .unwrap()
+        });
+        assert!(matches!(
+            read_result.recv_timeout(Duration::from_millis(50)),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+        ));
+
+        release.send(()).unwrap();
+        batch_result
+            .recv_timeout(Duration::from_secs(1))
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            read_result
+                .recv_timeout(Duration::from_secs(1))
+                .unwrap()
+                .unwrap(),
+            b"first"
+        );
+        assert_eq!(vault.read_binary("second.bin").unwrap(), b"second");
+    }
+
+    #[test]
+    fn watcher_snapshots_wait_for_the_native_transaction_lock() {
+        let (_directory, vault) = selected_vault();
+        vault
+            .write_text_atomic("note.md", "stable", None, false, None)
+            .unwrap();
+        let guard = vault.lock_writes().unwrap();
+        let observing_vault = Arc::clone(&vault);
+        let (send, receive) = std::sync::mpsc::channel();
+        std::thread::spawn(move || send.send(observing_vault.snapshot()).unwrap());
+
+        assert!(matches!(
+            receive.recv_timeout(Duration::from_millis(50)),
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+        ));
+        drop(guard);
+        let snapshot = receive
+            .recv_timeout(Duration::from_secs(1))
+            .unwrap()
+            .unwrap();
+        assert_eq!(snapshot.get("note.md").unwrap().hash, hash(b"stable"));
+    }
 
     #[test]
     fn logical_diff_coalesces_a_rename() {

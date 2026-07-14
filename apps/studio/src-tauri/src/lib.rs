@@ -20,6 +20,8 @@ pub fn studio_builder<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<
             commands::vault::vault_list,
             commands::vault::vault_read_text,
             commands::vault::vault_read_binary,
+            commands::vault::vault_get_revision,
+            commands::vault::vault_write_batch_atomic,
             commands::vault::vault_write_text_atomic,
             commands::vault::vault_write_binary_atomic,
             commands::vault::vault_move,
