@@ -138,6 +138,50 @@ async function putActiveVaultText(
   }, { targetPath: path, targetText: text });
 }
 
+async function corruptActiveVaultTextWithoutUpdatingHash(
+  page: Page,
+  path: string,
+  text: string,
+): Promise<void> {
+  await page.evaluate(async ({ targetPath, targetText }) => {
+    const active = localStorage.getItem('studio:active-browser-studio');
+    if (active === null) throw new Error('No active Studio');
+    const request = indexedDB.open('the-studio-browser-vaults', 3);
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.addEventListener('success', () => resolve(request.result), { once: true });
+      request.addEventListener('error', () => reject(request.error), { once: true });
+    });
+    const transaction = database.transaction('files', 'readwrite');
+    const store = transaction.objectStore('files');
+    const key = `${active}\u0000${targetPath}`;
+    const read = store.get(key);
+    const record = await new Promise<{
+      bytes: ArrayBuffer;
+      hash: string;
+      key: string;
+      modifiedAt: string;
+      path: string;
+      vault: string;
+    }>((resolve, reject) => {
+      read.addEventListener('success', () => resolve(read.result), { once: true });
+      read.addEventListener('error', () => reject(read.error), { once: true });
+    });
+    const replacement = new TextEncoder().encode(targetText);
+    if (replacement.byteLength !== record.bytes.byteLength) {
+      throw new Error('The corruption fixture must preserve the stored byte length.');
+    }
+    store.put({
+      ...record,
+      bytes: replacement.buffer,
+    });
+    await new Promise<void>((resolve, reject) => {
+      transaction.addEventListener('complete', () => resolve(), { once: true });
+      transaction.addEventListener('error', () => reject(transaction.error), { once: true });
+    });
+    database.close();
+  }, { targetPath: path, targetText: text });
+}
+
 test('exports, destroys the active selection, and cleanly restores a portable Studio', async ({
   page,
 }, testInfo) => {
@@ -227,6 +271,39 @@ test('rejects a damaged backup before changing a single target file', async ({
   await expect(page.getByRole('alert')).toContainText(/invalid|checksum|ZIP/u);
   await expect(page.getByRole('heading', { name: 'Review this restore' })).toHaveCount(0);
   expect(await activeVaultRecords(page)).toEqual(before);
+});
+
+test('rejects a restore target whose IndexedDB bytes no longer match its stored hash', async ({
+  page,
+}) => {
+  await useIndexedDbVault(page);
+  await createStudio(page, 'Corrupt Restore Target');
+  await capture(page, 'The childhood hill is still here');
+  const [sourceNote] = (await activeVaultRecords(page)).filter(({ path }) =>
+    path.startsWith('Inbox/'),
+  );
+  expect(sourceNote).toBeDefined();
+  await openSettings(page);
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download portable backup' }).click();
+  const backupPath = await (await downloadPromise).path();
+  expect(backupPath).not.toBeNull();
+
+  const corruptedText = sourceNote!.text.replace('hill', 'h1ll');
+  expect(corruptedText).not.toBe(sourceNote!.text);
+  expect(new TextEncoder().encode(corruptedText)).toHaveLength(
+    new TextEncoder().encode(sourceNote!.text).byteLength,
+  );
+  await corruptActiveVaultTextWithoutUpdatingHash(page, sourceNote!.path, corruptedText);
+  await page.getByLabel('Choose a Studio backup').setInputFiles(backupPath!);
+
+  await expect(page.getByRole('alert')).toContainText('could not be checked safely');
+  await expect(page.getByRole('heading', { name: 'Review this restore' })).toHaveCount(0);
+  const [persisted] = (await activeVaultRecords(page)).filter(({ path }) =>
+    path === sourceNote!.path,
+  );
+  expect(persisted?.text).toBe(corruptedText);
+  expect(persisted?.hash).toBe(sourceNote!.hash);
 });
 
 test('previews a collision, cancels without mutation, and restores only after explicit resolution', async ({
