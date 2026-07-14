@@ -4,7 +4,6 @@
 }
 
 .studio-app {
-  min-block-size: 100vh;
   color: var(--studio-color-ink);
   background: var(--studio-color-canvas);
 }
