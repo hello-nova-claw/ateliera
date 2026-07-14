@@ -207,6 +207,36 @@ export function vaultContract(name: string, createVault: () => Promise<VaultPort
       await expect(vault.readText('Inbox/winner.md')).resolves.toMatchObject({ text: 'winner' });
     });
 
+    it('validates every batch condition before publishing any file', async () => {
+      const vault = await createVault();
+      const current = await vault.writeTextAtomic('Inbox/b.md', 'current');
+
+      await expect(vault.writeBatchAtomic({
+        expectedRevision: await vault.getRevision(),
+        writes: [
+          { path: 'Inbox/a.md', bytes: new Uint8Array([1]), expectedMissing: true },
+          { path: 'Inbox/b.md', bytes: new Uint8Array([2]), expectedHash: `${current.hash}stale` },
+        ],
+      })).rejects.toBeInstanceOf(VaultConflictError);
+
+      await expect(vault.exists('Inbox/a.md')).resolves.toBe(false);
+      await expect(vault.readText('Inbox/b.md')).resolves.toMatchObject({ text: 'current' });
+    });
+
+    it('copies every batch input before asynchronous publication', async () => {
+      const vault = await createVault();
+      const bytes = new Uint8Array([1, 2, 3]);
+
+      const write = vault.writeBatchAtomic({
+        expectedRevision: await vault.getRevision(),
+        writes: [{ path: 'Attachments/a.bin', bytes, expectedMissing: true }],
+      });
+      bytes[0] = 9;
+      await write;
+
+      await expect(vault.readBinary('Attachments/a.bin')).resolves.toEqual(new Uint8Array([1, 2, 3]));
+    });
+
     it('hashes UTF-8 text with SHA-256 and reads it intact', async () => {
       const vault = await createVault();
       const text = 'Māori 🌿\n';
