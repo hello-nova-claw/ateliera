@@ -14,12 +14,14 @@ import { VaultConflictError, VaultUnavailableError } from './conflict';
 
 class MemoryOpfs {
   readonly files = new Map<string, Uint8Array>();
+  readonly arrayBufferReads: string[] = [];
   afterWrite: ((path: string) => Promise<void> | void) | undefined;
 
   directory(path = ''): FileSystemDirectoryHandle {
     const files = this.files;
     const makeDirectory = (child: string): FileSystemDirectoryHandle => this.directory(child);
     const notifyAfterWrite = (file: string): Promise<void> | void => this.afterWrite?.(file);
+    const recordArrayBufferRead = (file: string): void => { this.arrayBufferReads.push(file); };
     const prefix = path === '' ? '' : `${path}/`;
     return {
       kind: 'directory',
@@ -41,10 +43,15 @@ class MemoryOpfs {
           kind: 'file',
           name,
           async getFile() {
-            const bytes = Uint8Array.from(files.get(filePath) ?? new Uint8Array());
-            return new File([bytes.buffer], name, {
+            const bytes = files.get(filePath) ?? new Uint8Array();
+            return {
+              size: bytes.byteLength,
               lastModified: 0,
-            });
+              async arrayBuffer() {
+                recordArrayBufferRead(filePath);
+                return Uint8Array.from(files.get(filePath) ?? new Uint8Array()).buffer;
+              },
+            } as File;
           },
           async createWritable() {
             let pending = new Uint8Array();
@@ -605,6 +612,27 @@ describe('OPFS crash recovery', () => {
         .rejects.toBeInstanceOf(VaultConflictError);
       expect(opfs.text(`${root}/Inbox/a.md`)).toBe('new-a');
       expect(opfs.text(`${root}/Inbox/b.md`)).toBe('external-b');
+      expect([...opfs.files.keys()].some((file) => file.includes('.studio-opfs-batch'))).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('rejects an oversized external target before reading or restoring any payload', async () => {
+    const opfs = new MemoryOpfs();
+    const name = 'crash-oversized-external-edit';
+    await seedInterruptedOpfsBatch(opfs, name, false, 1);
+    const root = `the-studio/${name}`;
+    const oversizedPath = `${root}/Inbox/b.md`;
+    const oversized = new Uint8Array(64 * 1024 * 1024 + 1);
+    opfs.files.set(oversizedPath, oversized);
+    vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
+    try {
+      await expect(createBrowserVault(name, { storage: 'opfs' }).list())
+        .rejects.toBeInstanceOf(VaultUnavailableError);
+      expect(opfs.text(`${root}/Inbox/a.md`)).toBe('new-a');
+      expect(opfs.files.get(oversizedPath)).toBe(oversized);
+      expect(opfs.arrayBufferReads).not.toContain(oversizedPath);
       expect([...opfs.files.keys()].some((file) => file.includes('.studio-opfs-batch'))).toBe(true);
     } finally {
       vi.unstubAllGlobals();
