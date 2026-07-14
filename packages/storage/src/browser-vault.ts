@@ -25,11 +25,21 @@ export interface BrowserVaultStore {
   metadataEntries?(): Promise<ReadonlyArray<BrowserVaultStoreMetadata>>;
   read(path: string): Promise<StoredBrowserFile | undefined>;
   readBounded?(path: string, maximumBytes: number): Promise<StoredBrowserFile | undefined>;
+  readManyBounded?(
+    paths: readonly string[],
+    limits: BrowserVaultMutationReadLimits,
+  ): Promise<ReadonlyMap<string, StoredBrowserFile | undefined>>;
   getRevision(): Promise<string>;
   mutateAtomic(
     expectedRevision: string,
     mutations: readonly BrowserVaultStoreMutation[],
   ): Promise<string>;
+}
+
+export interface BrowserVaultMutationReadLimits {
+  maximumFileBytes: number;
+  maximumTotalBytes: number;
+  reservedBytes: number;
 }
 
 export interface BrowserVaultStoreMetadata {
@@ -536,12 +546,13 @@ class BrowserVault implements VaultPort {
       const store = await this.storePromise;
       if (await store.getRevision() !== snapshot.expectedRevision) throw new VaultConflictError();
       const paths = new Set<string>();
-      const prepared = [] as Array<{
+      const drafts = [] as Array<{
         path: string;
-        hash: string;
-        previous: StoredBrowserFile | undefined;
-        file: StoredBrowserFile;
+        bytes: Uint8Array;
+        expectedHash?: string;
+        expectedMissing?: boolean;
       }>;
+      let reservedBytes = 0;
       for (const write of snapshot.writes) {
         const path = validatePath(write.path);
         if (paths.has(path)) throw new VaultConflictError('A batch cannot write the same path twice.');
@@ -549,15 +560,46 @@ class BrowserVault implements VaultPort {
         if (write.expectedHash !== undefined && write.expectedMissing) {
           throw new VaultConflictError('A batch write condition is invalid.');
         }
-        const previous = await store.read(path);
+        const bytes = write.bytes.slice();
+        if (store.readManyBounded !== undefined) {
+          if (bytes.byteLength > MAX_ATOMIC_FILE_BYTES) {
+            throw new VaultUnavailableError('An OPFS batch file exceeds 64 MiB.');
+          }
+          reservedBytes += bytes.byteLength;
+          if (!Number.isSafeInteger(reservedBytes) || reservedBytes > MAX_ATOMIC_JOURNAL_BYTES) {
+            throw new VaultUnavailableError('The OPFS batch journal exceeds 512 MiB.');
+          }
+        }
+        drafts.push({
+          path,
+          bytes,
+          ...(write.expectedHash === undefined ? {} : { expectedHash: write.expectedHash }),
+          ...(write.expectedMissing === undefined ? {} : { expectedMissing: write.expectedMissing }),
+        });
+      }
+      const previousFiles = store.readManyBounded === undefined
+        ? new Map(await Promise.all(drafts.map(async ({ path }) => [path, await store.read(path)] as const)))
+        : await store.readManyBounded([...paths], {
+            maximumFileBytes: MAX_ATOMIC_FILE_BYTES,
+            maximumTotalBytes: MAX_ATOMIC_JOURNAL_BYTES,
+            reservedBytes,
+          });
+      const prepared = [] as Array<{
+        path: string;
+        hash: string;
+        previous: StoredBrowserFile | undefined;
+        file: StoredBrowserFile;
+      }>;
+      for (const write of drafts) {
+        const previous = previousFiles.get(write.path);
         if (write.expectedMissing && previous !== undefined) throw new VaultConflictError();
         if (write.expectedHash !== undefined && previous?.hash !== write.expectedHash) {
           throw new VaultConflictError();
         }
-        const bytes = write.bytes.slice();
+        const bytes = write.bytes;
         const hash = await digest(bytes);
         prepared.push({
-          path,
+          path: write.path,
           hash,
           previous,
           file: { bytes, hash, modifiedAt: new Date().toISOString() },
@@ -952,6 +994,17 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
     return { size: file.size, lastModified: file.lastModified };
   }
 
+  async function optionalFileMetadata(
+    path: string,
+  ): Promise<{ size: number; lastModified: number } | undefined> {
+    try {
+      return await fileMetadata(path);
+    } catch (error) {
+      if (isNotFound(error)) return undefined;
+      throw error;
+    }
+  }
+
   async function metadataPath(path: string): Promise<string> {
     return `${OPFS_METADATA_DIRECTORY}/${await digest(encoder.encode(path))}.json`;
   }
@@ -1001,6 +1054,64 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
     right: { size: number; lastModified: number },
   ): boolean {
     return left.size === right.size && left.lastModified === right.lastModified;
+  }
+
+  async function readManyBounded(
+    paths: readonly string[],
+    limits: BrowserVaultMutationReadLimits,
+  ): Promise<ReadonlyMap<string, StoredBrowserFile | undefined>> {
+    const { maximumFileBytes, maximumTotalBytes, reservedBytes } = limits;
+    if (!Number.isSafeInteger(maximumFileBytes) || maximumFileBytes < 0 ||
+      !Number.isSafeInteger(maximumTotalBytes) || maximumTotalBytes < 0 ||
+      !Number.isSafeInteger(reservedBytes) || reservedBytes < 0) {
+      throw new VaultUnavailableError('The bounded mutation read limit is invalid.');
+    }
+    const observed = new Map<
+      string,
+      { size: number; lastModified: number } | undefined
+    >();
+    let totalBytes = reservedBytes;
+    if (totalBytes > maximumTotalBytes) {
+      throw new VaultUnavailableError('The OPFS batch journal exceeds 512 MiB.');
+    }
+    for (const path of paths) {
+      const metadata = await optionalFileMetadata(path);
+      if (metadata !== undefined) {
+        if (metadata.size > maximumFileBytes) {
+          throw new VaultUnavailableError('An OPFS batch file exceeds 64 MiB.');
+        }
+        totalBytes += metadata.size;
+        if (!Number.isSafeInteger(totalBytes) || totalBytes > maximumTotalBytes) {
+          throw new VaultUnavailableError('The OPFS batch journal exceeds 512 MiB.');
+        }
+      }
+      observed.set(path, metadata);
+    }
+
+    const files = new Map<string, StoredBrowserFile | undefined>();
+    for (const path of paths) {
+      const before = observed.get(path);
+      if (before === undefined) {
+        files.set(path, undefined);
+        continue;
+      }
+      const file = await readFile(path, maximumFileBytes);
+      const after = await optionalFileMetadata(path);
+      if (file === undefined || after === undefined ||
+        !sameFileMetadata(before, after) || file.bytes.byteLength !== after.size) {
+        throw new VaultConflictError('A vault entry changed during atomic preflight.');
+      }
+      files.set(path, file);
+    }
+    for (const path of paths) {
+      const before = observed.get(path);
+      const after = await optionalFileMetadata(path);
+      if (before === undefined ? after !== undefined :
+        after === undefined || !sameFileMetadata(before, after)) {
+        throw new VaultConflictError('A vault entry changed during atomic preflight.');
+      }
+    }
+    return files;
   }
 
   async function readBoundedAndHeal(
@@ -1201,6 +1312,7 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
     metadataEntries: () => walkMetadata(root),
     read: readFile,
     readBounded: readBoundedAndHeal,
+    readManyBounded,
     getRevision,
     async mutateAtomic(expectedRevision, mutations) {
       await recoverJournal();
@@ -1209,6 +1321,24 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
         throw new VaultUnavailableError('The OPFS batch size is invalid.');
       }
       const paths = new Set<string>();
+      let reservedBytes = 0;
+      for (const mutation of mutations) {
+        if (paths.has(mutation.path)) throw new VaultConflictError();
+        paths.add(mutation.path);
+        const afterBytes = mutation.kind === 'write' ? mutation.file.bytes.byteLength : 0;
+        if (afterBytes > MAX_ATOMIC_FILE_BYTES) {
+          throw new VaultUnavailableError('An OPFS batch file exceeds 64 MiB.');
+        }
+        reservedBytes += afterBytes;
+        if (!Number.isSafeInteger(reservedBytes) || reservedBytes > MAX_ATOMIC_JOURNAL_BYTES) {
+          throw new VaultUnavailableError('The OPFS batch journal exceeds 512 MiB.');
+        }
+      }
+      const previousFiles = await readManyBounded([...paths], {
+        maximumFileBytes: MAX_ATOMIC_FILE_BYTES,
+        maximumTotalBytes: MAX_ATOMIC_JOURNAL_BYTES,
+        reservedBytes,
+      });
       const prepared: Array<{
         mutation: BrowserVaultStoreMutation;
         before: StoredBrowserFile | undefined;
@@ -1216,14 +1346,8 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
       }> = [];
       let journalBytes = 0;
       for (const mutation of mutations) {
-        if (paths.has(mutation.path)) throw new VaultConflictError();
-        paths.add(mutation.path);
-        const before = await readFile(mutation.path);
+        const before = previousFiles.get(mutation.path);
         const after = mutation.kind === 'write' ? cloneFile(mutation.file) : undefined;
-        if ((before?.bytes.byteLength ?? 0) > MAX_ATOMIC_FILE_BYTES ||
-          (after?.bytes.byteLength ?? 0) > MAX_ATOMIC_FILE_BYTES) {
-          throw new VaultUnavailableError('An OPFS batch file exceeds 64 MiB.');
-        }
         journalBytes += (before?.bytes.byteLength ?? 0) + (after?.bytes.byteLength ?? 0);
         if (!Number.isSafeInteger(journalBytes) || journalBytes > MAX_ATOMIC_JOURNAL_BYTES) {
           throw new VaultUnavailableError('The OPFS batch journal exceeds 512 MiB.');
