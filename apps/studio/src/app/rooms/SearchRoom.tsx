@@ -54,6 +54,8 @@ export default function SearchRoom({
   const [repairError, setRepairError] = useState<string>();
   const requestedInspection = useRef<string | undefined>(undefined);
   const inspectionRequest = useRef(0);
+  const repairClose = useRef<HTMLButtonElement>(null);
+  const repairSurface = useRef<HTMLDivElement>(null);
 
   async function inspect(id: string): Promise<void> {
     if (!searchService) return;
@@ -81,29 +83,40 @@ export default function SearchRoom({
     await inspect(reference.id);
   }
 
-  async function loadRepairs(): Promise<void> {
-    if (!searchService) return;
+  async function loadRepairs(): Promise<StudioSearchRepairItem[] | null> {
+    if (!searchService) return null;
     setRepairState('loading');
     setRepairError(undefined);
     try {
-      setRepairItems(await searchService.repairQueue());
+      const next = await searchService.repairQueue();
+      setRepairItems(next);
       setRepairState('ready');
+      return next;
     } catch (reason) {
       setRepairError(
         reason instanceof Error ? reason.message : 'Repairs could not be opened just now.',
       );
       setRepairState('error');
+      return null;
     }
   }
 
   function openRepairs(): void {
+    setInspectorOpen(false);
     setRepairOpen(true);
     void loadRepairs();
   }
 
   async function finishRepair(): Promise<void> {
-    await loadRepairs();
+    const remaining = await loadRepairs();
     view.refresh();
+    if (remaining === null) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const next = repairSurface.current?.querySelector<HTMLButtonElement>(
+        '.repair-card button:not([disabled])',
+      );
+      (next ?? repairClose.current)?.focus();
+    }));
   }
 
   async function repairMetadata(item: MetadataRepairItem, metadata: StudioNote): Promise<void> {
@@ -131,6 +144,7 @@ export default function SearchRoom({
 
   async function openLinkRepair(link: InspectorForwardLink): Promise<void> {
     if (!searchService || !inspection) return;
+    setInspectorOpen(false);
     setRepairOpen(true);
     setRepairState('loading');
     setRepairError(undefined);
@@ -189,11 +203,12 @@ export default function SearchRoom({
         onClose={() => setRepairOpen(false)}
         variant="inspector"
       >
-        <div className="search-room__repair">
+        <div className="search-room__repair" ref={repairSurface}>
           <button
             aria-label="Close repairs"
             className="search-room__repair-close"
             onClick={() => setRepairOpen(false)}
+            ref={repairClose}
             type="button"
           >
             <span aria-hidden="true">×</span>
