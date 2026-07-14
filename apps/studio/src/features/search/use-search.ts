@@ -36,6 +36,7 @@ export function useSearch(
   );
   const [error, setError] = useState<string>();
   const request = useRef(0);
+  const repairRequest = useRef(0);
 
   const replaceLocation = useCallback((query: string, filters: SearchFilters) => {
     history.replaceState(
@@ -83,12 +84,10 @@ export function useSearch(
     void Promise.all([
       service.search(locationState.query, locationState.filters),
       service.searchFacets(locationState.query, locationState.filters),
-      service.repairQueue(),
-    ]).then(([nextResults, nextFacets, repairs]) => {
+    ]).then(([nextResults, nextFacets]) => {
       if (!current || request.current !== currentRequest) return;
       setResults(nextResults);
       setFacets(nextFacets);
-      setRepairCount(repairs.length);
       setState(online ? 'ready' : 'offline');
     }, (reason: unknown) => {
       if (!current || request.current !== currentRequest) return;
@@ -101,6 +100,24 @@ export function useSearch(
     });
     return () => { current = false; };
   }, [localRevision, locationState, online, revision, service]);
+
+  useEffect(() => {
+    const currentRequest = repairRequest.current + 1;
+    repairRequest.current = currentRequest;
+    if (!service) {
+      setRepairCount(0);
+      return undefined;
+    }
+    let current = true;
+    void service.repairQueue().then((repairs) => {
+      if (current && repairRequest.current === currentRequest) {
+        setRepairCount(repairs.length);
+      }
+    }, () => {
+      if (current && repairRequest.current === currentRequest) setRepairCount(0);
+    });
+    return () => { current = false; };
+  }, [localRevision, revision, service]);
 
   return {
     model: {
