@@ -118,8 +118,16 @@ function addSearchFilters(clauses: string[], values: SqlValue[], filters: Search
     clauses.push(`n.card_type IN (${filters.cardTypes.map(() => '?').join(',')})`);
     values.push(...filters.cardTypes);
   }
-  if (filters.dateFrom) { clauses.push('n.updated >= ?'); values.push(filters.dateFrom); }
-  if (filters.dateTo) { clauses.push('n.updated <= ?'); values.push(filters.dateTo); }
+  if (filters.dateFrom) {
+    clauses.push('julianday(n.updated) >= julianday(?)');
+    values.push(filters.dateFrom);
+  }
+  if (filters.dateTo) {
+    clauses.push('julianday(n.updated) <= julianday(?)');
+    values.push(/^\d{4}-\d{2}-\d{2}$/u.test(filters.dateTo)
+      ? `${filters.dateTo}T23:59:59.999Z`
+      : filters.dateTo);
+  }
   addListFilter(clauses, values, 'note_rooms', 'room', filters.rooms);
   addListFilter(clauses, values, 'note_life_areas', 'life_area', filters.lifeAreas);
   addListFilter(clauses, values, 'note_seasons', 'season', filters.seasons);

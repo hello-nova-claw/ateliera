@@ -118,6 +118,8 @@ describe('SQLite IndexPort', () => {
 
     expect((await index.search('calm', { dateTo: '2026-07-14' })).map(({ id }) => id))
       .toEqual(['same-day']);
+    expect((await index.search('calm', { dateTo: '2026-07-15T02:45:00.000+10:00' })).map(({ id }) => id))
+      .toEqual(['same-day']);
   });
 
   it('re-resolves an existing broken link when its target is indexed later', async () => {
