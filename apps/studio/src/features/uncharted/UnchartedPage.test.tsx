@@ -97,6 +97,32 @@ it('keeps a failed invitation visible and focused for retry', async () => {
   expect(screen.getByText('A week beside the sea')).toBeVisible();
 });
 
+it('guards a card against rapid duplicate invitations without losing focus', async () => {
+  let resolveInvite!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    resolveInvite = resolve;
+  });
+  const onInvite = vi.fn(() => pending);
+  render(
+    <UnchartedPage
+      activeSeason={{ id: '2026-winter', title: 'Making room' }}
+      model={model}
+      onInvite={onInvite}
+    />,
+  );
+  const invite = screen.getByRole('button', {
+    name: 'Invite A week beside the sea into Making room',
+  });
+  invite.focus();
+  fireEvent.click(invite);
+  fireEvent.click(invite);
+  expect(invite).toBeDisabled();
+  expect(onInvite).toHaveBeenCalledTimes(1);
+  resolveInvite();
+  await waitFor(() => expect(invite).not.toBeDisabled());
+  expect(invite).toHaveFocus();
+});
+
 it('preserves the room structure through loading, stale and repair states', () => {
   const view = render(<UnchartedPage model={{ cards: [] }} state="loading" />);
   expect(screen.getByRole('status')).toHaveTextContent('Gathering Uncharted');

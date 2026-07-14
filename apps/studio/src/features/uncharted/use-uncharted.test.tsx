@@ -68,3 +68,48 @@ it('surfaces malformed room notes without replacing valid possibilities', async 
   expect(view.result.current.error).toContain('words remain untouched');
 });
 
+it('coalesces rapid invitations and refreshes the durable card after failure', async () => {
+  let rejectInvite!: (reason: Error) => void;
+  const invitation = new Promise<never>((_resolve, reject) => {
+    rejectInvite = reject;
+  });
+  const projectUncharted = vi
+    .fn()
+    .mockResolvedValueOnce({ cards: [possibility] })
+    .mockResolvedValue({ cards: [{ ...possibility, hash: 'durable-hash' }] });
+  const inviteUnchartedToSeason = vi.fn(() => invitation);
+  const service = {
+    projectUncharted,
+    projectCurrentSeason: vi.fn(async () => ({
+      current: { ...possibility, path: 'Current Season/winter.md', title: 'Making room' },
+      conflicts: [],
+    })),
+    load: vi.fn(async () => ({
+      note: { extraFrontmatter: { season_id: '2026-winter' } },
+    })),
+    repairs: vi.fn(async () => []),
+    indexState: vi.fn(() => 'ready'),
+    inviteUnchartedToSeason,
+  } as unknown as StudioService;
+  const view = renderHook(() => useUncharted(service, 0));
+  await waitFor(() => expect(view.result.current.state).toBe('ready'));
+
+  let firstError: unknown;
+  let secondError: unknown;
+  await act(async () => {
+    const first = view.result.current.invite(possibility).catch((reason: unknown) => {
+      firstError = reason;
+    });
+    const second = view.result.current.invite(possibility).catch((reason: unknown) => {
+      secondError = reason;
+    });
+    rejectInvite(new Error('Another version exists.'));
+    await Promise.all([first, second]);
+  });
+
+  expect(inviteUnchartedToSeason).toHaveBeenCalledTimes(1);
+  expect(firstError).toBeInstanceOf(Error);
+  expect(secondError).toBeInstanceOf(Error);
+  await waitFor(() => expect(projectUncharted).toHaveBeenCalledTimes(2));
+  expect(view.result.current.model.cards[0]?.hash).toBe('durable-hash');
+});
