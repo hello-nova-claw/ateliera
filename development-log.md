@@ -293,3 +293,11 @@
 - First startup now returns after the Studio watcher is ready and runs the initial disposable index rebuild in the background. The UI can enter the Studio while Search and derived projections continue to report their rebuilding state.
 - Malformed Studio markers fail closed rather than falling back to legacy handling. Created Studios remain reopenable across process restarts with the same recovery identity.
 - Regression coverage now proves marker creation, reopen, suspicious-parent rejection, malformed-marker rejection, and nonblocking startup while the first index rebuild is still running. Verification passed 55 Rust tests, app startup tests, typecheck, ESLint/stylelint, `cargo fmt --check`, and `cargo clippy -D warnings`.
+
+## 2026-07-14 — Life Landscape matrix polish
+
+- Gave the matrix anchor rail and corner header tokenized inset spacing so fixed row labels no longer sit hard against the left edge. Section prompts now use the same margin rhythm as the room header.
+- Added direct matrix-cell creation controls. Each Life Landscape cell can now open capture in the correct life area and anchor without first switching into Focus view.
+- Made the destination anchor authoritative when a Landscape note is moved. Moving a Vision note into Decisions now rewrites canonical Markdown metadata to `cardType: decisions`, `semanticType: growth`, and `landscapeAnchor: decisions`; moving away from Decisions removes stale `decision_horizon` metadata while preserving unrelated unknown frontmatter.
+- Tightened Landscape focus restoration so a failed move returns focus to the exact failed menu action instead of being overwritten by an older successful reorder focus restore.
+- Verification passed 41 focused app/application tests, typecheck, ESLint/stylelint, eight desktop Chromium Landscape journeys with one intentional touch-only skip, and all 10 Landscape visual/axe states across sparse/dense matrices, focus/lens, compact, zoom, mobile, forced colors, and reduced motion.

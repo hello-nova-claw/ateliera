@@ -77,8 +77,78 @@ describe('room projections', () => {
     });
     expect(linked.note.lifeAreas).toEqual(['home', 'family']);
     expect(linked.note.landscapeAnchor).toBe('practices');
+    expect(linked.note.semanticType).toBe('growth');
+    expect(linked.note.cardType).toBe('practices');
     expect(linked.note.extraFrontmatter).toEqual({
       unknown_key: { preserved: true },
+    });
+  });
+
+  it('reclassifies moved Landscape notes to match the destination anchor', async () => {
+    const original = note({
+      id: 'classify-me',
+      semanticType: 'vision',
+      cardType: 'vision',
+      lifeAreas: ['home'],
+      landscapeAnchor: 'vision',
+    });
+    const vault = await seed([
+      { path: 'Life Landscape/home/classify.md', note: original },
+    ]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    const displayed = (
+      await service.projectLandscapeBoard(['home'])
+    ).cells.find(
+      (cell) => cell.lifeArea === 'home' && cell.anchor === 'vision',
+    )?.featured;
+    expect(displayed).toBeDefined();
+
+    const moved = await service.updateLandscapePlacement({
+      path: displayed!.path,
+      expectedHash: displayed!.hash,
+      lifeAreas: ['home'],
+      anchor: 'decisions',
+    });
+
+    expect(moved.note).toMatchObject({
+      cardType: 'decisions',
+      semanticType: 'growth',
+      landscapeAnchor: 'decisions',
+    });
+  });
+
+  it('drops stale decision horizon metadata when moving away from Decisions', async () => {
+    const original = note({
+      id: 'decision-to-vision',
+      semanticType: 'growth',
+      cardType: 'decisions',
+      lifeAreas: ['home'],
+      landscapeAnchor: 'decisions',
+      extraFrontmatter: { decision_horizon: '60d', untouched: 'yes' },
+    });
+    const vault = await seed([
+      { path: 'Life Landscape/home/decision.md', note: original },
+    ]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    const displayed = (
+      await service.projectLandscapeBoard(['home'])
+    ).cells.find(
+      (cell) => cell.lifeArea === 'home' && cell.anchor === 'decisions',
+    )?.featured;
+    expect(displayed).toBeDefined();
+
+    const moved = await service.updateLandscapePlacement({
+      path: displayed!.path,
+      expectedHash: displayed!.hash,
+      lifeAreas: ['home'],
+      anchor: 'vision',
+    });
+
+    expect(moved.note).toMatchObject({
+      cardType: 'vision',
+      semanticType: 'vision',
+      landscapeAnchor: 'vision',
+      extraFrontmatter: { untouched: 'yes' },
     });
   });
 

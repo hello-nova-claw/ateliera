@@ -265,10 +265,16 @@ function NoteCard({
   }, [busy]);
 
   useEffect(() => {
-    if (busy || !restoreTriggerFocusRef.current) return;
+    if (
+      busy ||
+      !restoreTriggerFocusRef.current ||
+      failedActionFocusRef.current ||
+      moveError
+    )
+      return;
     restoreTriggerFocusRef.current = false;
     menuTriggerRef.current?.focus();
-  }, [busy]);
+  }, [busy, moveError]);
 
   function navigateMenu(event: ReactKeyboardEvent<HTMLDivElement>) {
     const items = [
@@ -307,6 +313,7 @@ function NoteCard({
     actionTarget?: HTMLButtonElement,
   ) {
     if (!onMove || busy) return;
+    restoreTriggerFocusRef.current = false;
     setBusy(true);
     setMoveError('');
     setAnnouncement(`Moving ${card.title}…`);
@@ -325,6 +332,7 @@ function NoteCard({
       restoreTriggerFocusRef.current = true;
       closeMenu();
     } catch (reason) {
+      restoreTriggerFocusRef.current = false;
       failedActionFocusRef.current = actionTarget;
       const message =
         reason instanceof Error
@@ -955,7 +963,7 @@ export function LandscapePage({
               style={
                 {
                   '--landscape-area-count': areas.length,
-                  '--landscape-matrix-min': `${184 + areas.length * 132}px`,
+                  '--landscape-matrix-min': `${208 + areas.length * 132}px`,
                 } as CSSProperties
               }
             >
@@ -1009,6 +1017,18 @@ export function LandscapePage({
                             type="button"
                           >
                             +{projected!.additionalCount} more
+                          </button>
+                        )}
+                        {onCreate && (
+                          <button
+                            aria-label={`Add to ${area.title} ${anchor.label}`}
+                            className="life-landscape__cell-add"
+                            onClick={(event) =>
+                              onCreate(area.id, anchor.id, event.currentTarget)
+                            }
+                            type="button"
+                          >
+                            + Add
                           </button>
                         )}
                       </DropZone>

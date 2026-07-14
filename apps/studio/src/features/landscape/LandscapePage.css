@@ -74,7 +74,7 @@
 
 .life-landscape__matrix {
   display: grid;
-  grid-template-columns: 184px repeat(
+  grid-template-columns: 208px repeat(
       var(--landscape-area-count, 5),
       minmax(132px, 1fr)
     );
@@ -97,6 +97,7 @@
   inset-inline-start: 0;
   display: grid;
   place-items: center start;
+  padding-inline: var(--studio-space-5);
   color: var(--studio-color-ink-soft);
   font: var(--studio-type-eyebrow);
   letter-spacing: 0.1em;
@@ -120,7 +121,7 @@
   z-index: 2;
   inset-inline-start: 0;
   min-block-size: 9.5rem;
-  padding: var(--studio-space-5) var(--studio-space-4) var(--studio-space-5) 0;
+  padding: var(--studio-space-5);
   border-block-end: 1px solid var(--studio-color-line);
   background: var(--studio-color-canvas);
 }
@@ -144,14 +145,22 @@
 }
 
 .life-landscape__cell {
+  display: grid;
+  align-content: start;
+  gap: var(--studio-space-3);
   min-inline-size: 132px;
   min-block-size: 9.5rem;
-  padding: var(--studio-space-3);
+  padding: var(--studio-space-4);
   border-block-end: 1px solid var(--studio-color-line);
   border-inline-start: 1px solid
     color-mix(in srgb, var(--studio-color-line) 65%, transparent);
   color: var(--studio-color-ink-muted);
   font-size: 0.75rem;
+}
+
+.life-landscape__cell > span {
+  color: var(--studio-color-ink-soft);
+  line-height: 1.4;
 }
 
 .life-landscape__cell-title {
@@ -207,6 +216,18 @@
   color: var(--studio-color-ink-1);
   background: transparent;
   text-decoration: underline;
+}
+
+.life-landscape__cell-add {
+  justify-self: start;
+  min-block-size: var(--studio-touch-target);
+  padding-inline: var(--studio-space-3);
+  border: 1px solid var(--studio-color-line);
+  border-radius: var(--studio-radius-control);
+  color: var(--studio-color-ink-muted);
+  background: var(--studio-color-surface);
+  cursor: pointer;
+  font: var(--studio-type-control);
 }
 
 .life-landscape__focus,
@@ -272,6 +293,7 @@
 .life-landscape__section-heading p,
 .life-landscape__lens > p {
   max-inline-size: 42rem;
+  margin-block: var(--studio-space-2) 0;
   color: var(--studio-color-ink-muted);
 }
 

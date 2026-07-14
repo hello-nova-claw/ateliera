@@ -25,10 +25,12 @@ const emptyBoard: LandscapeBoardProjection = {
 
 describe('LandscapePage', () => {
   it('renders a named desktop matrix with fixed anchors and calm empty cells', () => {
+    const onCreate = vi.fn();
     render(
       <LandscapePage
         areas={[...defaultLifeAreas.slice(0, 5)]}
         board={emptyBoard}
+        onCreate={onCreate}
         onNavigate={vi.fn()}
         path="/landscape"
       />,
@@ -40,6 +42,12 @@ describe('LandscapePage', () => {
     expect(
       screen.getByRole('button', { name: 'Open Home' }),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add to Home Vision' }));
+    expect(onCreate).toHaveBeenCalledWith(
+      'home',
+      'vision',
+      expect.any(HTMLButtonElement),
+    );
   });
 
   it('renders one focused area with five anchors and opens cards from their titles', () => {

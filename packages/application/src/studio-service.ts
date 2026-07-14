@@ -181,6 +181,30 @@ const capturePlacements = {
   }
 >;
 
+function landscapeAnchorMetadata(anchor: LandscapeAnchor): {
+  cardType: LandscapeAnchor;
+  semanticType: SemanticType;
+} {
+  const semanticTypeByAnchor: Record<LandscapeAnchor, SemanticType> = {
+    vision: 'vision',
+    'identity-values-feelings': 'foundations',
+    decisions: 'growth',
+    practices: 'growth',
+    'structure-strategy': 'foundations',
+  };
+  return { cardType: anchor, semanticType: semanticTypeByAnchor[anchor] };
+}
+
+function removeDecisionOnlyFrontmatter(
+  extraFrontmatter: StudioNote['extraFrontmatter'],
+): StudioNote['extraFrontmatter'] {
+  return Object.fromEntries(
+    Object.entries(extraFrontmatter).filter(
+      ([key]) => key !== 'decision_horizon',
+    ),
+  ) as StudioNote['extraFrontmatter'];
+}
+
 export interface StudioServiceDependencies {
   vault: VaultPort;
   index: IndexPort;
@@ -891,13 +915,10 @@ export function createStudioService(
         input.placement === undefined
           ? undefined
           : capturePlacements[input.placement];
-      const landscapeSemantic: Record<LandscapeAnchor, SemanticType> = {
-        vision: 'vision',
-        'identity-values-feelings': 'foundations',
-        decisions: 'growth',
-        practices: 'growth',
-        'structure-strategy': 'foundations',
-      };
+      const landscapeMetadata =
+        input.landscape === undefined
+          ? undefined
+          : landscapeAnchorMetadata(input.landscape.anchor);
       let lastConflict: StudioSaveConflictError | undefined;
       for (let attempt = 0; attempt < CAPTURE_ATTEMPTS; attempt += 1) {
         const note: StudioNote = {
@@ -905,13 +926,12 @@ export function createStudioService(
           id: generateId(),
           ...(input.title?.trim() ? { title: input.title.trim() } : {}),
           body,
-          cardType: placement?.cardType ?? input.landscape?.anchor ?? 'capture',
+          cardType: placement?.cardType ?? landscapeMetadata?.cardType ?? 'capture',
           semanticType:
             placement?.semanticType ??
             input.semanticType ??
-            (input.landscape
-              ? landscapeSemantic[input.landscape.anchor]
-              : 'reflection'),
+            landscapeMetadata?.semanticType ??
+            'reflection',
           status:
             placement === undefined && input.landscape === undefined
               ? 'draft'
@@ -1090,11 +1110,18 @@ export function createStudioService(
     async updateLandscapePlacement(input) {
       assertActive();
       const loaded = await loadNote(input.path);
+      const metadata = landscapeAnchorMetadata(input.anchor);
+      const extraFrontmatter =
+        input.anchor === 'decisions'
+          ? loaded.note.extraFrontmatter
+          : removeDecisionOnlyFrontmatter(loaded.note.extraFrontmatter);
       return save({
         path: loaded.path,
         expectedHash: input.expectedHash,
         note: {
           ...loaded.note,
+          ...metadata,
+          extraFrontmatter,
           lifeAreas: [...new Set(input.lifeAreas)],
           landscapeAnchor: input.anchor,
           updated: clock().toISOString(),

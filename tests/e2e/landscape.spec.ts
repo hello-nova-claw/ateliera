@@ -24,6 +24,20 @@ async function addHomeVision(page: Page, title = 'A calm home'): Promise<void> {
   ).toBeVisible();
 }
 
+async function addHomeVisionFromMatrix(
+  page: Page,
+  title = 'A calm home',
+): Promise<void> {
+  await page.getByRole('button', { name: 'Add to Home Vision' }).click();
+  await page
+    .getByRole('textbox', { name: 'What would you like remembered?' })
+    .fill(title);
+  await page.getByRole('button', { name: 'Remember' }).click();
+  await expect(
+    page.getByRole('button', { name: title, exact: true }),
+  ).toBeVisible();
+}
+
 test('moves through matrix, focus, and lens without page overflow', async ({
   page,
 }, testInfo) => {
@@ -36,7 +50,8 @@ test('moves through matrix, focus, and lens without page overflow', async ({
   await expect(
     page.getByRole('region', { name: 'Life Landscape matrix' }),
   ).toBeVisible();
-  await addHomeVision(page);
+  await addHomeVisionFromMatrix(page);
+  await page.getByRole('button', { name: 'Open Home' }).click();
   await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 

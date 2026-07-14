@@ -82,6 +82,7 @@ const meta = {
     areas: areas.slice(0, 5),
     board: board(),
     onNavigate: () => undefined,
+    onCreate: () => undefined,
     onMove: async () => ({ hash: 'moved-hash' }),
     onReorder: async () => undefined,
     path: '/landscape',
