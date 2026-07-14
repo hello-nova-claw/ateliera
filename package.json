@@ -17,7 +17,8 @@
     "tauri:test": "cd apps/studio/src-tauri && RUSTUP_HOME=../../../.toolchains/rustup CARGO_HOME=../../../.toolchains/cargo ../../../.toolchains/cargo/bin/cargo test",
     "test:e2e": "env -u NO_COLOR playwright test",
     "test:visual": "env -u NO_COLOR playwright test --config playwright.visual.config.ts",
-    "typecheck": "tsc --build"
+    "typecheck": "tsc --build",
+    "verify:restore": "node scripts/verify-restore.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
