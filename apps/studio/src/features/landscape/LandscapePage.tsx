@@ -191,7 +191,7 @@ function NoteCard({
   onMove?: (
     move: LandscapeMove,
     focusTarget?: HTMLButtonElement,
-  ) => Promise<void>;
+  ) => Promise<{ hash: string }>;
   onOpen?: LandscapePageProps['onOpen'];
   onReorder?: (
     lifeArea: string,
@@ -212,12 +212,17 @@ function NoteCard({
   const menuRef = useRef<HTMLDivElement>(null);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const failedActionFocusRef = useRef<HTMLButtonElement | undefined>(undefined);
+  const latestCardRef = useRef(card);
   const { attributes, isDragging, listeners, setActivatorNodeRef, setNodeRef } =
     useDraggable({
       id: card.noteId,
       data: { card, currentArea, dragMode },
       disabled: !onMove || busy,
     });
+
+  useEffect(() => {
+    latestCardRef.current = card;
+  }, [card.anchor, card.hash, card.lifeAreas, card]);
 
   function closeMenu(restoreFocus = false) {
     setMenuOpen(false);
@@ -299,10 +304,16 @@ function NoteCard({
     setMoveError('');
     setAnnouncement(`Moving ${card.title}…`);
     try {
-      await onMove(
-        { card, lifeAreas, anchor },
+      const saved = await onMove(
+        { card: latestCardRef.current, lifeAreas, anchor },
         menuTriggerRef.current ?? undefined,
       );
+      latestCardRef.current = {
+        ...latestCardRef.current,
+        anchor,
+        hash: saved.hash,
+        lifeAreas,
+      };
       setAnnouncement(`${card.title} moved.`);
       closeMenu();
     } catch (reason) {
@@ -659,7 +670,7 @@ export function LandscapePage({
     move: LandscapeMove,
     focusTarget?: HTMLButtonElement,
   ) {
-    if (!onMove) return;
+    if (!onMove) throw new Error('This note cannot be moved right now.');
     const saved = await onMove(move);
     setUndoError('');
     setUndo({
@@ -671,6 +682,7 @@ export function LandscapePage({
       },
     });
     restoreFocusAfterMutation(move.card, focusTarget);
+    return saved;
   }
 
   async function performReorder(

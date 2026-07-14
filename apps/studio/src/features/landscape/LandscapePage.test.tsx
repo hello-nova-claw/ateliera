@@ -8,7 +8,7 @@ import type { LandscapeBoardProjection } from '@studio/application';
 import { describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 
-import { LandscapePage } from './LandscapePage';
+import { LandscapePage, type LandscapePageProps } from './LandscapePage';
 
 const emptyBoard: LandscapeBoardProjection = {
   cells: defaultLifeAreas.slice(0, 5).flatMap((area) =>
@@ -565,11 +565,15 @@ describe('LandscapePage', () => {
           : item,
       ),
     };
+    const onMove = vi
+      .fn<NonNullable<LandscapePageProps['onMove']>>()
+      .mockResolvedValueOnce({ hash: 'linked-hash' })
+      .mockResolvedValueOnce({ hash: 'moved-hash' });
     render(
       <LandscapePage
         areas={[...defaultLifeAreas.slice(0, 5)]}
         board={board}
-        onMove={vi.fn(async () => ({ hash: 'linked-hash' }))}
+        onMove={onMove}
         onNavigate={vi.fn()}
         onReorder={vi.fn(async () => undefined)}
         path="/landscape/home"
@@ -592,6 +596,19 @@ describe('LandscapePage', () => {
       );
     });
     await vi.waitFor(() => expect(trigger).toHaveFocus());
+
+    fireEvent.click(trigger);
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole('menuitem', { name: /Move to Practices/ }),
+      );
+    });
+    expect(onMove).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        anchor: 'practices',
+        card: expect.objectContaining({ hash: 'linked-hash' }),
+      }),
+    );
   });
 
   it('moves focus to the reparented card title when its menu trigger is gone', async () => {
