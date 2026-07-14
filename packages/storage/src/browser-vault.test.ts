@@ -18,6 +18,7 @@ class MemoryOpfs {
   readonly modifiedAt = new Map<string, number>();
   readonly arrayBufferReads: string[] = [];
   afterWrite: ((path: string) => Promise<void> | void) | undefined;
+  beforeFileLookup: ((path: string) => Promise<void> | void) | undefined;
   private clock = 0;
 
   directory(path = ''): FileSystemDirectoryHandle {
@@ -25,6 +26,8 @@ class MemoryOpfs {
     const makeDirectory = (child: string): FileSystemDirectoryHandle => this.directory(child);
     const notifyAfterWrite = (file: string): Promise<void> | void => this.afterWrite?.(file);
     const recordArrayBufferRead = (file: string): void => { this.arrayBufferReads.push(file); };
+    const notifyBeforeFileLookup = (file: string): Promise<void> | void =>
+      this.beforeFileLookup?.(file);
     const thisVirtualSizes = this.virtualSizes;
     const thisModifiedAt = this.modifiedAt;
     const clearVirtualSize = (file: string): void => { this.virtualSizes.delete(file); };
@@ -43,6 +46,7 @@ class MemoryOpfs {
       },
       async getFileHandle(name, options) {
         const filePath = `${prefix}${name}`;
+        await notifyBeforeFileLookup(filePath);
         if (!files.has(filePath) && !options?.create) {
           throw new DOMException('missing', 'NotFoundError');
         }
@@ -689,6 +693,65 @@ describe('OPFS crash recovery', () => {
       expect(opfs.arrayBufferReads).not.toContain(hugePath);
       expect(opfs.virtualSizes.get(hugePath)).toBe(5 * 1024 * 1024 * 1024);
       expect(opfs.files.has(`${root}/Inbox/new.md`)).toBe(false);
+      expect(opfs.text(`${root}/.studio-revision`)).toBe('0');
+      expect([...opfs.files.keys()].some((file) => file.includes('.studio-opfs-batch'))).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('rejects an external replacement between condition validation and journal capture', async () => {
+    const opfs = new MemoryOpfs();
+    const name = 'atomic-condition-replacement-race';
+    const root = `the-studio/${name}`;
+    const target = `${root}/Inbox/existing.md`;
+    opfs.put(target, 'original');
+    opfs.put(`${root}/.studio-revision`, '0');
+    let targetLookups = 0;
+    opfs.beforeFileLookup = (path) => {
+      if (path === target && ++targetLookups === 5) opfs.put(target, 'external replacement');
+    };
+    vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
+    try {
+      const vault = createBrowserVault(name, { storage: 'opfs' });
+      await expect(vault.writeBatchAtomic({
+        expectedRevision: '0',
+        writes: [{
+          path: 'Inbox/existing.md',
+          bytes: new TextEncoder().encode('application write'),
+          expectedHash: await checksum('original'),
+        }],
+      })).rejects.toBeInstanceOf(VaultConflictError);
+      expect(opfs.text(target)).toBe('external replacement');
+      expect(opfs.text(`${root}/.studio-revision`)).toBe('0');
+      expect([...opfs.files.keys()].some((file) => file.includes('.studio-opfs-batch'))).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('rejects an external creation between expected-missing validation and journal capture', async () => {
+    const opfs = new MemoryOpfs();
+    const name = 'atomic-condition-creation-race';
+    const root = `the-studio/${name}`;
+    const target = `${root}/Inbox/new.md`;
+    opfs.put(`${root}/.studio-revision`, '0');
+    let targetLookups = 0;
+    opfs.beforeFileLookup = (path) => {
+      if (path === target && ++targetLookups === 3) opfs.put(target, 'external creation');
+    };
+    vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
+    try {
+      const vault = createBrowserVault(name, { storage: 'opfs' });
+      await expect(vault.writeBatchAtomic({
+        expectedRevision: '0',
+        writes: [{
+          path: 'Inbox/new.md',
+          bytes: new TextEncoder().encode('application write'),
+          expectedMissing: true,
+        }],
+      })).rejects.toBeInstanceOf(VaultConflictError);
+      expect(opfs.text(target)).toBe('external creation');
       expect(opfs.text(`${root}/.studio-revision`)).toBe('0');
       expect([...opfs.files.keys()].some((file) => file.includes('.studio-opfs-batch'))).toBe(false);
     } finally {
