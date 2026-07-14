@@ -108,6 +108,10 @@ describe('SearchPage', () => {
 
     rerender(<SearchPage model={{ ...model, results: [], state: 'loading' }} />);
     expect(screen.getByRole('status')).toHaveTextContent('Gathering your Studio');
+
+    rerender(<SearchPage model={{ ...model, results: [], state: 'stale' }} />);
+    expect(screen.getByText('Search is still gathering your notes.')).toBeVisible();
+    expect(screen.queryByText('No notes match this search.')).not.toBeInTheDocument();
   });
 
   it('bounds search input to 512 characters', () => {
