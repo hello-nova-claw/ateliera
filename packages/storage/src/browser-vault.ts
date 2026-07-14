@@ -384,9 +384,13 @@ class BrowserVault implements VaultPort {
   }
 
   async writeBatchAtomic(input: VaultAtomicWriteBatch): Promise<VaultAtomicWriteResult> {
+    const snapshot: VaultAtomicWriteBatch = {
+      expectedRevision: input.expectedRevision,
+      writes: input.writes.map((write) => ({ ...write, bytes: write.bytes.slice() })),
+    };
     return withVaultLock(this.name, async () => {
       const store = await this.storePromise;
-      if (await store.getRevision() !== input.expectedRevision) throw new VaultConflictError();
+      if (await store.getRevision() !== snapshot.expectedRevision) throw new VaultConflictError();
       const paths = new Set<string>();
       const prepared = [] as Array<{
         path: string;
@@ -394,7 +398,7 @@ class BrowserVault implements VaultPort {
         previous: StoredBrowserFile | undefined;
         file: StoredBrowserFile;
       }>;
-      for (const write of input.writes) {
+      for (const write of snapshot.writes) {
         const path = validatePath(write.path);
         if (paths.has(path)) throw new VaultConflictError('A batch cannot write the same path twice.');
         paths.add(path);
@@ -416,9 +420,9 @@ class BrowserVault implements VaultPort {
         });
       }
       const revision = prepared.length === 0
-        ? input.expectedRevision
+        ? snapshot.expectedRevision
         : await store.mutateAtomic(
-            input.expectedRevision,
+            snapshot.expectedRevision,
             prepared.map(({ path, file }) => ({ kind: 'write' as const, path, file })),
           );
       for (const write of prepared) {
