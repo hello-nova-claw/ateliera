@@ -14,6 +14,30 @@ interface PrecacheEntry {
   revision: string;
 }
 
+const studioContentSecurityPolicy = [
+  "default-src 'self'",
+  "base-uri 'none'",
+  "object-src 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+  "frame-src 'none'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+].join('; ');
+
+const studioSecurityHeaders = {
+  'Content-Security-Policy': studioContentSecurityPolicy,
+  'Permissions-Policy': 'camera=(), geolocation=(), microphone=()',
+  'Referrer-Policy': 'no-referrer',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+} as const;
+
 const publicPrecacheFiles = [
   'manifest.webmanifest',
   'apple-touch-icon.png',
@@ -177,8 +201,12 @@ export default defineConfig({
   },
   server: {
     headers: {
+      ...studioSecurityHeaders,
       'Service-Worker-Allowed': '/',
     },
+  },
+  preview: {
+    headers: studioSecurityHeaders,
   },
   test: {
     environment: 'jsdom',

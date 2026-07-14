@@ -33,5 +33,5 @@ test('limits rendered images to local, data, and ephemeral blob sources', async 
   await page.goto('/');
   await expect(
     page.locator('meta[http-equiv="Content-Security-Policy"]'),
-  ).toHaveAttribute('content', "img-src 'self' data: blob:");
+  ).toHaveAttribute('content', /img-src 'self' data: blob:/);
 });
