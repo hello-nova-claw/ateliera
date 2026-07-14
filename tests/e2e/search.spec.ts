@@ -190,9 +190,20 @@ test('searches the production local index, persists filters, and renders importe
   await expect(literal.locator('script, img')).toHaveCount(0);
   expect(await page.evaluate(() => Reflect.get(window, '__studioSearchInjected'))).toBeUndefined();
   expect((await new AxeBuilder({ page }).include('.search-page').analyze()).violations).toEqual([]);
-  expect(await page.evaluate(
-    () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
-  )).toBe(true);
+  expect(await page.evaluate(() => {
+    const viewport = document.documentElement.clientWidth;
+    return [...document.querySelectorAll<HTMLElement>('body *')].flatMap((element) => {
+      const bounds = element.getBoundingClientRect();
+      if (bounds.left >= -1 && bounds.right <= viewport + 1) return [];
+      return [{
+        className: element.className,
+        left: bounds.left,
+        right: bounds.right,
+        tag: element.tagName,
+        text: element.textContent?.trim().slice(0, 120) ?? '',
+      }];
+    });
+  })).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('search-room.png'), fullPage: true });
 });
 
