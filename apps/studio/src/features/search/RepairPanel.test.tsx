@@ -1,4 +1,7 @@
-import type { StudioSearchRepairItem } from '@studio/application';
+import {
+  SearchRepairConflictError,
+  type StudioSearchRepairItem,
+} from '@studio/application';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -118,11 +121,15 @@ describe('RepairPanel', () => {
   });
 
   it('keeps a conflict visible and restores the exact retry control', async () => {
-    const onRepairLink = vi.fn(async () => { throw new Error('Both versions have been preserved.'); });
+    const onRepairLink = vi.fn(async () => {
+      throw new SearchRepairConflictError('Attempted local version.', 'Durable external version.');
+    });
     render(<RepairPanel items={[broken]} onRepairLink={onRepairLink} />);
     const remove = screen.getByRole('button', { name: 'Remove link' });
     fireEvent.click(remove);
-    expect(await screen.findByRole('alert')).toHaveTextContent('Both versions have been preserved.');
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Both versions have been preserved/u);
+    expect(screen.getByText('Attempted local version.')).toBeVisible();
+    expect(screen.getByText('Durable external version.')).toBeVisible();
     await waitFor(() => expect(remove).toHaveFocus());
   });
 
