@@ -37,6 +37,14 @@ export interface UnchartedProjection {
   cards: UnchartedCardProjection[];
 }
 
+export type ReflectionEvidenceConnection =
+  | {
+      kind: 'note';
+      id: string;
+      targetState: 'available' | 'archived' | 'missing';
+    }
+  | { kind: 'life-area' | 'season'; id: string };
+
 export interface ReflectionCardProjection extends StudioCardProjection {
   hash: string;
   created: string;
@@ -44,6 +52,7 @@ export interface ReflectionCardProjection extends StudioCardProjection {
   seasons: string[];
   tags: string[];
   linkedNoteIds: string[];
+  evidenceConnections: ReflectionEvidenceConnection[];
   thenNoteId?: string;
   coverReference?: string;
 }
@@ -285,9 +294,37 @@ export async function projectStream(
 
 function stringList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return [...new Set(value.filter((item): item is string =>
-    typeof item === 'string' && item.trim() !== '',
+  return [...new Set(value.flatMap((item) =>
+    typeof item === 'string' && item.trim() !== '' ? [item.trim()] : [],
   ))];
+}
+
+function reflectionEvidenceConnections(
+  note: StudioNote,
+  targetNotes: ReadonlyMap<string, readonly StudioNote[]>,
+): ReflectionEvidenceConnection[] {
+  const noteConnections = stringList(note.extraFrontmatter.related_notes).map(
+    (id): ReflectionEvidenceConnection => {
+      const targets = targetNotes.get(id) ?? [];
+      const targetState = targets.some(
+        (target) => target.status !== 'archived' && target.status !== 'trashed',
+      )
+        ? 'available'
+        : targets.some((target) => target.status === 'archived')
+          ? 'archived'
+          : 'missing';
+      return { kind: 'note', id, targetState };
+    },
+  );
+  return [
+    ...noteConnections,
+    ...stringList(note.lifeAreas).map(
+      (id): ReflectionEvidenceConnection => ({ kind: 'life-area', id }),
+    ),
+    ...stringList(note.seasons).map(
+      (id): ReflectionEvidenceConnection => ({ kind: 'season', id }),
+    ),
+  ];
 }
 
 export async function projectUnchartedRoom(
@@ -316,17 +353,30 @@ export async function projectReflectionGardenRoom(
   notes: LoadedNote[],
   views: ViewStateRepository,
 ): Promise<ReflectionGardenProjection> {
+  // A Garden is a chronology, not a manually arranged board. View order remains
+  // disposable for other rooms but cannot override when an entry was created.
+  void views;
   const candidates = notes.filter((item) =>
     belongsToRoom(item.note, 'reflection-garden'),
   );
-  const ordered = await orderedProjection(
-    candidates,
-    'room:reflection-garden',
-    views,
-  );
+  const ordered = dedupe(
+    candidates.filter((item) => visible(item, 'room:reflection-garden')),
+  )
+    .sort((left, right) =>
+      Date.parse(right.note.created) - Date.parse(left.note.created) ||
+      left.note.id.localeCompare(right.note.id, 'en'),
+    )
+    .map(toCard);
   const byId = new Map(candidates.map((item) => [item.note.id, item]));
+  const targetsById = new Map<string, StudioNote[]>();
+  for (const item of notes) {
+    const targets = targetsById.get(item.note.id) ?? [];
+    targets.push(item.note);
+    targetsById.set(item.note.id, targets);
+  }
   const cards = ordered.map((card): ReflectionCardProjection => {
     const source = byId.get(card.noteId)!;
+    const linkedNoteIds = stringList(source.note.extraFrontmatter.related_notes);
     const thenNoteId = source.note.extraFrontmatter.then_note_id;
     return {
       ...card,
@@ -335,7 +385,11 @@ export async function projectReflectionGardenRoom(
       lifeAreas: [...source.note.lifeAreas],
       seasons: [...source.note.seasons],
       tags: [...source.note.tags],
-      linkedNoteIds: stringList(source.note.extraFrontmatter.related_notes),
+      linkedNoteIds,
+      evidenceConnections: reflectionEvidenceConnections(
+        source.note,
+        targetsById,
+      ),
       ...(typeof thenNoteId === 'string' && thenNoteId.trim() !== ''
         ? { thenNoteId }
         : {}),
