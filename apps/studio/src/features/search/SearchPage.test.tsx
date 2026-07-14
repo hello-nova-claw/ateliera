@@ -70,6 +70,13 @@ describe('SearchPage', () => {
     expect(onFiltersChange).toHaveBeenCalledWith({
       semanticTypes: ['reflection', 'uncharted'],
     });
+    fireEvent.change(screen.getByLabelText('Updated from'), {
+      target: { value: '2026-07-01' },
+    });
+    expect(onFiltersChange).toHaveBeenCalledWith({
+      semanticTypes: ['reflection'],
+      dateFrom: '2026-07-01',
+    });
     expect(screen.getByRole('searchbox')).toHaveValue('calm');
   });
 

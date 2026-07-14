@@ -1,4 +1,3 @@
-import type { NoteStatus, SemanticType } from '@studio/domain';
 import type {
   HighlightRange,
   SearchFacets,
@@ -105,10 +104,22 @@ function toggleFilter(
     ? current.filter((item) => item !== value)
     : [...current, value];
   if (next.length === 0) {
-    const { [key]: _removed, ...rest } = filters;
-    return rest;
+    const result = { ...filters };
+    delete result[key];
+    return result;
   }
   return { ...filters, [key]: next } as SearchFilters;
+}
+
+function setDateFilter(
+  filters: SearchFilters,
+  key: 'dateFrom' | 'dateTo',
+  value: string,
+): SearchFilters {
+  if (value !== '') return { ...filters, [key]: value };
+  const result = { ...filters };
+  delete result[key];
+  return result;
 }
 
 function SearchResult({
@@ -230,10 +241,9 @@ export function SearchPage({
               <span>Updated from</span>
               <input
                 aria-label="Updated from"
-                onChange={(event) => onFiltersChange?.({
-                  ...model.filters,
-                  ...(event.target.value ? { dateFrom: event.target.value } : {}),
-                })}
+                onChange={(event) => onFiltersChange?.(
+                  setDateFilter(model.filters, 'dateFrom', event.target.value),
+                )}
                 type="date"
                 value={model.filters.dateFrom?.slice(0, 10) ?? ''}
               />
@@ -242,10 +252,9 @@ export function SearchPage({
               <span>Updated to</span>
               <input
                 aria-label="Updated to"
-                onChange={(event) => onFiltersChange?.({
-                  ...model.filters,
-                  ...(event.target.value ? { dateTo: event.target.value } : {}),
-                })}
+                onChange={(event) => onFiltersChange?.(
+                  setDateFilter(model.filters, 'dateTo', event.target.value),
+                )}
                 type="date"
                 value={model.filters.dateTo?.slice(0, 10) ?? ''}
               />
