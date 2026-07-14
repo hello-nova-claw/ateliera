@@ -17,7 +17,7 @@ function index(): IndexPort & { close: ReturnType<typeof vi.fn> } {
     upsert: vi.fn(async (note, path, hash, content) => { entries.set(note.id, { note, path, hash, content }); }),
     remove: vi.fn(async (id) => { entries.delete(id); }),
     getById: vi.fn(async (id) => entries.get(id) ?? null),
-    getManyById: vi.fn(async (ids) => ids.flatMap((id) => entries.get(id) ?? [])),
+    getManyById: vi.fn(async (ids: string[]) => ids.flatMap((id) => entries.get(id) ?? [])),
     search: vi.fn(async (): Promise<SearchHit[]> => []),
     facets: vi.fn(async (): Promise<SearchFacets> => ({
       rooms: [], semanticTypes: [], lifeAreas: [], seasons: [], statuses: [], tags: [], cardTypes: [],
