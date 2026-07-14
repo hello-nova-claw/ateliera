@@ -6,14 +6,21 @@ test.describe.configure({ mode: 'serial' });
 async function tabTo(
   page: Page,
   target: Locator,
-  options: { reverse?: boolean; steps?: number } = {},
+  options: { key?: 'Tab' | 'Alt+Tab'; reverse?: boolean; steps?: number } = {},
 ): Promise<void> {
   const steps = options.steps ?? 100;
   for (let index = 0; index < steps; index += 1) {
     if (await target.evaluate((element) => element === document.activeElement)) {
       return;
     }
-    await page.keyboard.press(options.reverse ? 'Shift+Tab' : 'Tab');
+    const key = options.key ?? 'Tab';
+    await page.keyboard.press(
+      options.reverse
+        ? key === 'Alt+Tab'
+          ? 'Alt+Shift+Tab'
+          : 'Shift+Tab'
+        : key,
+    );
   }
   throw new Error(
     `Keyboard focus did not reach ${await target.getAttribute('aria-label') ?? (await target.textContent()) ?? 'the requested control'}.`,
@@ -36,12 +43,18 @@ async function expectVisibleFocus(target: Locator): Promise<void> {
 }
 
 test('completes create, capture, edit, search, and backup without a pointer', async ({
+  browserName,
   page,
-}) => {
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name === 'mobile-chromium',
+    'The separate mobile journey proves the compact keyboard path.',
+  );
+  const key = browserName === 'webkit' ? 'Alt+Tab' : 'Tab';
   await page.goto('/');
 
   const createStudio = page.getByRole('button', { name: 'Create a Studio' });
-  await tabTo(page, createStudio);
+  await tabTo(page, createStudio, { key });
   await expectVisibleFocus(createStudio);
   await page.keyboard.press('Enter');
 
@@ -50,12 +63,12 @@ test('completes create, capture, edit, search, and backup without a pointer', as
   await page.keyboard.press('ControlOrMeta+A');
   await page.keyboard.type('Keyboard Studio');
   const create = page.getByRole('button', { name: 'Create', exact: true });
-  await tabTo(page, create);
+  await tabTo(page, create, { key });
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/foyer$/u);
 
   const capture = page.getByRole('button', { name: 'Capture' }).first();
-  await tabTo(page, capture);
+  await tabTo(page, capture, { key });
   await expectVisibleFocus(capture);
   await page.keyboard.press('Enter');
 
@@ -65,39 +78,39 @@ test('completes create, capture, edit, search, and backup without a pointer', as
   await expect(thought).toBeFocused();
   await page.keyboard.type('A quiet keyboard journey');
   const remember = page.getByRole('button', { name: 'Remember' });
-  await tabTo(page, remember);
+  await tabTo(page, remember, { key });
   await page.keyboard.press('Enter');
   await expect(page.locator('.studio-toast')).toHaveText('Remembered.');
 
   const captured = page.getByRole('button', {
     name: 'A quiet keyboard journey',
   });
-  await tabTo(page, captured);
+  await tabTo(page, captured, { key });
   await page.keyboard.press('Enter');
   const editor = page.getByRole('dialog', { name: 'Edit note' });
   await expect(editor).toBeVisible();
   const markdownBody = page.getByRole('textbox', { name: 'Markdown body' });
-  await tabTo(page, markdownBody);
+  await tabTo(page, markdownBody, { key });
   await expect(markdownBody).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(editor).toHaveCount(0);
   await expect(captured).toBeFocused();
 
   const search = page.getByRole('link', { name: 'Search' });
-  await tabTo(page, search);
+  await tabTo(page, search, { key });
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/search$/u);
   const query = page.getByRole('searchbox', { name: 'Search your Studio' });
-  await tabTo(page, query);
+  await tabTo(page, query, { key });
   await page.keyboard.type('quiet keyboard');
   await expect(page.getByRole('button', { name: 'Untitled note' })).toBeVisible();
 
   const settings = page.getByRole('link', { name: 'Settings' });
-  await tabTo(page, settings);
+  await tabTo(page, settings, { key });
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/settings$/u);
   const backup = page.getByRole('button', { name: 'Download portable backup' });
-  await tabTo(page, backup);
+  await tabTo(page, backup, { key });
   await expectVisibleFocus(backup);
   const download = page.waitForEvent('download');
   await page.keyboard.press('Enter');
@@ -107,19 +120,23 @@ test('completes create, capture, edit, search, and backup without a pointer', as
 });
 
 test('mobile navigation and More menu remain keyboard operable and focus-visible', async ({
+  browserName,
   page,
 }) => {
+  const key = browserName === 'webkit' ? 'Alt+Tab' : 'Tab';
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   const createStudio = page.getByRole('button', { name: 'Create a Studio' });
-  await tabTo(page, createStudio);
+  await tabTo(page, createStudio, { key });
   await page.keyboard.press('Enter');
   await page.getByLabel('Studio name').fill('Mobile Keyboard Studio');
-  await tabTo(page, page.getByRole('button', { name: 'Create', exact: true }));
+  await tabTo(page, page.getByRole('button', { name: 'Create', exact: true }), {
+    key,
+  });
   await page.keyboard.press('Enter');
 
   const more = page.getByRole('button', { name: 'More' });
-  await tabTo(page, more);
+  await tabTo(page, more, { key });
   await expectVisibleFocus(more);
   await page.keyboard.press('Enter');
   const first = page.getByRole('menuitem').first();
