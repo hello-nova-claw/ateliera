@@ -291,7 +291,9 @@ export function SearchPage({
       ) : (
         <section aria-label="Search results" className="search-page__results">
           <p className="search-page__count">
-            {model.results.length === 0
+            {model.results.length === 0 && model.state === 'stale'
+              ? 'Search is still gathering your notes.'
+              : model.results.length === 0
               ? 'No notes match this search.'
               : `${model.results.length} ${model.results.length === 1 ? 'note' : 'notes'} found`}
           </p>
