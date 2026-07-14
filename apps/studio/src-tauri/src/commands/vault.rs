@@ -39,6 +39,8 @@ const VAULT_TOKEN_HEADER: &str = "x-studio-vault-token";
 const BATCH_MAGIC: &[u8; 8] = b"STUDIOB1";
 const MAX_BATCH_BYTES: usize = 512 * 1024 * 1024;
 const MAX_BATCH_WRITES: usize = 9_999;
+const MAX_PORTABLE_ENTRY_BYTES: u64 = 64 * 1024 * 1024;
+const HASH_BUFFER_BYTES: usize = 64 * 1024;
 
 fn is_user_note_path(path: &str) -> bool {
     if path.to_ascii_lowercase().starts_with(".studio/") {
@@ -356,6 +358,25 @@ impl VaultRegistry {
 
 fn hash(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
+}
+
+fn stream_file_hash(file: &mut impl Read) -> Result<(u64, String), VaultError> {
+    let mut digest = Sha256::new();
+    let mut total = 0u64;
+    let mut buffer = [0u8; HASH_BUFFER_BYTES];
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .map_err(|_| VaultError::Unavailable)?;
+        if read == 0 {
+            break;
+        }
+        total = total
+            .checked_add(read as u64)
+            .ok_or(VaultError::Unavailable)?;
+        digest.update(&buffer[..read]);
+    }
+    Ok((total, hex::encode(digest.finalize())))
 }
 
 struct BatchCursor<'a> {
@@ -1307,7 +1328,20 @@ impl Vault {
 
     fn read_binary_unlocked(&self, path: &str) -> Result<Vec<u8>, VaultError> {
         let parent = open_parent(&self.root, path, false)?;
-        read_file_nofollow(&parent.directory, &parent.basename)
+        let file = open_file_nofollow(&parent.directory, &parent.basename)?;
+        let size = file.metadata().map_err(|_| VaultError::Unavailable)?.len();
+        if size > MAX_PORTABLE_ENTRY_BYTES {
+            return Err(VaultError::Unavailable);
+        }
+        let capacity = usize::try_from(size).map_err(|_| VaultError::Unavailable)?;
+        let mut bytes = Vec::with_capacity(capacity);
+        file.take(MAX_PORTABLE_ENTRY_BYTES + 1)
+            .read_to_end(&mut bytes)
+            .map_err(|_| VaultError::Unavailable)?;
+        if bytes.len() != capacity {
+            return Err(VaultError::Unavailable);
+        }
+        Ok(bytes)
     }
 
     fn write_atomic<F>(
@@ -2120,13 +2154,18 @@ fn push_file_entry(
     path: &str,
     entries: &mut Vec<VaultEntry>,
 ) -> Result<(), VaultError> {
-    let bytes = read_file_nofollow(directory, basename)?;
+    let mut file = open_file_nofollow(directory, basename)?;
+    let stat_size = file.metadata().map_err(|_| VaultError::Unavailable)?.len();
+    let (size, content_hash) = stream_file_hash(&mut file)?;
+    if size != stat_size {
+        return Err(VaultError::Unavailable);
+    }
     entries.push(VaultEntry {
         path: path.to_owned(),
         kind: "file",
-        size: Some(bytes.len() as u64),
+        size: Some(size),
         modified_at: None,
-        content_hash: Some(hash(&bytes)),
+        content_hash: Some(content_hash),
     });
     Ok(())
 }
@@ -2476,6 +2515,48 @@ mod tests {
             decode_atomic_batch(&InvokeBody::Json(r#"{"bytes":[0,1,2,127,128,255]}"#.into())),
             Err(VaultError::Unavailable)
         ));
+    }
+
+    #[test]
+    fn listing_streams_large_hashes_and_raw_reads_enforce_the_exact_zip32_boundary() {
+        let (directory, vault) = selected_vault();
+        let oversized_path = directory.path().join("oversized.bin");
+        let oversized_size = MAX_PORTABLE_ENTRY_BYTES + 1;
+        std::fs::File::create(&oversized_path)
+            .unwrap()
+            .set_len(oversized_size)
+            .unwrap();
+        let mut expected = Sha256::new();
+        let zeroes = [0_u8; 64 * 1024];
+        let mut remaining = oversized_size;
+        while remaining > 0 {
+            let length = usize::try_from(remaining.min(zeroes.len() as u64)).unwrap();
+            expected.update(&zeroes[..length]);
+            remaining -= length as u64;
+        }
+
+        let entry = vault
+            .list(None)
+            .unwrap()
+            .into_iter()
+            .find(|entry| entry.path == "oversized.bin")
+            .unwrap();
+        assert_eq!(entry.size, Some(oversized_size));
+        assert_eq!(entry.content_hash, Some(hex::encode(expected.finalize())));
+        assert!(matches!(
+            vault.read_binary("oversized.bin"),
+            Err(VaultError::Unavailable)
+        ));
+
+        std::fs::remove_file(oversized_path).unwrap();
+        std::fs::File::create(directory.path().join("boundary.bin"))
+            .unwrap()
+            .set_len(MAX_PORTABLE_ENTRY_BYTES)
+            .unwrap();
+        let bytes = vault.read_binary("boundary.bin").unwrap();
+        assert_eq!(bytes.len() as u64, MAX_PORTABLE_ENTRY_BYTES);
+        assert_eq!(bytes.first(), Some(&0));
+        assert_eq!(bytes.last(), Some(&0));
     }
 
     #[test]
