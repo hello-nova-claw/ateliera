@@ -151,6 +151,25 @@ describe('SearchRoom', () => {
       edit: { kind: 'remove' },
     }));
     expect(await screen.findByText('Nothing needs repair.')).toBeVisible();
+    await waitFor(() => expect(
+      screen.getByRole('button', { name: 'Close repairs' }),
+    ).toHaveFocus());
+  });
+
+  it('replaces the Inspector with one repair modal for a broken link', async () => {
+    const repair: StudioSearchRepairItem = {
+      kind: 'broken-link', occurrence: 0, linkKind: 'wiki', target: 'Missing garden',
+      label: 'Missing garden', start: 14, end: 32, path: inspection.path,
+      hash: inspection.hash, sourceText: 'source', noteId: note.id, state: 'broken',
+    };
+    render(<SearchRoom service={service({ repairQueue: vi.fn().mockResolvedValue([repair]) })} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'The quiet hill' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Show links' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Repair Missing garden' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Repair Studio notes' })).toBeVisible();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
   });
 
   it('retries the exact requested note after its first inspection fails', async () => {
