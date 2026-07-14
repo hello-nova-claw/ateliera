@@ -471,6 +471,150 @@ describe('Uncharted and Reflection Garden application behavior', () => {
     ]);
   });
 
+  it('revalidates the exact life-area evidence target from canonical configuration', async () => {
+    const vault = await seed([]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    const initial = await service.lifeAreas.load();
+    const visible = await service.lifeAreas.save(
+      [{ id: 'home', title: 'Our Home', hidden: false, order: 0 }],
+      initial.revision,
+    );
+
+    await expect(
+      service.resolveReflectionEvidenceTarget({ kind: 'life-area', id: 'home' }),
+    ).resolves.toEqual({
+      kind: 'life-area',
+      id: 'home',
+      label: 'Our Home',
+      targetState: 'available',
+    });
+
+    const hidden = await service.lifeAreas.save(
+      [{ id: 'home', title: 'Our Home', hidden: true, order: 0 }],
+      visible.revision,
+    );
+    await expect(
+      service.resolveReflectionEvidenceTarget({ kind: 'life-area', id: 'home' }),
+    ).resolves.toEqual({
+      kind: 'life-area',
+      id: 'home',
+      label: 'Our Home',
+      targetState: 'archived',
+    });
+
+    await service.lifeAreas.save([], hidden.revision);
+    await expect(
+      service.resolveReflectionEvidenceTarget({ kind: 'life-area', id: 'home' }),
+    ).resolves.toEqual({
+      kind: 'life-area',
+      id: 'home',
+      targetState: 'missing',
+    });
+  });
+
+  it('revalidates a season by canonical season id after the current season changes', async () => {
+    const winter = note({
+      id: 'winter-note',
+      title: 'A Spacious Winter',
+      cardType: 'season',
+      semanticType: 'vision',
+      status: 'active',
+      rooms: ['current-season'],
+      extraFrontmatter: { season_id: 'winter-canonical' },
+    });
+    const vault = await seed([{ path: 'Current Season/winter.md', note: winter }]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    await expect(
+      service.resolveReflectionEvidenceTarget({
+        kind: 'season',
+        id: 'winter-canonical',
+      }),
+    ).resolves.toMatchObject({
+      kind: 'season',
+      id: 'winter-canonical',
+      label: 'A Spacious Winter',
+      targetState: 'available',
+    });
+
+    const existing = await vault.readText('Current Season/winter.md');
+    await vault.writeTextAtomic(
+      'Current Season/winter.md',
+      serializeNote({ ...winter, status: 'archived' }),
+      { expectedHash: existing.hash },
+    );
+    await vault.writeTextAtomic(
+      'Current Season/spring.md',
+      serializeNote(note({
+        id: 'spring-note',
+        title: 'A Playful Spring',
+        cardType: 'season',
+        semanticType: 'vision',
+        status: 'active',
+        rooms: ['current-season'],
+        extraFrontmatter: { season_id: 'spring-canonical' },
+      })),
+      { expectedMissing: true },
+    );
+
+    await expect(
+      service.resolveReflectionEvidenceTarget({
+        kind: 'season',
+        id: 'winter-canonical',
+      }),
+    ).resolves.toEqual({
+      kind: 'season',
+      id: 'winter-canonical',
+      label: 'A Spacious Winter',
+      targetState: 'archived',
+    });
+    await expect(
+      service.resolveReflectionEvidenceTarget({
+        kind: 'season',
+        id: 'winter-note',
+      }),
+    ).resolves.toEqual({
+      kind: 'season',
+      id: 'winter-note',
+      targetState: 'missing',
+    });
+  });
+
+  it('revalidates note evidence without falling back across equal ids or kinds', async () => {
+    const target = note({ id: 'shared-id', status: 'active' });
+    const vault = await seed([{ path: 'Identity/target.md', note: target }]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    await expect(
+      service.resolveReflectionEvidenceTarget({ kind: 'note', id: 'shared-id' }),
+    ).resolves.toEqual({
+      kind: 'note',
+      id: 'shared-id',
+      targetState: 'available',
+    });
+    await expect(
+      service.resolveReflectionEvidenceTarget({ kind: 'season', id: 'shared-id' }),
+    ).resolves.toEqual({
+      kind: 'season',
+      id: 'shared-id',
+      targetState: 'missing',
+    });
+
+    const existing = await vault.readText('Identity/target.md');
+    await vault.writeTextAtomic(
+      'Identity/target.md',
+      serializeNote({ ...target, status: 'archived' }),
+      { expectedHash: existing.hash },
+    );
+    await expect(
+      service.resolveReflectionEvidenceTarget({ kind: 'note', id: 'shared-id' }),
+    ).resolves.toEqual({
+      kind: 'note',
+      id: 'shared-id',
+      targetState: 'archived',
+    });
+  });
+
   it('adds canonical evidence links once with exact CAS and unknown-key fidelity', async () => {
     const vault = await seed([
       {
