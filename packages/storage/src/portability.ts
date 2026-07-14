@@ -114,6 +114,7 @@ export function exportDisposition(path: string): ExportDisposition {
     lower.startsWith('.studio/config/') ||
     lower.startsWith('.studio/views/') ||
     lower.startsWith('.studio/seasons/') ||
+    lower.startsWith('.studio/backups/') ||
     lower.startsWith('.studio/trash/')
   ) return 'include';
   if (
