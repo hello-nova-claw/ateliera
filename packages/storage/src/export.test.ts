@@ -4,6 +4,7 @@ import { createInMemoryVault } from './in-memory-vault';
 import { exportVault } from './export';
 import { importVault } from './import';
 import type { VaultPort } from './vault-port';
+import { parseZip32, sha256 } from './zip32';
 
 async function snapshot(vault: ReturnType<typeof createInMemoryVault>) {
   const files = (await vault.list()).filter((entry) => entry.kind === 'file');
@@ -60,6 +61,33 @@ describe('portable vault export', () => {
 
     const options = { generatedAt: '2026-07-14T00:00:00.000Z' } as const;
     expect(await exportVault(first, options)).toEqual(await exportVault(second, options));
+  });
+
+  it('round-trips backup manifests and payloads with exact portable metadata', async () => {
+    const source = createInMemoryVault();
+    const manifestPath = '.studio/backups/2026-07-14/manifest.json';
+    const payloadPath = '.studio/backups/2026-07-14/vault.bin';
+    const backupManifest = new TextEncoder().encode('{"version":1,"reason":"manual"}\n');
+    const backupPayload = new Uint8Array([0, 1, 2, 3, 255]);
+    await source.writeBinaryAtomic(manifestPath, backupManifest);
+    await source.writeBinaryAtomic(payloadPath, backupPayload);
+
+    const archive = await exportVault(source, { generatedAt: '2026-07-14T00:00:00.000Z' });
+    const files = await parseZip32(archive);
+    expect(files.get(manifestPath)).toEqual(backupManifest);
+    expect(files.get(payloadPath)).toEqual(backupPayload);
+    const portableManifest = JSON.parse(new TextDecoder().decode(
+      files.get('.studio/export-manifest.json'),
+    )) as { files: Array<{ path: string; sha256: string; size: number }> };
+    expect(portableManifest.files).toEqual([
+      { path: manifestPath, sha256: await sha256(backupManifest), size: backupManifest.byteLength },
+      { path: payloadPath, sha256: await sha256(backupPayload), size: backupPayload.byteLength },
+    ]);
+
+    const target = createInMemoryVault();
+    await importVault(target, archive, { confirm: true });
+    await expect(target.readBinary(manifestPath)).resolves.toEqual(backupManifest);
+    await expect(target.readBinary(payloadPath)).resolves.toEqual(backupPayload);
   });
 
   it('rejects active content and normalized path collisions', async () => {
