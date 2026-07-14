@@ -211,6 +211,7 @@ test('repairs malformed metadata without changing the body or unknown safe keys'
   await expect(repair.getByLabel('Title')).toHaveValue('Kept title');
   await expect(repair.getByLabel('Created')).toHaveValue('yesterday');
   await expect(repair.getByLabel('Updated')).toHaveValue('tomorrow');
+  await repair.getByLabel('Created').scrollIntoViewIfNeeded();
   const screenshot = testInfo.outputPath('metadata-repair-timestamps.png');
   await page.screenshot({ path: screenshot, fullPage: true });
   await testInfo.attach('metadata-repair-timestamps', {
