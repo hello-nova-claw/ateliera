@@ -27,9 +27,16 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;');
 }
 
+function hasControlCharacters(value: string): boolean {
+  return [...value].some((character) => {
+    const code = character.codePointAt(0) ?? 0;
+    return code <= 31 || code === 127;
+  });
+}
+
 function normalizedUrlForValidation(value: string): string | null {
   const trimmed = value.trim();
-  if (!trimmed || /[\u0000-\u001f\u007f]/.test(trimmed) || trimmed.includes('\\')) return null;
+  if (!trimmed || hasControlCharacters(trimmed) || trimmed.includes('\\')) return null;
   let decoded = trimmed;
   for (let index = 0; index < 2; index += 1) {
     try {
@@ -40,7 +47,7 @@ function normalizedUrlForValidation(value: string): string | null {
       return null;
     }
   }
-  if (/[\u0000-\u001f\u007f]/.test(decoded)) return null;
+  if (hasControlCharacters(decoded)) return null;
   return decoded.replace(/[\t\n\r ]/g, '');
 }
 
