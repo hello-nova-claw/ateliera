@@ -925,11 +925,42 @@ impl Vault {
         }
     }
 
+    fn read_optional_staged_locked(
+        &self,
+        entry: &BatchJournalEntry,
+    ) -> Result<Option<Vec<u8>>, VaultError> {
+        let parent = match open_parent(&self.root, &entry.path, false) {
+            Ok(parent) => parent,
+            Err(VaultError::Unavailable) => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        match parent.directory.symlink_metadata(&entry.temporary) {
+            Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => Ok(Some(
+                read_file_nofollow_bounded(&parent.directory, &entry.temporary, MAX_BATCH_BYTES)?,
+            )),
+            Ok(_) => Err(VaultError::PathEscape),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(map_path_error(error)),
+        }
+    }
+
     fn recover_journal_locked(
         &self,
         directory: &Dir,
         journal: &BatchJournal,
     ) -> Result<(), VaultError> {
+        enum RecoveryAction {
+            Restore {
+                path: String,
+                previous: Vec<u8>,
+                expected_current_hash: String,
+            },
+            Remove {
+                path: String,
+                expected_current_hash: String,
+            },
+        }
+
         let current_revision = self.revision_locked()?;
         if current_revision != journal.original_revision
             && current_revision != journal.reserved_revision
@@ -940,65 +971,193 @@ impl Vault {
         {
             return Err(VaultError::Unavailable);
         }
-        if journal.phase == JournalPhase::Committed {
-            if current_revision != journal.reserved_revision {
-                return Err(VaultError::Unavailable);
-            }
-            for entry in &journal.entries {
-                let current = self
-                    .read_optional_target_locked(&entry.path)?
-                    .ok_or(VaultError::Unavailable)?;
-                if hash(&current) != entry.new_hash {
-                    return Err(VaultError::Unavailable);
-                }
-            }
-        } else if journal.phase == JournalPhase::Publishing {
-            let mut backup_bytes = 0usize;
-            for entry in journal.entries.iter().rev() {
-                let current = self.read_optional_target_locked(&entry.path)?;
-                match (&entry.previous_backup, &entry.previous_hash) {
-                    (Some(backup), Some(previous_hash)) => {
-                        let previous = read_file_nofollow_bounded(
-                            directory,
-                            backup,
-                            MAX_BATCH_BYTES.saturating_sub(backup_bytes),
-                        )?;
+
+        // Preflight pass 1: load and checksum every prior-state payload before inspecting or
+        // changing any target. Publishing/committed journals must have the complete backup set.
+        let mut backups = Vec::with_capacity(journal.entries.len());
+        let mut backup_bytes = 0usize;
+        for entry in &journal.entries {
+            let previous = match (&entry.previous_backup, &entry.previous_hash) {
+                (Some(backup), Some(previous_hash)) => {
+                    let bytes = match directory.symlink_metadata(backup) {
+                        Ok(metadata)
+                            if metadata.is_file() && !metadata.file_type().is_symlink() =>
+                        {
+                            Some(read_file_nofollow_bounded(
+                                directory,
+                                backup,
+                                MAX_BATCH_BYTES.saturating_sub(backup_bytes),
+                            )?)
+                        }
+                        Err(error)
+                            if error.kind() == std::io::ErrorKind::NotFound
+                                && journal.phase == JournalPhase::Preparing =>
+                        {
+                            None
+                        }
+                        _ => return Err(VaultError::Unavailable),
+                    };
+                    if let Some(bytes) = &bytes {
                         backup_bytes = backup_bytes
-                            .checked_add(previous.len())
+                            .checked_add(bytes.len())
                             .ok_or(VaultError::Unavailable)?;
-                        if backup_bytes > MAX_BATCH_BYTES || hash(&previous) != *previous_hash {
+                        if backup_bytes > MAX_BATCH_BYTES || hash(bytes) != *previous_hash {
                             return Err(VaultError::Unavailable);
                         }
-                        match current {
-                            Some(bytes) if hash(&bytes) == entry.new_hash => {
-                                self.publish_bytes_locked(&entry.path, &previous)?;
-                            }
-                            Some(bytes) if hash(&bytes) == *previous_hash => {}
-                            None => self.publish_bytes_locked(&entry.path, &previous)?,
-                            _ => return Err(VaultError::Unavailable),
-                        }
                     }
-                    (None, None) => match current {
-                        Some(bytes) if hash(&bytes) == entry.new_hash => {
-                            let parent = open_parent(&self.root, &entry.path, false)?;
-                            parent
-                                .directory
-                                .remove_file(&parent.basename)
-                                .map_err(map_path_error)?;
-                            sync_directory(&parent.directory)?;
-                        }
-                        None => {}
-                        _ => return Err(VaultError::Unavailable),
-                    },
-                    _ => return Err(VaultError::Unavailable),
+                    bytes
+                }
+                (None, None) => None,
+                _ => return Err(VaultError::Unavailable),
+            };
+            backups.push(previous);
+        }
+
+        // Preflight pass 2: snapshot every current target and every surviving staged new-state
+        // payload. A checksum failure anywhere aborts before the action list is applied.
+        let mut targets = Vec::with_capacity(journal.entries.len());
+        let mut staged = Vec::with_capacity(journal.entries.len());
+        for entry in &journal.entries {
+            let current = self.read_optional_target_locked(&entry.path)?;
+            let staged_bytes = self.read_optional_staged_locked(entry)?;
+            if staged_bytes
+                .as_ref()
+                .is_some_and(|bytes| hash(bytes) != entry.new_hash)
+            {
+                return Err(VaultError::Unavailable);
+            }
+            targets.push(current);
+            staged.push(staged_bytes);
+        }
+
+        // Preflight pass 3: classify the complete transaction and build an immutable action list.
+        let mut actions = Vec::new();
+        match journal.phase {
+            JournalPhase::Preparing => {
+                for ((entry, backup), current) in journal.entries.iter().zip(&backups).zip(&targets)
+                {
+                    match (&entry.previous_hash, backup, current) {
+                        (Some(previous_hash), Some(_), Some(bytes))
+                            if hash(bytes) == *previous_hash => {}
+                        // A preparing journal may precede creation of its backup, but the target
+                        // must still contain the original file.
+                        (Some(previous_hash), None, Some(bytes))
+                            if hash(bytes) == *previous_hash => {}
+                        (None, None, None) => {}
+                        _ => return Err(VaultError::Conflict),
+                    }
                 }
             }
-            if current_revision == journal.original_revision {
-                self.write_internal_locked(
-                    VAULT_REVISION_PATH,
-                    journal.reserved_revision.to_string().as_bytes(),
-                )?;
+            JournalPhase::Committed => {
+                if current_revision != journal.reserved_revision {
+                    return Err(VaultError::Unavailable);
+                }
+                for ((entry, current), staged_bytes) in
+                    journal.entries.iter().zip(&targets).zip(&staged)
+                {
+                    if current
+                        .as_ref()
+                        .is_none_or(|bytes| hash(bytes) != entry.new_hash)
+                        || staged_bytes.is_some()
+                    {
+                        return Err(VaultError::Conflict);
+                    }
+                }
             }
+            JournalPhase::Publishing => {
+                for (index, (((entry, backup), current), staged_bytes)) in journal
+                    .entries
+                    .iter()
+                    .zip(&backups)
+                    .zip(&targets)
+                    .zip(&staged)
+                    .enumerate()
+                {
+                    match (&entry.previous_hash, backup, current) {
+                        (Some(previous_hash), Some(_), Some(bytes))
+                            if entry.new_hash == *previous_hash
+                                && hash(bytes) == *previous_hash => {}
+                        (Some(_), Some(previous), Some(bytes)) if hash(bytes) == entry.new_hash => {
+                            if staged_bytes.is_some() {
+                                return Err(VaultError::Unavailable);
+                            }
+                            actions.push(RecoveryAction::Restore {
+                                path: entry.path.clone(),
+                                previous: previous.clone(),
+                                expected_current_hash: entry.new_hash.clone(),
+                            });
+                        }
+                        (Some(previous_hash), Some(_), Some(bytes))
+                            if hash(bytes) == *previous_hash =>
+                        {
+                            if staged_bytes.is_none() && index >= journal.progress {
+                                return Err(VaultError::Unavailable);
+                            }
+                        }
+                        // Missing content for a file known to have existed is never reconstructed
+                        // speculatively; it is an external conflict and the evidence is retained.
+                        (Some(_), Some(_), None) => return Err(VaultError::Conflict),
+                        (None, None, Some(bytes)) if hash(bytes) == entry.new_hash => {
+                            if staged_bytes.is_some() {
+                                return Err(VaultError::Unavailable);
+                            }
+                            actions.push(RecoveryAction::Remove {
+                                path: entry.path.clone(),
+                                expected_current_hash: entry.new_hash.clone(),
+                            });
+                        }
+                        (None, None, None) => {
+                            if staged_bytes.is_none() && index >= journal.progress {
+                                return Err(VaultError::Unavailable);
+                            }
+                        }
+                        _ => return Err(VaultError::Conflict),
+                    }
+                }
+            }
+        }
+
+        // Mutation pass: it is reached only after every entry and payload has passed preflight.
+        for action in actions {
+            match action {
+                RecoveryAction::Restore {
+                    path,
+                    previous,
+                    expected_current_hash,
+                } => {
+                    let parent = open_parent(&self.root, &path, false)?;
+                    Self::require_expected_hash(
+                        &parent.directory,
+                        &parent.basename,
+                        &expected_current_hash,
+                    )?;
+                    self.publish_bytes_locked(&path, &previous)?;
+                }
+                RecoveryAction::Remove {
+                    path,
+                    expected_current_hash,
+                } => {
+                    let parent = open_parent(&self.root, &path, false)?;
+                    Self::require_expected_hash(
+                        &parent.directory,
+                        &parent.basename,
+                        &expected_current_hash,
+                    )?;
+                    parent
+                        .directory
+                        .remove_file(&parent.basename)
+                        .map_err(map_path_error)?;
+                    sync_directory(&parent.directory)?;
+                }
+            }
+        }
+        if journal.phase == JournalPhase::Publishing
+            && current_revision == journal.original_revision
+        {
+            self.write_internal_locked(
+                VAULT_REVISION_PATH,
+                journal.reserved_revision.to_string().as_bytes(),
+            )?;
         }
         self.cleanup_staged_temps_locked(journal)?;
         self.cleanup_batch_journal_locked()
@@ -1006,22 +1165,13 @@ impl Vault {
 
     fn recover_batch(&self) -> Result<(), VaultError> {
         let _write_guard = self.lock_writes()?;
-        let journal = match self.read_journal_locked() {
-            Ok(journal) => journal,
-            Err(error) => {
-                let _ = self.cleanup_batch_journal_locked();
-                return Err(error);
-            }
-        };
+        // A malformed journal may describe a transaction that already published one or more
+        // targets. Preserve it as forensic/recovery evidence and keep the vault unavailable.
+        let journal = self.read_journal_locked()?;
         let Some((directory, journal)) = journal else {
             return Ok(());
         };
-        let recovery = self.recover_journal_locked(&directory, &journal);
-        if recovery.is_err() && journal.phase == JournalPhase::Preparing {
-            let _ = self.cleanup_staged_temps_locked(&journal);
-            let _ = self.cleanup_batch_journal_locked();
-        }
-        recovery
+        self.recover_journal_locked(&directory, &journal)
     }
 
     fn require_expected_hash(
@@ -2263,6 +2413,27 @@ mod tests {
         }
     }
 
+    fn two_existing_files_batch(expected_revision: u64) -> AtomicBatch {
+        AtomicBatch {
+            expected_revision,
+            expected_user_state: None,
+            writes: vec![
+                AtomicBatchWrite {
+                    path: "first.md".into(),
+                    bytes: b"after-first".to_vec(),
+                    expected_hash: Some(hash(b"before-first")),
+                    expected_missing: false,
+                },
+                AtomicBatchWrite {
+                    path: "second.md".into(),
+                    bytes: b"after-second".to_vec(),
+                    expected_hash: Some(hash(b"before-second")),
+                    expected_missing: false,
+                },
+            ],
+        }
+    }
+
     fn assert_no_transaction_leaks(path: &Path) {
         fn walk(path: &Path, leaks: &mut Vec<String>) {
             for entry in std::fs::read_dir(path).unwrap() {
@@ -2425,7 +2596,7 @@ mod tests {
     }
 
     #[test]
-    fn forged_and_oversized_journals_are_rejected_and_removed() {
+    fn forged_and_oversized_journals_are_rejected_without_destroying_evidence() {
         for manifest in [
             serde_json::json!({
                 "version": 1,
@@ -2459,7 +2630,110 @@ mod tests {
                 VaultRegistry::default().register_selected_path("forged", directory.path()),
                 Err(VaultError::Unavailable | VaultError::PathEscape)
             ));
-            assert!(!journal.exists());
+            assert!(journal.exists());
+        }
+    }
+
+    #[test]
+    fn later_corrupt_backup_causes_zero_recovery_mutations_and_stays_fail_closed() {
+        let directory = tempfile::tempdir().unwrap();
+        let registry = VaultRegistry::default();
+        let selection = registry
+            .register_selected_path("initial", directory.path())
+            .unwrap();
+        let vault = registry.vault("initial", &selection.vault_token).unwrap();
+        vault
+            .write_text_atomic("first.md", "before-first", None, false, None)
+            .unwrap();
+        vault
+            .write_text_atomic("second.md", "before-second", None, false, None)
+            .unwrap();
+        let revision = parse_revision(&vault.get_revision().unwrap()).unwrap();
+        assert!(
+            vault
+                .write_batch_atomic_inner(
+                    two_existing_files_batch(revision),
+                    None,
+                    None,
+                    Some(BatchCrashPoint::Published(1)),
+                )
+                .is_err()
+        );
+        drop(vault);
+        drop(registry);
+        let journal = directory.path().join(BATCH_JOURNAL_PATH);
+        std::fs::write(journal.join("previous-0.bin"), b"corrupt").unwrap();
+
+        for owner in ["first-open", "second-open"] {
+            assert!(matches!(
+                VaultRegistry::default().register_selected_path(owner, directory.path()),
+                Err(VaultError::Unavailable | VaultError::Conflict)
+            ));
+            assert_eq!(
+                std::fs::read(directory.path().join("first.md")).unwrap(),
+                b"after-first"
+            );
+            assert_eq!(
+                std::fs::read(directory.path().join("second.md")).unwrap(),
+                b"after-second"
+            );
+            assert!(journal.exists());
+        }
+    }
+
+    #[test]
+    fn later_external_edit_or_missing_prior_file_causes_zero_recovery_mutations() {
+        for remove_second in [false, true] {
+            let directory = tempfile::tempdir().unwrap();
+            let registry = VaultRegistry::default();
+            let selection = registry
+                .register_selected_path("initial", directory.path())
+                .unwrap();
+            let vault = registry.vault("initial", &selection.vault_token).unwrap();
+            vault
+                .write_text_atomic("first.md", "before-first", None, false, None)
+                .unwrap();
+            vault
+                .write_text_atomic("second.md", "before-second", None, false, None)
+                .unwrap();
+            let revision = parse_revision(&vault.get_revision().unwrap()).unwrap();
+            assert!(
+                vault
+                    .write_batch_atomic_inner(
+                        two_existing_files_batch(revision),
+                        None,
+                        None,
+                        Some(BatchCrashPoint::Published(1)),
+                    )
+                    .is_err()
+            );
+            drop(vault);
+            drop(registry);
+            if remove_second {
+                std::fs::remove_file(directory.path().join("first.md")).unwrap();
+            } else {
+                std::fs::write(directory.path().join("first.md"), b"external").unwrap();
+            }
+
+            for owner in ["first-open", "second-open"] {
+                assert!(matches!(
+                    VaultRegistry::default().register_selected_path(owner, directory.path()),
+                    Err(VaultError::Unavailable | VaultError::Conflict)
+                ));
+                if remove_second {
+                    assert!(!directory.path().join("first.md").exists());
+                } else {
+                    assert_eq!(
+                        std::fs::read(directory.path().join("first.md")).unwrap(),
+                        b"external"
+                    );
+                }
+                assert_eq!(
+                    std::fs::read(directory.path().join("second.md")).unwrap(),
+                    b"after-second"
+                );
+                assert!(directory.path().join(BATCH_JOURNAL_PATH).exists());
+            }
         }
     }
 
