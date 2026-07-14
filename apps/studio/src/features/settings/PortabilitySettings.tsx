@@ -6,6 +6,7 @@ export type PortabilityAction = 'create' | 'overwrite' | 'conflict' | 'skip';
 
 export interface PortabilityPreviewItem {
   action: PortabilityAction;
+  existingPath?: string;
   path: string;
   reason?: string;
   size: number;
@@ -27,6 +28,18 @@ export interface PortabilitySettingsProps {
 }
 
 type BusyState = 'export' | 'prepare' | 'restore' | undefined;
+type ConflictResolution = 'overwrite' | 'skip';
+
+function conflictResolution(
+  conflicts: Readonly<Record<string, ConflictResolution>>,
+  path: string,
+): ConflictResolution | undefined {
+  if (!Object.hasOwn(conflicts, path)) return undefined;
+  const resolution: unknown = conflicts[path];
+  return resolution === 'overwrite' || resolution === 'skip'
+    ? resolution
+    : undefined;
+}
 
 function count(preview: PortabilityPreview, action: PortabilityAction): number {
   return preview.items.filter((item) => item.action === action).length;
@@ -51,9 +64,7 @@ export function PortabilitySettings({
   const [message, setMessage] = useState<string>();
   const [preview, setPreview] = useState<PortabilityPreview>();
   const [confirmed, setConfirmed] = useState(false);
-  const [conflicts, setConflicts] = useState<
-    Readonly<Record<string, 'overwrite' | 'skip'>>
-  >({});
+  const [conflicts, setConflicts] = useState<Readonly<Record<string, ConflictResolution>>>({});
   const selectedFile = useRef<File | undefined>(undefined);
   const restoreButton = useRef<HTMLButtonElement>(null);
 
@@ -108,7 +119,9 @@ export function PortabilitySettings({
       preview === undefined ||
       !confirmed ||
       preview.items.some(
-        (item) => item.action === 'conflict' && conflicts[item.path] === undefined,
+        (item) =>
+          item.action === 'conflict' &&
+          conflictResolution(conflicts, item.path) === undefined,
       ) ||
       onRestore === undefined
     )
@@ -138,7 +151,8 @@ export function PortabilitySettings({
       ? 0
       : preview.items.filter(
           (item) =>
-            item.action === 'conflict' && conflicts[item.path] === undefined,
+            item.action === 'conflict' &&
+            conflictResolution(conflicts, item.path) === undefined,
         ).length;
   const filesToOverwrite =
     overwriteCount +
@@ -265,17 +279,25 @@ export function PortabilitySettings({
               <ul>
                 {preview.items
                   .filter((item) => item.action === 'conflict')
-                  .map((item) => (
+                  .map((item) => {
+                    const currentPath = item.existingPath ?? item.path;
+                    const resolution = conflictResolution(conflicts, item.path);
+                    return (
                     <li key={item.path}>
                       <strong>{item.path}</strong>
+                      {item.existingPath !== undefined && (
+                        <span>
+                          Backup file {item.path} would replace current file {item.existingPath}.
+                        </span>
+                      )}
                       {item.reason !== undefined && <span>{item.reason}</span>}
                       <fieldset className="portability-preview__resolution">
                         <legend className="studio-visually-hidden">
-                          Resolve {item.path}
+                          Resolve backup file {item.path} and current file {currentPath}
                         </legend>
                         <label>
                           <input
-                            checked={conflicts[item.path] === 'skip'}
+                            checked={resolution === 'skip'}
                             name={`conflict-${item.path}`}
                             onChange={() => {
                               setConflicts((current) => ({
@@ -286,11 +308,13 @@ export function PortabilitySettings({
                             }}
                             type="radio"
                           />
-                          Keep the current file for {item.path}
+                          {item.existingPath === undefined
+                            ? `Keep the current file for ${item.path}`
+                            : `Keep the current file ${item.existingPath}`}
                         </label>
                         <label>
                           <input
-                            checked={conflicts[item.path] === 'overwrite'}
+                            checked={resolution === 'overwrite'}
                             name={`conflict-${item.path}`}
                             onChange={() => {
                               setConflicts((current) => ({
@@ -301,11 +325,14 @@ export function PortabilitySettings({
                             }}
                             type="radio"
                           />
-                          Use the file from this backup for {item.path}
+                          {item.existingPath === undefined
+                            ? `Use the file from this backup for ${item.path}`
+                            : `Use backup file ${item.path} to replace ${item.existingPath}`}
                         </label>
                       </fieldset>
                     </li>
-                  ))}
+                    );
+                  })}
               </ul>
             </div>
           )}

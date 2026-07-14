@@ -68,6 +68,38 @@ it('previews and restores only after explicit confirmation', async () => {
   expect((await target.readText('Inbox/hill.md')).text).toBe('from backup');
 });
 
+it('previews the actual current path for a stable-ID conflict', async () => {
+  const source = createInMemoryVault();
+  await source.writeTextAtomic(
+    'Inbox/renamed.md',
+    '---\nid: shared-note\ntype: reflection\n---\n\nfrom backup\n',
+  );
+  const backup = await createVaultBackup(source, {
+    generatedAt: '2026-07-14T09:00:00.000Z',
+    reason: 'manual',
+  });
+  const target = createInMemoryVault();
+  await target.writeTextAtomic(
+    'Archive/original.md',
+    '---\nid: shared-note\ntype: reflection\n---\n\ncurrent words\n',
+  );
+  const file = new File([backup.bytes.slice().buffer as ArrayBuffer], backup.fileName, {
+    type: 'application/zip',
+  });
+  Object.defineProperty(file, 'arrayBuffer', {
+    value: async () => backup.bytes.slice().buffer,
+  });
+
+  render(<SettingsRoom vault={target} />);
+  fireEvent.change(screen.getByLabelText('Choose a Studio backup'), {
+    target: { files: [file] },
+  });
+
+  expect(await screen.findByText(
+    'Backup file Inbox/renamed.md would replace current file Archive/original.md.',
+  )).toBeVisible();
+});
+
 it('keeps portability unavailable until a Studio is open', () => {
   render(<SettingsRoom />);
   expect(screen.getByText('Open a Studio to create or restore a portable backup.')).toBeVisible();

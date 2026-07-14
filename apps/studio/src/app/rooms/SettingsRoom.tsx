@@ -46,6 +46,7 @@ function previewFor(file: File, plan: VaultImportPlan): PortabilityPreview {
     exportedAt: plan.manifest.generatedAt,
     items: plan.items.map((item) => ({
       action: item.action,
+      ...(item.existingPath === undefined ? {} : { existingPath: item.existingPath }),
       path: item.path,
       size: item.size,
       ...(item.action !== 'conflict'

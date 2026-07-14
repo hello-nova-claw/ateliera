@@ -95,6 +95,65 @@ it('requires an explicit choice for every conflict before restore', async () => 
   }));
 });
 
+it('names the current file when a conflict would replace a different path', async () => {
+  const renamedPreview: PortabilityPreview = {
+    ...preview,
+    items: [{
+      action: 'conflict',
+      path: 'Inbox/renamed.md',
+      existingPath: 'Archive/original.md',
+      size: 642,
+      reason: 'The same note identity already exists elsewhere.',
+    }],
+  };
+  render(
+    <PortabilitySettings
+      onPrepareRestore={vi.fn(async () => renamedPreview)}
+      onRestore={vi.fn(async () => undefined)}
+    />,
+  );
+  fireEvent.change(screen.getByLabelText('Choose a Studio backup'), {
+    target: {
+      files: [new File(['safe archive'], 'the-studio.zip', { type: 'application/zip' })],
+    },
+  });
+
+  await screen.findByRole('heading', { name: 'Review this restore' });
+  expect(screen.getByText(
+    'Backup file Inbox/renamed.md would replace current file Archive/original.md.',
+  )).toBeVisible();
+  expect(screen.getByRole('radio', {
+    name: 'Keep the current file Archive/original.md',
+  })).toBeVisible();
+  expect(screen.getByRole('radio', {
+    name: 'Use backup file Inbox/renamed.md to replace Archive/original.md',
+  })).toBeVisible();
+});
+
+it('does not treat inherited object properties as conflict choices', async () => {
+  const inheritedPreview: PortabilityPreview = {
+    ...preview,
+    items: [{ action: 'conflict', path: 'constructor', size: 12 }],
+  };
+  render(
+    <PortabilitySettings
+      onPrepareRestore={vi.fn(async () => inheritedPreview)}
+      onRestore={vi.fn(async () => undefined)}
+    />,
+  );
+  fireEvent.change(screen.getByLabelText('Choose a Studio backup'), {
+    target: {
+      files: [new File(['safe archive'], 'the-studio.zip', { type: 'application/zip' })],
+    },
+  });
+
+  await screen.findByRole('heading', { name: 'Review this restore' });
+  expect(screen.getAllByRole('radio')).toHaveLength(2);
+  expect(screen.getAllByRole('radio').every((radio) => !radio.hasAttribute('checked'))).toBe(true);
+  expect(screen.getByRole('checkbox')).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Restore this backup' })).toBeDisabled();
+});
+
 it('requires explicit confirmation, serializes restore, and restores exact focus', async () => {
   const clearPreview: PortabilityPreview = {
     ...preview,
