@@ -1118,7 +1118,15 @@ export function createStudioService(
     },
     async projectReflectionGarden() {
       assertActive();
-      return projectReflectionGardenRoom((await scan()).notes, views);
+      const [scanned, lifeAreaSnapshot] = await Promise.all([
+        scan(),
+        lifeAreas.load(),
+      ]);
+      return projectReflectionGardenRoom(
+        scanned.notes,
+        views,
+        lifeAreaSnapshot.areas,
+      );
     },
     async linkReflectionEvidence(input) {
       assertActive();

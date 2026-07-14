@@ -43,7 +43,23 @@ export type ReflectionEvidenceConnection =
       id: string;
       targetState: 'available' | 'archived' | 'missing';
     }
-  | { kind: 'life-area' | 'season'; id: string };
+  | {
+      kind: 'life-area' | 'season';
+      id: string;
+      label: string;
+      targetState: 'available' | 'archived';
+    }
+  | {
+      kind: 'life-area' | 'season';
+      id: string;
+      targetState: 'missing';
+    };
+
+export interface ReflectionLifeAreaTarget {
+  id: string;
+  title: string;
+  hidden: boolean;
+}
 
 export interface ReflectionCardProjection extends StudioCardProjection {
   hash: string;
@@ -302,6 +318,7 @@ function stringList(value: unknown): string[] {
 function reflectionEvidenceConnections(
   note: StudioNote,
   targetNotes: ReadonlyMap<string, readonly StudioNote[]>,
+  lifeAreas: readonly ReflectionLifeAreaTarget[],
 ): ReflectionEvidenceConnection[] {
   const noteConnections = stringList(note.extraFrontmatter.related_notes).map(
     (id): ReflectionEvidenceConnection => {
@@ -316,14 +333,63 @@ function reflectionEvidenceConnections(
       return { kind: 'note', id, targetState };
     },
   );
+  const lifeAreasById = new Map(lifeAreas.map((area) => [area.id, area]));
+  const lifeAreaConnections = stringList(note.lifeAreas).map(
+    (id): ReflectionEvidenceConnection => {
+      const target = lifeAreasById.get(id);
+      if (target === undefined) {
+        return { kind: 'life-area', id, targetState: 'missing' };
+      }
+      return {
+        kind: 'life-area',
+        id,
+        label: target.title,
+        targetState: target.hidden ? 'archived' : 'available',
+      };
+    },
+  );
+  const seasonsById = new Map<string, StudioNote[]>();
+  for (const targets of targetNotes.values()) {
+    for (const target of targets) {
+      if (target.cardType !== 'season') continue;
+      const storedId = target.extraFrontmatter.season_id;
+      const id =
+        typeof storedId === 'string' && storedId.trim() !== ''
+          ? storedId.trim()
+          : target.id;
+      const seasons = seasonsById.get(id) ?? [];
+      seasons.push(target);
+      seasonsById.set(id, seasons);
+    }
+  }
+  const seasonConnections = stringList(note.seasons).map(
+    (id): ReflectionEvidenceConnection => {
+      const targets = seasonsById.get(id) ?? [];
+      const available = targets.find((target) => target.status === 'active');
+      if (available !== undefined) {
+        return {
+          kind: 'season',
+          id,
+          label: available.title?.trim() || id,
+          targetState: 'available',
+        };
+      }
+      const archived = targets.find((target) => target.status === 'archived');
+      if (archived !== undefined) {
+        return {
+          kind: 'season',
+          id,
+          label: archived.title?.trim() || id,
+          targetState: 'archived',
+        };
+      }
+      return { kind: 'season', id, targetState: 'missing' };
+    },
+  );
   return [
     ...noteConnections,
-    ...stringList(note.lifeAreas).map(
-      (id): ReflectionEvidenceConnection => ({ kind: 'life-area', id }),
-    ),
-    ...stringList(note.seasons).map(
-      (id): ReflectionEvidenceConnection => ({ kind: 'season', id }),
-    ),
+    ...lifeAreaConnections,
+    ...seasonConnections,
   ];
 }
 
@@ -352,6 +418,7 @@ export async function projectUnchartedRoom(
 export async function projectReflectionGardenRoom(
   notes: LoadedNote[],
   views: ViewStateRepository,
+  lifeAreas: readonly ReflectionLifeAreaTarget[],
 ): Promise<ReflectionGardenProjection> {
   // A Garden is a chronology, not a manually arranged board. View order remains
   // disposable for other rooms but cannot override when an entry was created.
@@ -389,6 +456,7 @@ export async function projectReflectionGardenRoom(
       evidenceConnections: reflectionEvidenceConnections(
         source.note,
         targetsById,
+        lifeAreas,
       ),
       ...(typeof thenNoteId === 'string' && thenNoteId.trim() !== ''
         ? { thenNoteId }

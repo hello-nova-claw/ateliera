@@ -271,8 +271,8 @@ describe('Uncharted and Reflection Garden application behavior', () => {
       { kind: 'note', id: 'identity-first', targetState: 'available' },
       { kind: 'note', id: 'identity-second', targetState: 'available' },
       { kind: 'note', id: 'shared-id', targetState: 'missing' },
-      { kind: 'life-area', id: 'shared-id' },
-      { kind: 'season', id: 'shared-id' },
+      { kind: 'life-area', id: 'shared-id', targetState: 'missing' },
+      { kind: 'season', id: 'shared-id', targetState: 'missing' },
     ]);
   });
 
@@ -350,6 +350,18 @@ describe('Uncharted and Reflection Garden application behavior', () => {
         }),
       },
       {
+        path: 'Archive/Current Season/older-winter.md',
+        note: note({
+          id: 'season-note-older-winter',
+          title: 'An Older Winter',
+          cardType: 'season',
+          semanticType: 'vision',
+          status: 'archived',
+          rooms: ['current-season'],
+          extraFrontmatter: { season_id: 'winter-canonical' },
+        }),
+      },
+      {
         path: 'Current Season/draft.md',
         note: note({
           id: 'season-note-draft',
@@ -359,6 +371,29 @@ describe('Uncharted and Reflection Garden application behavior', () => {
           status: 'draft',
           rooms: ['current-season'],
           extraFrontmatter: { season_id: 'draft-canonical' },
+        }),
+      },
+      {
+        path: 'Current Season/legacy.md',
+        note: note({
+          id: 'legacy-season',
+          title: '',
+          cardType: 'season',
+          semanticType: 'vision',
+          status: 'active',
+          rooms: ['current-season'],
+        }),
+      },
+      {
+        path: 'Archive/Current Season/legacy-archived.md',
+        note: note({
+          id: 'legacy-archived-season',
+          title: '',
+          cardType: 'season',
+          semanticType: 'vision',
+          status: 'archived',
+          rooms: ['current-season'],
+          extraFrontmatter: { season_id: ' ' },
         }),
       },
       {
@@ -373,6 +408,8 @@ describe('Uncharted and Reflection Garden application behavior', () => {
             'summer-canonical',
             'draft-canonical',
             'season-note-winter',
+            'legacy-season',
+            'legacy-archived-season',
             'missing-season',
           ],
         }),
@@ -418,6 +455,18 @@ describe('Uncharted and Reflection Garden application behavior', () => {
       },
       { kind: 'season', id: 'draft-canonical', targetState: 'missing' },
       { kind: 'season', id: 'season-note-winter', targetState: 'missing' },
+      {
+        kind: 'season',
+        id: 'legacy-season',
+        label: 'legacy-season',
+        targetState: 'available',
+      },
+      {
+        kind: 'season',
+        id: 'legacy-archived-season',
+        label: 'legacy-archived-season',
+        targetState: 'archived',
+      },
       { kind: 'season', id: 'missing-season', targetState: 'missing' },
     ]);
   });
