@@ -3,6 +3,12 @@
   background: var(--studio-color-canvas);
 }
 
+.studio-app {
+  min-block-size: 100vh;
+  color: var(--studio-color-ink);
+  background: var(--studio-color-canvas);
+}
+
 .primitive-preview {
   max-inline-size: 36rem;
 }

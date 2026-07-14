@@ -148,6 +148,7 @@ it('collapses a missing optional image into a calm repair note', () => {
     />,
   );
   expect(screen.getByText('This image is not available here.')).toBeVisible();
+  expect(screen.getByText('A hillside')).toBeVisible();
 });
 
 it('never renders a raw cover reference and offers non-destructive removal', () => {
