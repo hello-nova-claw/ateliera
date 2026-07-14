@@ -293,29 +293,55 @@ export class SqliteIndex implements IndexPort {
 
   async facets(query: string, filters: SearchFilters = {}): Promise<SearchFacets> {
     validateQuery(query);
-    const ids = (await this.search(query, filters)).map((hit) => hit.id);
-    if (ids.length === 0) return {
-      rooms: [], semanticTypes: [], lifeAreas: [], seasons: [], statuses: [], tags: [], cardTypes: [],
+    type FilterKey = Exclude<keyof SearchFilters, 'dateFrom' | 'dateTo'>;
+    const idsWithout = async (filter: FilterKey): Promise<string[]> => {
+      const remaining = { ...filters };
+      delete remaining[filter];
+      return (await this.search(query, remaining)).map((hit) => hit.id);
     };
-    const placeholders = ids.map(() => '?').join(',');
-    const listFacet = (table: string, column: string) => rows<{ value: string; count: number }>(
-      this.database.prepare(
+    const withSelected = (
+      values: Array<{ value: string; count: number }>,
+      selected: readonly string[] | undefined,
+    ): Array<{ value: string; count: number }> => {
+      const byValue = new Map(values.map((value) => [value.value, value]));
+      for (const value of selected ?? []) {
+        if (!byValue.has(value)) byValue.set(value, { value, count: 0 });
+      }
+      return [...byValue.values()].sort((left, right) =>
+        right.count - left.count || left.value.localeCompare(right.value, 'en'),
+      );
+    };
+    const listFacet = async (
+      filter: FilterKey, table: string, column: string, selected: readonly string[] | undefined,
+    ) => {
+      const ids = await idsWithout(filter);
+      if (ids.length === 0) return withSelected([], selected);
+      const placeholders = ids.map(() => '?').join(',');
+      return withSelected(rows<{ value: string; count: number }>(this.database.prepare(
         `SELECT ${column} AS value, count(*) AS count FROM ${table} WHERE note_id IN (${placeholders}) GROUP BY ${column} ORDER BY count DESC, value ASC`,
-      ).all(...ids),
-    );
-    const noteFacet = (column: string) => rows<{ value: string; count: number }>(
-      this.database.prepare(
+      ).all(...ids)), selected);
+    };
+    const noteFacet = async (
+      filter: FilterKey, column: string, selected: readonly string[] | undefined,
+    ) => {
+      const ids = await idsWithout(filter);
+      if (ids.length === 0) return withSelected([], selected);
+      const placeholders = ids.map(() => '?').join(',');
+      return withSelected(rows<{ value: string; count: number }>(this.database.prepare(
         `SELECT ${column} AS value, count(*) AS count FROM notes WHERE id IN (${placeholders}) GROUP BY ${column} ORDER BY count DESC, value ASC`,
-      ).all(...ids),
-    );
+      ).all(...ids)), selected);
+    };
+    const [rooms, semanticTypes, lifeAreas, seasons, statuses, tags, cardTypes] = await Promise.all([
+      listFacet('rooms', 'note_rooms', 'room', filters.rooms),
+      noteFacet('semanticTypes', 'semantic_type', filters.semanticTypes),
+      listFacet('lifeAreas', 'note_life_areas', 'life_area', filters.lifeAreas),
+      listFacet('seasons', 'note_seasons', 'season', filters.seasons),
+      noteFacet('statuses', 'status', filters.statuses),
+      listFacet('tags', 'note_tags', 'tag', filters.tags),
+      noteFacet('cardTypes', 'card_type', filters.cardTypes),
+    ]);
     return {
-      rooms: listFacet('note_rooms', 'room'),
-      semanticTypes: noteFacet('semantic_type'),
-      lifeAreas: listFacet('note_life_areas', 'life_area'),
-      seasons: listFacet('note_seasons', 'season'),
-      statuses: noteFacet('status'),
-      tags: listFacet('note_tags', 'tag'),
-      cardTypes: noteFacet('card_type'),
+      rooms, semanticTypes, lifeAreas, seasons, statuses, tags, cardTypes,
     };
   }
 

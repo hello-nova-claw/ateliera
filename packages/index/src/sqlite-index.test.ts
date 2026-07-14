@@ -270,7 +270,10 @@ describe('SQLite IndexPort', () => {
 
     const facets = await index.facets('calm', { rooms: ['reflection-garden'] });
 
-    expect(facets.rooms).toEqual([{ value: 'reflection-garden', count: 2 }]);
+    expect(facets.rooms).toEqual([
+      { value: 'reflection-garden', count: 2 },
+      { value: 'foyer', count: 1 },
+    ]);
     expect(facets.lifeAreas).toEqual([{ value: 'home', count: 2 }]);
     expect(facets.semanticTypes).toEqual([
       { value: 'celebration', count: 1 },
@@ -280,6 +283,51 @@ describe('SQLite IndexPort', () => {
       { value: 'quiet', count: 2 },
       { value: 'family', count: 1 },
     ]);
+  });
+
+  it('excludes each facet own filter so another value can extend an OR selection', async () => {
+    await upsert(index, note({
+      id: 'reflection', title: 'Calm reflection', rooms: ['reflection-garden'],
+      semanticType: 'reflection', tags: ['quiet'],
+    }), 'Reflection/reflection.md', 'reflection');
+    await upsert(index, note({
+      id: 'foundation', title: 'Calm foundation', rooms: ['reflection-garden'],
+      semanticType: 'foundations', tags: ['quiet'],
+    }), 'Reflection/foundation.md', 'foundation');
+    await upsert(index, note({
+      id: 'other', title: 'Calm other', rooms: ['reflection-garden'],
+      semanticType: 'reflection', tags: ['other'],
+    }), 'Reflection/other.md', 'other');
+
+    const facets = await index.facets('calm', {
+      rooms: ['reflection-garden'], semanticTypes: ['reflection'], tags: ['quiet'],
+    });
+
+    expect(facets.rooms).toEqual([
+      { value: 'reflection-garden', count: 1 },
+    ]);
+    expect(facets.semanticTypes).toEqual([
+      { value: 'foundations', count: 1 },
+      { value: 'reflection', count: 1 },
+    ]);
+    expect(facets.tags).toEqual([
+      { value: 'other', count: 1 },
+      { value: 'quiet', count: 1 },
+    ]);
+  });
+
+  it('keeps selected facet values visible when cross-filters produce no results', async () => {
+    await upsert(index, note({
+      id: 'reflection', title: 'Calm reflection', rooms: ['reflection-garden'],
+      semanticType: 'reflection', tags: ['quiet'],
+    }), 'Reflection/reflection.md', 'reflection');
+
+    const facets = await index.facets('calm', {
+      rooms: ['missing-room'], semanticTypes: ['foundations'],
+    });
+
+    expect(facets.rooms).toEqual([{ value: 'missing-room', count: 0 }]);
+    expect(facets.semanticTypes).toEqual([{ value: 'foundations', count: 0 }]);
   });
 
   it('falls back to bounded fuzzy title and tag matching only when exact search is empty', async () => {
