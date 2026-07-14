@@ -51,6 +51,7 @@ export type {
 export { applyVaultImport, importVault, prepareVaultImport } from './import';
 export type {
   ApplyVaultImportOptions,
+  TargetFingerprintEntry,
   VaultImportAction,
   VaultImportItem,
   VaultImportPlan,

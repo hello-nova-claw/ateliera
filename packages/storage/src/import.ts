@@ -32,7 +32,15 @@ export interface VaultImportPlan {
   archiveHash: string;
   manifest: PortableVaultManifest;
   items: readonly VaultImportItem[];
+  readonly targetFingerprint: readonly TargetFingerprintEntry[];
   readonly files: ReadonlyMap<string, Uint8Array>;
+}
+
+export interface TargetFingerprintEntry {
+  path: string;
+  portablePath: string;
+  sha256: string;
+  noteId?: string;
 }
 
 export interface ApplyVaultImportOptions {
@@ -89,6 +97,66 @@ function assertManifestOrder(manifest: PortableVaultManifest): void {
   if (manifest.excludedCaches.some((path, index) => path !== excluded[index])) {
     throw new PortableVaultError('invalid-manifest', 'The excluded-cache list is not deterministic.');
   }
+}
+
+interface IncludedTargetScan {
+  byPortablePath: Map<string, { path: string; hash: string; bytes: Uint8Array }>;
+  byNoteId: Map<string, { path: string; hash: string; bytes: Uint8Array }>;
+  fingerprint: TargetFingerprintEntry[];
+}
+
+async function scanIncludedTarget(vault: VaultPort): Promise<IncludedTargetScan> {
+  const targetFiles = (await vault.list()).filter((entry) => entry.kind === 'file');
+  const byPortablePath = new Map<string, { path: string; hash: string; bytes: Uint8Array }>();
+  const byNoteId = new Map<string, { path: string; hash: string; bytes: Uint8Array }>();
+  const fingerprint: TargetFingerprintEntry[] = [];
+  for (const entry of targetFiles) {
+    if (exportDisposition(entry.path) !== 'include') continue;
+    let path: string;
+    try {
+      path = validatePortablePath(entry.path.normalize('NFC'));
+    } catch {
+      continue;
+    }
+    const bytes = await vault.readBinary(entry.path);
+    const hash = await sha256(bytes);
+    const key = portablePathKey(path);
+    if (byPortablePath.has(key)) {
+      throw new PortableVaultError('path-collision', 'The target contains case- or Unicode-colliding paths.');
+    }
+    const target = { path: entry.path, hash, bytes };
+    byPortablePath.set(key, target);
+    const noteId = extractNoteId(entry.path, bytes);
+    if (noteId !== undefined) {
+      const previous = byNoteId.get(noteId);
+      if (previous !== undefined && previous.path !== entry.path) {
+        throw new PortableVaultError('path-collision', `The target contains duplicate note ID ${noteId}.`);
+      }
+      byNoteId.set(noteId, target);
+    }
+    fingerprint.push({
+      path: entry.path,
+      portablePath: key,
+      sha256: hash,
+      ...(noteId === undefined ? {} : { noteId }),
+    });
+  }
+  fingerprint.sort((left, right) =>
+    left.portablePath.localeCompare(right.portablePath, 'en') ||
+    left.path.localeCompare(right.path, 'en'));
+  return { byPortablePath, byNoteId, fingerprint };
+}
+
+function sameTargetFingerprint(
+  left: readonly TargetFingerprintEntry[],
+  right: readonly TargetFingerprintEntry[],
+): boolean {
+  return left.length === right.length && left.every((entry, index) => {
+    const candidate = right[index];
+    return candidate !== undefined && entry.path === candidate.path &&
+      entry.portablePath === candidate.portablePath && entry.sha256 === candidate.sha256 &&
+      entry.noteId === candidate.noteId;
+  });
 }
 
 export async function prepareVaultImport(
@@ -173,41 +241,14 @@ export async function prepareVaultImport(
     excludedSeen.add(key);
   }
 
-  const targetFiles = (await vault.list()).filter((entry) => entry.kind === 'file');
-  const targetByPortablePath = new Map<string, { path: string; hash: string; bytes: Uint8Array }>();
-  const targetByNoteId = new Map<string, { path: string; hash: string; bytes: Uint8Array }>();
-  for (const entry of targetFiles) {
-    if (exportDisposition(entry.path) !== 'include') continue;
-    let path: string;
-    try {
-      path = validatePortablePath(entry.path.normalize('NFC'));
-    } catch {
-      continue;
-    }
-    const bytes = await vault.readBinary(entry.path);
-    const hash = await sha256(bytes);
-    const key = portablePathKey(path);
-    if (targetByPortablePath.has(key)) {
-      throw new PortableVaultError('path-collision', 'The target contains case- or Unicode-colliding paths.');
-    }
-    const target = { path: entry.path, hash, bytes };
-    targetByPortablePath.set(key, target);
-    const noteId = extractNoteId(entry.path, bytes);
-    if (noteId !== undefined) {
-      const previous = targetByNoteId.get(noteId);
-      if (previous !== undefined && previous.path !== entry.path) {
-        throw new PortableVaultError('path-collision', `The target contains duplicate note ID ${noteId}.`);
-      }
-      targetByNoteId.set(noteId, target);
-    }
-  }
+  const target = await scanIncludedTarget(vault);
 
   const items: VaultImportItem[] = [];
   for (const descriptor of manifest.files) {
     const incoming = validated.get(descriptor.path) as Uint8Array;
     const incomingNoteId = extractNoteId(descriptor.path, incoming);
-    const pathTarget = targetByPortablePath.get(portablePathKey(descriptor.path));
-    const idTarget = incomingNoteId === undefined ? undefined : targetByNoteId.get(incomingNoteId);
+    const pathTarget = target.byPortablePath.get(portablePathKey(descriptor.path));
+    const idTarget = incomingNoteId === undefined ? undefined : target.byNoteId.get(incomingNoteId);
     const existing = pathTarget ?? idTarget;
     if (existing === undefined) {
       items.push({ action: 'create', ...descriptor });
@@ -240,6 +281,7 @@ export async function prepareVaultImport(
     archiveHash: await sha256(bytes),
     manifest,
     items,
+    targetFingerprint: target.fingerprint,
     files: validated,
   };
 }
@@ -265,6 +307,16 @@ export async function applyVaultImport(
     throw new PortableVaultError('confirmation-required', 'Import confirmation is required.');
   }
   const actions = plan.items.map((item) => ({ item, action: resolvedAction(item, options) }));
+
+  let currentFingerprint: readonly TargetFingerprintEntry[];
+  try {
+    currentFingerprint = (await scanIncludedTarget(vault)).fingerprint;
+  } catch {
+    throw new PortableVaultError('target-changed', 'The import target changed after preview.');
+  }
+  if (!sameTargetFingerprint(plan.targetFingerprint, currentFingerprint)) {
+    throw new PortableVaultError('target-changed', 'The import target changed after preview.');
+  }
 
   for (const { item } of actions) {
     const targetPath = item.existingPath ?? item.path;

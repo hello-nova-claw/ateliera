@@ -93,6 +93,41 @@ describe('portable vault import', () => {
     });
   });
 
+  it('rejects a case-equivalent target added after a create preview', async () => {
+    const source = createInMemoryVault();
+    await source.writeTextAtomic('Inbox/Hill.md', note('incoming-hill', 'incoming'));
+    const target = createInMemoryVault();
+    const plan = await prepareVaultImport(target, await exportVault(source));
+    expect(plan.items).toEqual([
+      expect.objectContaining({ action: 'create', path: 'Inbox/Hill.md' }),
+    ]);
+
+    await target.writeTextAtomic('inbox/hill.md', note('outside-hill', 'outside'));
+    await expect(applyVaultImport(target, plan, { confirm: true })).rejects.toMatchObject({
+      code: 'target-changed',
+    });
+    await expect(target.exists('Inbox/Hill.md')).resolves.toBe(false);
+    await expect(target.readText('inbox/hill.md')).resolves.toMatchObject({
+      text: note('outside-hill', 'outside'),
+    });
+  });
+
+  it('rejects canonical note-ID ownership added after a create preview', async () => {
+    const source = createInMemoryVault();
+    await source.writeTextAtomic('Inbox/new.md', note('stable-id', 'incoming'));
+    const target = createInMemoryVault();
+    const plan = await prepareVaultImport(target, await exportVault(source));
+
+    await target.writeTextAtomic('Archive/external.md', note('stable-id', 'outside'));
+    await expect(applyVaultImport(target, plan, { confirm: true })).rejects.toMatchObject({
+      code: 'target-changed',
+    });
+    await expect(target.exists('Inbox/new.md')).resolves.toBe(false);
+    await expect(target.readText('Archive/external.md')).resolves.toMatchObject({
+      text: note('stable-id', 'outside'),
+    });
+  });
+
   it('validates every checksum before mutating the target', async () => {
     const source = createInMemoryVault();
     await source.writeTextAtomic('Inbox/note.md', note('safe', 'safe'));
@@ -140,6 +175,28 @@ describe('portable vault import', () => {
       .rejects.toMatchObject({ code: 'invalid-path' });
     await expect(prepareVaultImport(target, makeArchive(['Inbox/Hill.md', 'inbox/hill.md'])))
       .rejects.toMatchObject({ code: 'path-collision' });
+  });
+
+  it('rejects non-canonical timestamps and unbounded cache exclusion lists', async () => {
+    const manifestArchive = (generatedAt: string, excludedCaches: string[]) => {
+      const manifest = new TextEncoder().encode(`${JSON.stringify({
+        format: 'the-studio-vault',
+        exportVersion: 1,
+        schemaVersions: { note: 1, settings: 1 },
+        generatedAt,
+        files: [],
+        excludedCaches,
+      }, null, 2)}\n`);
+      return createZip32([['.studio/export-manifest.json', manifest]]);
+    };
+    const target = createInMemoryVault();
+
+    await expect(prepareVaultImport(target, manifestArchive('2026-07-14', [])))
+      .rejects.toMatchObject({ code: 'invalid-manifest' });
+    await expect(prepareVaultImport(target, manifestArchive(
+      '2026-07-14T00:00:00.000Z',
+      Array.from({ length: 10_000 }, (_, index) => `.studio/index/${index}`),
+    ))).rejects.toMatchObject({ code: 'invalid-manifest' });
   });
 
   it('rejects an oversized Blob before allocating its bytes', async () => {

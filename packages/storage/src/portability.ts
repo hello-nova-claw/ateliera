@@ -140,14 +140,19 @@ export function validPortableManifest(value: unknown): value is PortableVaultMan
   ])) return false;
   const schemas = candidate.schemaVersions;
   const files = candidate.files;
+  const canonicalGeneratedAt = typeof candidate.generatedAt === 'string' &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(candidate.generatedAt) &&
+    !Number.isNaN(Date.parse(candidate.generatedAt)) &&
+    new Date(candidate.generatedAt).toISOString() === candidate.generatedAt;
   return candidate.format === PORTABLE_FORMAT &&
     candidate.exportVersion === PORTABLE_EXPORT_VERSION &&
-    typeof candidate.generatedAt === 'string' && !Number.isNaN(Date.parse(candidate.generatedAt)) &&
+    canonicalGeneratedAt &&
     schemas !== null && typeof schemas === 'object' && !Array.isArray(schemas) &&
     exactKeys(schemas as Record<string, unknown>, ['note', 'settings']) &&
     (schemas as Record<string, unknown>).note === PORTABLE_NOTE_SCHEMA_VERSION &&
     (schemas as Record<string, unknown>).settings === PORTABLE_SETTINGS_SCHEMA_VERSION &&
     Array.isArray(candidate.excludedCaches) &&
+    candidate.excludedCaches.length <= PORTABLE_MAX_USER_FILES &&
     candidate.excludedCaches.every((path) => typeof path === 'string') &&
     Array.isArray(files) && files.length <= PORTABLE_MAX_USER_FILES && files.every((item) => {
       if (item === null || typeof item !== 'object' || Array.isArray(item)) return false;
