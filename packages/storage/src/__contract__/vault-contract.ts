@@ -126,6 +126,87 @@ export function vaultContract(name: string, createVault: () => Promise<VaultPort
       });
     });
 
+    it('advances an opaque revision for every successful mutation without ABA reuse', async () => {
+      const vault = await createVault();
+      const atomic = vault as VaultPort & {
+        getRevision(): Promise<string>;
+      };
+      const initial = await atomic.getRevision();
+
+      const first = await vault.writeTextAtomic('Inbox/a.md', 'one');
+      const afterCreate = await atomic.getRevision();
+      await vault.writeTextAtomic('Inbox/a.md', 'two', { expectedHash: first.hash });
+      const afterEdit = await atomic.getRevision();
+      await vault.writeTextAtomic('Inbox/a.md', 'one');
+      const afterAba = await atomic.getRevision();
+
+      expect(new Set([initial, afterCreate, afterEdit, afterAba])).toHaveLength(4);
+      expect([initial, afterCreate, afterEdit, afterAba].map(BigInt)).toEqual(
+        [...[initial, afterCreate, afterEdit, afterAba].map(BigInt)].sort((a, b) => a < b ? -1 : 1),
+      );
+    });
+
+    it('publishes a guarded multi-file write as one observable mutation', async () => {
+      const vault = await createVault();
+      const atomic = vault as VaultPort & {
+        getRevision(): Promise<string>;
+        writeBatchAtomic(input: {
+          expectedRevision: string;
+          writes: readonly Array<{
+            path: string;
+            bytes: Uint8Array;
+            expectedMissing: true;
+          }>;
+        }): Promise<unknown>;
+      };
+      const events: VaultChange[] = [];
+      const observedSibling: Array<Promise<boolean>> = [];
+      await vault.watch((event) => {
+        events.push(event);
+        observedSibling.push(vault.exists(event.path === 'Inbox/a.md' ? 'Inbox/b.md' : 'Inbox/a.md'));
+      });
+
+      await atomic.writeBatchAtomic({
+        expectedRevision: await atomic.getRevision(),
+        writes: [
+          { path: 'Inbox/a.md', bytes: new TextEncoder().encode('a'), expectedMissing: true },
+          { path: 'Inbox/b.md', bytes: new TextEncoder().encode('b'), expectedMissing: true },
+        ],
+      });
+
+      expect(events.map(({ path }) => path)).toEqual(['Inbox/a.md', 'Inbox/b.md']);
+      await expect(Promise.all(observedSibling)).resolves.toEqual([true, true]);
+    });
+
+    it('rejects a stale guarded batch without publishing any file', async () => {
+      const vault = await createVault();
+      const atomic = vault as VaultPort & {
+        getRevision(): Promise<string>;
+        writeBatchAtomic(input: {
+          expectedRevision: string;
+          writes: readonly Array<{
+            path: string;
+            bytes: Uint8Array;
+            expectedMissing: true;
+          }>;
+        }): Promise<unknown>;
+      };
+      const stale = await atomic.getRevision();
+      await vault.writeTextAtomic('Inbox/winner.md', 'winner');
+
+      await expect(atomic.writeBatchAtomic({
+        expectedRevision: stale,
+        writes: [
+          { path: 'Inbox/a.md', bytes: new Uint8Array([1]), expectedMissing: true },
+          { path: 'Inbox/b.md', bytes: new Uint8Array([2]), expectedMissing: true },
+        ],
+      })).rejects.toBeInstanceOf(VaultConflictError);
+
+      await expect(vault.exists('Inbox/a.md')).resolves.toBe(false);
+      await expect(vault.exists('Inbox/b.md')).resolves.toBe(false);
+      await expect(vault.readText('Inbox/winner.md')).resolves.toMatchObject({ text: 'winner' });
+    });
+
     it('hashes UTF-8 text with SHA-256 and reads it intact', async () => {
       const vault = await createVault();
       const text = 'Māori 🌿\n';

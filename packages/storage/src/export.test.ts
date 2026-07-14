@@ -136,6 +136,33 @@ describe('portable vault export', () => {
     await expect(exportVault(vault)).rejects.toMatchObject({ code: 'source-changed' });
   });
 
+  it('rejects a two-file ABA mutation even when every final byte matches the capture', async () => {
+    const base = createInMemoryVault();
+    await base.writeTextAtomic('Inbox/a.md', 'a');
+    await base.writeTextAtomic('Inbox/b.md', 'b');
+    let reads = 0;
+    const vault: VaultPort = {
+      list: (prefix) => base.list(prefix),
+      readText: (path) => base.readText(path),
+      async readBinary(path) {
+        const bytes = await base.readBinary(path);
+        if (++reads === 2) {
+          await base.writeTextAtomic('Inbox/a.md', 'temporary');
+          await base.writeTextAtomic('Inbox/a.md', 'a');
+        }
+        return bytes;
+      },
+      writeTextAtomic: (path, text, condition) => base.writeTextAtomic(path, text, condition),
+      writeBinaryAtomic: (path, bytes, condition) => base.writeBinaryAtomic(path, bytes, condition),
+      move: (from, to, condition) => base.move(from, to, condition),
+      remove: (path, condition) => base.remove(path, condition),
+      exists: (path) => base.exists(path),
+      watch: (listener) => base.watch(listener),
+    };
+
+    await expect(exportVault(vault)).rejects.toMatchObject({ code: 'source-changed' });
+  });
+
   it('returns a typed source change when a listed file disappears before capture', async () => {
     const base = createInMemoryVault();
     await base.writeTextAtomic('Inbox/note.md', 'captured');
