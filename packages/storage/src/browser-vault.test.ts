@@ -13,6 +13,7 @@ import * as storageApi from './index';
 
 function createTestStore(): BrowserVaultStore {
   const files = new Map<string, StoredBrowserFile>();
+  let revision = 0n;
 
   return {
     async entries() {
@@ -27,11 +28,20 @@ function createTestStore(): BrowserVaultStore {
         ? undefined
         : { ...file, bytes: file.bytes.slice() };
     },
-    async write(path, file) {
-      files.set(path, { ...file, bytes: file.bytes.slice() });
+    async getRevision() {
+      return revision.toString();
     },
-    async remove(path) {
-      files.delete(path);
+    async mutateAtomic(expectedRevision, mutations) {
+      if (expectedRevision !== revision.toString()) throw new Error('stale test revision');
+      const next = new Map(files);
+      for (const mutation of mutations) {
+        if (mutation.kind === 'remove') next.delete(mutation.path);
+        else next.set(mutation.path, { ...mutation.file, bytes: mutation.file.bytes.slice() });
+      }
+      files.clear();
+      for (const [path, file] of next) files.set(path, file);
+      revision += 1n;
+      return revision.toString();
     },
   };
 }
@@ -61,9 +71,12 @@ it('rolls back a partial browser move when source removal fails', async () => {
   const base = createTestStore();
   const store: BrowserVaultStore = {
     ...base,
-    async remove(path) {
-      if (path === 'Inbox/a.md') throw new DOMException('remove failed', 'UnknownError');
-      await base.remove(path);
+    async mutateAtomic(expectedRevision, mutations) {
+      if (mutations.some((mutation) =>
+        mutation.kind === 'remove' && mutation.path === 'Inbox/a.md')) {
+        throw new DOMException('remove failed', 'UnknownError');
+      }
+      return base.mutateAtomic(expectedRevision, mutations);
     },
   };
   const vault = createBrowserVault('move-rollback', { store });
@@ -209,9 +222,11 @@ it('filters reserved control components already present in its backing store', a
     hash: 'seeded-hash',
     modifiedAt: '2026-07-13T00:00:00.000Z',
   };
-  await store.write('Inbox/visible.md', file);
-  await store.write('.studio-write.lock', file);
-  await store.write('Hidden/.StUdIo-Stage/private.md', file);
+  await store.mutateAtomic(await store.getRevision(), [
+    { kind: 'write', path: 'Inbox/visible.md', file },
+    { kind: 'write', path: '.studio-write.lock', file },
+    { kind: 'write', path: 'Hidden/.StUdIo-Stage/private.md', file },
+  ]);
   const vault = createBrowserVault('seeded-reserved', { store });
 
   await expect(vault.list()).resolves.toEqual([

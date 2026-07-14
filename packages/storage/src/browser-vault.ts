@@ -6,6 +6,8 @@ import {
 import { isPublicNotePath } from './vault-port';
 import type {
   MoveCondition,
+  VaultAtomicWriteBatch,
+  VaultAtomicWriteResult,
   VaultChange,
   VaultEntry,
   VaultPort,
@@ -21,9 +23,16 @@ export interface StoredBrowserFile {
 export interface BrowserVaultStore {
   entries(): Promise<ReadonlyArray<readonly [string, StoredBrowserFile]>>;
   read(path: string): Promise<StoredBrowserFile | undefined>;
-  write(path: string, file: StoredBrowserFile): Promise<void>;
-  remove(path: string): Promise<void>;
+  getRevision(): Promise<string>;
+  mutateAtomic(
+    expectedRevision: string,
+    mutations: readonly BrowserVaultStoreMutation[],
+  ): Promise<string>;
 }
+
+export type BrowserVaultStoreMutation =
+  | { kind: 'write'; path: string; file: StoredBrowserFile }
+  | { kind: 'remove'; path: string };
 
 export interface BrowserVaultOptions {
   store?: BrowserVaultStore;
@@ -241,39 +250,46 @@ class BrowserVault implements VaultPort {
     private readonly storePromise: Promise<BrowserVaultStore>,
   ) {}
 
+  async getRevision(): Promise<string> {
+    return withVaultLock(this.name, async () => (await this.storePromise).getRevision());
+  }
+
   async list(prefix?: string): Promise<VaultEntry[]> {
     if (prefix !== undefined) validatePath(prefix);
-    const store = await this.storePromise;
-    const entries = new Map<string, VaultEntry>();
-    for (const [path, file] of await store.entries()) {
-      try {
-        validatePath(path);
-      } catch {
-        continue;
+    return withVaultLock(this.name, async () => {
+      const store = await this.storePromise;
+      const entries = new Map<string, VaultEntry>();
+      for (const [path, file] of await store.entries()) {
+        try {
+          validatePath(path);
+        } catch {
+          continue;
+        }
+        for (const directory of parentDirectories(path)) {
+          entries.set(directory, { path: directory, kind: 'directory' });
+        }
+        entries.set(path, {
+          path,
+          kind: 'file',
+          size: file.bytes.byteLength,
+          modifiedAt: file.modifiedAt,
+          contentHash: file.hash,
+        });
       }
-      for (const directory of parentDirectories(path)) {
-        entries.set(directory, { path: directory, kind: 'directory' });
-      }
-      entries.set(path, {
-        path,
-        kind: 'file',
-        size: file.bytes.byteLength,
-        modifiedAt: file.modifiedAt,
-        contentHash: file.hash,
-      });
-    }
-    return [...entries.values()]
-      .filter(
-        (entry) =>
-          prefix === undefined ||
-          entry.path === prefix ||
-          entry.path.startsWith(`${prefix}/`),
-      )
-      .sort((left, right) => left.path.localeCompare(right.path, 'en'));
+      return [...entries.values()]
+        .filter(
+          (entry) =>
+            prefix === undefined ||
+            entry.path === prefix ||
+            entry.path.startsWith(`${prefix}/`),
+        )
+        .sort((left, right) => left.path.localeCompare(right.path, 'en'));
+    });
   }
 
   async readText(path: string): Promise<{ text: string; hash: string }> {
-    const file = await this.#requiredFile(validatePath(path));
+    const validPath = validatePath(path);
+    const file = await withVaultLock(this.name, () => this.#requiredFile(validPath));
     try {
       return { text: decoder.decode(file.bytes), hash: file.hash };
     } catch {
@@ -292,7 +308,9 @@ class BrowserVault implements VaultPort {
   }
 
   async readBinary(path: string): Promise<Uint8Array> {
-    return (await this.#requiredFile(validatePath(path))).bytes.slice();
+    const validPath = validatePath(path);
+    return withVaultLock(this.name, async () =>
+      (await this.#requiredFile(validPath)).bytes.slice());
   }
 
   async writeBinaryAtomic(
@@ -320,13 +338,10 @@ class BrowserVault implements VaultPort {
       if ((await store.read(destinationPath)) !== undefined) {
         throw new VaultConflictError();
       }
-      await store.write(destinationPath, file);
-      try {
-        await store.remove(sourcePath);
-      } catch (error) {
-        await store.remove(destinationPath);
-        throw error;
-      }
+      await store.mutateAtomic(await store.getRevision(), [
+        { kind: 'write', path: destinationPath, file },
+        { kind: 'remove', path: sourcePath },
+      ]);
       this.#emit({
         kind: 'moved',
         path: destinationPath,
@@ -357,13 +372,67 @@ class BrowserVault implements VaultPort {
         !(await sameUserState(store, condition.expectedUserState))) {
         throw new VaultConflictError();
       }
-      await store.remove(validPath);
+      await store.mutateAtomic(await store.getRevision(), [{ kind: 'remove', path: validPath }]);
       this.#emit({ kind: 'removed', path: validPath });
     });
   }
 
   async exists(path: string): Promise<boolean> {
-    return (await (await this.storePromise).read(validatePath(path))) !== undefined;
+    const validPath = validatePath(path);
+    return withVaultLock(this.name, async () =>
+      (await (await this.storePromise).read(validPath)) !== undefined);
+  }
+
+  async writeBatchAtomic(input: VaultAtomicWriteBatch): Promise<VaultAtomicWriteResult> {
+    return withVaultLock(this.name, async () => {
+      const store = await this.storePromise;
+      if (await store.getRevision() !== input.expectedRevision) throw new VaultConflictError();
+      const paths = new Set<string>();
+      const prepared = [] as Array<{
+        path: string;
+        hash: string;
+        previous: StoredBrowserFile | undefined;
+        file: StoredBrowserFile;
+      }>;
+      for (const write of input.writes) {
+        const path = validatePath(write.path);
+        if (paths.has(path)) throw new VaultConflictError('A batch cannot write the same path twice.');
+        paths.add(path);
+        if (write.expectedHash !== undefined && write.expectedMissing) {
+          throw new VaultConflictError('A batch write condition is invalid.');
+        }
+        const previous = await store.read(path);
+        if (write.expectedMissing && previous !== undefined) throw new VaultConflictError();
+        if (write.expectedHash !== undefined && previous?.hash !== write.expectedHash) {
+          throw new VaultConflictError();
+        }
+        const bytes = write.bytes.slice();
+        const hash = await digest(bytes);
+        prepared.push({
+          path,
+          hash,
+          previous,
+          file: { bytes, hash, modifiedAt: new Date().toISOString() },
+        });
+      }
+      const revision = prepared.length === 0
+        ? input.expectedRevision
+        : await store.mutateAtomic(
+            input.expectedRevision,
+            prepared.map(({ path, file }) => ({ kind: 'write' as const, path, file })),
+          );
+      for (const write of prepared) {
+        this.#emit({
+          kind: write.previous === undefined ? 'created' : 'modified',
+          path: write.path,
+          hash: write.hash,
+        });
+      }
+      return {
+        revision,
+        results: prepared.map(({ path, hash }) => ({ path, hash })),
+      };
+    });
   }
 
   async watch(listener: (event: VaultChange) => void): Promise<() => void> {
@@ -401,11 +470,11 @@ class BrowserVault implements VaultPort {
       }
       const bytes = sourceBytes.slice();
       const hash = await digest(bytes);
-      await store.write(path, {
-        bytes,
-        hash,
-        modifiedAt: new Date().toISOString(),
-      });
+      await store.mutateAtomic(await store.getRevision(), [{
+        kind: 'write',
+        path,
+        file: { bytes, hash, modifiedAt: new Date().toISOString() },
+      }]);
       this.#emit({
         kind: previous === undefined ? 'created' : 'modified',
         path,
@@ -461,7 +530,7 @@ interface IndexedDbRecord {
 }
 
 async function openVaultDatabase(): Promise<IDBDatabase> {
-  const request = indexedDB.open('the-studio-browser-vaults', 2);
+  const request = indexedDB.open('the-studio-browser-vaults', 3);
   request.addEventListener('upgradeneeded', () => {
     if (!request.result.objectStoreNames.contains('files')) {
       const store = request.result.createObjectStore('files', { keyPath: 'key' });
@@ -469,6 +538,9 @@ async function openVaultDatabase(): Promise<IDBDatabase> {
     }
     if (!request.result.objectStoreNames.contains('backends')) {
       request.result.createObjectStore('backends');
+    }
+    if (!request.result.objectStoreNames.contains('vault-revisions')) {
+      request.result.createObjectStore('vault-revisions');
     }
   });
   return requestResult(request);
@@ -538,26 +610,50 @@ function createIndexedDbStore(name: string): BrowserVaultStore {
             modifiedAt: record.modifiedAt,
           };
     },
-    async write(path, file) {
+    async getRevision() {
       const db = await database;
-      const transaction = db.transaction('files', 'readwrite');
+      const transaction = db.transaction('vault-revisions', 'readonly');
       const complete = transactionComplete(transaction);
-      transaction.objectStore('files').put({
-        key: key(path),
-        vault: name,
-        path,
-        bytes: file.bytes.slice().buffer,
-        hash: file.hash,
-        modifiedAt: file.modifiedAt,
-      } satisfies IndexedDbRecord);
+      const revision = await requestResult(transaction.objectStore('vault-revisions').get(name));
       await complete;
+      return typeof revision === 'string' ? revision : '0';
     },
-    async remove(path) {
+    async mutateAtomic(expectedRevision, mutations) {
       const db = await database;
-      const transaction = db.transaction('files', 'readwrite');
+      const transaction = db.transaction(['files', 'vault-revisions'], 'readwrite');
       const complete = transactionComplete(transaction);
-      transaction.objectStore('files').delete(key(path));
-      await complete;
+      const revisions = transaction.objectStore('vault-revisions');
+      const current = await requestResult(revisions.get(name));
+      const revision = typeof current === 'string' ? current : '0';
+      if (revision !== expectedRevision) {
+        transaction.abort();
+        await complete.catch(() => undefined);
+        throw new VaultConflictError();
+      }
+      const files = transaction.objectStore('files');
+      for (const mutation of mutations) {
+        if (mutation.kind === 'remove') {
+          files.delete(key(mutation.path));
+        } else {
+          files.put({
+            key: key(mutation.path),
+            vault: name,
+            path: mutation.path,
+            bytes: mutation.file.bytes.slice().buffer,
+            hash: mutation.file.hash,
+            modifiedAt: mutation.file.modifiedAt,
+          } satisfies IndexedDbRecord);
+        }
+      }
+      const next = (BigInt(revision) + 1n).toString();
+      revisions.put(next, name);
+      try {
+        await complete;
+      } catch (error) {
+        if (transaction.error?.name === 'AbortError') throw new VaultConflictError();
+        throw error;
+      }
+      return next;
     },
   };
 }
@@ -635,51 +731,89 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
     return results;
   }
 
+  async function readFile(path: string): Promise<StoredBrowserFile | undefined> {
+    try {
+      const { directory, name: filename } = await directoryForPath(root, path, false);
+      const file = await (await directory.getFileHandle(filename)).getFile();
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      return {
+        bytes,
+        hash: await digest(bytes),
+        modifiedAt: new Date(file.lastModified).toISOString(),
+      };
+    } catch (error) {
+      if (isNotFound(error)) return undefined;
+      throw error;
+    }
+  }
+
+  async function writeFile(path: string, file: StoredBrowserFile): Promise<void> {
+    const { directory, name: filename } = await directoryForPath(root, path, true);
+    const writable = await (
+      await directory.getFileHandle(filename, { create: true })
+    ).createWritable();
+    try {
+      await writable.write(file.bytes.slice());
+      await writable.close();
+    } catch (error) {
+      await writable.abort?.();
+      throw error;
+    }
+  }
+
+  async function removeFile(path: string): Promise<void> {
+    const { directory, name: filename } = await directoryForPath(root, path, false);
+    await directory.removeEntry(filename);
+  }
+
+  const revisionPath = '.studio-revision';
+  async function getRevision(): Promise<string> {
+    const revision = await readFile(revisionPath);
+    if (revision === undefined) return '0';
+    const value = decoder.decode(revision.bytes);
+    if (!/^(?:0|[1-9][0-9]*)$/.test(value)) {
+      throw new VaultUnavailableError('The browser vault revision is invalid.');
+    }
+    return value;
+  }
+
   return {
     entries: () => walk(root),
-    async read(path) {
+    read: readFile,
+    getRevision,
+    async mutateAtomic(expectedRevision, mutations) {
+      if (await getRevision() !== expectedRevision) throw new VaultConflictError();
+      const previous = new Map<string, StoredBrowserFile | undefined>();
+      for (const mutation of mutations) {
+        if (!previous.has(mutation.path)) previous.set(mutation.path, await readFile(mutation.path));
+      }
+      const applied: string[] = [];
       try {
-        const { directory, name: filename } = await directoryForPath(
-          root,
-          path,
-          false,
-        );
-        const file = await (await directory.getFileHandle(filename)).getFile();
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        return {
+        for (const mutation of mutations) {
+          if (mutation.kind === 'write') await writeFile(mutation.path, mutation.file);
+          else await removeFile(mutation.path);
+          applied.push(mutation.path);
+        }
+        const next = (BigInt(expectedRevision) + 1n).toString();
+        const bytes = encoder.encode(next);
+        await writeFile(revisionPath, {
           bytes,
           hash: await digest(bytes),
-          modifiedAt: new Date(file.lastModified).toISOString(),
-        };
+          modifiedAt: new Date().toISOString(),
+        });
+        return next;
       } catch (error) {
-        if (isNotFound(error)) return undefined;
+        try {
+          for (const path of [...applied].reverse()) {
+            const prior = previous.get(path);
+            if (prior === undefined) await removeFile(path);
+            else await writeFile(path, prior);
+          }
+        } catch {
+          throw new VaultUnavailableError('The browser vault batch failed and rollback could not restore it.');
+        }
         throw error;
       }
-    },
-    async write(path, file) {
-      const { directory, name: filename } = await directoryForPath(
-        root,
-        path,
-        true,
-      );
-      const writable = await (
-        await directory.getFileHandle(filename, { create: true })
-      ).createWritable();
-      try {
-        await writable.write(file.bytes.slice());
-        await writable.close();
-      } catch (error) {
-        await writable.abort?.();
-        throw error;
-      }
-    },
-    async remove(path) {
-      const { directory, name: filename } = await directoryForPath(
-        root,
-        path,
-        false,
-      );
-      await directory.removeEntry(filename);
     },
   };
 }
