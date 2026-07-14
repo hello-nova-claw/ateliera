@@ -32,6 +32,9 @@ use crate::security::path_guard::{
 
 const VAULT_RECOVERY_ID_PATH: &str = ".studio-vault-id";
 const VAULT_REVISION_PATH: &str = ".studio-revision";
+const BATCH_JOURNAL_PATH: &str = ".studio-batch-journal";
+const BATCH_JOURNAL_MANIFEST: &str = "manifest.json";
+const MAX_JOURNAL_MANIFEST_BYTES: usize = 8 * 1024 * 1024;
 const VAULT_TOKEN_HEADER: &str = "x-studio-vault-token";
 const BATCH_MAGIC: &[u8; 8] = b"STUDIOB1";
 const MAX_BATCH_BYTES: usize = 512 * 1024 * 1024;
@@ -90,6 +93,55 @@ struct AtomicBatch {
     expected_revision: u64,
     expected_user_state: Option<Vec<ExpectedUserState>>,
     writes: Vec<AtomicBatchWrite>,
+}
+
+struct PreparedWrite {
+    path: String,
+    temporary: String,
+    previous: Option<Vec<u8>>,
+    expected_hash: Option<String>,
+    expected_missing: bool,
+    hash: String,
+    bytes: Vec<u8>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum JournalPhase {
+    Preparing,
+    Publishing,
+    Committed,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct BatchJournalEntry {
+    path: String,
+    temporary: String,
+    previous_backup: Option<String>,
+    previous_hash: Option<String>,
+    new_hash: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct BatchJournal {
+    version: u8,
+    original_revision: u64,
+    reserved_revision: u64,
+    phase: JournalPhase,
+    progress: usize,
+    entries: Vec<BatchJournalEntry>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BatchCrashPoint {
+    PreparedManifest,
+    StagedData,
+    PublishingManifest,
+    RevisionReserved,
+    Published(usize),
+    ProgressPersisted(usize),
+    CommittedManifest,
+    JournalRemoved,
 }
 
 #[derive(Serialize)]
@@ -232,6 +284,7 @@ impl VaultRegistry {
             write_lock_file,
             watchers: Mutex::new(HashMap::new()),
         });
+        vault.recover_batch()?;
         vault.get_revision()?;
         let selection = VaultSelection {
             vault_token: Uuid::new_v4().simple().to_string(),
@@ -473,6 +526,22 @@ fn read_file_nofollow(directory: &Dir, basename: &str) -> Result<Vec<u8>, VaultE
     Ok(bytes)
 }
 
+fn read_file_nofollow_bounded(
+    directory: &Dir,
+    basename: &str,
+    maximum: usize,
+) -> Result<Vec<u8>, VaultError> {
+    let mut bytes = Vec::new();
+    open_file_nofollow(directory, basename)?
+        .take((maximum + 1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|_| VaultError::Unavailable)?;
+    if bytes.len() > maximum {
+        return Err(VaultError::Unavailable);
+    }
+    Ok(bytes)
+}
+
 fn sync_directory(directory: &Dir) -> Result<(), VaultError> {
     directory
         .try_clone()
@@ -694,6 +763,265 @@ impl Vault {
     fn get_revision(&self) -> Result<String, VaultError> {
         let _write_guard = self.lock_writes()?;
         Ok(self.revision_locked()?.to_string())
+    }
+
+    fn write_synced_file(directory: &Dir, name: &str, bytes: &[u8]) -> Result<(), VaultError> {
+        let mut options = OpenOptions::new();
+        options
+            .create_new(true)
+            .write(true)
+            .follow(FollowSymlinks::No);
+        let mut file = directory
+            .open_with(name, &options)
+            .map_err(map_path_error)?;
+        file.write_all(bytes).map_err(|_| VaultError::Unavailable)?;
+        file.flush().map_err(|_| VaultError::Unavailable)?;
+        file.sync_all().map_err(|_| VaultError::Unavailable)?;
+        Ok(())
+    }
+
+    fn write_journal_manifest_locked(
+        &self,
+        directory: &Dir,
+        journal: &BatchJournal,
+    ) -> Result<(), VaultError> {
+        let bytes = serde_json::to_vec(journal).map_err(|_| VaultError::Unavailable)?;
+        if bytes.len() > MAX_JOURNAL_MANIFEST_BYTES {
+            return Err(VaultError::Unavailable);
+        }
+        let temporary = format!("manifest-{}.tmp", Uuid::new_v4().simple());
+        Self::write_synced_file(directory, &temporary, &bytes)?;
+        let result = directory
+            .rename(&temporary, directory, BATCH_JOURNAL_MANIFEST)
+            .map_err(map_path_error)
+            .and_then(|_| sync_directory(directory));
+        if result.is_err() {
+            let _ = directory.remove_file(&temporary);
+        }
+        result
+    }
+
+    fn cleanup_batch_journal_locked(&self) -> Result<(), VaultError> {
+        match self.root.symlink_metadata(BATCH_JOURNAL_PATH) {
+            Ok(metadata) if metadata.is_dir() && !metadata.file_type().is_symlink() => self
+                .root
+                .remove_dir_all(BATCH_JOURNAL_PATH)
+                .map_err(map_path_error)?,
+            Ok(_) => self
+                .root
+                .remove_file(BATCH_JOURNAL_PATH)
+                .map_err(map_path_error)?,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(map_path_error(error)),
+        }
+        sync_directory(&self.root)
+    }
+
+    fn validate_journal(journal: &BatchJournal) -> Result<(), VaultError> {
+        if journal.version != 1
+            || journal.entries.is_empty()
+            || journal.entries.len() > MAX_BATCH_WRITES
+            || journal.reserved_revision
+                != journal
+                    .original_revision
+                    .checked_add(1)
+                    .ok_or(VaultError::Unavailable)?
+            || journal.progress > journal.entries.len()
+            || (journal.phase == JournalPhase::Preparing && journal.progress != 0)
+            || (journal.phase == JournalPhase::Committed
+                && journal.progress != journal.entries.len())
+        {
+            return Err(VaultError::Unavailable);
+        }
+        let mut paths = HashSet::with_capacity(journal.entries.len());
+        for (index, entry) in journal.entries.iter().enumerate() {
+            validate_relative(&entry.path)?;
+            if entry.path.len() > 1024
+                || !paths.insert(&entry.path)
+                || !entry.temporary.starts_with(".studio-")
+                || !entry.temporary.ends_with(".tmp")
+                || entry.temporary.len() > 96
+                || entry.temporary.contains('/')
+                || !is_canonical_hash(&entry.new_hash)
+                || entry
+                    .previous_hash
+                    .as_deref()
+                    .is_some_and(|value| !is_canonical_hash(value))
+                || entry.previous_backup.as_deref()
+                    != entry
+                        .previous_hash
+                        .as_ref()
+                        .map(|_| format!("previous-{index}.bin"))
+                        .as_deref()
+            {
+                return Err(VaultError::Unavailable);
+            }
+        }
+        Ok(())
+    }
+
+    fn read_journal_locked(&self) -> Result<Option<(Dir, BatchJournal)>, VaultError> {
+        let metadata = match self.root.symlink_metadata(BATCH_JOURNAL_PATH) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(map_path_error(error)),
+        };
+        if !metadata.is_dir() || metadata.file_type().is_symlink() {
+            return Err(VaultError::Unavailable);
+        }
+        let directory = self
+            .root
+            .open_dir_nofollow(BATCH_JOURNAL_PATH)
+            .map_err(map_path_error)?;
+        let mut bytes = Vec::new();
+        open_file_nofollow(&directory, BATCH_JOURNAL_MANIFEST)?
+            .take((MAX_JOURNAL_MANIFEST_BYTES + 1) as u64)
+            .read_to_end(&mut bytes)
+            .map_err(|_| VaultError::Unavailable)?;
+        if bytes.len() > MAX_JOURNAL_MANIFEST_BYTES {
+            return Err(VaultError::Unavailable);
+        }
+        let journal: BatchJournal =
+            serde_json::from_slice(&bytes).map_err(|_| VaultError::Unavailable)?;
+        Self::validate_journal(&journal)?;
+        Ok(Some((directory, journal)))
+    }
+
+    fn cleanup_staged_temps_locked(&self, journal: &BatchJournal) -> Result<(), VaultError> {
+        for entry in &journal.entries {
+            let parent = match open_parent(&self.root, &entry.path, false) {
+                Ok(parent) => parent,
+                Err(VaultError::Unavailable) => continue,
+                Err(error) => return Err(error),
+            };
+            match parent.directory.symlink_metadata(&entry.temporary) {
+                Ok(_) => {
+                    parent
+                        .directory
+                        .remove_file(&entry.temporary)
+                        .map_err(map_path_error)?;
+                    sync_directory(&parent.directory)?;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => return Err(map_path_error(error)),
+            }
+        }
+        Ok(())
+    }
+
+    fn read_optional_target_locked(&self, path: &str) -> Result<Option<Vec<u8>>, VaultError> {
+        let parent = match open_parent(&self.root, path, false) {
+            Ok(parent) => parent,
+            Err(VaultError::Unavailable) => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        match parent.directory.symlink_metadata(&parent.basename) {
+            Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => Ok(Some(
+                read_file_nofollow_bounded(&parent.directory, &parent.basename, MAX_BATCH_BYTES)?,
+            )),
+            Ok(_) => Err(VaultError::PathEscape),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(map_path_error(error)),
+        }
+    }
+
+    fn recover_journal_locked(
+        &self,
+        directory: &Dir,
+        journal: &BatchJournal,
+    ) -> Result<(), VaultError> {
+        let current_revision = self.revision_locked()?;
+        if current_revision != journal.original_revision
+            && current_revision != journal.reserved_revision
+        {
+            return Err(VaultError::Unavailable);
+        }
+        if journal.phase == JournalPhase::Preparing && current_revision != journal.original_revision
+        {
+            return Err(VaultError::Unavailable);
+        }
+        if journal.phase == JournalPhase::Committed {
+            if current_revision != journal.reserved_revision {
+                return Err(VaultError::Unavailable);
+            }
+            for entry in &journal.entries {
+                let current = self
+                    .read_optional_target_locked(&entry.path)?
+                    .ok_or(VaultError::Unavailable)?;
+                if hash(&current) != entry.new_hash {
+                    return Err(VaultError::Unavailable);
+                }
+            }
+        } else if journal.phase == JournalPhase::Publishing {
+            let mut backup_bytes = 0usize;
+            for entry in journal.entries.iter().rev() {
+                let current = self.read_optional_target_locked(&entry.path)?;
+                match (&entry.previous_backup, &entry.previous_hash) {
+                    (Some(backup), Some(previous_hash)) => {
+                        let previous = read_file_nofollow_bounded(
+                            directory,
+                            backup,
+                            MAX_BATCH_BYTES.saturating_sub(backup_bytes),
+                        )?;
+                        backup_bytes = backup_bytes
+                            .checked_add(previous.len())
+                            .ok_or(VaultError::Unavailable)?;
+                        if backup_bytes > MAX_BATCH_BYTES || hash(&previous) != *previous_hash {
+                            return Err(VaultError::Unavailable);
+                        }
+                        match current {
+                            Some(bytes) if hash(&bytes) == entry.new_hash => {
+                                self.publish_bytes_locked(&entry.path, &previous)?;
+                            }
+                            Some(bytes) if hash(&bytes) == *previous_hash => {}
+                            None => self.publish_bytes_locked(&entry.path, &previous)?,
+                            _ => return Err(VaultError::Unavailable),
+                        }
+                    }
+                    (None, None) => match current {
+                        Some(bytes) if hash(&bytes) == entry.new_hash => {
+                            let parent = open_parent(&self.root, &entry.path, false)?;
+                            parent
+                                .directory
+                                .remove_file(&parent.basename)
+                                .map_err(map_path_error)?;
+                            sync_directory(&parent.directory)?;
+                        }
+                        None => {}
+                        _ => return Err(VaultError::Unavailable),
+                    },
+                    _ => return Err(VaultError::Unavailable),
+                }
+            }
+            if current_revision == journal.original_revision {
+                self.write_internal_locked(
+                    VAULT_REVISION_PATH,
+                    journal.reserved_revision.to_string().as_bytes(),
+                )?;
+            }
+        }
+        self.cleanup_staged_temps_locked(journal)?;
+        self.cleanup_batch_journal_locked()
+    }
+
+    fn recover_batch(&self) -> Result<(), VaultError> {
+        let _write_guard = self.lock_writes()?;
+        let journal = match self.read_journal_locked() {
+            Ok(journal) => journal,
+            Err(error) => {
+                let _ = self.cleanup_batch_journal_locked();
+                return Err(error);
+            }
+        };
+        let Some((directory, journal)) = journal else {
+            return Ok(());
+        };
+        let recovery = self.recover_journal_locked(&directory, &journal);
+        if recovery.is_err() && journal.phase == JournalPhase::Preparing {
+            let _ = self.cleanup_staged_temps_locked(&journal);
+            let _ = self.cleanup_batch_journal_locked();
+        }
+        recovery
     }
 
     fn require_expected_hash(
@@ -974,26 +1302,29 @@ impl Vault {
         batch: AtomicBatch,
         fail_before_publication: Option<usize>,
         after_publication: Option<&dyn Fn(usize)>,
+        crash_point: Option<BatchCrashPoint>,
     ) -> Result<AtomicBatchResult, VaultError> {
-        struct PreparedWrite {
-            path: String,
-            temporary: String,
-            previous: Option<Vec<u8>>,
-            expected_hash: Option<String>,
-            expected_missing: bool,
-            hash: String,
-        }
-
         if batch.writes.is_empty() || batch.writes.len() > MAX_BATCH_WRITES {
             return Err(VaultError::Unavailable);
         }
+        batch.writes.iter().try_fold(0usize, |total, write| {
+            total
+                .checked_add(write.bytes.len())
+                .filter(|value| *value <= MAX_BATCH_BYTES)
+                .ok_or(VaultError::Unavailable)
+        })?;
         let _write_guard = self.lock_writes()?;
+        match self.root.symlink_metadata(BATCH_JOURNAL_PATH) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            _ => return Err(VaultError::Unavailable),
+        }
         if self.revision_locked()? != batch.expected_revision {
             return Err(VaultError::Conflict);
         }
         self.require_user_state(batch.expected_user_state.as_deref())?;
         let mut seen = HashSet::with_capacity(batch.writes.len());
         let mut prepared: Vec<PreparedWrite> = Vec::with_capacity(batch.writes.len());
+        let mut previous_bytes = 0usize;
         for write in batch.writes {
             if !seen.insert(write.path.clone()) {
                 for write in &prepared {
@@ -1013,77 +1344,111 @@ impl Vault {
                 )?;
                 let previous = match parent.directory.symlink_metadata(&parent.basename) {
                     Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => {
-                        Some(read_file_nofollow(&parent.directory, &parent.basename)?)
+                        Some(read_file_nofollow_bounded(
+                            &parent.directory,
+                            &parent.basename,
+                            MAX_BATCH_BYTES.saturating_sub(previous_bytes),
+                        )?)
                     }
                     Ok(_) => return Err(VaultError::PathEscape),
                     Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
                     Err(error) => return Err(map_path_error(error)),
                 };
-                let temporary = format!(".studio-{}.tmp", Uuid::new_v4().simple());
-                let mut options = OpenOptions::new();
-                options
-                    .create_new(true)
-                    .write(true)
-                    .follow(FollowSymlinks::No);
-                let mut file = parent
-                    .directory
-                    .open_with(&temporary, &options)
-                    .map_err(map_path_error)?;
-                let write_result = file
-                    .write_all(&write.bytes)
-                    .and_then(|_| file.flush())
-                    .and_then(|_| file.sync_all());
-                if let Err(error) = write_result {
-                    let _ = parent.directory.remove_file(&temporary);
-                    return Err(map_path_error(error));
-                }
                 Ok(PreparedWrite {
                     path: write.path,
-                    temporary,
+                    temporary: format!(".studio-{}.tmp", Uuid::new_v4().simple()),
                     previous,
                     expected_hash: write.expected_hash,
                     expected_missing: write.expected_missing,
                     hash: hash(&write.bytes),
+                    bytes: write.bytes,
                 })
             })();
             match prepare_result {
-                Ok(write) => prepared.push(write),
+                Ok(write) => {
+                    previous_bytes += write.previous.as_ref().map_or(0, Vec::len);
+                    prepared.push(write);
+                }
                 Err(error) => {
-                    for write in &prepared {
-                        if let Ok(parent) = open_parent(&self.root, &write.path, false) {
-                            let _ = parent.directory.remove_file(&write.temporary);
-                        }
-                    }
                     return Err(error);
                 }
             }
         }
 
-        if let Err(error) = self.require_user_state(batch.expected_user_state.as_deref()) {
-            for write in &prepared {
-                if let Ok(parent) = open_parent(&self.root, &write.path, false) {
-                    let _ = parent.directory.remove_file(&write.temporary);
-                }
-            }
+        self.require_user_state(batch.expected_user_state.as_deref())?;
+        let reserved_revision = batch
+            .expected_revision
+            .checked_add(1)
+            .ok_or(VaultError::Unavailable)?;
+        let mut journal = BatchJournal {
+            version: 1,
+            original_revision: batch.expected_revision,
+            reserved_revision,
+            phase: JournalPhase::Preparing,
+            progress: 0,
+            entries: prepared
+                .iter()
+                .enumerate()
+                .map(|(index, write)| BatchJournalEntry {
+                    path: write.path.clone(),
+                    temporary: write.temporary.clone(),
+                    previous_backup: write
+                        .previous
+                        .as_ref()
+                        .map(|_| format!("previous-{index}.bin")),
+                    previous_hash: write.previous.as_ref().map(|bytes| hash(bytes)),
+                    new_hash: write.hash.clone(),
+                })
+                .collect(),
+        };
+        self.root
+            .create_dir(BATCH_JOURNAL_PATH)
+            .map_err(map_path_error)?;
+        sync_directory(&self.root)?;
+        let journal_directory = self
+            .root
+            .open_dir_nofollow(BATCH_JOURNAL_PATH)
+            .map_err(map_path_error)?;
+        if let Err(error) = self.write_journal_manifest_locked(&journal_directory, &journal) {
+            let _ = self.cleanup_batch_journal_locked();
             return Err(error);
         }
-        let revision = match self.reserve_revision_locked() {
-            Ok(revision) => revision,
-            Err(error) => {
-                for write in &prepared {
-                    if let Ok(parent) = open_parent(&self.root, &write.path, false) {
-                        let _ = parent.directory.remove_file(&write.temporary);
-                    }
-                }
-                return Err(error);
-            }
-        };
-        let mut applied = Vec::new();
-        let publish_result = (|| {
+        if crash_point == Some(BatchCrashPoint::PreparedManifest) {
+            return Err(VaultError::Unavailable);
+        }
+
+        let stage_result = (|| {
+            let mut backup_bytes = 0usize;
             for (index, write) in prepared.iter().enumerate() {
-                if fail_before_publication == Some(index) {
-                    return Err(VaultError::Unavailable);
+                let parent = open_parent(&self.root, &write.path, true)?;
+                Self::write_synced_file(&parent.directory, &write.temporary, &write.bytes)?;
+                sync_directory(&parent.directory)?;
+                if let Some(previous) = &write.previous {
+                    backup_bytes = backup_bytes
+                        .checked_add(previous.len())
+                        .ok_or(VaultError::Unavailable)?;
+                    if backup_bytes > MAX_BATCH_BYTES {
+                        return Err(VaultError::Unavailable);
+                    }
+                    Self::write_synced_file(
+                        &journal_directory,
+                        &format!("previous-{index}.bin"),
+                        previous,
+                    )?;
                 }
+            }
+            sync_directory(&journal_directory)
+        })();
+        if let Err(error) = stage_result {
+            let _ = self.cleanup_staged_temps_locked(&journal);
+            let _ = self.cleanup_batch_journal_locked();
+            return Err(error);
+        }
+        if crash_point == Some(BatchCrashPoint::StagedData) {
+            return Err(VaultError::Unavailable);
+        }
+        let conditions = (|| {
+            for write in &prepared {
                 let parent = open_parent(&self.root, &write.path, true)?;
                 Self::require_write_condition(
                     &parent.directory,
@@ -1091,74 +1456,109 @@ impl Vault {
                     write.expected_hash.as_deref(),
                     write.expected_missing,
                 )?;
+            }
+            self.require_user_state(batch.expected_user_state.as_deref())
+        })();
+        if let Err(error) = conditions {
+            let _ = self.cleanup_staged_temps_locked(&journal);
+            let _ = self.cleanup_batch_journal_locked();
+            return Err(error);
+        }
+        journal.phase = JournalPhase::Publishing;
+        if let Err(error) = self.write_journal_manifest_locked(&journal_directory, &journal) {
+            let _ = self.cleanup_staged_temps_locked(&journal);
+            let _ = self.cleanup_batch_journal_locked();
+            return Err(error);
+        }
+        if crash_point == Some(BatchCrashPoint::PublishingManifest) {
+            return Err(VaultError::Unavailable);
+        }
+        let revision = match self.reserve_revision_locked() {
+            Ok(revision) if revision == reserved_revision => revision,
+            Ok(_) => return Err(VaultError::Unavailable),
+            Err(error) => {
+                let _ = self.recover_journal_locked(&journal_directory, &journal);
+                return Err(error);
+            }
+        };
+        if crash_point == Some(BatchCrashPoint::RevisionReserved) {
+            return Err(VaultError::Unavailable);
+        }
+
+        enum PublicationFailure {
+            Runtime(VaultError),
+            Crash,
+        }
+        let publish_result: Result<(), PublicationFailure> = (|| {
+            for (index, write) in prepared.iter().enumerate() {
+                if fail_before_publication == Some(index) {
+                    return Err(PublicationFailure::Runtime(VaultError::Unavailable));
+                }
+                let parent = open_parent(&self.root, &write.path, true)
+                    .map_err(PublicationFailure::Runtime)?;
+                Self::require_write_condition(
+                    &parent.directory,
+                    &parent.basename,
+                    write.expected_hash.as_deref(),
+                    write.expected_missing,
+                )
+                .map_err(PublicationFailure::Runtime)?;
                 if write.expected_missing {
                     rename_exclusive(
                         &parent.directory,
                         &write.temporary,
                         &parent.directory,
                         &parent.basename,
-                    )?;
+                    )
+                    .map_err(PublicationFailure::Runtime)?;
                 } else {
                     parent
                         .directory
                         .rename(&write.temporary, &parent.directory, &parent.basename)
-                        .map_err(map_path_error)?;
+                        .map_err(map_path_error)
+                        .map_err(PublicationFailure::Runtime)?;
                 }
-                applied.push(index);
-                sync_directory(&parent.directory)?;
+                sync_directory(&parent.directory).map_err(PublicationFailure::Runtime)?;
+                if crash_point == Some(BatchCrashPoint::Published(index)) {
+                    return Err(PublicationFailure::Crash);
+                }
                 if let Some(callback) = after_publication {
                     callback(index);
+                }
+                journal.progress = index + 1;
+                self.write_journal_manifest_locked(&journal_directory, &journal)
+                    .map_err(PublicationFailure::Runtime)?;
+                if crash_point == Some(BatchCrashPoint::ProgressPersisted(index)) {
+                    return Err(PublicationFailure::Crash);
                 }
             }
             Ok(())
         })();
-
-        if let Err(error) = publish_result {
-            let mut rollback_failed = false;
-            for index in applied.into_iter().rev() {
-                let write = &prepared[index];
-                let rollback = if let Some(previous) = &write.previous {
-                    match open_parent(&self.root, &write.path, false).and_then(|parent| {
-                        Self::require_expected_hash(
-                            &parent.directory,
-                            &parent.basename,
-                            &write.hash,
-                        )
-                    }) {
-                        Ok(()) => self.publish_bytes_locked(&write.path, previous),
-                        Err(error) => Err(error),
-                    }
-                } else {
-                    match open_parent(&self.root, &write.path, false) {
-                        Ok(parent) => Self::require_expected_hash(
-                            &parent.directory,
-                            &parent.basename,
-                            &write.hash,
-                        )
-                        .and_then(|_| {
-                            parent
-                                .directory
-                                .remove_file(&parent.basename)
-                                .map_err(map_path_error)
-                        })
-                        .and_then(|_| sync_directory(&parent.directory)),
-                        Err(error) => Err(error),
-                    }
+        match publish_result {
+            Ok(()) => {}
+            Err(PublicationFailure::Crash) => return Err(VaultError::Unavailable),
+            Err(PublicationFailure::Runtime(error)) => {
+                return match self.recover_journal_locked(&journal_directory, &journal) {
+                    Ok(()) => Err(error),
+                    Err(_) => Err(VaultError::Unavailable),
                 };
-                if rollback.is_err() {
-                    rollback_failed = true;
-                }
             }
-            for write in &prepared {
-                if let Ok(parent) = open_parent(&self.root, &write.path, false) {
-                    let _ = parent.directory.remove_file(&write.temporary);
-                }
-            }
-            return Err(if rollback_failed {
-                VaultError::Unavailable
-            } else {
-                error
-            });
+        }
+
+        journal.phase = JournalPhase::Committed;
+        journal.progress = journal.entries.len();
+        if let Err(error) = self.write_journal_manifest_locked(&journal_directory, &journal) {
+            return match self.recover_journal_locked(&journal_directory, &journal) {
+                Ok(()) => Err(error),
+                Err(_) => Err(VaultError::Unavailable),
+            };
+        }
+        if crash_point == Some(BatchCrashPoint::CommittedManifest) {
+            return Err(VaultError::Unavailable);
+        }
+        self.cleanup_batch_journal_locked()?;
+        if crash_point == Some(BatchCrashPoint::JournalRemoved) {
+            return Err(VaultError::Unavailable);
         }
 
         Ok(AtomicBatchResult {
@@ -1174,7 +1574,7 @@ impl Vault {
     }
 
     fn write_batch_atomic(&self, batch: AtomicBatch) -> Result<AtomicBatchResult, VaultError> {
-        self.write_batch_atomic_inner(batch, None, None)
+        self.write_batch_atomic_inner(batch, None, None, None)
     }
 
     fn user_note_state(&self) -> Result<Vec<ExpectedUserState>, VaultError> {
@@ -1842,6 +2242,47 @@ mod tests {
         bytes.extend_from_slice(value.as_bytes());
     }
 
+    fn crash_test_batch(expected_revision: u64) -> AtomicBatch {
+        AtomicBatch {
+            expected_revision,
+            expected_user_state: None,
+            writes: vec![
+                AtomicBatchWrite {
+                    path: "first.md".into(),
+                    bytes: b"after".to_vec(),
+                    expected_hash: Some(hash(b"before")),
+                    expected_missing: false,
+                },
+                AtomicBatchWrite {
+                    path: "second.bin".into(),
+                    bytes: b"new".to_vec(),
+                    expected_hash: None,
+                    expected_missing: true,
+                },
+            ],
+        }
+    }
+
+    fn assert_no_transaction_leaks(path: &Path) {
+        fn walk(path: &Path, leaks: &mut Vec<String>) {
+            for entry in std::fs::read_dir(path).unwrap() {
+                let entry = entry.unwrap();
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if name == BATCH_JOURNAL_PATH
+                    || (name.starts_with(".studio-") && name.ends_with(".tmp"))
+                {
+                    leaks.push(entry.path().display().to_string());
+                }
+                if entry.file_type().unwrap().is_dir() {
+                    walk(&entry.path(), leaks);
+                }
+            }
+        }
+        let mut leaks = Vec::new();
+        walk(path, &mut leaks);
+        assert!(leaks.is_empty(), "transaction leaks: {leaks:?}");
+    }
+
     #[test]
     fn raw_batch_envelope_preserves_binary_bytes_without_json_expansion() {
         let mut bytes = BATCH_MAGIC.to_vec();
@@ -1902,8 +2343,169 @@ mod tests {
     }
 
     #[test]
+    fn restart_recovery_exposes_only_all_old_or_all_new_at_every_boundary() {
+        let points = [
+            (BatchCrashPoint::PreparedManifest, false, false),
+            (BatchCrashPoint::StagedData, false, false),
+            (BatchCrashPoint::PublishingManifest, false, true),
+            (BatchCrashPoint::RevisionReserved, false, true),
+            (BatchCrashPoint::Published(0), false, true),
+            (BatchCrashPoint::ProgressPersisted(0), false, true),
+            (BatchCrashPoint::Published(1), false, true),
+            (BatchCrashPoint::ProgressPersisted(1), false, true),
+            (BatchCrashPoint::CommittedManifest, true, true),
+            (BatchCrashPoint::JournalRemoved, true, true),
+        ];
+        for (point, expect_new, expect_reserved_revision) in points {
+            let (directory, vault) = selected_vault();
+            vault
+                .write_text_atomic("first.md", "before", None, false, None)
+                .unwrap();
+            let original_revision = parse_revision(&vault.get_revision().unwrap()).unwrap();
+            assert!(matches!(
+                vault.write_batch_atomic_inner(
+                    crash_test_batch(original_revision),
+                    None,
+                    None,
+                    Some(point),
+                ),
+                Err(VaultError::Unavailable)
+            ));
+            drop(vault);
+
+            let reopened = VaultRegistry::default();
+            let selection = reopened
+                .register_selected_path("reopen", directory.path())
+                .unwrap();
+            let recovered = reopened.vault("reopen", &selection.vault_token).unwrap();
+            assert_eq!(
+                recovered.read_binary("first.md").unwrap(),
+                if expect_new {
+                    b"after".as_slice()
+                } else {
+                    b"before".as_slice()
+                },
+                "crash point {point:?}"
+            );
+            assert_eq!(
+                recovered.exists("second.bin").unwrap(),
+                expect_new,
+                "crash point {point:?}"
+            );
+            assert_eq!(
+                parse_revision(&recovered.get_revision().unwrap()).unwrap(),
+                original_revision + u64::from(expect_reserved_revision),
+                "crash point {point:?}"
+            );
+            drop(recovered);
+            drop(reopened);
+
+            let reopened_again = VaultRegistry::default();
+            let second_selection = reopened_again
+                .register_selected_path("again", directory.path())
+                .unwrap();
+            let second_recovery = reopened_again
+                .vault("again", &second_selection.vault_token)
+                .unwrap();
+            assert_eq!(
+                second_recovery.read_binary("first.md").unwrap(),
+                if expect_new {
+                    b"after".as_slice()
+                } else {
+                    b"before".as_slice()
+                }
+            );
+            assert_eq!(second_recovery.exists("second.bin").unwrap(), expect_new);
+            assert_eq!(
+                parse_revision(&second_recovery.get_revision().unwrap()).unwrap(),
+                original_revision + u64::from(expect_reserved_revision)
+            );
+            assert_no_transaction_leaks(directory.path());
+        }
+    }
+
+    #[test]
+    fn forged_and_oversized_journals_are_rejected_and_removed() {
+        for manifest in [
+            serde_json::json!({
+                "version": 1,
+                "original_revision": 0,
+                "reserved_revision": 1,
+                "phase": "publishing",
+                "progress": 0,
+                "entries": [{
+                    "path": "../outside.md",
+                    "temporary": ".studio-forged.tmp",
+                    "previous_backup": null,
+                    "previous_hash": null,
+                    "new_hash": "a".repeat(64),
+                }]
+            })
+            .to_string()
+            .into_bytes(),
+            vec![b'x'; MAX_JOURNAL_MANIFEST_BYTES + 1],
+        ] {
+            let directory = tempfile::tempdir().unwrap();
+            let initial = VaultRegistry::default();
+            initial
+                .register_selected_path("initial", directory.path())
+                .unwrap();
+            drop(initial);
+            let journal = directory.path().join(BATCH_JOURNAL_PATH);
+            std::fs::create_dir(&journal).unwrap();
+            std::fs::write(journal.join(BATCH_JOURNAL_MANIFEST), manifest).unwrap();
+
+            assert!(matches!(
+                VaultRegistry::default().register_selected_path("forged", directory.path()),
+                Err(VaultError::Unavailable | VaultError::PathEscape)
+            ));
+            assert!(!journal.exists());
+        }
+    }
+
+    #[test]
+    fn journal_control_files_never_appear_in_public_list_or_watch_snapshots() {
+        let (directory, vault) = selected_vault();
+        vault
+            .write_text_atomic("first.md", "before", None, false, None)
+            .unwrap();
+        let revision = parse_revision(&vault.get_revision().unwrap()).unwrap();
+        assert!(
+            vault
+                .write_batch_atomic_inner(
+                    crash_test_batch(revision),
+                    None,
+                    None,
+                    Some(BatchCrashPoint::PreparedManifest),
+                )
+                .is_err()
+        );
+        assert!(directory.path().join(BATCH_JOURNAL_PATH).exists());
+
+        assert!(
+            vault
+                .list(None)
+                .unwrap()
+                .iter()
+                .all(|entry| !entry.path.starts_with(".studio-"))
+        );
+        assert!(
+            vault
+                .snapshot()
+                .unwrap()
+                .keys()
+                .all(|path| !path.starts_with(".studio-"))
+        );
+        drop(vault);
+        VaultRegistry::default()
+            .register_selected_path("recover", directory.path())
+            .unwrap();
+        assert_no_transaction_leaks(directory.path());
+    }
+
+    #[test]
     fn atomic_batch_rolls_back_every_published_file_on_failure() {
-        let (_directory, vault) = selected_vault();
+        let (directory, vault) = selected_vault();
         vault
             .write_text_atomic("first.md", "before", None, false, None)
             .unwrap();
@@ -1929,17 +2531,19 @@ mod tests {
             },
             Some(1),
             None,
+            None,
         );
 
         assert!(matches!(result, Err(VaultError::Unavailable)));
         assert_eq!(vault.read_binary("first.md").unwrap(), b"before");
         assert!(!vault.exists("second.bin").unwrap());
         assert!(parse_revision(&vault.get_revision().unwrap()).unwrap() > expected_revision);
+        assert_no_transaction_leaks(directory.path());
     }
 
     #[test]
     fn atomic_batch_publishes_all_files_under_one_revision() {
-        let (_directory, vault) = selected_vault();
+        let (directory, vault) = selected_vault();
         let expected_revision = parse_revision(&vault.get_revision().unwrap()).unwrap();
         let result = vault
             .write_batch_atomic(AtomicBatch {
@@ -1971,6 +2575,7 @@ mod tests {
             vault.read_binary(".studio/assets/two.bin").unwrap(),
             vec![0, 255, 7]
         );
+        assert_no_transaction_leaks(directory.path());
     }
 
     #[test]
@@ -2009,6 +2614,7 @@ mod tests {
                 },
                 None,
                 Some(&after_publication),
+                None,
             );
             batch_done.send(result).unwrap();
         });
