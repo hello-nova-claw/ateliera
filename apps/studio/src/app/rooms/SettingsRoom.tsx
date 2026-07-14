@@ -14,11 +14,19 @@ import {
 } from '../../features/settings/PortabilitySettings';
 
 export interface SettingsRoomProps {
-  saveBackup?: (backup: VaultBackup) => Promise<void>;
+  saveBackup?: (
+    backup: VaultBackup,
+  ) => Promise<void | 'cancelled' | 'saved'>;
   vault?: VaultPort;
 }
 
-async function downloadBackup(backup: VaultBackup): Promise<void> {
+async function saveBackupToChosenDestination(
+  backup: VaultBackup,
+): Promise<'cancelled' | 'saved'> {
+  if ('__TAURI_INTERNALS__' in window) {
+    const { saveTauriVaultBackup } = await import('@studio/storage/tauri');
+    return saveTauriVaultBackup(backup.bytes, backup.fileName);
+  }
   const blob = new Blob([backup.bytes.slice().buffer], {
     type: 'application/zip',
   });
@@ -29,6 +37,7 @@ async function downloadBackup(backup: VaultBackup): Promise<void> {
   anchor.rel = 'noopener';
   anchor.click();
   queueMicrotask(() => URL.revokeObjectURL(url));
+  return 'saved';
 }
 
 function previewFor(file: File, plan: VaultImportPlan): PortabilityPreview {
@@ -53,7 +62,7 @@ function previewFor(file: File, plan: VaultImportPlan): PortabilityPreview {
 }
 
 export default function SettingsRoom({
-  saveBackup = downloadBackup,
+  saveBackup = saveBackupToChosenDestination,
   vault,
 }: SettingsRoomProps) {
   const pendingPlan = useRef<VaultImportPlan | undefined>(undefined);
@@ -65,7 +74,7 @@ export default function SettingsRoom({
           ? {}
           : {
               onExport: async () => {
-                await saveBackup(
+                return saveBackup(
                   await createVaultBackup(vault, { reason: 'manual' }),
                 );
               },

@@ -35,6 +35,16 @@ it('offers a portable backup without productivity language', async () => {
   expect(screen.queryByText(/streak|overdue|progress/i)).not.toBeInTheDocument();
 });
 
+it('treats a cancelled native destination as a calm non-operation', async () => {
+  render(<PortabilitySettings onExport={vi.fn(async () => 'cancelled' as const)} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Download portable backup' }));
+
+  expect(await screen.findByRole('status')).toHaveTextContent(
+    'Backup cancelled. Nothing was changed',
+  );
+  expect(screen.queryByText('Your portable backup is ready')).not.toBeInTheDocument();
+});
+
 it('validates a ZIP before presenting an exact restore preview', async () => {
   const onPrepareRestore = vi.fn(async () => preview);
   render(<PortabilitySettings onPrepareRestore={onPrepareRestore} />);

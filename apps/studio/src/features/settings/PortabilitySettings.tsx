@@ -18,7 +18,7 @@ export interface PortabilityPreview {
 }
 
 export interface PortabilitySettingsProps {
-  onExport?: () => Promise<void>;
+  onExport?: () => Promise<void | 'cancelled' | 'saved'>;
   onPrepareRestore?: (file: File) => Promise<PortabilityPreview>;
   onRestore?: (
     preview: PortabilityPreview,
@@ -63,8 +63,12 @@ export function PortabilitySettings({
     setError(undefined);
     setMessage(undefined);
     try {
-      await onExport();
-      setMessage('Your portable backup is ready. Keep it somewhere you trust.');
+      const result = await onExport();
+      setMessage(
+        result === 'cancelled'
+          ? 'Backup cancelled. Nothing was changed.'
+          : 'Your portable backup is ready. Keep it somewhere you trust.',
+      );
     } catch (reason) {
       setError(
         reason instanceof Error
