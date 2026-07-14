@@ -1,5 +1,5 @@
 import type { StudioSearchRepairItem } from '@studio/application';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { RepairPanel } from './RepairPanel';
@@ -33,6 +33,7 @@ describe('RepairPanel', () => {
   it('shows exact metadata errors and the untouched raw body before repair', () => {
     render(<RepairPanel items={[metadata]} />);
     expect(screen.getByText('id · Required')).toBeVisible();
+    fireEvent.click(screen.getByText('Read the untouched body'));
     expect(screen.getByText(/Words remain/)).toBeVisible();
     expect(screen.getByDisplayValue('Kept title')).toBeVisible();
   });
@@ -43,6 +44,7 @@ describe('RepairPanel', () => {
     fireEvent.change(screen.getByLabelText('Stable note ID'), { target: { value: 'repaired-note' } });
     fireEvent.change(screen.getByLabelText('Card type'), { target: { value: 'reflection' } });
     fireEvent.click(screen.getByRole('button', { name: 'Repair metadata' }));
+    await screen.findByRole('status');
     expect(onRepairMetadata).toHaveBeenCalledWith(
       metadata,
       expect.objectContaining({
@@ -59,8 +61,9 @@ describe('RepairPanel', () => {
     render(<RepairPanel items={[broken]} onRepairLink={onRepairLink} />);
     expect(screen.getByText(/candidate-a/)).toBeVisible();
     fireEvent.change(screen.getByLabelText('New target'), { target: { value: 'Known place' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Relink' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Relink' }));
+    const relink = screen.getByRole('button', { name: 'Relink' });
+    fireEvent.click(relink);
+    fireEvent.click(relink);
     expect(onRepairLink).toHaveBeenCalledTimes(1);
     expect(onRepairLink).toHaveBeenCalledWith(broken, { kind: 'wiki', target: 'Known place' });
     expect(screen.getByRole('button', { name: 'Remove link' })).toBeDisabled();
@@ -72,7 +75,7 @@ describe('RepairPanel', () => {
     const remove = screen.getByRole('button', { name: 'Remove link' });
     fireEvent.click(remove);
     expect(await screen.findByRole('alert')).toHaveTextContent('Both versions have been preserved.');
-    expect(remove).toHaveFocus();
+    await waitFor(() => expect(remove).toHaveFocus());
   });
 
   it('renders a calm empty repair state', () => {
