@@ -323,6 +323,105 @@ describe('Uncharted and Reflection Garden application behavior', () => {
     ]);
   });
 
+  it('resolves season and life-area evidence through canonical target state', async () => {
+    const vault = await seed([
+      {
+        path: 'Current Season/winter.md',
+        note: note({
+          id: 'season-note-winter',
+          title: 'A Spacious Winter',
+          cardType: 'season',
+          semanticType: 'vision',
+          status: 'active',
+          rooms: ['current-season'],
+          extraFrontmatter: { season_id: 'winter-canonical' },
+        }),
+      },
+      {
+        path: 'Archive/Current Season/summer.md',
+        note: note({
+          id: 'season-note-summer',
+          title: 'The Summer of Making',
+          cardType: 'season',
+          semanticType: 'vision',
+          status: 'archived',
+          rooms: ['current-season'],
+          extraFrontmatter: { season_id: 'summer-canonical' },
+        }),
+      },
+      {
+        path: 'Current Season/draft.md',
+        note: note({
+          id: 'season-note-draft',
+          title: 'An Unfinished Season',
+          cardType: 'season',
+          semanticType: 'vision',
+          status: 'draft',
+          rooms: ['current-season'],
+          extraFrontmatter: { season_id: 'draft-canonical' },
+        }),
+      },
+      {
+        path: 'Reflection Garden/Reflections/canonical-evidence.md',
+        note: note({
+          id: 'canonical-evidence',
+          semanticType: 'reflection',
+          rooms: ['reflection-garden'],
+          lifeAreas: ['home', 'family', 'retired-area'],
+          seasons: [
+            'winter-canonical',
+            'summer-canonical',
+            'draft-canonical',
+            'season-note-winter',
+            'missing-season',
+          ],
+        }),
+      },
+    ]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    const initial = await service.lifeAreas.load();
+    await service.lifeAreas.save(
+      [
+        { id: 'home', title: 'Our Home', hidden: false, order: 0 },
+        { id: 'family', title: 'Family Life', hidden: true, order: 1 },
+      ],
+      initial.revision,
+    );
+
+    expect(
+      (await service.projectReflectionGarden()).cards[0]?.evidenceConnections,
+    ).toEqual([
+      {
+        kind: 'life-area',
+        id: 'home',
+        label: 'Our Home',
+        targetState: 'available',
+      },
+      {
+        kind: 'life-area',
+        id: 'family',
+        label: 'Family Life',
+        targetState: 'archived',
+      },
+      { kind: 'life-area', id: 'retired-area', targetState: 'missing' },
+      {
+        kind: 'season',
+        id: 'winter-canonical',
+        label: 'A Spacious Winter',
+        targetState: 'available',
+      },
+      {
+        kind: 'season',
+        id: 'summer-canonical',
+        label: 'The Summer of Making',
+        targetState: 'archived',
+      },
+      { kind: 'season', id: 'draft-canonical', targetState: 'missing' },
+      { kind: 'season', id: 'season-note-winter', targetState: 'missing' },
+      { kind: 'season', id: 'missing-season', targetState: 'missing' },
+    ]);
+  });
+
   it('adds canonical evidence links once with exact CAS and unknown-key fidelity', async () => {
     const vault = await seed([
       {
