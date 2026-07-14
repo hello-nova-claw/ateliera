@@ -17,6 +17,7 @@ describe('portable vault export', () => {
     await source.writeBinaryAtomic('Attachments/hill.jpg', new Uint8Array([0xff, 0xd8, 0xff]));
     await source.writeTextAtomic('.studio/settings/theme.json', '{"theme":"chamomile"}');
     await source.writeTextAtomic('.studio/config/landscape-areas.json', '{"areas":["home"]}');
+    await source.writeTextAtomic('.studio/Trash/note-2/old.md', '# Recoverable words\n');
     await source.writeTextAtomic('.studio/index/search.sqlite', 'disposable');
     await source.writeTextAtomic('.studio/import-stage/old/file.md', 'transient');
 
@@ -27,6 +28,7 @@ describe('portable vault export', () => {
     expect(await snapshot(target)).toEqual([
       ['.studio/config/landscape-areas.json', new TextEncoder().encode('{"areas":["home"]}')],
       ['.studio/settings/theme.json', new TextEncoder().encode('{"theme":"chamomile"}')],
+      ['.studio/Trash/note-2/old.md', new TextEncoder().encode('# Recoverable words\n')],
       ['Attachments/hill.jpg', new Uint8Array([0xff, 0xd8, 0xff])],
       ['Foyer/vision.md', new TextEncoder().encode('---\nschema_version: 1\nid: note-1\n---\n# Vision\n')],
     ]);

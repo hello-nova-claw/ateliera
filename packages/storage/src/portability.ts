@@ -110,7 +110,8 @@ export function exportDisposition(path: string): ExportDisposition {
     lower === '.studio/settings.json' ||
     lower === '.studio/config.json' ||
     lower.startsWith('.studio/settings/') ||
-    lower.startsWith('.studio/config/')
+    lower.startsWith('.studio/config/') ||
+    lower.startsWith('.studio/trash/')
   ) return 'include';
   if (
     lower.startsWith('.studio/index/') ||
