@@ -49,9 +49,22 @@ export interface BrowserVaultStoreMetadata {
   hash?: string;
 }
 
+export type BrowserVaultStoreExpectedFile =
+  | { present: false }
+  | { present: true; hash: string };
+
 export type BrowserVaultStoreMutation =
-  | { kind: 'write'; path: string; file: StoredBrowserFile }
-  | { kind: 'remove'; path: string };
+  | {
+      kind: 'write';
+      path: string;
+      file: StoredBrowserFile;
+      expectedBefore?: BrowserVaultStoreExpectedFile;
+    }
+  | {
+      kind: 'remove';
+      path: string;
+      expectedBefore?: BrowserVaultStoreExpectedFile;
+    };
 
 export interface BrowserVaultOptions {
   store?: BrowserVaultStore;
@@ -216,6 +229,19 @@ async function digest(bytes: Uint8Array): Promise<string> {
 
 function cloneFile(file: StoredBrowserFile): StoredBrowserFile {
   return { ...file, bytes: file.bytes.slice() };
+}
+
+function expectedFile(
+  file: StoredBrowserFile | undefined,
+): BrowserVaultStoreExpectedFile {
+  return file === undefined ? { present: false } : { present: true, hash: file.hash };
+}
+
+function matchesExpectedFile(
+  file: StoredBrowserFile | undefined,
+  expected: BrowserVaultStoreExpectedFile,
+): boolean {
+  return expected.present ? file?.hash === expected.hash : file === undefined;
 }
 
 interface OpfsJournalState {
@@ -493,8 +519,17 @@ class BrowserVault implements VaultPort {
         throw new VaultConflictError();
       }
       await store.mutateAtomic(await store.getRevision(), [
-        { kind: 'write', path: destinationPath, file },
-        { kind: 'remove', path: sourcePath },
+        {
+          kind: 'write',
+          path: destinationPath,
+          file,
+          expectedBefore: { present: false },
+        },
+        {
+          kind: 'remove',
+          path: sourcePath,
+          expectedBefore: expectedFile(file),
+        },
       ]);
       this.#emit({
         kind: 'moved',
@@ -526,7 +561,11 @@ class BrowserVault implements VaultPort {
         !(await sameUserState(store, condition.expectedUserState))) {
         throw new VaultConflictError();
       }
-      await store.mutateAtomic(await store.getRevision(), [{ kind: 'remove', path: validPath }]);
+      await store.mutateAtomic(await store.getRevision(), [{
+        kind: 'remove',
+        path: validPath,
+        expectedBefore: expectedFile(previous),
+      }]);
       this.#emit({ kind: 'removed', path: validPath });
     });
   }
@@ -609,7 +648,12 @@ class BrowserVault implements VaultPort {
         ? snapshot.expectedRevision
         : await store.mutateAtomic(
             snapshot.expectedRevision,
-            prepared.map(({ path, file }) => ({ kind: 'write' as const, path, file })),
+            prepared.map(({ path, file, previous }) => ({
+              kind: 'write' as const,
+              path,
+              file,
+              expectedBefore: expectedFile(previous),
+            })),
           );
       for (const write of prepared) {
         this.#emit({
@@ -664,6 +708,7 @@ class BrowserVault implements VaultPort {
         kind: 'write',
         path,
         file: { bytes, hash, modifiedAt: new Date().toISOString() },
+        expectedBefore: expectedFile(previous),
       }]);
       this.#emit({
         kind: previous === undefined ? 'created' : 'modified',
@@ -821,6 +866,20 @@ function createIndexedDbStore(name: string): BrowserVaultStore {
         throw new VaultConflictError();
       }
       const files = transaction.objectStore('files');
+      for (const mutation of mutations) {
+        if (mutation.expectedBefore === undefined) continue;
+        const record = (await requestResult(
+          files.get(key(mutation.path)),
+        )) as IndexedDbRecord | undefined;
+        const matches = mutation.expectedBefore.present
+          ? record?.hash === mutation.expectedBefore.hash
+          : record === undefined;
+        if (!matches) {
+          transaction.abort();
+          await complete.catch(() => undefined);
+          throw new VaultConflictError();
+        }
+      }
       for (const mutation of mutations) {
         if (mutation.kind === 'remove') {
           files.delete(key(mutation.path));
@@ -1347,6 +1406,12 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
       let journalBytes = 0;
       for (const mutation of mutations) {
         const before = previousFiles.get(mutation.path);
+        if (mutation.expectedBefore !== undefined &&
+          !matchesExpectedFile(before, mutation.expectedBefore)) {
+          throw new VaultConflictError(
+            'A vault entry changed after its write condition was validated.',
+          );
+        }
         const after = mutation.kind === 'write' ? cloneFile(mutation.file) : undefined;
         journalBytes += (before?.bytes.byteLength ?? 0) + (after?.bytes.byteLength ?? 0);
         if (!Number.isSafeInteger(journalBytes) || journalBytes > MAX_ATOMIC_JOURNAL_BYTES) {
@@ -1374,6 +1439,7 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
         })),
       };
       let manifestDurable = false;
+      let publicationStarted = false;
       try {
         await removeJournal();
         for (const [index, entry] of prepared.entries()) {
@@ -1400,6 +1466,22 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
           modifiedAt: new Date().toISOString(),
         });
         manifestDurable = true;
+        const publicationSnapshot = await readManyBounded([...paths], {
+          maximumFileBytes: MAX_ATOMIC_FILE_BYTES,
+          maximumTotalBytes: MAX_ATOMIC_JOURNAL_BYTES,
+          reservedBytes: 0,
+        });
+        for (const entry of prepared) {
+          if (!matchesExpectedFile(
+            publicationSnapshot.get(entry.mutation.path),
+            expectedFile(entry.before),
+          )) {
+            throw new VaultConflictError(
+              'A vault entry changed before atomic publication.',
+            );
+          }
+        }
+        publicationStarted = true;
         for (const [index, entry] of prepared.entries()) {
           if (entry.after === undefined) await removePublishedFile(entry.mutation.path);
           else await publishFile(entry.mutation.path, entry.after);
@@ -1420,7 +1502,7 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
         return nextRevision;
       } catch (error) {
         try {
-          if (manifestDurable) await recoverJournal();
+          if (manifestDurable && publicationStarted) await recoverJournal();
           else await removeJournal();
         } catch {
           throw new VaultUnavailableError(

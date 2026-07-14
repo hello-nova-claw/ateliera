@@ -760,6 +760,36 @@ describe('OPFS crash recovery', () => {
     }
   });
 
+  it('removes its unpublished journal when a target changes immediately before publication', async () => {
+    const opfs = new MemoryOpfs();
+    const name = 'atomic-prepublication-race';
+    const root = `the-studio/${name}`;
+    const target = `${root}/Inbox/existing.md`;
+    opfs.put(target, 'original');
+    opfs.put(`${root}/.studio-revision`, '0');
+    let targetLookups = 0;
+    opfs.beforeFileLookup = (path) => {
+      if (path === target && ++targetLookups === 9) opfs.put(target, 'late external replacement');
+    };
+    vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
+    try {
+      const vault = createBrowserVault(name, { storage: 'opfs' });
+      await expect(vault.writeBatchAtomic({
+        expectedRevision: '0',
+        writes: [{
+          path: 'Inbox/existing.md',
+          bytes: new TextEncoder().encode('application write'),
+          expectedHash: await checksum('original'),
+        }],
+      })).rejects.toBeInstanceOf(VaultConflictError);
+      expect(opfs.text(target)).toBe('late external replacement');
+      expect(opfs.text(`${root}/.studio-revision`)).toBe('0');
+      expect([...opfs.files.keys()].some((file) => file.includes('.studio-opfs-batch'))).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('holds the public vault lock for recovery so a live reader cannot observe a partial state', async () => {
     const opfs = new MemoryOpfs();
     const name = 'crash-live-reader';
