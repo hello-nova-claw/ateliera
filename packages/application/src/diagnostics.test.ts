@@ -127,6 +127,7 @@ describe('content-redacted diagnostics', () => {
   });
 
   it('fails closed when report metadata is malformed', () => {
+    expect(() => buildDiagnostics(null as never)).toThrow('Invalid diagnostics input.');
     expect(() => buildDiagnostics({ generatedAt: 'private words', entries: [] })).toThrow(
       'Invalid diagnostics input.',
     );
@@ -137,6 +138,14 @@ describe('content-redacted diagnostics', () => {
       generatedAt,
       entries: Array.from({ length: 10_001 }),
     })).toThrow('Invalid diagnostics input.');
+    const hostileEntries = new Proxy<unknown[]>([], {
+      ownKeys() {
+        throw new Error('/Users/anna/PRIVATE-array');
+      },
+    });
+    expect(() => buildDiagnostics({ generatedAt, entries: hostileEntries })).toThrow(
+      'Invalid diagnostics input.',
+    );
   });
 
   it('extracts only an own, technical error code and never an error message or stack', () => {
