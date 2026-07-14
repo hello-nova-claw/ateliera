@@ -285,3 +285,11 @@
 - Added a shared synchronous action guard for native and browser onboarding. Repeated Create/Open activation cannot start overlapping storage scans or Studio services, both choices remain disabled while work is pending, and cancellation or failure always unlocks the interface.
 - The reported 15 GB was the pre-existing Documents folder being scanned after it was mistakenly registered as the Studio; the app did not create or copy 15 GB. The incorrect attempt wrote only three small hidden Studio control files at that folder root.
 - Regression coverage proves named native creation, cancellation, collision safety, retryable failure cleanup, specific same-name guidance, browser duplicate-action serialization, and user-facing terminology. Focused verification passed 52 Rust tests and 227 app/storage tests; independent re-review found no remaining P0–P2 issues.
+
+## 2026-07-14 — Native Studio open guard
+
+- Added an explicit native Studio-space marker to newly created Studio folders. Opening an existing Studio now validates the marker, or a conservative legacy Studio shape, before registration can start recursive listing, hashing, watching, or index rebuild work.
+- A parent folder accidentally left with old Studio control files is rejected before registration when its top-level shape is not plausibly a Studio. The reproduced Documents-style case keeps the capability registry empty and avoids the expensive scan that previously made the app appear unresponsive.
+- First startup now returns after the Studio watcher is ready and runs the initial disposable index rebuild in the background. The UI can enter the Studio while Search and derived projections continue to report their rebuilding state.
+- Malformed Studio markers fail closed rather than falling back to legacy handling. Created Studios remain reopenable across process restarts with the same recovery identity.
+- Regression coverage now proves marker creation, reopen, suspicious-parent rejection, malformed-marker rejection, and nonblocking startup while the first index rebuild is still running. Verification passed 55 Rust tests, app startup tests, typecheck, ESLint/stylelint, `cargo fmt --check`, and `cargo clippy -D warnings`.

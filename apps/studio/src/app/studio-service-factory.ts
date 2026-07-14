@@ -27,17 +27,27 @@ export function createAppStudioService(
   const lifecycle = createStudioService({ vault, index });
   const search = createStudioSearchService({ vault, index });
   let initialRebuildComplete = false;
+  let initialRebuildPromise: Promise<void> | undefined;
   let startPromise: Promise<void> | undefined;
   let disposePromise: Promise<void> | undefined;
+  const startInitialRebuild = (): void => {
+    initialRebuildPromise ??= lifecycle.rebuildIndex()
+      .then(() => {
+        initialRebuildComplete = true;
+      })
+      .catch((error: unknown) => {
+        initialRebuildPromise = undefined;
+        throw error;
+      });
+    void initialRebuildPromise.catch(() => undefined);
+  };
   return {
     ...lifecycle,
     ...search,
     start() {
-      startPromise ??= (async () => {
-        await lifecycle.start();
-        await lifecycle.rebuildIndex();
-        initialRebuildComplete = true;
-      })().catch((error: unknown) => {
+      startPromise ??= lifecycle.start().then(() => {
+        startInitialRebuild();
+      }).catch((error: unknown) => {
         startPromise = undefined;
         throw error;
       });
@@ -53,6 +63,7 @@ export function createAppStudioService(
         try {
           await lifecycle.dispose();
         } finally {
+          await initialRebuildPromise?.catch(() => undefined);
           await index.close();
         }
       })();

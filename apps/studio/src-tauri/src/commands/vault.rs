@@ -33,6 +33,7 @@ use crate::security::path_guard::{
 
 const VAULT_RECOVERY_ID_PATH: &str = ".studio-vault-id";
 const VAULT_REVISION_PATH: &str = ".studio-revision";
+const STUDIO_SPACE_MARKER_PATH: &str = ".studio-space";
 const BATCH_JOURNAL_PATH: &str = ".studio-batch-journal";
 const BATCH_JOURNAL_MANIFEST: &str = "manifest.json";
 const MAX_JOURNAL_MANIFEST_BYTES: usize = 8 * 1024 * 1024;
@@ -43,6 +44,8 @@ const MAX_BATCH_WRITES: usize = 9_999;
 const MAX_PORTABLE_ENTRY_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_BINARY_CHUNK_BYTES: usize = 4 * 1024 * 1024;
 const HASH_BUFFER_BYTES: usize = 64 * 1024;
+const LEGACY_STUDIO_ROOT_ENTRY_LIMIT: usize = 200;
+const STUDIO_SPACE_MARKER: &[u8] = b"{\"schema_version\":1,\"kind\":\"studio-space\"}\n";
 
 fn is_user_note_path(path: &str) -> bool {
     if path.to_ascii_lowercase().starts_with(".studio/") {
@@ -305,6 +308,7 @@ impl VaultRegistry {
         Ok(selection)
     }
 
+    #[cfg(test)]
     fn register_selected_path(
         &self,
         owner: &str,
@@ -314,6 +318,19 @@ impl VaultRegistry {
         // retain the resulting directory descriptor; later commands never reopen this path.
         let root = Dir::open_ambient_dir(selected_path, ambient_authority())
             .map_err(|_| VaultError::Unavailable)?;
+        self.register_directory(owner, root)
+    }
+
+    fn register_existing_path(
+        &self,
+        owner: &str,
+        selected_path: &Path,
+    ) -> Result<VaultSelection, VaultError> {
+        // Opening must not silently convert an arbitrary folder into a Studio. Validate the
+        // cheap top-level shape before registration can start recursive listing or watching.
+        let root = Dir::open_ambient_dir(selected_path, ambient_authority())
+            .map_err(|_| VaultError::Unavailable)?;
+        validate_existing_studio_space(&root)?;
         self.register_directory(owner, root)
     }
 
@@ -337,6 +354,10 @@ impl VaultRegistry {
                 return Err(map_path_error(error));
             }
         };
+        if let Err(error) = write_studio_space_marker(&root) {
+            let _ = parent.remove_dir_all(&staging_name);
+            return Err(error);
+        }
         let (selection, registered) = match Self::prepare_directory(owner, root) {
             Ok(prepared) => prepared,
             Err(error) => {
@@ -401,6 +422,15 @@ impl VaultRegistry {
     }
 
     #[cfg(test)]
+    pub fn register_existing_path_for_test(
+        &self,
+        owner: &str,
+        path: &Path,
+    ) -> Result<VaultSelection, VaultError> {
+        self.register_existing_path(owner, path)
+    }
+
+    #[cfg(test)]
     pub fn vault_for_test(&self, owner: &str, token: &str) -> Result<Arc<Vault>, VaultError> {
         self.vault(owner, token)
     }
@@ -420,6 +450,73 @@ fn normalize_studio_folder_name(name: &str) -> Result<String, VaultError> {
         return Err(VaultError::PathEscape);
     }
     Ok(normalized)
+}
+
+fn write_studio_space_marker(root: &Dir) -> Result<(), VaultError> {
+    let mut options = OpenOptions::new();
+    options
+        .write(true)
+        .create_new(true)
+        .follow(FollowSymlinks::No);
+    let mut file = root
+        .open_with(STUDIO_SPACE_MARKER_PATH, &options)
+        .map_err(map_path_error)?;
+    file.write_all(STUDIO_SPACE_MARKER)
+        .map_err(|_| VaultError::Unavailable)?;
+    Ok(())
+}
+
+fn validate_existing_studio_space(root: &Dir) -> Result<(), VaultError> {
+    if has_valid_studio_space_marker(root)? {
+        return Ok(());
+    }
+    if !has_existing_file(root, VAULT_RECOVERY_ID_PATH)? {
+        return Err(VaultError::Unavailable);
+    }
+    if legacy_studio_space_is_plausible(root)? {
+        return Ok(());
+    }
+    Err(VaultError::Unavailable)
+}
+
+fn has_valid_studio_space_marker(root: &Dir) -> Result<bool, VaultError> {
+    match read_file_nofollow_bounded(root, STUDIO_SPACE_MARKER_PATH, 1024) {
+        Ok(bytes) if bytes == STUDIO_SPACE_MARKER => Ok(true),
+        Ok(_) => Err(VaultError::Unavailable),
+        Err(VaultError::PathEscape | VaultError::Unavailable)
+            if !has_existing_file(root, STUDIO_SPACE_MARKER_PATH)? =>
+        {
+            Ok(false)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn has_existing_file(root: &Dir, basename: &str) -> Result<bool, VaultError> {
+    match root.symlink_metadata(basename) {
+        Ok(metadata) => Ok(metadata.is_file() && !metadata.file_type().is_symlink()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(map_path_error(error)),
+    }
+}
+
+fn legacy_studio_space_is_plausible(root: &Dir) -> Result<bool, VaultError> {
+    let mut user_entries = 0usize;
+    for entry in root.entries().map_err(|_| VaultError::Unavailable)? {
+        let entry = entry.map_err(|_| VaultError::Unavailable)?;
+        let name = entry
+            .file_name()
+            .into_string()
+            .map_err(|_| VaultError::Unavailable)?;
+        if is_internal_component(&name) {
+            continue;
+        }
+        user_entries = user_entries.checked_add(1).ok_or(VaultError::Unavailable)?;
+        if user_entries > LEGACY_STUDIO_ROOT_ENTRY_LIMIT {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 fn hash(bytes: &[u8]) -> String {
@@ -2516,7 +2613,7 @@ pub fn vault_select<R: Runtime>(
     else {
         return Ok(None);
     };
-    Ok(Some(state.register_selected_path(window.label(), &path)?))
+    Ok(Some(state.register_existing_path(window.label(), &path)?))
 }
 
 #[tauri::command]
@@ -2767,6 +2864,10 @@ mod tests {
             .unwrap();
         let studio_path = parent.path().join("My Studio");
         assert!(studio_path.is_dir());
+        assert_eq!(
+            std::fs::read(studio_path.join(STUDIO_SPACE_MARKER_PATH)).unwrap(),
+            STUDIO_SPACE_MARKER
+        );
         assert_eq!(registry.capability_count_for_test(), 1);
         assert_eq!(
             selection.recovery_identity,
@@ -2786,6 +2887,21 @@ mod tests {
     }
 
     #[test]
+    fn created_studio_can_be_opened_as_an_existing_studio() {
+        let parent = tempfile::tempdir().unwrap();
+        let created = VaultRegistry::default()
+            .create_in_selected_parent("create", parent.path(), "My Studio")
+            .unwrap();
+        let studio_path = parent.path().join("My Studio");
+
+        let opened = VaultRegistry::default()
+            .register_existing_path_for_test("open", &studio_path)
+            .unwrap();
+
+        assert_eq!(opened.recovery_identity, created.recovery_identity);
+    }
+
+    #[test]
     fn failed_studio_initialization_leaves_no_named_or_staging_folder() {
         let parent = tempfile::tempdir().unwrap();
         let registry = VaultRegistry::default();
@@ -2800,6 +2916,50 @@ mod tests {
         ));
         assert!(!parent.path().join("My Studio").exists());
         assert_eq!(std::fs::read_dir(parent.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn existing_selection_rejects_a_persisted_parent_folder_before_registration() {
+        let directory = tempfile::tempdir().unwrap();
+        std::fs::write(
+            directory.path().join(VAULT_RECOVERY_ID_PATH),
+            Uuid::new_v4().simple().to_string(),
+        )
+        .unwrap();
+        std::fs::write(directory.path().join(VAULT_REVISION_PATH), "1").unwrap();
+        std::fs::write(directory.path().join(".studio-write.lock"), "").unwrap();
+        for index in 0..220 {
+            std::fs::write(directory.path().join(format!("ordinary-{index}.txt")), "x").unwrap();
+        }
+
+        let registry = VaultRegistry::default();
+        assert!(matches!(
+            registry.register_existing_path_for_test("main", directory.path()),
+            Err(VaultError::Unavailable)
+        ));
+        assert_eq!(registry.capability_count_for_test(), 0);
+    }
+
+    #[test]
+    fn existing_selection_rejects_a_malformed_studio_marker() {
+        let directory = tempfile::tempdir().unwrap();
+        std::fs::write(
+            directory.path().join(STUDIO_SPACE_MARKER_PATH),
+            "not a marker",
+        )
+        .unwrap();
+        std::fs::write(
+            directory.path().join(VAULT_RECOVERY_ID_PATH),
+            Uuid::new_v4().simple().to_string(),
+        )
+        .unwrap();
+
+        let registry = VaultRegistry::default();
+        assert!(matches!(
+            registry.register_existing_path_for_test("main", directory.path()),
+            Err(VaultError::Unavailable)
+        ));
+        assert_eq!(registry.capability_count_for_test(), 0);
     }
 
     fn selected_vault() -> (tempfile::TempDir, Arc<Vault>) {

@@ -37,7 +37,7 @@ function index(): IndexPort & {
 }
 
 describe('createAppStudioService', () => {
-  it('rebuilds the disposable worker index from canonical Markdown on start', async () => {
+  it('starts the Studio before the disposable worker index finishes rebuilding', async () => {
     const vault = createInMemoryVault();
     await vault.writeTextAtomic('Reflection Garden/existing.md', `---
 schema_version: 1
@@ -58,13 +58,27 @@ privacy: { sensitivity: private, ai_access: ask }
 Already here.
 `, { expectedMissing: true });
     const workerIndex = index();
+    let finishRebuild: (() => void) | undefined;
+    workerIndex.rebuild = vi.fn(
+      async (next) =>
+        new Promise<void>((resolve) => {
+          finishRebuild = () => {
+            workerIndex.entries.clear();
+            for (const entry of next) workerIndex.entries.set(entry.note.id, entry);
+            resolve();
+          };
+        }),
+    );
     const service = createAppStudioService(vault, () => workerIndex);
 
     expect(service.indexState()).toBe('rebuilding');
     await service.start();
+    expect(service.indexState()).toBe('rebuilding');
+    await vi.waitFor(() => expect(workerIndex.rebuild).toHaveBeenCalledOnce());
 
+    finishRebuild?.();
+    await vi.waitFor(() => expect(service.indexState()).toBe('ready'));
     expect(service.indexState()).toBe('ready');
-    expect(workerIndex.rebuild).toHaveBeenCalledOnce();
     expect([...workerIndex.entries]).toEqual([
       ['existing-note', expect.objectContaining({ path: 'Reflection Garden/existing.md' })],
     ]);
