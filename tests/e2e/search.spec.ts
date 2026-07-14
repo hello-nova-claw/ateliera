@@ -243,9 +243,24 @@ test('opens an existing Studio and starts its search worker entirely from the of
   browserName,
   context,
   page,
-}) => {
+}, testInfo) => {
+  test.skip(
+    browserName === 'webkit',
+    'WebKit exposes module-worker loading to context.route as XHR and Web Inspector blocks it before the service worker; Chromium proves the cold precache path.',
+  );
   const browserErrors: string[] = [];
+  const consoleMessages: string[] = [];
+  const failedRequests: string[] = [];
+  const routedRequests: string[] = [];
   page.on('pageerror', (error) => browserErrors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error' || message.type() === 'warning') {
+      consoleMessages.push(`${message.type()}: ${message.text()}`);
+    }
+  });
+  page.on('requestfailed', (request) => failedRequests.push(
+    `${request.resourceType()} ${request.url()} · ${request.failure()?.errorText ?? 'failed'}`,
+  ));
   await page.addInitScript(() => {
     Object.defineProperty(navigator.storage, 'getDirectory', {
       configurable: true,
@@ -337,18 +352,46 @@ test('opens an existing Studio and starts its search worker entirely from the of
   expect(precache.required).toHaveLength(3);
   expect(precache.missing).toEqual([]);
 
-  await context.route('**/*', (route) =>
-    route.request().resourceType() === 'document'
+  await context.route('**/*', (route) => {
+    const request = route.request();
+    routedRequests.push(`${request.resourceType()} ${request.url()}`);
+    return request.resourceType() === 'document'
       ? route.continue()
-      : route.abort('internetdisconnected'),
-  );
+      : route.abort('internetdisconnected');
+  });
   if (browserName !== 'webkit') await context.setOffline(true);
 
   await page.getByRole('button', { name: 'Open Cold Search Studio' }).click();
   await openSearch(page);
   const search = page.getByRole('searchbox', { name: 'Search your Studio' });
   await search.fill('lantern');
-  await expect(page.getByRole('article', { name: 'A note waiting offline' })).toBeVisible();
+  try {
+    await expect(page.getByRole('article', { name: 'A note waiting offline' })).toBeVisible({
+      timeout: 15_000,
+    });
+  } catch (error) {
+    const runtime = await page.evaluate(async () => ({
+      cacheNames: await caches.keys(),
+      controller: navigator.serviceWorker.controller?.scriptURL ?? null,
+      status: document.querySelector('.search-page__error, .search-page__loading, .search-page__notice')
+        ?.textContent?.trim() ?? null,
+    }));
+    const diagnostics = JSON.stringify({
+      browserErrors,
+      consoleMessages,
+      failedRequests,
+      routedRequests,
+      runtime,
+    }, null, 2);
+    await testInfo.attach('cold-offline-diagnostics.json', {
+      body: diagnostics,
+      contentType: 'application/json',
+    });
+    throw new Error(
+      `${error instanceof Error ? error.message : 'Cold offline search failed.'}\n${diagnostics}`,
+      { cause: error },
+    );
+  }
   if (browserName !== 'webkit') {
     await expect(page.getByText('Stored locally · Search is still available offline.')).toBeVisible();
   }
