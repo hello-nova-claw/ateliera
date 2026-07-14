@@ -275,6 +275,26 @@ describe('portable vault import', () => {
     });
   });
 
+  it('revalidates final note-ID ownership before publishing a prepared plan', async () => {
+    const source = createInMemoryVault();
+    await source.writeTextAtomic('Inbox/new.md', note('new-id', 'incoming'));
+    const target = createInMemoryVault();
+    await target.writeTextAtomic('Archive/existing.md', note('stable-id', 'keep existing'));
+    const plan = await prepareVaultImport(target, await exportVault(source));
+    const duplicate = new TextEncoder().encode(note('stable-id', 'tampered incoming'));
+    const duplicateHash = await sha256(duplicate);
+    (plan.files as Map<string, Uint8Array>).set('Inbox/new.md', duplicate);
+    Object.assign(plan.items[0] as object, { sha256: duplicateHash });
+
+    await expect(applyVaultImport(target, plan, { confirm: true })).rejects.toMatchObject({
+      code: 'path-collision',
+    });
+    await expect(target.exists('Inbox/new.md')).resolves.toBe(false);
+    await expect(target.readText('Archive/existing.md')).resolves.toMatchObject({
+      text: note('stable-id', 'keep existing'),
+    });
+  });
+
   it('validates every checksum before mutating the target', async () => {
     const source = createInMemoryVault();
     await source.writeTextAtomic('Inbox/note.md', note('safe', 'safe'));
