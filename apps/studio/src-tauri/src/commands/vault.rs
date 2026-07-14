@@ -263,7 +263,10 @@ pub struct VaultRegistry {
 }
 
 impl VaultRegistry {
-    fn register_directory(&self, owner: &str, root: Dir) -> Result<VaultSelection, VaultError> {
+    fn prepare_directory(
+        owner: &str,
+        root: Dir,
+    ) -> Result<(VaultSelection, RegisteredVault), VaultError> {
         let mut lock_options = OpenOptions::new();
         lock_options
             .read(true)
@@ -286,16 +289,19 @@ impl VaultRegistry {
             vault_token: Uuid::new_v4().simple().to_string(),
             recovery_identity: vault.recovery_identity()?,
         };
+        let registered = RegisteredVault {
+            owner: owner.to_owned(),
+            vault,
+        };
+        Ok((selection, registered))
+    }
+
+    fn register_directory(&self, owner: &str, root: Dir) -> Result<VaultSelection, VaultError> {
+        let (selection, registered) = Self::prepare_directory(owner, root)?;
         self.vaults
             .lock()
             .map_err(|_| VaultError::Unavailable)?
-            .insert(
-                selection.vault_token.clone(),
-                RegisteredVault {
-                    owner: owner.to_owned(),
-                    vault,
-                },
-            );
+            .insert(selection.vault_token.clone(), registered);
         Ok(selection)
     }
 
@@ -320,17 +326,38 @@ impl VaultRegistry {
         let folder_name = normalize_studio_folder_name(name)?;
         let parent = Dir::open_ambient_dir(selected_parent, ambient_authority())
             .map_err(|_| VaultError::Unavailable)?;
-        match parent.create_dir(&folder_name) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                return Err(VaultError::Conflict);
+        let staging_name = format!(".studio-create-{}", Uuid::new_v4().simple());
+        parent
+            .create_dir(&staging_name)
+            .map_err(|_| VaultError::Unavailable)?;
+        let root = match parent.open_dir_nofollow(&staging_name) {
+            Ok(root) => root,
+            Err(error) => {
+                let _ = parent.remove_dir_all(&staging_name);
+                return Err(map_path_error(error));
             }
-            Err(_) => return Err(VaultError::Unavailable),
+        };
+        let (selection, registered) = match Self::prepare_directory(owner, root) {
+            Ok(prepared) => prepared,
+            Err(error) => {
+                let _ = parent.remove_dir_all(&staging_name);
+                return Err(error);
+            }
+        };
+        let mut vaults = match self.vaults.lock() {
+            Ok(vaults) => vaults,
+            Err(_) => {
+                let _ = parent.remove_dir_all(&staging_name);
+                return Err(VaultError::Unavailable);
+            }
+        };
+        if let Err(error) = rename_exclusive(&parent, &staging_name, &parent, &folder_name) {
+            drop(vaults);
+            let _ = parent.remove_dir_all(&staging_name);
+            return Err(error);
         }
-        let root = parent
-            .open_dir_nofollow(&folder_name)
-            .map_err(map_path_error)?;
-        self.register_directory(owner, root)
+        vaults.insert(selection.vault_token.clone(), registered);
+        Ok(selection)
     }
 
     fn vault(&self, owner: &str, token: &str) -> Result<Arc<Vault>, VaultError> {
@@ -2755,6 +2782,7 @@ mod tests {
             Err(VaultError::Conflict)
         ));
         assert_eq!(registry.capability_count_for_test(), 1);
+        assert_eq!(std::fs::read_dir(parent.path()).unwrap().count(), 1);
     }
 
     #[test]
