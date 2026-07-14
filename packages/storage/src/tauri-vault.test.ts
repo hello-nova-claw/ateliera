@@ -108,17 +108,23 @@ describe('Tauri vault IPC adapter', () => {
     });
     const vault = await selectTauriVault(bridge(invoke));
 
-    await vault?.writeTextAtomic('note.md', 'text', { expectedMissing: true });
+    const expectedUserState = [{ path: 'Inbox/observed.md', hash: 'note-hash' }];
+    await vault?.writeTextAtomic('note.md', 'text', {
+      expectedMissing: true,
+      expectedUserState,
+    });
     expect(invoke).toHaveBeenLastCalledWith('vault_write_text_atomic', {
       vaultToken: token,
       path: 'note.md',
       text: 'text',
       expectedHash: undefined,
       expectedMissing: true,
+      expectedUserState,
     });
     await vault?.writeBinaryAtomic('asset.bin', new Uint8Array([1, 2]), {
       expectedHash: 'binary-hash',
       expectedMissing: true,
+      expectedUserState,
     });
     expect(invoke).toHaveBeenLastCalledWith('vault_write_binary_atomic', {
       vaultToken: token,
@@ -126,16 +132,19 @@ describe('Tauri vault IPC adapter', () => {
       bytes: [1, 2],
       expectedHash: 'binary-hash',
       expectedMissing: true,
+      expectedUserState,
     });
     await vault?.remove('asset.bin', {
       expectedHash: 'remove-hash',
       expectedMissing: true,
+      expectedUserState,
     });
     expect(invoke).toHaveBeenLastCalledWith('vault_remove', {
       vaultToken: token,
       path: 'asset.bin',
       expectedHash: 'remove-hash',
       expectedMissing: true,
+      expectedUserState,
     });
   });
 

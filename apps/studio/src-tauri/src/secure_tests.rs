@@ -613,6 +613,7 @@ fn uncooperative_external_writer_before_publish_is_detected_without_a_swap() {
         "note.md",
         "ours",
         Some(&expected),
+        None,
         || fs::write(external_path, "external").unwrap(),
     );
 
@@ -623,6 +624,99 @@ fn uncooperative_external_writer_before_publish_is_detected_without_a_swap() {
     assert_eq!(
         fs::read_to_string(selected.path().join("note.md")).unwrap(),
         "external"
+    );
+}
+
+#[test]
+fn guarded_write_rejects_a_different_note_added_immediately_before_publish() {
+    let selected = tempfile::tempdir().unwrap();
+    fs::write(selected.path().join("observed.md"), "observed").unwrap();
+    let registry = VaultRegistry::default();
+    let token = registry
+        .register_selected_path_for_test("main", selected.path())
+        .unwrap();
+    let vault = registry.vault_for_test("main", &token).unwrap();
+    let expected = [ExpectedUserState {
+        path: "observed.md".to_owned(),
+        hash: vault.read_text("observed.md").unwrap().hash,
+    }];
+    let competing_path = selected.path().join("competing.md");
+
+    let result = vault.write_text_atomic_with_before_commit_for_test(
+        "imported.md",
+        "imported",
+        None,
+        Some(&expected),
+        || fs::write(competing_path, "competing owner").unwrap(),
+    );
+
+    assert!(matches!(
+        result,
+        Err(crate::commands::vault::VaultError::Conflict)
+    ));
+    assert!(!selected.path().join("imported.md").exists());
+    assert_eq!(
+        fs::read_to_string(selected.path().join("competing.md")).unwrap(),
+        "competing owner"
+    );
+}
+
+#[test]
+fn ipc_guarded_binary_write_rejects_a_changed_public_note_state() {
+    let selected = tempfile::tempdir().unwrap();
+    fs::write(selected.path().join("observed.md"), "observed").unwrap();
+    let app = app();
+    let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+        .build()
+        .unwrap();
+    let token = app
+        .state::<VaultRegistry>()
+        .register_selected_path_for_test("main", selected.path())
+        .unwrap();
+    let observed = invoke_mock(
+        &webview,
+        "vault_read_text",
+        json!({ "vaultToken": token, "path": "observed.md" }),
+    )
+    .unwrap();
+    fs::write(selected.path().join("competing.md"), "competing").unwrap();
+
+    let result = invoke_mock(
+        &webview,
+        "vault_write_binary_atomic",
+        json!({
+            "vaultToken": token,
+            "path": "imported.md",
+            "bytes": [1, 2, 3],
+            "expectedMissing": true,
+            "expectedUserState": [{
+                "path": "observed.md",
+                "hash": observed["hash"],
+            }],
+        }),
+    );
+
+    assert_eq!(result.unwrap_err(), json!("conflict"));
+    assert!(!selected.path().join("imported.md").exists());
+
+    fs::write(selected.path().join("asset.bin"), [4, 5, 6]).unwrap();
+    let remove = invoke_mock(
+        &webview,
+        "vault_remove",
+        json!({
+            "vaultToken": token,
+            "path": "asset.bin",
+            "expectedMissing": false,
+            "expectedUserState": [{
+                "path": "observed.md",
+                "hash": observed["hash"],
+            }],
+        }),
+    );
+    assert_eq!(remove.unwrap_err(), json!("conflict"));
+    assert_eq!(
+        fs::read(selected.path().join("asset.bin")).unwrap(),
+        [4, 5, 6]
     );
 }
 

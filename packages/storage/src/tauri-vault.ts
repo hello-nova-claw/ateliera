@@ -118,6 +118,7 @@ function createTauriVault(
         text,
         expectedHash: condition?.expectedHash,
         expectedMissing: condition?.expectedMissing,
+        expectedUserState: condition?.expectedUserState,
       }),
     readBinary: async (path) =>
       new Uint8Array(await call<number[]>('vault_read_binary', { path })),
@@ -127,6 +128,7 @@ function createTauriVault(
         bytes: [...bytes],
         expectedHash: condition?.expectedHash,
         expectedMissing: condition?.expectedMissing,
+        expectedUserState: condition?.expectedUserState,
       }),
     move: (from, to, condition) =>
       call('vault_move', {
@@ -140,6 +142,7 @@ function createTauriVault(
         path,
         expectedHash: condition?.expectedHash,
         expectedMissing: condition?.expectedMissing,
+        expectedUserState: condition?.expectedUserState,
       }),
     exists: (path) => call('vault_exists', { path }),
     watch: async (listener) => {

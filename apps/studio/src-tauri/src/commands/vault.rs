@@ -590,6 +590,7 @@ impl Vault {
         bytes: &[u8],
         expected_hash: Option<&str>,
         expected_missing: bool,
+        expected_user_state: Option<&[ExpectedUserState]>,
         before_commit: F,
     ) -> Result<String, VaultError>
     where
@@ -603,6 +604,7 @@ impl Vault {
             expected_hash,
             expected_missing,
         )?;
+        self.require_user_state(expected_user_state)?;
         let temporary = format!(".studio-{}.tmp", Uuid::new_v4().simple());
         let mut options = OpenOptions::new();
         options
@@ -626,6 +628,7 @@ impl Vault {
                 expected_hash,
                 expected_missing,
             )?;
+            self.require_user_state(expected_user_state)?;
             if expected_missing {
                 rename_exclusive(
                     &parent.directory,
@@ -654,6 +657,7 @@ impl Vault {
         text: &str,
         expected_hash: Option<&str>,
         expected_missing: bool,
+        expected_user_state: Option<&[ExpectedUserState]>,
     ) -> Result<HashResult, VaultError> {
         Ok(HashResult {
             hash: self.write_atomic(
@@ -661,6 +665,7 @@ impl Vault {
                 text.as_bytes(),
                 expected_hash,
                 expected_missing,
+                expected_user_state,
                 || {},
             )?,
         })
@@ -672,9 +677,17 @@ impl Vault {
         bytes: &[u8],
         expected_hash: Option<&str>,
         expected_missing: bool,
+        expected_user_state: Option<&[ExpectedUserState]>,
     ) -> Result<HashResult, VaultError> {
         Ok(HashResult {
-            hash: self.write_atomic(path, bytes, expected_hash, expected_missing, || {})?,
+            hash: self.write_atomic(
+                path,
+                bytes,
+                expected_hash,
+                expected_missing,
+                expected_user_state,
+                || {},
+            )?,
         })
     }
 
@@ -692,6 +705,20 @@ impl Vault {
             .collect::<Result<Vec<_>, VaultError>>()?;
         state.sort_by(|left, right| left.path.cmp(&right.path));
         Ok(state)
+    }
+
+    fn require_user_state(
+        &self,
+        expected_user_state: Option<&[ExpectedUserState]>,
+    ) -> Result<(), VaultError> {
+        if let Some(expected) = expected_user_state {
+            let mut observed = expected.to_vec();
+            observed.sort_by(|left, right| left.path.cmp(&right.path));
+            if self.user_note_state()? != observed {
+                return Err(VaultError::Conflict);
+            }
+        }
+        Ok(())
     }
 
     pub fn move_path(
@@ -713,13 +740,7 @@ impl Vault {
         if let Some(expected) = expected_hash {
             Self::require_expected_hash(&from_parent.directory, &from_parent.basename, expected)?;
         }
-        if let Some(expected) = expected_user_state {
-            let mut observed = expected.to_vec();
-            observed.sort_by(|left, right| left.path.cmp(&right.path));
-            if self.user_note_state()? != observed {
-                return Err(VaultError::Conflict);
-            }
-        }
+        self.require_user_state(expected_user_state)?;
         let to_parent = open_parent(&self.root, to, true)?;
         rename_exclusive(
             &from_parent.directory,
@@ -736,6 +757,7 @@ impl Vault {
         path: &str,
         expected_hash: Option<&str>,
         expected_missing: bool,
+        expected_user_state: Option<&[ExpectedUserState]>,
     ) -> Result<(), VaultError> {
         let _write_guard = self.lock_writes()?;
         let parent = open_parent(&self.root, path, false)?;
@@ -752,6 +774,7 @@ impl Vault {
         if let Some(expected) = expected_hash {
             Self::require_expected_hash(&parent.directory, &parent.basename, expected)?;
         }
+        self.require_user_state(expected_user_state)?;
         parent
             .directory
             .remove_file(&parent.basename)
@@ -934,12 +957,20 @@ impl Vault {
         path: &str,
         text: &str,
         expected_hash: Option<&str>,
+        expected_user_state: Option<&[ExpectedUserState]>,
         before_commit: F,
     ) -> Result<String, VaultError>
     where
         F: FnOnce(),
     {
-        self.write_atomic(path, text.as_bytes(), expected_hash, false, before_commit)
+        self.write_atomic(
+            path,
+            text.as_bytes(),
+            expected_hash,
+            false,
+            expected_user_state,
+            before_commit,
+        )
     }
 
     #[cfg(test)]
@@ -949,7 +980,7 @@ impl Vault {
         text: &str,
         expected_hash: Option<&str>,
     ) -> Result<String, VaultError> {
-        self.write_atomic(path, text.as_bytes(), expected_hash, false, || {})
+        self.write_atomic(path, text.as_bytes(), expected_hash, false, None, || {})
     }
 
     #[cfg(test)]
@@ -960,7 +991,7 @@ impl Vault {
         expected_hash: Option<&str>,
         expected_missing: bool,
     ) -> Result<String, VaultError> {
-        self.write_atomic(path, bytes, expected_hash, expected_missing, || {})
+        self.write_atomic(path, bytes, expected_hash, expected_missing, None, || {})
     }
 
     #[cfg(test)]
@@ -1153,6 +1184,7 @@ pub fn vault_read_binary<R: Runtime>(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn vault_write_text_atomic<R: Runtime>(
     window: WebviewWindow<R>,
     state: State<'_, VaultRegistry>,
@@ -1161,16 +1193,19 @@ pub fn vault_write_text_atomic<R: Runtime>(
     text: String,
     expected_hash: Option<String>,
     expected_missing: Option<bool>,
+    expected_user_state: Option<Vec<ExpectedUserState>>,
 ) -> Result<HashResult, VaultError> {
     selected_vault(&window, &state, &vault_token)?.write_text_atomic(
         &path,
         &text,
         expected_hash.as_deref(),
         expected_missing.unwrap_or(false),
+        expected_user_state.as_deref(),
     )
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn vault_write_binary_atomic<R: Runtime>(
     window: WebviewWindow<R>,
     state: State<'_, VaultRegistry>,
@@ -1179,12 +1214,14 @@ pub fn vault_write_binary_atomic<R: Runtime>(
     bytes: Vec<u8>,
     expected_hash: Option<String>,
     expected_missing: Option<bool>,
+    expected_user_state: Option<Vec<ExpectedUserState>>,
 ) -> Result<HashResult, VaultError> {
     selected_vault(&window, &state, &vault_token)?.write_binary_atomic(
         &path,
         &bytes,
         expected_hash.as_deref(),
         expected_missing.unwrap_or(false),
+        expected_user_state.as_deref(),
     )
 }
 
@@ -1234,11 +1271,13 @@ pub fn vault_remove<R: Runtime>(
     path: String,
     expected_hash: Option<String>,
     expected_missing: Option<bool>,
+    expected_user_state: Option<Vec<ExpectedUserState>>,
 ) -> Result<(), VaultError> {
     selected_vault(&window, &state, &vault_token)?.remove(
         &path,
         expected_hash.as_deref(),
         expected_missing.unwrap_or(false),
+        expected_user_state.as_deref(),
     )
 }
 
