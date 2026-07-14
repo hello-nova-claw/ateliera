@@ -82,6 +82,15 @@ The Studio is not:
 - an autonomous therapist, coach, or authority;
 - a replacement for a calendar, reminders app, or clinical support.
 
+### 2.3 Product terminology
+
+User-facing language always calls the product environment a **Studio** or
+**Studio space**. “Create a Studio” makes a new named Studio folder inside the
+location the user chooses. “Open an existing Studio” selects a Studio folder
+that already exists. The term **vault** is reserved for internal adapter,
+schema, and engineering concepts and must never appear in labels, guidance,
+errors, loading states, or other user-visible copy.
+
 ---
 
 ## 3. Vision, philosophy, and product thesis
