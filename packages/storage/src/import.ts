@@ -244,16 +244,31 @@ export async function prepareVaultImport(
   const target = await scanIncludedTarget(vault);
 
   const items: VaultImportItem[] = [];
+  const claimedTargets = new Map<string, string>();
   for (const descriptor of manifest.files) {
     const incoming = validated.get(descriptor.path) as Uint8Array;
     const incomingNoteId = extractNoteId(descriptor.path, incoming);
     const pathTarget = target.byPortablePath.get(portablePathKey(descriptor.path));
     const idTarget = incomingNoteId === undefined ? undefined : target.byNoteId.get(incomingNoteId);
+    if (pathTarget !== undefined && idTarget !== undefined && pathTarget.path !== idTarget.path) {
+      throw new PortableVaultError(
+        'path-collision',
+        `The incoming path and stable note ID belong to different target files: ${descriptor.path}.`,
+      );
+    }
     const existing = pathTarget ?? idTarget;
     if (existing === undefined) {
       items.push({ action: 'create', ...descriptor });
       continue;
     }
+    const previousClaim = claimedTargets.get(existing.path);
+    if (previousClaim !== undefined && previousClaim !== descriptor.path) {
+      throw new PortableVaultError(
+        'path-collision',
+        `Multiple incoming files would replace the same target: ${existing.path}.`,
+      );
+    }
+    claimedTargets.set(existing.path, descriptor.path);
     if (existing.hash === descriptor.sha256 && existing.path === descriptor.path) {
       items.push({ action: 'skip', ...descriptor, expectedHash: existing.hash });
       continue;
@@ -298,6 +313,53 @@ function resolvedAction(
   return resolution;
 }
 
+function assertUniquePublishedNoteIds(
+  fingerprint: readonly TargetFingerprintEntry[],
+  actions: ReadonlyArray<{
+    item: VaultImportItem;
+    action: Exclude<VaultImportAction, 'conflict'>;
+  }>,
+  files: ReadonlyMap<string, Uint8Array>,
+): void {
+  const noteIdByPath = new Map(
+    fingerprint
+      .filter((entry): entry is TargetFingerprintEntry & { noteId: string } =>
+        entry.noteId !== undefined)
+      .map((entry) => [entry.path, entry.noteId] as const),
+  );
+  const publicationPaths = new Set<string>();
+  for (const { item, action } of actions) {
+    if (action !== 'create' && action !== 'overwrite') continue;
+    const targetPath = action === 'overwrite' ? item.existingPath ?? item.path : item.path;
+    if (publicationPaths.has(targetPath)) {
+      throw new PortableVaultError(
+        'path-collision',
+        `Multiple imported files would publish to ${targetPath}.`,
+      );
+    }
+    publicationPaths.add(targetPath);
+    noteIdByPath.delete(targetPath);
+    const content = files.get(item.path);
+    if (content === undefined) {
+      throw new PortableVaultError('checksum-failed', `Import plan checksum failed for ${item.path}.`);
+    }
+    const incomingNoteId = extractNoteId(item.path, content);
+    if (incomingNoteId !== undefined) noteIdByPath.set(targetPath, incomingNoteId);
+  }
+
+  const ownerByNoteId = new Map<string, string>();
+  for (const [path, noteId] of noteIdByPath) {
+    const owner = ownerByNoteId.get(noteId);
+    if (owner !== undefined && owner !== path) {
+      throw new PortableVaultError(
+        'path-collision',
+        `The import would create duplicate note ID ${noteId}.`,
+      );
+    }
+    ownerByNoteId.set(noteId, path);
+  }
+}
+
 export async function applyVaultImport(
   vault: VaultPort,
   plan: VaultImportPlan,
@@ -317,6 +379,7 @@ export async function applyVaultImport(
   if (!sameTargetFingerprint(plan.targetFingerprint, currentFingerprint)) {
     throw new PortableVaultError('target-changed', 'The import target changed after preview.');
   }
+  assertUniquePublishedNoteIds(currentFingerprint, actions, plan.files);
 
   for (const { item } of actions) {
     const targetPath = item.existingPath ?? item.path;

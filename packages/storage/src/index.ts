@@ -3,22 +3,14 @@ export { createInMemoryVault } from './in-memory-vault';
 export {
   createBrowserVault,
   ensureBrowserPersistence,
-  exportBrowserVault,
-  applyBrowserVaultImport,
-  importBrowserVault,
-  prepareBrowserVaultImport,
-  VaultArchiveError,
 } from './browser-vault';
 export type {
   BrowserPersistenceStatus,
   BrowserVaultBackend,
   BrowserVaultEnvironment,
-  BrowserVaultImportItem,
-  BrowserVaultImportPlan,
   BrowserVaultOptions,
   BrowserVaultStore,
   StoredBrowserFile,
-  VaultArchiveErrorCode,
 } from './browser-vault';
 export { saveTauriVaultBackup, selectTauriVault } from './tauri-vault';
 export type { TauriBackupSaveStatus } from './tauri-vault';

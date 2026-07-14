@@ -1,19 +1,15 @@
 import { vaultContract } from './__contract__/vault-contract';
-import { VaultConflictError } from './conflict';
 import {
   createBrowserVault,
   ensureBrowserPersistence,
-  exportBrowserVault,
-  applyBrowserVaultImport,
-  prepareBrowserVaultImport,
   type BrowserVaultEnvironment,
   type BrowserVaultStore,
   type StoredBrowserFile,
 } from './browser-vault';
 import { describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
-import { createHash } from 'node:crypto';
-import { deflateRawSync } from 'node:zlib';
+import * as browserApi from './browser-vault';
+import * as storageApi from './index';
 
 function createTestStore(): BrowserVaultStore {
   const files = new Map<string, StoredBrowserFile>();
@@ -40,371 +36,25 @@ function createTestStore(): BrowserVaultStore {
   };
 }
 
-function testZipNumber(value: number, width: 2 | 4): Uint8Array {
-  const bytes = new Uint8Array(width);
-  const view = new DataView(bytes.buffer);
-  if (width === 2) view.setUint16(0, value, true);
-  else view.setUint32(0, value, true);
-  return bytes;
-}
-
-function testZipJoin(chunks: readonly Uint8Array[]): Uint8Array {
-  const output = new Uint8Array(
-    chunks.reduce((size, chunk) => size + chunk.byteLength, 0),
-  );
-  let offset = 0;
-  for (const chunk of chunks) {
-    output.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return output;
-}
-
-function testCrc32(bytes: Uint8Array): number {
-  let crc = 0xffffffff;
-  for (const byte of bytes) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit += 1) {
-      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
-    }
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
-function createDeflatedTestZip(
-  files: ReadonlyArray<readonly [string, Uint8Array]>,
-): Uint8Array {
-  const encoder = new TextEncoder();
-  const locals: Uint8Array[] = [];
-  const centrals: Uint8Array[] = [];
-  let localOffset = 0;
-  for (const [path, content] of files) {
-    const name = encoder.encode(path);
-    const compressed = new Uint8Array(deflateRawSync(content));
-    const checksum = testCrc32(content);
-    const local = testZipJoin([
-      testZipNumber(0x04034b50, 4), testZipNumber(20, 2),
-      testZipNumber(0x0800, 2), testZipNumber(8, 2),
-      testZipNumber(0, 2), testZipNumber(0, 2), testZipNumber(checksum, 4),
-      testZipNumber(compressed.byteLength, 4), testZipNumber(content.byteLength, 4),
-      testZipNumber(name.byteLength, 2), testZipNumber(0, 2), name, compressed,
-    ]);
-    locals.push(local);
-    centrals.push(testZipJoin([
-      testZipNumber(0x02014b50, 4), testZipNumber(20, 2), testZipNumber(20, 2),
-      testZipNumber(0x0800, 2), testZipNumber(8, 2), testZipNumber(0, 2),
-      testZipNumber(0, 2), testZipNumber(checksum, 4),
-      testZipNumber(compressed.byteLength, 4), testZipNumber(content.byteLength, 4),
-      testZipNumber(name.byteLength, 2), testZipNumber(0, 2), testZipNumber(0, 2),
-      testZipNumber(0, 2), testZipNumber(0, 2), testZipNumber(0, 4),
-      testZipNumber(localOffset, 4), name,
-    ]));
-    localOffset += local.byteLength;
-  }
-  const central = testZipJoin(centrals);
-  return testZipJoin([
-    ...locals, central, testZipNumber(0x06054b50, 4), testZipNumber(0, 2),
-    testZipNumber(0, 2), testZipNumber(files.length, 2),
-    testZipNumber(files.length, 2), testZipNumber(central.byteLength, 4),
-    testZipNumber(localOffset, 4), testZipNumber(0, 2),
-  ]);
-}
-
 vaultContract('browser vault', async () =>
   createBrowserVault(`contract-${crypto.randomUUID()}`, {
     store: createTestStore(),
   }),
 );
 
-describe('browser vault ZIP portability boundary', () => {
-  it('round trips Markdown and binary assets through a standard ZIP', async () => {
-    const source = createBrowserVault('export-source', {
-      store: createTestStore(),
-    });
-    await source.writeTextAtomic('Inbox/hill.md', '# The hill\n');
-    await source.writeBinaryAtomic(
-      'Attachments/garden.bin',
-      new Uint8Array([0, 1, 255]),
-    );
-
-    const archive = await exportBrowserVault(source);
-    expect(new Uint8Array(await archive.arrayBuffer()).slice(0, 4)).toEqual(
-      new Uint8Array([0x50, 0x4b, 0x03, 0x04]),
-    );
-
-    const target = createBrowserVault('export-target', {
-      store: createTestStore(),
-    });
-    const plan = await prepareBrowserVaultImport(target, archive);
-    expect(plan.items).toEqual([
-      expect.objectContaining({ action: 'create', path: 'Attachments/garden.bin' }),
-      expect.objectContaining({ action: 'create', path: 'Inbox/hill.md' }),
-    ]);
-    await expect(
-      applyBrowserVaultImport(target, plan, { confirm: true }),
-    ).resolves.toEqual({
-      imported: 2,
-    });
-    await expect(target.readText('Inbox/hill.md')).resolves.toMatchObject({
-      text: '# The hill\n',
-    });
-    await expect(target.readBinary('Attachments/garden.bin')).resolves.toEqual(
-      new Uint8Array([0, 1, 255]),
-    );
-  });
-
-  it('validates every checksum before mutating the target', async () => {
-    const source = createBrowserVault('checksum-source', {
-      store: createTestStore(),
-    });
-    await source.writeTextAtomic('Inbox/a.md', 'safe');
-    const archive = new Uint8Array(
-      await (await exportBrowserVault(source)).arrayBuffer(),
-    );
-    const marker = new TextEncoder().encode('safe');
-    const index = archive.findIndex((value, offset) =>
-      marker.every((byte, markerOffset) => archive[offset + markerOffset] === byte),
-    );
-    expect(index).toBeGreaterThan(-1);
-    archive[index] = 'x'.charCodeAt(0);
-
-    const target = createBrowserVault('checksum-target', {
-      store: createTestStore(),
-    });
-    await target.writeTextAtomic('Inbox/existing.md', 'keep');
-    await expect(prepareBrowserVaultImport(target, archive)).rejects.toThrow(
-      'checksum',
-    );
-    await expect(target.list()).resolves.toEqual([
-      expect.objectContaining({ path: 'Inbox', kind: 'directory' }),
-      expect.objectContaining({ path: 'Inbox/existing.md', kind: 'file' }),
-    ]);
-  });
-
-  it('requires explicit confirmation and previews replacement collisions', async () => {
-    const source = createBrowserVault('collision-source', {
-      store: createTestStore(),
-    });
-    await source.writeTextAtomic('Inbox/hill.md', 'new');
-    const target = createBrowserVault('collision-target', {
-      store: createTestStore(),
-    });
-    await target.writeTextAtomic('Inbox/hill.md', 'old');
-
-    const plan = await prepareBrowserVaultImport(
-      target,
-      await exportBrowserVault(source),
-    );
-    expect(plan.items).toEqual([
-      expect.objectContaining({ action: 'replace', path: 'Inbox/hill.md' }),
-    ]);
-    await expect(
-      applyBrowserVaultImport(target, plan, { confirm: false }),
-    ).rejects.toThrow('confirmation');
-    await expect(target.readText('Inbox/hill.md')).resolves.toMatchObject({
-      text: 'old',
-    });
-  });
-
-  it('rolls back every target when an import write fails', async () => {
-    const base = createTestStore();
-    let targetWrites = 0;
-    const failingStore: BrowserVaultStore = {
-      ...base,
-      async write(path, file) {
-        if (!path.startsWith('.studio/import-') && ++targetWrites === 2) {
-          throw new DOMException('quota reached', 'QuotaExceededError');
-        }
-        await base.write(path, file);
-      },
-    };
-    const source = createBrowserVault('rollback-source', {
-      store: createTestStore(),
-    });
-    await source.writeTextAtomic('Inbox/a.md', 'new a');
-    await source.writeTextAtomic('Inbox/b.md', 'new b');
-    const target = createBrowserVault('rollback-target', { store: failingStore });
-    await base.write('Inbox/a.md', {
-      bytes: new TextEncoder().encode('old a'),
-      hash: 'old',
-      modifiedAt: new Date().toISOString(),
-    });
-
-    const plan = await prepareBrowserVaultImport(
-      target,
-      await exportBrowserVault(source),
-    );
-    await expect(
-      applyBrowserVaultImport(target, plan, { confirm: true }),
-    ).rejects.toThrow('quota reached');
-    await expect(target.readText('Inbox/a.md')).resolves.toMatchObject({
-      text: 'old a',
-    });
-    await expect(target.exists('Inbox/b.md')).resolves.toBe(false);
-  });
-
-  it('accepts standard deflate-compressed ZIP exports', async () => {
-    const content = new TextEncoder().encode('# Compressed hill\n');
-    const sha256 = createHash('sha256').update(content).digest('hex');
-    const manifest = new TextEncoder().encode(JSON.stringify({
-      schemaVersion: 1,
-      exportedAt: new Date().toISOString(),
-      files: [{ path: 'Inbox/hill.md', sha256, size: content.byteLength }],
-    }));
-    const archive = createDeflatedTestZip([
-      ['Inbox/hill.md', content],
-      ['.studio/export-manifest.json', manifest],
-    ]);
-    const target = createBrowserVault('compressed-target', {
-      store: createTestStore(),
-    });
-
-    const plan = await prepareBrowserVaultImport(target, archive);
-    await applyBrowserVaultImport(target, plan, { confirm: true });
-
-    await expect(target.readText('Inbox/hill.md')).resolves.toMatchObject({
-      text: '# Compressed hill\n',
-    });
-  });
-
-  it('returns typed failures for truncated and oversized archives', async () => {
-    const source = createBrowserVault('limits-source', { store: createTestStore() });
-    await source.writeTextAtomic('Inbox/hill.md', 'hill');
-    const archive = new Uint8Array(
-      await (await exportBrowserVault(source)).arrayBuffer(),
-    );
-    const target = createBrowserVault('limits-target', { store: createTestStore() });
-
-    await expect(
-      prepareBrowserVaultImport(target, archive.slice(0, -5)),
-    ).rejects.toMatchObject({ code: 'invalid-archive' });
-
-    const oversized = archive.slice();
-    const view = new DataView(oversized.buffer);
-    const central = oversized.findIndex((value, index) =>
-      value === 0x50 && view.getUint32(index, true) === 0x02014b50,
-    );
-    view.setUint32(central + 24, 65 * 1024 * 1024, true);
-    await expect(
-      prepareBrowserVaultImport(target, oversized),
-    ).rejects.toMatchObject({ code: 'archive-too-large' });
-  });
-
-  it('rejects an oversized Blob before requesting its bytes', async () => {
-    const arrayBuffer = vi.fn(async () => new ArrayBuffer(0));
-    const source = new Blob([]);
-    Object.defineProperties(source, {
-      size: { value: 513 * 1024 * 1024 },
-      arrayBuffer: { value: arrayBuffer },
-    });
-    const target = createBrowserVault('blob-limit-target', {
-      store: createTestStore(),
-    });
-
-    await expect(
-      prepareBrowserVaultImport(target, source),
-    ).rejects.toMatchObject({ code: 'archive-too-large' });
-    expect(arrayBuffer).not.toHaveBeenCalled();
-  });
-
-  it('refuses to export more user entries than its importer can accept', async () => {
-    const store = createTestStore();
-    for (let index = 0; index < 10_000; index += 1) {
-      await store.write(`Inbox/${index}.md`, {
-        bytes: new Uint8Array(),
-        hash: 'empty',
-        modifiedAt: new Date().toISOString(),
-      });
-    }
-    const source = createBrowserVault('export-limit-source', { store });
-
-    await expect(exportBrowserVault(source)).rejects.toMatchObject({
-      code: 'archive-too-large',
-    });
-  });
-
-  it('does not overwrite an edit made while an import is staging', async () => {
-    const base = createTestStore();
-    let releaseStage: () => void = () => undefined;
-    let announceStage: () => void = () => undefined;
-    const stageStarted = new Promise<void>((resolve) => {
-      announceStage = resolve;
-    });
-    const stageGate = new Promise<void>((resolve) => {
-      releaseStage = resolve;
-    });
-    let paused = false;
-    const store: BrowserVaultStore = {
-      ...base,
-      async write(path, file) {
-        await base.write(path, file);
-        if (!paused && path.startsWith('.studio/import-stage/')) {
-          paused = true;
-          announceStage();
-          await stageGate;
-        }
-      },
-    };
-    const source = createBrowserVault('race-source', { store: createTestStore() });
-    await source.writeTextAtomic('Inbox/hill.md', 'imported');
-    const target = createBrowserVault('race-target', { store });
-    const otherTab = createBrowserVault('race-target', { store });
-    await target.writeTextAtomic('Inbox/hill.md', 'original');
-    const plan = await prepareBrowserVaultImport(target, await exportBrowserVault(source));
-
-    const applying = applyBrowserVaultImport(target, plan, { confirm: true });
-    await stageStarted;
-    const outsideEdit = otherTab.writeTextAtomic('Inbox/hill.md', 'outside edit');
-    releaseStage();
-    await outsideEdit;
-
-    await expect(applying).rejects.toBeInstanceOf(VaultConflictError);
-    await expect(target.readText('Inbox/hill.md')).resolves.toMatchObject({
-      text: 'outside edit',
-    });
-  });
-
-  it('does not overwrite a later edit while rolling back a partial import', async () => {
-    const base = createTestStore();
-    let outsideEdit: Promise<{ hash: string }> | undefined;
-    let firstPublished = false;
-    const store: BrowserVaultStore = {
-      ...base,
-      async write(path, file) {
-        const text = new TextDecoder().decode(file.bytes);
-        if (path === 'Inbox/a.md' && text === 'new a') firstPublished = true;
-        if (path === 'Inbox/b.md' && text === 'new b' && firstPublished) {
-          queueMicrotask(() => {
-            outsideEdit = otherTab.writeTextAtomic('Inbox/a.md', 'outside edit');
-          });
-          throw new DOMException('quota reached', 'QuotaExceededError');
-        }
-        await base.write(path, file);
-      },
-    };
-    const source = createBrowserVault('rollback-race-source', {
-      store: createTestStore(),
-    });
-    await source.writeTextAtomic('Inbox/a.md', 'new a');
-    await source.writeTextAtomic('Inbox/b.md', 'new b');
-    const target = createBrowserVault('rollback-race-target', { store });
-    const otherTab = createBrowserVault('rollback-race-target', { store });
-    await target.writeTextAtomic('Inbox/a.md', 'old a');
-    await target.writeTextAtomic('Inbox/b.md', 'old b');
-    const plan = await prepareBrowserVaultImport(
-      target,
-      await exportBrowserVault(source),
-    );
-
-    await expect(
-      applyBrowserVaultImport(target, plan, { confirm: true }),
-    ).rejects.toThrow('rollback could not restore');
-    await vi.waitFor(() => expect(outsideEdit).toBeDefined());
-    await outsideEdit;
-    await expect(target.readText('Inbox/a.md')).resolves.toMatchObject({
-      text: 'outside edit',
-    });
-  });
+it('does not expose the obsolete browser-only archive format', () => {
+  for (const name of [
+    'exportBrowserVault',
+    'prepareBrowserVaultImport',
+    'applyBrowserVaultImport',
+    'importBrowserVault',
+    'VaultArchiveError',
+  ]) {
+    expect(browserApi).not.toHaveProperty(name);
+    expect(storageApi).not.toHaveProperty(name);
+  }
+  expect(storageApi).toHaveProperty('exportVault');
+  expect(storageApi).toHaveProperty('prepareVaultImport');
 });
 
 it('rolls back a partial browser move when source removal fails', async () => {

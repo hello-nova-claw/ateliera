@@ -59,6 +59,39 @@ describe('portable vault import', () => {
     ]);
   });
 
+  it('rejects distinct path and stable-ID owners before preview can overwrite either', async () => {
+    const source = createInMemoryVault();
+    await source.writeTextAtomic('Inbox/note.md', note('stable-id', 'incoming'));
+    const target = createInMemoryVault();
+    await target.writeTextAtomic('Inbox/note.md', note('path-owner', 'keep path owner'));
+    await target.writeTextAtomic('Archive/original.md', note('stable-id', 'keep ID owner'));
+
+    await expect(prepareVaultImport(target, await exportVault(source))).rejects.toMatchObject({
+      code: 'path-collision',
+    });
+    await expect(target.readText('Inbox/note.md')).resolves.toMatchObject({
+      text: note('path-owner', 'keep path owner'),
+    });
+    await expect(target.readText('Archive/original.md')).resolves.toMatchObject({
+      text: note('stable-id', 'keep ID owner'),
+    });
+  });
+
+  it('rejects two incoming notes that would claim the same existing target', async () => {
+    const source = createInMemoryVault();
+    await source.writeTextAtomic('Inbox/path.md', note('incoming-a', 'incoming A'));
+    await source.writeTextAtomic('Inbox/renamed.md', note('existing-id', 'incoming B'));
+    const target = createInMemoryVault();
+    await target.writeTextAtomic('Inbox/path.md', note('existing-id', 'keep existing'));
+
+    await expect(prepareVaultImport(target, await exportVault(source))).rejects.toMatchObject({
+      code: 'path-collision',
+    });
+    await expect(target.readText('Inbox/path.md')).resolves.toMatchObject({
+      text: note('existing-id', 'keep existing'),
+    });
+  });
+
   it('requires confirmation and explicit conflict resolutions', async () => {
     const source = createInMemoryVault();
     await source.writeTextAtomic('Inbox/conflict.md', note('incoming', 'incoming'));
