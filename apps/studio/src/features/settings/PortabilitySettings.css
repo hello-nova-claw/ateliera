@@ -167,7 +167,7 @@
 
 .portability-preview__conflicts li span {
   display: block;
-  color: var(--studio-color-ink-soft);
+  color: var(--studio-color-ink);
 }
 
 .portability-preview__resolution {
