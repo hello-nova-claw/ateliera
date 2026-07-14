@@ -1,5 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { createInMemoryVault, createVaultBackup, prepareVaultImport } from '@studio/storage';
+import {
+  createInMemoryVault,
+  createVaultBackup,
+  prepareVaultImport,
+  type VaultBackup,
+} from '@studio/storage';
 import { vi } from 'vitest';
 
 import SettingsRoom from './SettingsRoom';
@@ -10,13 +15,16 @@ it('creates a complete portable backup from the active vault', async () => {
   await vault.writeBinaryAtomic('Attachments/hill.jpg', new Uint8Array([1, 2, 3]));
   await vault.writeTextAtomic('.studio/config/landscape-areas.json', '{"version":1}');
   await vault.writeTextAtomic('.studio/index/search.db', 'disposable');
-  const saveBackup = vi.fn(async () => undefined);
+  let savedBackup: VaultBackup | undefined;
+  const saveBackup = vi.fn(async (backup: VaultBackup) => {
+    savedBackup = backup;
+  });
 
   render(<SettingsRoom saveBackup={saveBackup} vault={vault} />);
   fireEvent.click(screen.getByRole('button', { name: 'Download portable backup' }));
 
   await waitFor(() => expect(saveBackup).toHaveBeenCalledTimes(1));
-  const backup = saveBackup.mock.calls[0]?.[0];
+  const backup = savedBackup;
   expect(backup?.fileName).toMatch(/^the-studio-backup-.*\.zip$/u);
   const clean = createInMemoryVault();
   const plan = await prepareVaultImport(clean, backup!.bytes);
@@ -37,7 +45,7 @@ it('previews and restores only after explicit confirmation', async () => {
   });
   const target = createInMemoryVault();
   await target.writeTextAtomic('Inbox/hill.md', 'current words');
-  const file = new File([backup.bytes], backup.fileName, {
+  const file = new File([backup.bytes.slice().buffer as ArrayBuffer], backup.fileName, {
     type: 'application/zip',
   });
   Object.defineProperty(file, 'arrayBuffer', {

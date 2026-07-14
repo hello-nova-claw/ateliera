@@ -119,6 +119,7 @@ export interface AppProps {
   requestPersistence?: () => Promise<BrowserPersistenceStatus>;
   studioId?: string;
   studioService?: StudioService;
+  vault?: VaultPort;
 }
 
 export function App(props: AppProps = {}) {
@@ -134,6 +135,7 @@ function StudioApplication({
   requestPersistence = requestBrowserPersistence,
   studioId,
   studioService,
+  vault,
 }: AppProps) {
   const navigationGuard = useRef<((next: StudioPath) => boolean) | undefined>(
     undefined,
@@ -144,6 +146,9 @@ function StudioApplication({
   );
   const [activeStudioId, setActiveStudioId] = useState(
     () => studioId ?? injectedStudioId.current,
+  );
+  const [activeVault, setActiveVault] = useState<VaultPort | null>(
+    () => vault ?? null,
   );
   const { navigate, path, title } = useStudioRouter(
     (next) => navigationGuard.current?.(next) ?? false,
@@ -215,15 +220,17 @@ function StudioApplication({
     if (studioService !== undefined) {
       setEditor(undefined);
       setService(studioService);
+      setActiveVault(vault ?? null);
       setActiveStudioId(studioId ?? injectedStudioId.current);
       setOpened(true);
     } else if (captureService !== undefined) {
       setEditor(undefined);
       setService(captureService);
+      setActiveVault(vault ?? null);
       setActiveStudioId(studioId ?? injectedStudioId.current);
       setOpened(true);
     }
-  }, [captureService, studioId, studioService]);
+  }, [captureService, studioId, studioService, vault]);
 
   useEffect(() => {
     if (!isStudioService(service)) return undefined;
@@ -337,6 +344,7 @@ function StudioApplication({
     const vault = await selectTauriVault();
     if (vault === null) return false;
     setEditor(undefined);
+    setActiveVault(vault);
     setActiveStudioId(`native:${vault.recoveryIdentity}`);
     setService(await createAppStudioService(vault));
     setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
@@ -352,11 +360,13 @@ function StudioApplication({
       }
       if (record === undefined) return;
       const { createBrowserVault } = await import('@studio/storage/browser');
+      const vault = createBrowserVault(record.vaultId);
       activateBrowserStudio(localStorage, record.vaultId);
       setEditor(undefined);
+      setActiveVault(vault);
       setActiveStudioId(record.vaultId);
       setService(
-        await createAppStudioService(createBrowserVault(record.vaultId)),
+        await createAppStudioService(vault),
       );
       setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
       finishOnboarding();
@@ -407,6 +417,7 @@ function StudioApplication({
       activateBrowserStudio(localStorage, record.vaultId);
       setBrowserStudios(readBrowserStudios(localStorage));
       setEditor(undefined);
+      setActiveVault(vault);
       setActiveStudioId(record.vaultId);
       setService(await createAppStudioService(vault));
       setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
@@ -704,6 +715,7 @@ function StudioApplication({
           projectionRevision={projectionRevision}
           {...(isStudioService(service) ? { service } : {})}
           title={title}
+          {...(activeVault === null ? {} : { vault: activeVault })}
         />
         {!opened && (
           <Onboarding

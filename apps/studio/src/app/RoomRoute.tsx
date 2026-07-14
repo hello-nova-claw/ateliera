@@ -8,6 +8,7 @@ import type { LandscapeAnchor } from '@studio/domain';
 import type { FoyerSlot } from '../features/foyer/FoyerPage';
 import { lazy, Suspense, type LazyExoticComponent } from 'react';
 import type { StudioPath } from './router';
+import type { VaultPort } from '@studio/storage/portable';
 
 interface RoomProps {
   captures: CaptureEntry[];
@@ -24,6 +25,7 @@ interface RoomProps {
   projectionRevision?: number;
   service?: StudioService;
   path?: StudioPath;
+  vault?: VaultPort;
 }
 
 type LazyRoom = LazyExoticComponent<(props: RoomProps) => React.JSX.Element>;
@@ -57,6 +59,7 @@ export function RoomRoute({
   projectionRevision,
   service,
   title,
+  vault,
 }: {
   captures: CaptureEntry[];
   onOpenCapture?: (id: string, trigger: HTMLButtonElement) => void;
@@ -73,6 +76,7 @@ export function RoomRoute({
   projectionRevision?: number;
   service?: StudioService;
   title: string;
+  vault?: VaultPort;
 }) {
   const Room = roomRoutes[routeKey(path)] as LazyRoom;
   return (
@@ -98,6 +102,7 @@ export function RoomRoute({
         {...(onOpenCapture === undefined ? {} : { onOpenCapture })}
         {...(projectionRevision === undefined ? {} : { projectionRevision })}
         {...(service === undefined ? {} : { service })}
+        {...(vault === undefined ? {} : { vault })}
         path={path}
       />
     </Suspense>

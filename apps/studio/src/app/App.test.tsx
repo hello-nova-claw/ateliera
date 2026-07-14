@@ -14,6 +14,7 @@ import {
   type StudioService,
 } from '@studio/application';
 import { defaultLifeAreas, type StudioNote } from '@studio/domain';
+import type { VaultPort } from '@studio/storage/portable';
 import { StrictMode } from 'react';
 import { afterEach, vi } from 'vitest';
 import { App } from './App';
@@ -205,6 +206,26 @@ it('renders the Studio landmark', async () => {
   });
   expect(screen.getByRole('main', { name: 'The Studio' })).toBeVisible();
   expect(screen.queryByText('Ready offline')).not.toBeInTheDocument();
+});
+
+it('makes the active vault available to portable settings', async () => {
+  history.replaceState(null, '', '/settings');
+  const fixture = studioService();
+  render(
+    <App
+      studioId="studio:portable"
+      studioService={fixture.service}
+      vault={{} as VaultPort}
+    />,
+  );
+
+  expect(
+    await screen.findByRole('heading', { name: 'Backup & restore' }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole('button', { name: 'Download portable backup' }),
+  ).toBeEnabled();
+  expect(screen.getByLabelText('Choose a Studio backup')).toBeEnabled();
 });
 
 it('makes live shell connectivity available to local-first rooms', async () => {
