@@ -14,6 +14,7 @@ import { createStudioControlVault } from './studio-control-vault';
 
 const token = '0123456789abcdef0123456789abcdef';
 const recoveryIdentity = 'fedcba9876544abc8edcba9876543210';
+const hash = 'a'.repeat(64);
 
 function selection(
   overrides: Record<string, unknown> = {},
@@ -102,6 +103,10 @@ describe('Tauri vault IPC adapter', () => {
   it('transmits conditional text, binary, and remove operations', async () => {
     const invoke = vi.fn(async (command: string) => {
       if (command === 'vault_select') return selection();
+      if (command === 'vault_get_revision') return '1';
+      if (command === 'vault_write_batch_atomic') {
+        return { revision: '2', results: [{ path: 'asset.bin', hash }] };
+      }
       if (command.startsWith('vault_write_')) return { hash: 'next' };
       if (command === 'vault_remove') return undefined;
       throw new Error(`Unexpected command: ${command}`);
@@ -126,13 +131,8 @@ describe('Tauri vault IPC adapter', () => {
       expectedMissing: true,
       expectedUserState,
     });
-    expect(invoke).toHaveBeenLastCalledWith('vault_write_binary_atomic', {
-      vaultToken: token,
-      path: 'asset.bin',
-      bytes: [1, 2],
-      expectedHash: 'binary-hash',
-      expectedMissing: true,
-      expectedUserState,
+    expect(invoke).toHaveBeenLastCalledWith('vault_write_batch_atomic', expect.any(Uint8Array), {
+      headers: { 'x-studio-vault-token': token },
     });
     await vault?.remove('asset.bin', {
       expectedHash: 'remove-hash',
@@ -146,6 +146,66 @@ describe('Tauri vault IPC adapter', () => {
       expectedMissing: true,
       expectedUserState,
     });
+  });
+
+  it('uses raw IPC bytes for ordinary binary reads and writes', async () => {
+    const invoke = vi.fn<TauriVaultBridge['invoke']>(async (command) => {
+      if (command === 'vault_select') return selection();
+      if (command === 'vault_get_revision') return '7';
+      if (command === 'vault_write_batch_atomic') {
+        return { revision: '8', results: [{ path: 'asset.bin', hash }] };
+      }
+      if (command === 'vault_read_binary') return new Uint8Array([4, 5, 6]);
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    const vault = await selectTauriVault(bridge(invoke));
+
+    await expect(vault?.writeBinaryAtomic('asset.bin', new Uint8Array([1, 2, 3]), {
+      expectedMissing: true,
+    })).resolves.toEqual({ hash });
+    const batchCall = invoke.mock.calls.find(([command]) => command === 'vault_write_batch_atomic');
+    expect(batchCall?.[1]).toBeInstanceOf(Uint8Array);
+    expect(Array.isArray(batchCall?.[1])).toBe(false);
+    expect(batchCall?.[2]).toEqual({
+      headers: { 'x-studio-vault-token': token },
+    });
+    await expect(vault?.readBinary('asset.bin')).resolves.toEqual(new Uint8Array([4, 5, 6]));
+  });
+
+  it('exposes monotonic revision and one raw atomic batch call', async () => {
+    const invoke = vi.fn<TauriVaultBridge['invoke']>(async (command) => {
+      if (command === 'vault_select') return selection();
+      if (command === 'vault_get_revision') return '41';
+      if (command === 'vault_write_batch_atomic') {
+        return {
+          revision: '42',
+          results: [
+            { path: 'Notes/a.md', hash },
+            { path: 'Notes/b.md', hash },
+          ],
+        };
+      }
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    const vault = await selectTauriVault(bridge(invoke));
+
+    await expect(vault?.getRevision()).resolves.toBe('41');
+    await expect(vault?.writeBatchAtomic({
+      expectedRevision: '41',
+      writes: [
+        { path: 'Notes/a.md', bytes: new Uint8Array([1]), expectedMissing: true },
+        { path: 'Notes/b.md', bytes: new Uint8Array([2]), expectedHash: 'old-b' },
+      ],
+    })).resolves.toEqual({
+      revision: '42',
+      results: [
+        { path: 'Notes/a.md', hash },
+        { path: 'Notes/b.md', hash },
+      ],
+    });
+    const batchCalls = invoke.mock.calls.filter(([command]) => command === 'vault_write_batch_atomic');
+    expect(batchCalls).toHaveLength(1);
+    expect(batchCalls[0]?.[1]).toBeInstanceOf(Uint8Array);
   });
 
   it('routes lifecycle control paths only through the trusted boundary', async () => {
