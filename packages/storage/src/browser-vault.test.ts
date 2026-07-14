@@ -796,6 +796,43 @@ describe('OPFS crash recovery', () => {
       expect(entry).toMatchObject({ path, size: 8 });
       expect(entry).not.toHaveProperty('contentHash');
       expect(opfs.arrayBufferReads).not.toContain(physicalPath);
+
+      const archive = await storageApi.exportVault(storageApi.createInMemoryVault());
+      await expect(storageApi.prepareVaultImport(reopened, archive)).resolves.toBeDefined();
+      expect(opfs.arrayBufferReads).toContain(physicalPath);
+      await expect(reopened.list()).resolves.toEqual(expect.arrayContaining([
+        expect.objectContaining({ path, contentHash: await checksum('external') }),
+      ]));
+
+      opfs.arrayBufferReads.length = 0;
+      await expect(storageApi.prepareVaultImport(reopened, archive)).resolves.toBeDefined();
+      expect(opfs.arrayBufferReads).not.toContain(physicalPath);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('bounded-reads and backfills metadata for a legacy OPFS asset', async () => {
+    const opfs = new MemoryOpfs();
+    const name = 'legacy-file-metadata';
+    const root = `the-studio/${name}`;
+    const path = 'Attachments/legacy.bin';
+    const physicalPath = `${root}/${path}`;
+    opfs.put(physicalPath, 'legacy');
+    vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
+    try {
+      const vault = createBrowserVault(name, { storage: 'opfs' });
+      const listed = (await vault.list()).find((candidate) => candidate.path === path);
+      expect(listed).toMatchObject({ path, size: 6 });
+      expect(listed).not.toHaveProperty('contentHash');
+      expect(opfs.arrayBufferReads).not.toContain(physicalPath);
+
+      const archive = await storageApi.exportVault(storageApi.createInMemoryVault());
+      await expect(storageApi.prepareVaultImport(vault, archive)).resolves.toBeDefined();
+      expect(opfs.arrayBufferReads).toContain(physicalPath);
+      await expect(vault.list()).resolves.toEqual(expect.arrayContaining([
+        expect.objectContaining({ path, contentHash: await checksum('legacy') }),
+      ]));
     } finally {
       vi.unstubAllGlobals();
     }
