@@ -547,7 +547,7 @@ it('creates a named native Studio separately from opening an existing one', asyn
   );
 });
 
-it('serializes browser Studio selection and unlocks after cancellation', async () => {
+it('serializes browser Studio selection and unlocks after completion', async () => {
   let finishList: ((entries: [{ kind: 'file'; path: string; size: number }]) => void) | undefined;
   createBrowserVault.mockReturnValue({
     list: () =>
