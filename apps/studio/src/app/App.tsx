@@ -326,7 +326,9 @@ function StudioApplication({
 
   function finishOnboarding(): void {
     setOpened(true);
-    go(path);
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>('#studio-main')?.focus(),
+    );
   }
 
   async function selectNativeService(): Promise<boolean> {

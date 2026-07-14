@@ -158,7 +158,10 @@ export default function SearchRoom({
         onFiltersChange={view.setFilters}
         {...(searchService ? { onOpenRepairQueue: openRepairs } : {})}
         {...(searchService ? {
-          onOpenResult: (id: string) => { void inspect(id); },
+          onOpenResult: (id: string, trigger: HTMLButtonElement) => {
+            trigger.focus();
+            void inspect(id);
+          },
         } : {})}
         onQueryChange={view.setQuery}
       />
