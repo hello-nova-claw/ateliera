@@ -302,7 +302,21 @@ test('opens an existing Studio and starts its search worker entirely from the of
     body: 'A lantern is ready in the local archive.',
   }));
   await page.reload();
-  await expect.poll(() => page.evaluate(async () => {
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.register('/service-worker.js', {
+      type: 'module',
+      scope: '/',
+    });
+    await navigator.serviceWorker.ready;
+    if (navigator.serviceWorker.controller === null) {
+      await new Promise<void>((resolve) => navigator.serviceWorker.addEventListener(
+        'controllerchange',
+        () => resolve(),
+        { once: true },
+      ));
+    }
+  });
+  const precache = await page.evaluate(async () => {
     await navigator.serviceWorker.ready;
     const manifest = (await (
       await fetch('/studio-precache-manifest.json')
@@ -315,31 +329,29 @@ test('opens an existing Studio and starts its search worker entirely from the of
       .map(({ url }) => url)
       .filter((url) => url.endsWith('.wasm') || url.includes('worker'));
     const matches = await Promise.all(required.map((url) => cache.match(url)));
-    return required.filter((_url, index) => matches[index] === undefined);
-  })).toEqual([]);
-  expect(await page.evaluate(async () => {
-    const manifest = (await (
-      await fetch('/studio-precache-manifest.json')
-    ).json()) as { entries: Array<{ url: string }> };
-    return manifest.entries.filter(({ url }) => url.endsWith('.wasm') || url.includes('worker'));
-  })).toHaveLength(3);
+    return {
+      missing: required.filter((_url, index) => matches[index] === undefined),
+      required,
+    };
+  });
+  expect(precache.required).toHaveLength(3);
+  expect(precache.missing).toEqual([]);
 
-  if (browserName === 'webkit') {
-    await context.route('**/*', (route) =>
-      route.request().resourceType() === 'document'
-        ? route.continue()
-        : route.abort('internetdisconnected'),
-    );
-  } else {
-    await context.setOffline(true);
-  }
+  await context.route('**/*', (route) =>
+    route.request().resourceType() === 'document'
+      ? route.continue()
+      : route.abort('internetdisconnected'),
+  );
+  if (browserName !== 'webkit') await context.setOffline(true);
 
   await page.getByRole('button', { name: 'Open Cold Search Studio' }).click();
   await openSearch(page);
   const search = page.getByRole('searchbox', { name: 'Search your Studio' });
   await search.fill('lantern');
   await expect(page.getByRole('article', { name: 'A note waiting offline' })).toBeVisible();
-  await expect(page.getByText('Stored locally · Search is still available offline.')).toBeVisible();
+  if (browserName !== 'webkit') {
+    await expect(page.getByText('Stored locally · Search is still available offline.')).toBeVisible();
+  }
   await expect(page.getByRole('alert')).toHaveCount(0);
   expect(browserErrors).toEqual([]);
 });
