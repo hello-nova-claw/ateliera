@@ -45,15 +45,33 @@ async function useTheme(page: Page, theme: (typeof themes)[number]): Promise<voi
 }
 
 async function expectContained(page: Page): Promise<void> {
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          document.documentElement.scrollWidth -
-          document.documentElement.clientWidth,
-      ),
-    )
-    .toBeLessThanOrEqual(0);
+  const metrics = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    overflow: [...document.querySelectorAll<HTMLElement>('*')]
+      .map((element) => {
+        const bounds = element.getBoundingClientRect();
+        return {
+          className: element.className,
+          clientWidth: element.clientWidth,
+          left: bounds.left,
+          right: bounds.right,
+          scrollWidth: element.scrollWidth,
+          text: element.textContent?.trim().slice(0, 80) ?? '',
+        };
+      })
+      .filter(
+        ({ clientWidth, left, right, scrollWidth }) =>
+          left < -0.5 ||
+          right > document.documentElement.clientWidth + 0.5 ||
+          scrollWidth > clientWidth + 0.5,
+      )
+      .slice(0, 12),
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(
+    metrics.scrollWidth - metrics.clientWidth,
+    JSON.stringify(metrics, null, 2),
+  ).toBeLessThanOrEqual(0);
 }
 
 async function expectAxeClean(page: Page): Promise<void> {

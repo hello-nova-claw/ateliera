@@ -146,6 +146,7 @@
 .foyer-page__narrow {
   display: grid;
   gap: clamp(3rem, 6vw, 5.5rem);
+  min-inline-size: 0;
 }
 
 .foyer-page__narrow {
@@ -179,6 +180,7 @@
   max-inline-size: 58ch;
   margin: var(--studio-space-4) 0 0;
   color: var(--studio-color-ink-muted);
+  overflow-wrap: anywhere;
 }
 
 .foyer-becoming--empty {
