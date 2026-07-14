@@ -22,6 +22,7 @@ import { App } from './App';
 
 const selectTauriVault = vi.fn();
 const createTauriStudio = vi.fn();
+const createBrowserVault = vi.fn();
 
 vi.mock('@studio/storage/tauri', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@studio/storage/tauri')>()),
@@ -29,11 +30,17 @@ vi.mock('@studio/storage/tauri', async (importOriginal) => ({
   selectTauriVault,
 }));
 
+vi.mock('@studio/storage/browser', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@studio/storage/browser')>()),
+  createBrowserVault,
+}));
+
 afterEach(() => {
   cleanup();
   history.replaceState(null, '', '/foyer');
   Reflect.deleteProperty(window, '__TAURI_INTERNALS__');
   createTauriStudio.mockReset();
+  createBrowserVault.mockReset();
   selectTauriVault.mockReset();
   vi.unstubAllGlobals();
 });
@@ -537,6 +544,34 @@ it('creates a named native Studio separately from opening an existing one', asyn
     expect(
       screen.getByRole('button', { name: /^Create$/ }),
     ).toBeEnabled(),
+  );
+});
+
+it('serializes browser Studio selection and unlocks after cancellation', async () => {
+  let finishList: ((entries: [{ kind: 'file'; path: string; size: number }]) => void) | undefined;
+  createBrowserVault.mockReturnValue({
+    list: () =>
+      new Promise((resolve) => {
+        finishList = resolve;
+      }),
+  });
+
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: 'Create a Studio' }));
+  fireEvent.change(screen.getByLabelText('Studio name'), {
+    target: { value: 'Anna’s Studio' },
+  });
+  const submit = screen.getByRole('button', { name: /^Create$/ });
+  fireEvent.click(submit);
+  fireEvent.click(submit);
+
+  await waitFor(() => expect(createBrowserVault).toHaveBeenCalledOnce());
+  expect(screen.getByRole('button', { name: 'Create a Studio' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'No existing Studio found' })).toBeDisabled();
+
+  finishList?.([{ kind: 'file', path: 'Inbox/existing.md', size: 1 }]);
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /^Create$/ })).toBeEnabled(),
   );
 });
 

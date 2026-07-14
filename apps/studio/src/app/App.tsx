@@ -201,6 +201,20 @@ function StudioApplication({
   const pendingLandscapePlacement = useRef<
     { lifeArea: string; anchor: LandscapeAnchor } | undefined
   >(undefined);
+  const studioActionRef = useRef<'create' | 'open' | null>(null);
+
+  function beginStudioAction(action: 'create' | 'open'): boolean {
+    if (studioActionRef.current !== null) return false;
+    studioActionRef.current = action;
+    setStudioAction(action);
+    return true;
+  }
+
+  function finishStudioAction(action: 'create' | 'open'): void {
+    if (studioActionRef.current !== action) return;
+    studioActionRef.current = null;
+    setStudioAction(null);
+  }
 
   navigationGuard.current = (next) => {
     if (editor === undefined) return false;
@@ -352,10 +366,11 @@ function StudioApplication({
   }
 
   async function openStudio(record?: BrowserStudioRecord): Promise<void> {
+    if (!isNativeShell() && record === undefined) return;
+    if (!beginStudioAction('open')) return;
     setError(undefined);
     try {
       if (isNativeShell()) {
-        setStudioAction('open');
         const { selectTauriVault } = await import('@studio/storage/tauri');
         const selected = await selectTauriVault();
         if (selected !== null) {
@@ -385,11 +400,12 @@ function StudioApplication({
             : 'This Studio couldn’t be opened.',
       );
     } finally {
-      setStudioAction(null);
+      finishStudioAction('open');
     }
   }
 
   async function createStudio(): Promise<void> {
+    if (!beginStudioAction('create')) return;
     setCreateError(undefined);
     setDuplicateStudio(undefined);
     try {
@@ -399,7 +415,6 @@ function StudioApplication({
           setCreateError('Give your Studio a name before creating it.');
           return;
         }
-        setStudioAction('create');
         const { createTauriStudio } = await import('@studio/storage/tauri');
         const created = await createTauriStudio(studioName);
         if (created !== null) {
@@ -459,7 +474,7 @@ function StudioApplication({
             : 'Your Studio couldn’t be created. Try again.',
       );
     } finally {
-      setStudioAction(null);
+      finishStudioAction('create');
     }
   }
 
@@ -753,7 +768,7 @@ function StudioApplication({
             isNative={isNativeShell()}
             onCreate={() => setCreateOpen(true)}
             onOpen={(record) => void openStudio(record)}
-            opening={studioAction === 'open'}
+            studioAction={studioAction}
           />
         )}
       </section>
@@ -768,7 +783,9 @@ function StudioApplication({
       <Dialog
         isOpen={createOpen}
         label="Create a Studio"
-        onClose={() => setCreateOpen(false)}
+        onClose={() => {
+          if (studioAction === null) setCreateOpen(false);
+        }}
       >
         <form
           className="studio-form"
@@ -781,7 +798,7 @@ function StudioApplication({
           <h2>Create a Studio</h2>
           <label htmlFor="studio-name">Studio name</label>
           <input
-            disabled={studioAction === 'create'}
+            disabled={studioAction !== null}
             id="studio-name"
             onChange={(event) => setName(event.target.value)}
             value={name}
@@ -794,7 +811,7 @@ function StudioApplication({
           <div className="studio-form__actions">
             <button
               className="studio-form__button studio-form__button--secondary"
-              disabled={studioAction === 'create'}
+              disabled={studioAction !== null}
               onClick={() => setCreateOpen(false)}
               type="button"
             >
@@ -802,7 +819,7 @@ function StudioApplication({
             </button>
             <button
               className="studio-form__button"
-              disabled={studioAction === 'create'}
+              disabled={studioAction !== null}
               type="submit"
             >
               {studioAction === 'create' ? 'Creating your Studio…' : 'Create'}
@@ -810,6 +827,7 @@ function StudioApplication({
             {duplicateStudio && (
               <button
                 className="studio-form__button studio-form__button--secondary"
+                disabled={studioAction !== null}
                 onClick={() => {
                   setCreateOpen(false);
                   void openStudio(duplicateStudio);
@@ -921,13 +939,13 @@ function Onboarding({
   isNative,
   onCreate,
   onOpen,
-  opening,
+  studioAction,
 }: {
   browserStudios: BrowserStudioRecord[];
   isNative: boolean;
   onCreate: () => void;
   onOpen: (record?: BrowserStudioRecord) => void;
-  opening: boolean;
+  studioAction: 'create' | 'open' | null;
 }) {
   const [selectedVault, setSelectedVault] = useState(
     browserStudios[0]?.vaultId ?? '',
@@ -950,6 +968,7 @@ function Onboarding({
       <div className="studio-onboarding__actions">
         <button
           className="studio-onboarding__button"
+          disabled={studioAction !== null}
           onClick={onCreate}
           type="button"
         >
@@ -959,6 +978,7 @@ function Onboarding({
           <label className="studio-onboarding__picker">
             Choose a Studio
             <select
+              disabled={studioAction !== null}
               onChange={(event) => setSelectedVault(event.target.value)}
               value={selectedVault}
             >
@@ -972,12 +992,12 @@ function Onboarding({
         )}
         <button
           className="studio-onboarding__button studio-onboarding__button--secondary"
-          disabled={opening || (!isNative && selected === undefined)}
+          disabled={studioAction !== null || (!isNative && selected === undefined)}
           onClick={() => onOpen(selected)}
           type="button"
         >
           {isNative
-            ? opening
+            ? studioAction === 'open'
               ? 'Opening your Studio…'
               : 'Open an existing Studio'
             : selected
