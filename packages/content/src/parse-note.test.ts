@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import type { StudioNote } from '@studio/domain';
 import { readFileSync } from 'node:fs';
-import { parseNote, serializeNote } from './index';
+import { inspectRepairSource, parseNote, serializeNote } from './index';
 
 const input = `---
 schema_version: 1
@@ -270,5 +270,52 @@ describe('parseNote', () => {
       expect(parsed.note.body).toContain('Ordinary **Markdown** remains mine.');
       expect(parseNote(serializeNote(parsed.note))).toMatchObject({ ok: true });
     }
+  });
+});
+
+describe('inspectRepairSource', () => {
+  it('recovers safe frontmatter values, body, and CRLF without accepting aliases', () => {
+    const source = [
+      '---',
+      'schema_version: 1',
+      'semantic_type: wrong',
+      'attachments:',
+      '  - Media/photo.jpg',
+      'custom_safe:',
+      '  nested: true',
+      '---',
+      'Body stays exact.',
+    ].join('\r\n');
+
+    expect(inspectRepairSource(source)).toEqual({
+      body: 'Body stays exact.',
+      lineEnding: '\r\n',
+      frontmatter: expect.objectContaining({
+        attachments: ['Media/photo.jpg'],
+        custom_safe: { nested: true },
+      }),
+    });
+    expect(inspectRepairSource('---\na: &x value\nb: *x\n---\nBody').frontmatter).toEqual({});
+  });
+
+  it('returns the recoverable body with no metadata for malformed or unsafe mappings', () => {
+    expect(inspectRepairSource('---\nbroken: [\n---\nBody')).toEqual({
+      body: 'Body', lineEnding: '\n', frontmatter: {},
+    });
+    expect(inspectRepairSource('---\n- not\n- a map\n---\nBody').frontmatter).toEqual({});
+    expect(inspectRepairSource('No frontmatter').body).toBe('No frontmatter');
+  });
+
+  it('drops unsafe scalar, array, nested, key, and excessively deep values', () => {
+    expect(inspectRepairSource('---\n.nan\n---\nBody').frontmatter).toEqual({});
+    expect(inspectRepairSource('---\n- safe\n- .nan\n---\nBody').frontmatter).toEqual({});
+    expect(inspectRepairSource('---\nsafe: [.nan]\n---\nBody').frontmatter).toEqual({});
+    expect(inspectRepairSource('---\nsafe:\n  nested: .nan\n---\nBody').frontmatter).toEqual({});
+    for (const key of ['""', '"__proto__"', 'prototype', 'constructor', `"${'x'.repeat(129)}"`, '"é"']) {
+      expect(inspectRepairSource(`---\n${key}: value\n---\nBody`).frontmatter).toEqual({});
+    }
+    const deeplyNested = Array.from({ length: 18 }, (_, index) => `${'  '.repeat(index)}a:`).join('\n');
+    expect(inspectRepairSource(`---\n${deeplyNested}\n${'  '.repeat(18)}value\n---\nBody`).frontmatter)
+      .toEqual({});
   });
 });

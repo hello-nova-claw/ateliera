@@ -9,6 +9,12 @@ export type ParseResult =
   | { ok: true; note: StudioNote; warnings: ParseWarning[] }
   | { ok: false; rawBody: string; recoverable: true; errors: ParseError[] };
 
+export interface RepairSourceInspection {
+  body: string;
+  lineEnding: '\n' | '\r\n';
+  frontmatter: Record<string, unknown>;
+}
+
 function splitDocument(text: string): {
   yaml?: string;
   body: string;
@@ -22,6 +28,57 @@ function splitDocument(text: string): {
     yaml: match[1]!,
     body: text.slice(match[0].length),
     lineEnding,
+  };
+}
+
+function safeRepairValue(value: unknown, depth = 0): unknown {
+  if (depth > 16) return undefined;
+  if (
+    value === null ||
+    typeof value === 'string' ||
+    typeof value === 'boolean' ||
+    (typeof value === 'number' && Number.isFinite(value))
+  ) return value;
+  if (Array.isArray(value)) {
+    const items = value.map((item) => safeRepairValue(item, depth + 1));
+    return items.some((item) => item === undefined) ? undefined : items;
+  }
+  if (typeof value !== 'object' || value === null) return undefined;
+  const safe: Array<[string, unknown]> = [];
+  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+    if (
+      key.length === 0 || key.length > 128 || key !== key.normalize('NFC') ||
+      key === '__proto__' || key === 'prototype' || key === 'constructor' ||
+      /[\u0000-\u001f\u007f-\u009f]/u.test(key)
+    ) return undefined;
+    const nested = safeRepairValue(item, depth + 1);
+    if (nested === undefined) return undefined;
+    safe.push([key, nested]);
+  }
+  return Object.fromEntries(safe);
+}
+
+export function inspectRepairSource(text: string): RepairSourceInspection {
+  const split = splitDocument(text);
+  if (split.yaml === undefined) {
+    return { body: split.body, lineEnding: split.lineEnding, frontmatter: {} };
+  }
+  const document = parseDocument(split.yaml, { strict: true });
+  let usesAlias = false;
+  visit(document, (_key, node) => {
+    if (isAlias(node)) usesAlias = true;
+  });
+  if (document.errors.length > 0 || usesAlias) {
+    return { body: split.body, lineEnding: split.lineEnding, frontmatter: {} };
+  }
+  const repaired = safeRepairValue(document.toJS({ maxAliasCount: 0 }));
+  return {
+    body: split.body,
+    lineEnding: split.lineEnding,
+    frontmatter:
+      typeof repaired === 'object' && repaired !== null && !Array.isArray(repaired)
+        ? repaired as Record<string, unknown>
+        : {},
   };
 }
 
