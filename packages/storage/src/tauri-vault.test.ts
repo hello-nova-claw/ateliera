@@ -149,6 +149,7 @@ describe('Tauri vault IPC adapter', () => {
   });
 
   it('uses raw IPC bytes for ordinary binary reads and writes', async () => {
+    const readHash = '787c798e39a5bc1910355bae6d0cd87a36b2e10fd0202a83e3bb6b005da83472';
     const invoke = vi.fn<TauriVaultBridge['invoke']>(async (command, args) => {
       if (command === 'vault_select') return selection();
       if (command === 'vault_get_revision') return '7';
@@ -156,7 +157,7 @@ describe('Tauri vault IPC adapter', () => {
         return { revision: '8', results: [{ path: 'asset.bin', hash }] };
       }
       if (command === 'vault_list') {
-        return [{ path: 'asset.bin', kind: 'file', size: 3, contentHash: hash }];
+        return [{ path: 'asset.bin', kind: 'file', size: 3, contentHash: readHash }];
       }
       if (command === 'vault_read_binary_chunk') {
         expect(args).toMatchObject({ path: 'asset.bin', offset: 0, length: 3 });

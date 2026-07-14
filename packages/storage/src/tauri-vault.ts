@@ -28,6 +28,13 @@ function binaryResponse(value: unknown): Uint8Array {
   throw new VaultUnavailableError();
 }
 
+async function sha256ExactBuffer(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', bytes.buffer);
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 function uint32(value: number): Uint8Array {
   if (!Number.isSafeInteger(value) || value < 0 || value > 0xffff_ffff) {
     throw new VaultUnavailableError();
@@ -271,7 +278,8 @@ function createTauriVault(
         output.set(response, offset);
       }
       const after = await binaryMetadata(path);
-      if (after.size !== before.size || after.hash !== before.hash) {
+      if (after.size !== before.size || after.hash !== before.hash ||
+        await sha256ExactBuffer(output) !== before.hash) {
         throw new VaultUnavailableError();
       }
       return output;

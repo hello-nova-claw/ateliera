@@ -46,6 +46,12 @@ function nativeBridge(): TauriVaultBridge {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
   const hash = (bytes: Uint8Array) => `native-${bytes.byteLength}-${bytes[0] ?? 0}`;
+  const contentHash = async (bytes: Uint8Array) => {
+    const digest = await crypto.subtle.digest('SHA-256', bytes.slice().buffer);
+    return [...new Uint8Array(digest)]
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('');
+  };
   let revision = 0n;
   const decodeBatch = (body: Uint8Array) => {
     let offset = 8;
@@ -119,9 +125,10 @@ function nativeBridge(): TauriVaultBridge {
           return bytes.slice(offset, offset + (args.length as number));
         }
         case 'vault_list':
-          return [...files].map(([filePath, bytes]) => ({
-            path: filePath, kind: 'file', size: bytes.byteLength, contentHash: 'a'.repeat(64),
-          }));
+          return Promise.all([...files].map(async ([filePath, bytes]) => ({
+            path: filePath, kind: 'file', size: bytes.byteLength,
+            contentHash: await contentHash(bytes),
+          })));
         case 'vault_exists':
           return files.has(path);
         default:
