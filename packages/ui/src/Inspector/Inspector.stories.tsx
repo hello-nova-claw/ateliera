@@ -111,6 +111,6 @@ export const Archived: Story = {
 export const OfflineWithContent: Story = { args: { state: 'offline' } };
 export const Loading: Story = { args: { state: 'loading' } };
 export const Error: Story = {
-  args: { errorMessage: 'The vault is unavailable. The Markdown file has not changed.', state: 'error' },
+  args: { errorMessage: 'The Studio folder is unavailable. The Markdown file has not changed.', state: 'error' },
 };
 export const Missing: Story = { args: { state: 'missing' } };

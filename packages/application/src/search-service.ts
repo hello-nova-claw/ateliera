@@ -176,7 +176,7 @@ function validatePath(path: string): void {
       return segment === '' || segment === '.' || segment === '..' ||
         folded === '.studio' || folded.startsWith('.studio-');
     })
-  ) throw new RangeError('A safe vault path is required.');
+  ) throw new RangeError('A safe Studio file location is required.');
 }
 
 function isMarkdownPath(path: string): boolean {

@@ -101,7 +101,7 @@ class InMemoryVault implements VaultPort {
     try {
       return { text: this.#decoder.decode(file.bytes), hash: file.hash };
     } catch {
-      throw new VaultUnavailableError('The requested vault entry is not valid UTF-8 text.');
+      throw new VaultUnavailableError('The requested Studio file is not valid UTF-8 text.');
     }
   }
 
