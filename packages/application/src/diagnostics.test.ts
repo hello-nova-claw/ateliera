@@ -119,6 +119,12 @@ describe('content-redacted diagnostics', () => {
 
     expect(recorder.record(first)).toBe(true);
     first.fileId = 'MUTATED';
+    expect(recorder.entries()).toEqual([{
+      operation: 'save',
+      occurredAt: '2026-07-14T03:01:05.000Z',
+      outcome: 'ok',
+      fileId: '01J00000000000000000000000',
+    }]);
     expect(recorder.record({
       operation: 'search',
       occurredAt: '2026-07-14T03:02:05.000Z',
