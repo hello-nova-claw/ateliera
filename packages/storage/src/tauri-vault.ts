@@ -353,12 +353,14 @@ function createTauriVault(
   };
 }
 
-export async function selectTauriVault(
+async function requestTauriVault(
+  command: 'vault_create' | 'vault_select',
+  args: Record<string, unknown>,
   bridge: TauriVaultBridge = defaultBridge,
 ): Promise<TauriVault | null> {
   let selection: unknown;
   try {
-    selection = await bridge.invoke('vault_select', {});
+    selection = await bridge.invoke(command, args);
   } catch (error) {
     translate(error);
   }
@@ -381,4 +383,18 @@ export async function selectTauriVault(
     (selection as { recoveryIdentity: string }).recoveryIdentity,
     bridge,
   );
+}
+
+export function selectTauriVault(
+  bridge: TauriVaultBridge = defaultBridge,
+): Promise<TauriVault | null> {
+  return requestTauriVault('vault_select', {}, bridge);
+}
+
+export function createTauriStudio(
+  name: string,
+  bridge: TauriVaultBridge = defaultBridge,
+): Promise<TauriVault | null> {
+  if (name.trim() === '') return Promise.reject(new VaultUnavailableError());
+  return requestTauriVault('vault_create', { name }, bridge);
 }

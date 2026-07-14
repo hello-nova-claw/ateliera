@@ -263,15 +263,7 @@ pub struct VaultRegistry {
 }
 
 impl VaultRegistry {
-    fn register_selected_path(
-        &self,
-        owner: &str,
-        selected_path: &Path,
-    ) -> Result<VaultSelection, VaultError> {
-        // Native selection is the only ambient-authority boundary. Open it immediately and
-        // retain the resulting directory descriptor; later commands never reopen this path.
-        let root = Dir::open_ambient_dir(selected_path, ambient_authority())
-            .map_err(|_| VaultError::Unavailable)?;
+    fn register_directory(&self, owner: &str, root: Dir) -> Result<VaultSelection, VaultError> {
         let mut lock_options = OpenOptions::new();
         lock_options
             .read(true)
@@ -305,6 +297,40 @@ impl VaultRegistry {
                 },
             );
         Ok(selection)
+    }
+
+    fn register_selected_path(
+        &self,
+        owner: &str,
+        selected_path: &Path,
+    ) -> Result<VaultSelection, VaultError> {
+        // Native selection is the only ambient-authority boundary. Open it immediately and
+        // retain the resulting directory descriptor; later commands never reopen this path.
+        let root = Dir::open_ambient_dir(selected_path, ambient_authority())
+            .map_err(|_| VaultError::Unavailable)?;
+        self.register_directory(owner, root)
+    }
+
+    fn create_in_selected_parent(
+        &self,
+        owner: &str,
+        selected_parent: &Path,
+        name: &str,
+    ) -> Result<VaultSelection, VaultError> {
+        let folder_name = normalize_studio_folder_name(name)?;
+        let parent = Dir::open_ambient_dir(selected_parent, ambient_authority())
+            .map_err(|_| VaultError::Unavailable)?;
+        match parent.create_dir(&folder_name) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                return Err(VaultError::Conflict);
+            }
+            Err(_) => return Err(VaultError::Unavailable),
+        }
+        let root = parent
+            .open_dir_nofollow(&folder_name)
+            .map_err(map_path_error)?;
+        self.register_directory(owner, root)
     }
 
     fn vault(&self, owner: &str, token: &str) -> Result<Arc<Vault>, VaultError> {
@@ -356,6 +382,17 @@ impl VaultRegistry {
     pub fn capability_count_for_test(&self) -> usize {
         self.vaults.lock().map(|vaults| vaults.len()).unwrap_or(0)
     }
+}
+
+fn normalize_studio_folder_name(name: &str) -> Result<String, VaultError> {
+    if name.contains(['/', '\\', '\0']) {
+        return Err(VaultError::PathEscape);
+    }
+    let normalized = name.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.is_empty() || normalized == "." || normalized == ".." || normalized.len() > 160 {
+        return Err(VaultError::PathEscape);
+    }
+    Ok(normalized)
 }
 
 fn hash(bytes: &[u8]) -> String {
@@ -2447,12 +2484,32 @@ pub fn vault_select<R: Runtime>(
     state: State<'_, VaultRegistry>,
 ) -> Result<Option<VaultSelection>, VaultError> {
     let Some(path) = rfd::FileDialog::new()
-        .set_title("Choose a Studio vault")
+        .set_title("Choose your Studio folder")
         .pick_folder()
     else {
         return Ok(None);
     };
     Ok(Some(state.register_selected_path(window.label(), &path)?))
+}
+
+#[tauri::command]
+pub fn vault_create<R: Runtime>(
+    window: WebviewWindow<R>,
+    state: State<'_, VaultRegistry>,
+    name: String,
+) -> Result<Option<VaultSelection>, VaultError> {
+    normalize_studio_folder_name(&name)?;
+    let Some(parent) = rfd::FileDialog::new()
+        .set_title("Choose where to create your Studio")
+        .pick_folder()
+    else {
+        return Ok(None);
+    };
+    Ok(Some(state.create_in_selected_parent(
+        window.label(),
+        &parent,
+        &name,
+    )?))
 }
 
 #[tauri::command]
@@ -2648,13 +2705,28 @@ mod tests {
 
     #[test]
     fn studio_folder_name_is_trimmed_and_whitespace_is_normalized() {
-        assert_eq!(normalize_studio_folder_name("  My\t Calm   Studio  ").unwrap(), "My Calm Studio");
+        assert_eq!(
+            normalize_studio_folder_name("  My\t Calm   Studio  ").unwrap(),
+            "My Calm Studio"
+        );
     }
 
     #[test]
     fn studio_folder_name_rejects_traversal_and_unsafe_components() {
-        for name in ["", "   ", ".", "..", "../Elsewhere", "Nested/Studio", "Nested\\Studio", "bad\0name"] {
-            assert_eq!(normalize_studio_folder_name(name), Err(VaultError::PathEscape));
+        for name in [
+            "",
+            "   ",
+            ".",
+            "..",
+            "../Elsewhere",
+            "Nested/Studio",
+            "Nested\\Studio",
+            "bad\0name",
+        ] {
+            assert!(matches!(
+                normalize_studio_folder_name(name),
+                Err(VaultError::PathEscape)
+            ));
         }
     }
 
@@ -2678,10 +2750,10 @@ mod tests {
                 .unwrap()
         );
 
-        assert_eq!(
+        assert!(matches!(
             registry.create_in_selected_parent("other", parent.path(), "My Studio"),
             Err(VaultError::Conflict)
-        );
+        ));
         assert_eq!(registry.capability_count_for_test(), 1);
     }
 

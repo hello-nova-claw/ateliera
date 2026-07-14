@@ -12,7 +12,11 @@ export type {
   BrowserVaultStore,
   StoredBrowserFile,
 } from './browser-vault';
-export { saveTauriVaultBackup, selectTauriVault } from './tauri-vault';
+export {
+  createTauriStudio,
+  saveTauriVaultBackup,
+  selectTauriVault,
+} from './tauri-vault';
 export type { TauriBackupSaveStatus } from './tauri-vault';
 export { createRevisionStore, RevisionLimitError } from './revisions';
 export { createStudioControlVault } from './studio-control-vault';
