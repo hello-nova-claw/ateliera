@@ -46,6 +46,38 @@ function nativeBridge(): TauriVaultBridge {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
   const hash = (bytes: Uint8Array) => `native-${bytes.byteLength}-${bytes[0] ?? 0}`;
+  let revision = 0n;
+  const decodeBatch = (body: Uint8Array) => {
+    let offset = 8;
+    const readU32 = () => {
+      const value = new DataView(body.buffer, body.byteOffset + offset, 4).getUint32(0, true);
+      offset += 4;
+      return value;
+    };
+    const readString = () => {
+      const length = readU32();
+      const value = decoder.decode(body.slice(offset, offset + length));
+      offset += length;
+      return value;
+    };
+    readString();
+    offset += 1;
+    const stateCount = readU32();
+    for (let index = 0; index < stateCount; index += 1) {
+      readString();
+      readString();
+    }
+    const writeCount = readU32();
+    return Array.from({ length: writeCount }, () => {
+      const path = readString();
+      const flags = body[offset++] ?? 0;
+      if ((flags & 2) !== 0) readString();
+      const length = readU32();
+      const bytes = body.slice(offset, offset + length);
+      offset += length;
+      return { path, bytes };
+    });
+  };
   return {
     async listen() { return () => undefined; },
     async invoke(command, args) {
@@ -59,12 +91,19 @@ function nativeBridge(): TauriVaultBridge {
         case 'vault_write_text_atomic': {
           const bytes = encoder.encode(args.text as string);
           files.set(path, bytes);
+          revision += 1n;
           return { hash: hash(bytes) };
         }
-        case 'vault_write_binary_atomic': {
-          const bytes = new Uint8Array(args.bytes as number[]);
-          files.set(path, bytes);
-          return { hash: hash(bytes) };
+        case 'vault_get_revision':
+          return revision.toString();
+        case 'vault_write_batch_atomic': {
+          const writes = decodeBatch(args as unknown as Uint8Array);
+          for (const write of writes) files.set(write.path, write.bytes);
+          revision += 1n;
+          return {
+            revision: revision.toString(),
+            results: writes.map((write) => ({ path: write.path, hash: 'a'.repeat(64) })),
+          };
         }
         case 'vault_read_text': {
           const bytes = files.get(path);
@@ -72,7 +111,7 @@ function nativeBridge(): TauriVaultBridge {
           return { text: decoder.decode(bytes), hash: hash(bytes) };
         }
         case 'vault_read_binary':
-          return [...(files.get(path) ?? [])];
+          return files.get(path)?.slice() ?? new Uint8Array();
         case 'vault_list':
           return [...files].map(([filePath, bytes]) => ({
             path: filePath, kind: 'file', size: bytes.byteLength, contentHash: hash(bytes),
