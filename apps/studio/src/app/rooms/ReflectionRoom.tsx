@@ -2,6 +2,7 @@ import type { StudioCardProjection, StudioService } from '@studio/application';
 import { markdownToPlainText } from '@studio/content';
 import { ReflectionPage } from '../../features/reflection/ReflectionPage';
 import { useReflection } from '../../features/reflection/use-reflection';
+import { canonicalReflectionConnection } from './reflection-connection';
 
 export default function ReflectionRoom({
   onNavigate,
@@ -42,15 +43,17 @@ export default function ReflectionRoom({
       }}
       onConnect={view.connect}
       onOpenConnection={(connection, trigger) => {
-        if (connection.kind === 'note' && connection.card && onOpenCard) {
-          onOpenCard(connection.card, trigger);
+        const canonical = canonicalReflectionConnection(connection, view.connections);
+        if (!canonical) return;
+        if (canonical.kind === 'note' && canonical.card && onOpenCard) {
+          onOpenCard(canonical.card, trigger);
           return;
         }
-        if (connection.kind === 'life-area') {
-          onNavigate?.(`/landscape/${connection.id}`);
+        if (canonical.kind === 'life-area') {
+          onNavigate?.(`/landscape/${canonical.id}`);
           return;
         }
-        if (connection.kind === 'season') onNavigate?.('/season');
+        if (canonical.kind === 'season') onNavigate?.('/season');
       }}
       {...(onOpenCard ? { onOpen: onOpenCard } : {})}
       state={!online && view.state !== 'loading' && view.state !== 'error'

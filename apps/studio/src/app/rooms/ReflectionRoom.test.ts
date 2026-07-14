@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { canonicalReflectionConnection } from './ReflectionRoom';
+import { canonicalReflectionConnection } from './reflection-connection';
 
 describe('canonicalReflectionConnection', () => {
   const available = [

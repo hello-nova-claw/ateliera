@@ -102,7 +102,16 @@ it('captures a one-sentence reflection and supports opening the full editor', as
 });
 
 it('shows linked evidence and an optional Then & now pair', () => {
-  render(<ReflectionPage model={model} />);
+  render(
+    <ReflectionPage
+      connections={[
+        { id: 'family', kind: 'life-area', label: 'Family' },
+        { id: '2026-winter', kind: 'season', label: 'Winter 2026' },
+        { id: 'identity-1', kind: 'note', label: 'Creates from calm' },
+      ]}
+      model={model}
+    />,
+  );
   expect(screen.getByRole('region', { name: 'Then and now' })).toHaveTextContent(
     'A morning that held',
   );

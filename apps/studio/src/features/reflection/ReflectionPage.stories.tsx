@@ -12,8 +12,8 @@ const cards = [
     lifeAreas: ['family'], seasons: ['winter'], tags: ['calm', 'ordinary-life'],
     linkedNoteIds: ['identity'], thenNoteId: 'then',
     evidenceConnections: [
-      { kind: 'life-area' as const, id: 'family' },
-      { kind: 'season' as const, id: 'winter' },
+      { kind: 'life-area' as const, id: 'family', label: 'Family', targetState: 'available' as const },
+      { kind: 'season' as const, id: 'winter', label: 'Winter', targetState: 'available' as const },
       { kind: 'note' as const, id: 'identity', targetState: 'available' as const },
     ],
   },
@@ -24,7 +24,12 @@ const cards = [
     semanticType: 'celebration' as const, cardType: 'celebration', status: 'active' as const,
     created: '2025-07-14T09:00:00.000Z', updated: '2025-07-14T09:00:00.000Z',
     lifeAreas: ['creativity'], seasons: [], tags: ['calm', 'evidence'], linkedNoteIds: [],
-    evidenceConnections: [{ kind: 'life-area' as const, id: 'creativity' }],
+    evidenceConnections: [{
+      kind: 'life-area' as const,
+      id: 'creativity',
+      label: 'Creativity',
+      targetState: 'available' as const,
+    }],
   },
 ];
 

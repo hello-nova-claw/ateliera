@@ -47,14 +47,6 @@ const views: Array<{ id: ReflectionView; label: string }> = [
   { id: 'themes', label: 'Themes' },
 ];
 
-function displayLabel(value: string): string {
-  return value
-    .split('-')
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toLocaleUpperCase('en') + part.slice(1))
-    .join(' ');
-}
-
 function EntryCard({
   card,
   connections,
@@ -94,21 +86,25 @@ function EntryCard({
     const resolved = connections.find(
       (candidate) => candidate.kind === item.kind && candidate.id === item.id,
     );
-    const label = resolved?.label ?? displayLabel(item.id);
-    if (item.kind === 'note' && item.targetState !== 'available') {
+    const label = ('label' in item ? item.label : undefined) ?? resolved?.label ?? item.id;
+    if (item.targetState !== 'available') {
+      const subject = item.kind === 'life-area' ? 'life area' : item.kind;
       return {
         ...item,
         label,
         repair: item.targetState === 'archived'
-          ? `The connected note ${item.id} is archived.`
-          : `The connected note ${item.id} is not available here.`,
+          ? item.kind === 'season'
+            ? `The connected season ${label} is historical.`
+            : `The connected ${subject} ${label} is archived.`
+          : `The connected ${subject} ${item.id} is not available here.`,
       };
     }
-    if (item.kind === 'note' && !resolved) {
+    if (!resolved) {
+      const subject = item.kind === 'life-area' ? 'life area' : item.kind;
       return {
         ...item,
         label,
-        repair: `The connected note ${item.id} is not available here.`,
+        repair: `The connected ${subject} ${item.id} is not available here.`,
       };
     }
     return {
