@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
     ffi::{CStr, CString, OsStr},
-    io::{Read, Write},
+    io::{Read, Seek, SeekFrom, Write},
     os::{fd::AsRawFd, unix::ffi::OsStrExt},
     path::{Path, PathBuf},
     sync::{
@@ -41,6 +41,7 @@ const BATCH_MAGIC: &[u8; 8] = b"STUDIOB1";
 const MAX_BATCH_BYTES: usize = 512 * 1024 * 1024;
 const MAX_BATCH_WRITES: usize = 9_999;
 const MAX_PORTABLE_ENTRY_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_BINARY_CHUNK_BYTES: usize = 4 * 1024 * 1024;
 const HASH_BUFFER_BYTES: usize = 64 * 1024;
 
 fn is_user_note_path(path: &str) -> bool {
@@ -1474,18 +1475,57 @@ impl Vault {
     }
 
     fn read_binary(&self, path: &str) -> Result<Vec<u8>, VaultError> {
-        let _write_guard = self.lock_writes()?;
-        self.recover_pending_locked()?;
-        self.read_binary_unlocked(path)
+        self.read_binary_bounded(path, MAX_PORTABLE_ENTRY_BYTES)
     }
 
-    fn read_binary_unlocked(&self, path: &str) -> Result<Vec<u8>, VaultError> {
+    fn read_binary_bounded(&self, path: &str, maximum: u64) -> Result<Vec<u8>, VaultError> {
+        if maximum > MAX_PORTABLE_ENTRY_BYTES {
+            return Err(VaultError::Unavailable);
+        }
+        let _write_guard = self.lock_writes()?;
+        self.recover_pending_locked()?;
+        self.read_binary_bounded_unlocked(path, maximum)
+    }
+
+    fn read_binary_bounded_unlocked(
+        &self,
+        path: &str,
+        maximum: u64,
+    ) -> Result<Vec<u8>, VaultError> {
         let parent = open_parent(&self.root, path, false)?;
         read_file_nofollow_bounded(
             &parent.directory,
             &parent.basename,
-            usize::try_from(MAX_PORTABLE_ENTRY_BYTES).map_err(|_| VaultError::Unavailable)?,
+            usize::try_from(maximum).map_err(|_| VaultError::Unavailable)?,
         )
+    }
+
+    fn read_binary_chunk(
+        &self,
+        path: &str,
+        offset: u64,
+        length: u32,
+    ) -> Result<Vec<u8>, VaultError> {
+        let length = usize::try_from(length).map_err(|_| VaultError::Unavailable)?;
+        if length == 0 || length > MAX_BINARY_CHUNK_BYTES {
+            return Err(VaultError::Unavailable);
+        }
+        let _write_guard = self.lock_writes()?;
+        self.recover_pending_locked()?;
+        let parent = open_parent(&self.root, path, false)?;
+        let mut file = open_file_nofollow(&parent.directory, &parent.basename)?;
+        let size = file.metadata().map_err(|_| VaultError::Unavailable)?.len();
+        if offset >= size {
+            return Ok(Vec::new());
+        }
+        let available = usize::try_from((size - offset).min(length as u64))
+            .map_err(|_| VaultError::Unavailable)?;
+        file.seek(SeekFrom::Start(offset))
+            .map_err(|_| VaultError::Unavailable)?;
+        let mut bytes = vec![0; available];
+        file.read_exact(&mut bytes)
+            .map_err(|_| VaultError::Unavailable)?;
+        Ok(bytes)
     }
 
     fn write_atomic<F>(
@@ -2434,6 +2474,35 @@ pub fn vault_read_binary<R: Runtime>(
 ) -> Result<Response, VaultError> {
     Ok(Response::new(
         selected_vault(&window, &state, &vault_token)?.read_binary(&path)?,
+    ))
+}
+
+#[tauri::command]
+pub fn vault_read_binary_bounded<R: Runtime>(
+    window: WebviewWindow<R>,
+    state: State<'_, VaultRegistry>,
+    vault_token: String,
+    path: String,
+    max_bytes: u64,
+) -> Result<Response, VaultError> {
+    Ok(Response::new(
+        selected_vault(&window, &state, &vault_token)?
+            .read_binary_bounded(&path, max_bytes)?,
+    ))
+}
+
+#[tauri::command]
+pub fn vault_read_binary_chunk<R: Runtime>(
+    window: WebviewWindow<R>,
+    state: State<'_, VaultRegistry>,
+    vault_token: String,
+    path: String,
+    offset: u64,
+    length: u32,
+) -> Result<Response, VaultError> {
+    Ok(Response::new(
+        selected_vault(&window, &state, &vault_token)?
+            .read_binary_chunk(&path, offset, length)?,
     ))
 }
 
