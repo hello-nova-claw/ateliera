@@ -37,6 +37,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install chromium webkit
+      - run: cargo install cargo-audit --locked --version 0.22.2
       - run: pnpm verify:release
 
       - name: Upload release evidence
@@ -56,4 +57,3 @@ jobs:
           path: apps/studio/src-tauri/target/release/bundle
           if-no-files-found: warn
           retention-days: 30
-

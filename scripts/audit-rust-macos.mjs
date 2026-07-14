@@ -1,20 +1,16 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import process from 'node:process';
 
+import { rustEnvironment } from './lib/rust-environment.mjs';
+
 const root = resolve(import.meta.dirname, '..');
 const nativeRoot = resolve(root, 'apps/studio/src-tauri');
-const pinnedCargo = resolve(root, '.toolchains/cargo/bin/cargo');
-const cargo = existsSync(pinnedCargo) ? pinnedCargo : 'cargo';
+const { cargo, env: environment } = await rustEnvironment(root);
 const targets = ['aarch64-apple-darwin', 'x86_64-apple-darwin'];
 const ignoredAdvisories = ['RUSTSEC-2026-0194', 'RUSTSEC-2026-0195'];
 const triage = readFileSync(resolve(root, 'docs/security/dependency-audit.md'), 'utf8');
-const environment = {
-  ...process.env,
-  CARGO_HOME: resolve(root, '.toolchains/cargo'),
-  RUSTUP_HOME: resolve(root, '.toolchains/rustup'),
-};
 
 function runCargo(arguments_, capture = false) {
   const result = spawnSync(cargo, arguments_, {
