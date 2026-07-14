@@ -149,13 +149,19 @@ describe('Tauri vault IPC adapter', () => {
   });
 
   it('uses raw IPC bytes for ordinary binary reads and writes', async () => {
-    const invoke = vi.fn<TauriVaultBridge['invoke']>(async (command) => {
+    const invoke = vi.fn<TauriVaultBridge['invoke']>(async (command, args) => {
       if (command === 'vault_select') return selection();
       if (command === 'vault_get_revision') return '7';
       if (command === 'vault_write_batch_atomic') {
         return { revision: '8', results: [{ path: 'asset.bin', hash }] };
       }
-      if (command === 'vault_read_binary') return new Uint8Array([4, 5, 6]);
+      if (command === 'vault_list') {
+        return [{ path: 'asset.bin', kind: 'file', size: 3, contentHash: hash }];
+      }
+      if (command === 'vault_read_binary_chunk') {
+        expect(args).toMatchObject({ path: 'asset.bin', offset: 0, length: 3 });
+        return new Uint8Array([4, 5, 6]);
+      }
       throw new Error(`Unexpected command: ${command}`);
     });
     const vault = await selectTauriVault(bridge(invoke));
@@ -170,6 +176,59 @@ describe('Tauri vault IPC adapter', () => {
       headers: { 'x-studio-vault-token': token },
     });
     await expect(vault?.readBinary('asset.bin')).resolves.toEqual(new Uint8Array([4, 5, 6]));
+  });
+
+  it('assembles attachments larger than 64 MiB through bounded raw chunks', async () => {
+    const chunkBytes = 4 * 1024 * 1024;
+    const size = 64 * 1024 * 1024 + 17;
+    const invoke = vi.fn<TauriVaultBridge['invoke']>(async (command, args) => {
+      if (command === 'vault_select') return selection();
+      if (command === 'vault_list') {
+        return [{ path: 'Attachments/large.bin', kind: 'file', size, contentHash: hash }];
+      }
+      if (command === 'vault_read_binary_chunk') {
+        const request = args as { offset: number; length: number };
+        expect(request.length).toBeLessThanOrEqual(chunkBytes);
+        const length = Math.min(request.length, size - request.offset);
+        return Uint8Array.from(
+          { length },
+          (_, index) => ((request.offset + index) * 31 + 7) % 251,
+        );
+      }
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    const vault = await selectTauriVault(bridge(invoke));
+
+    const bytes = await vault?.readBinary('Attachments/large.bin');
+
+    expect(bytes?.byteLength).toBe(size);
+    for (const index of [0, chunkBytes - 1, chunkBytes, 64 * 1024 * 1024, size - 1]) {
+      expect(bytes?.[index]).toBe((index * 31 + 7) % 251);
+    }
+    const chunkCalls = invoke.mock.calls.filter(([command]) => command === 'vault_read_binary_chunk');
+    expect(chunkCalls.length).toBeGreaterThan(16);
+    expect(chunkCalls.every(([, args]) => (args as { length: number }).length <= chunkBytes)).toBe(true);
+  });
+
+  it('uses the strict bounded primitive for portability reads', async () => {
+    const bytes = new Uint8Array([4, 5, 6]);
+    const invoke = vi.fn<TauriVaultBridge['invoke']>(async (command, args) => {
+      if (command === 'vault_select') return selection();
+      if (command === 'vault_read_binary_bounded') {
+        expect(args).toEqual({ vaultToken: token, path: 'asset.bin', maxBytes: 64 * 1024 * 1024 });
+        return bytes;
+      }
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    const vault = await selectTauriVault(bridge(invoke));
+
+    await expect(vault?.readBinaryBounded?.('asset.bin', 64 * 1024 * 1024)).resolves.toEqual({
+      bytes,
+      hash: '787c798e39a5bc1910355bae6d0cd87a36b2e10fd0202a83e3bb6b005da83472',
+    });
+    await expect(vault?.readBinaryBounded?.('../escape.bin', 1)).rejects.toBeInstanceOf(
+      PathEscapeError,
+    );
   });
 
   it('exposes monotonic revision and one raw atomic batch call', async () => {
