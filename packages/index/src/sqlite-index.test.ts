@@ -330,6 +330,76 @@ describe('SQLite IndexPort', () => {
     expect(facets.semanticTypes).toEqual([{ value: 'foundations', count: 0 }]);
   });
 
+  it('derives blank-query facets from every matching note beyond the visible result limit', async () => {
+    const entries = Array.from({ length: 205 }, (_, position) => {
+      const id = `blank-${position.toString().padStart(3, '0')}`;
+      const indexedNote = note({
+        id,
+        rooms: position < 200 ? ['reflection-garden'] : ['uncharted'],
+        tags: position < 200 ? ['common'] : ['beyond-limit'],
+      });
+      return {
+        note: indexedNote,
+        path: `Reflection/${id}.md`,
+        hash: id,
+        content: { links: [], searchText: indexedNote.body },
+      };
+    });
+    await index.rebuild(entries);
+
+    expect(await index.search('')).toHaveLength(200);
+    const facets = await index.facets('');
+
+    expect(facets.rooms).toEqual([
+      { value: 'reflection-garden', count: 200 },
+      { value: 'uncharted', count: 5 },
+    ]);
+    expect(facets.tags).toEqual([
+      { value: 'common', count: 200 },
+      { value: 'beyond-limit', count: 5 },
+    ]);
+  });
+
+  it('derives filtered keyword facets from matching notes beyond the visible result limit', async () => {
+    const entries = Array.from({ length: 210 }, (_, position) => {
+      const id = `filtered-${position.toString().padStart(3, '0')}`;
+      const indexedNote = note({
+        id,
+        body: 'A calm moment.',
+        semanticType: 'reflection',
+        lifeAreas: position < 200 ? ['home'] : ['family'],
+        tags: position < 200 ? ['common'] : ['beyond-limit'],
+      });
+      return {
+        note: indexedNote,
+        path: `Reflection/${id}.md`,
+        hash: id,
+        content: { links: [], searchText: indexedNote.body },
+      };
+    });
+    await index.rebuild([
+      ...entries,
+      {
+        note: note({ id: 'not-a-reflection', body: 'A calm moment.', semanticType: 'vision', tags: ['excluded'] }),
+        path: 'Foyer/excluded.md',
+        hash: 'excluded',
+        content: { links: [], searchText: 'A calm moment.' },
+      },
+    ]);
+
+    expect(await index.search('calm', { semanticTypes: ['reflection'] })).toHaveLength(200);
+    const facets = await index.facets('calm', { semanticTypes: ['reflection'] });
+
+    expect(facets.lifeAreas).toEqual([
+      { value: 'home', count: 200 },
+      { value: 'family', count: 10 },
+    ]);
+    expect(facets.tags).toEqual([
+      { value: 'common', count: 200 },
+      { value: 'beyond-limit', count: 10 },
+    ]);
+  });
+
   it('falls back to bounded fuzzy title and tag matching only when exact search is empty', async () => {
     await upsert(index, note({ id: 'title', title: 'Calm morning', body: 'Tea.' }), 'title.md', 'title');
     await upsert(index, note({ id: 'tag', title: 'Practice', body: 'Tea.', tags: ['spaciousness'] }), 'tag.md', 'tag');
