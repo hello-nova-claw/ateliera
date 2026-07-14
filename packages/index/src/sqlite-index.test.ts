@@ -215,4 +215,76 @@ describe('SQLite IndexPort', () => {
     expect(await index.search('invisible-secret')).toEqual([]);
     expect(await index.search('calm')).toHaveLength(1);
   });
+
+  it('returns complete search metadata and excludes trashed notes by default', async () => {
+    await upsert(index, note({
+      id: 'kept', title: 'Calm return', cardType: 'principle',
+      semanticType: 'foundations', status: 'resting',
+      updated: '2026-07-14T01:00:00.000Z',
+    }), 'Foyer/kept.md', 'kept');
+    await upsert(index, note({ id: 'trashed', title: 'Calm discarded', status: 'trashed' }), 'Trash/discarded.md', 'trashed');
+
+    expect(await index.search('calm')).toEqual([
+      expect.objectContaining({
+        id: 'kept', cardType: 'principle', semanticType: 'foundations',
+        status: 'resting', updated: '2026-07-14T01:00:00.000Z',
+        matchReason: { field: 'title', strategy: 'keyword', text: 'calm' },
+      }),
+    ]);
+  });
+
+  it('retrieves distinct inspector records in caller order', async () => {
+    await upsert(index, note({ id: 'a', title: 'A' }), 'A.md', 'hash-a');
+    await upsert(index, note({ id: 'b', title: 'B' }), 'B.md', 'hash-b');
+
+    const records = await index.getManyById(['b', 'missing', 'a', 'b']);
+
+    expect(records.map(({ note: indexedNote, path, hash }) => ({ id: indexedNote.id, path, hash }))).toEqual([
+      { id: 'b', path: 'B.md', hash: 'hash-b' },
+      { id: 'a', path: 'A.md', hash: 'hash-a' },
+    ]);
+  });
+
+  it('derives deterministic facets from the currently matching result set', async () => {
+    await upsert(index, note({ id: 'one', title: 'Calm one', rooms: ['reflection-garden'], lifeAreas: ['home'], seasons: ['winter'], tags: ['quiet'], cardType: 'text', semanticType: 'reflection' }), 'Reflection/one.md', 'one');
+    await upsert(index, note({ id: 'two', title: 'Calm two', rooms: ['reflection-garden'], lifeAreas: ['home'], seasons: ['winter'], tags: ['quiet', 'family'], cardType: 'text', semanticType: 'celebration' }), 'Reflection/two.md', 'two');
+    await upsert(index, note({ id: 'other', title: 'Loud', rooms: ['foyer'], tags: ['other'] }), 'Foyer/other.md', 'other');
+
+    const facets = await index.facets('calm', { rooms: ['reflection-garden'] });
+
+    expect(facets.rooms).toEqual([{ value: 'reflection-garden', count: 2 }]);
+    expect(facets.lifeAreas).toEqual([{ value: 'home', count: 2 }]);
+    expect(facets.semanticTypes).toEqual([
+      { value: 'celebration', count: 1 },
+      { value: 'reflection', count: 1 },
+    ]);
+    expect(facets.tags).toEqual([
+      { value: 'quiet', count: 2 },
+      { value: 'family', count: 1 },
+    ]);
+  });
+
+  it('falls back to bounded fuzzy title and tag matching only when exact search is empty', async () => {
+    await upsert(index, note({ id: 'title', title: 'Calm morning', body: 'Tea.' }), 'title.md', 'title');
+    await upsert(index, note({ id: 'tag', title: 'Practice', body: 'Tea.', tags: ['spaciousness'] }), 'tag.md', 'tag');
+    await upsert(index, note({ id: 'body', title: 'Body only', body: 'Tranquility.' }), 'body.md', 'body');
+    await upsert(index, note({ id: 'exact', title: 'Caln exact', body: 'Tea.' }), 'exact.md', 'exact');
+
+    expect((await index.search('caln')).map((hit) => hit.id)).toEqual(['exact']);
+    await index.remove('exact');
+    expect(await index.search('caln')).toEqual([
+      expect.objectContaining({
+        id: 'title',
+        matchReason: { field: 'title', strategy: 'fuzzy-title', text: 'Calm', distance: 1 },
+      }),
+    ]);
+    expect(await index.search('spaciouness')).toEqual([
+      expect.objectContaining({
+        id: 'tag',
+        matchReason: { field: 'tags', strategy: 'fuzzy-tag', text: 'spaciousness', distance: 2 },
+      }),
+    ]);
+    expect(await index.search('tranquiliti')).toEqual([]);
+    expect(await index.search('cl')).toEqual([]);
+  });
 });

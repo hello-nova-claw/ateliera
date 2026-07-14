@@ -8,6 +8,7 @@ import type {
   IndexPort,
   IndexRebuildProgress,
   ParsedLink,
+  SearchFacets,
   SearchFilters,
   SearchHit,
 } from './index-port';
@@ -136,6 +137,10 @@ export class SqliteIndex implements IndexPort {
     return found ? { note: JSON.parse(found.note_json) as StudioNote, path: found.path, hash: found.hash } : null;
   }
 
+  async getManyById(_ids: string[]): Promise<Array<{ note: StudioNote; path: string; hash: string }>> {
+    return [];
+  }
+
   async search(query: string, filters: SearchFilters = {}): Promise<SearchHit[]> {
     const queryTokens = tokens(query);
     if (query.trim() && queryTokens.length === 0) return [];
@@ -176,8 +181,30 @@ export class SqliteIndex implements IndexPort {
             ? { field: 'source' as const, text: sourceText }
             : undefined
         : undefined;
-      return { id: item.id, path: item.path, title: item.title, ...snippet, score: -(item.rank ?? 0), ...(matchContext ? { matchContext } : {}) };
+      const field = matchContext?.field ?? (
+        queryTokens.some((token) => foldForMatch(item.title).includes(token)) ? 'title' : 'body'
+      );
+      return {
+        id: item.id,
+        path: item.path,
+        title: item.title,
+        ...snippet,
+        score: -(item.rank ?? 0),
+        semanticType: indexedNote.semanticType,
+        cardType: indexedNote.cardType,
+        status: indexedNote.status,
+        updated: indexedNote.updated,
+        matchReason: { field, strategy: 'keyword', text: queryTokens.join(' ') },
+        ...(matchContext ? { matchContext } : {}),
+      };
     });
+  }
+
+  async facets(_query: string, _filters: SearchFilters = {}): Promise<SearchFacets> {
+    return {
+      rooms: [], semanticTypes: [], lifeAreas: [], seasons: [], statuses: [],
+      tags: [], cardTypes: [],
+    };
   }
 
   async backlinks(id: string): Promise<string[]> {

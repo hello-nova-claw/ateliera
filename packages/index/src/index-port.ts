@@ -31,6 +31,16 @@ export interface SearchFilters {
   dateTo?: string;
 }
 
+export type SearchMatchField = 'title' | 'body' | 'tags' | 'source';
+export type SearchMatchStrategy = 'keyword' | 'fuzzy-title' | 'fuzzy-tag';
+
+export interface SearchMatchReason {
+  field: SearchMatchField;
+  strategy: SearchMatchStrategy;
+  text: string;
+  distance?: 1 | 2;
+}
+
 export interface HighlightRange { start: number; end: number }
 
 export interface SearchHit {
@@ -40,7 +50,30 @@ export interface SearchHit {
   snippet: string;
   highlightRanges: HighlightRange[];
   score: number;
+  semanticType: SemanticType;
+  cardType: string;
+  status: NoteStatus;
+  updated: string;
+  matchReason: SearchMatchReason;
   matchContext?: { field: 'tags' | 'source'; text: string };
+}
+
+export interface SearchFacetValue { value: string; count: number }
+
+export interface SearchFacets {
+  rooms: SearchFacetValue[];
+  semanticTypes: SearchFacetValue[];
+  lifeAreas: SearchFacetValue[];
+  seasons: SearchFacetValue[];
+  statuses: SearchFacetValue[];
+  tags: SearchFacetValue[];
+  cardTypes: SearchFacetValue[];
+}
+
+export interface IndexedNoteRecord {
+  note: StudioNote;
+  path: string;
+  hash: string;
 }
 
 export interface IndexEntry {
@@ -65,8 +98,10 @@ export interface RepairItem {
 export interface IndexPort {
   upsert(note: StudioNote, path: string, hash: string, content: IndexedContent): Promise<void>;
   remove(id: string): Promise<void>;
-  getById(id: string): Promise<{ note: StudioNote; path: string; hash: string } | null>;
+  getById(id: string): Promise<IndexedNoteRecord | null>;
+  getManyById(ids: string[]): Promise<IndexedNoteRecord[]>;
   search(query: string, filters?: SearchFilters): Promise<SearchHit[]>;
+  facets(query: string, filters?: SearchFilters): Promise<SearchFacets>;
   backlinks(id: string): Promise<string[]>;
   forwardLinks(id: string): Promise<IndexedLink[]>;
   rebuild(entries: IndexEntry[], onProgress?: (progress: IndexRebuildProgress) => void): Promise<void>;

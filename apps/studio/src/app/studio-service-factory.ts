@@ -5,6 +5,7 @@ import type {
   IndexedContent,
   IndexedLink,
   IndexPort,
+  SearchFacets,
   SearchHit,
 } from '@studio/index';
 import type { VaultPort } from '@studio/storage/portable';
@@ -29,8 +30,22 @@ class SessionIndex implements IndexPort {
     return this.entries.get(id) ?? null;
   }
 
+  async getManyById(ids: string[]): Promise<IndexEntry[]> {
+    return ids.flatMap((id) => {
+      const entry = this.entries.get(id);
+      return entry ? [entry] : [];
+    });
+  }
+
   async search(): Promise<SearchHit[]> {
     return [];
+  }
+
+  async facets(): Promise<SearchFacets> {
+    return {
+      rooms: [], semanticTypes: [], lifeAreas: [], seasons: [], statuses: [],
+      tags: [], cardTypes: [],
+    };
   }
 
   async backlinks(): Promise<string[]> {

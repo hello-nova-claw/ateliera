@@ -1,6 +1,6 @@
 import { extractLinks, markdownToPlainText, serializeNote } from '@studio/content';
 import type { StudioNote } from '@studio/domain';
-import type { IndexPort, IndexedContent, IndexedLink, SearchHit } from '@studio/index';
+import type { IndexPort, IndexedContent, IndexedLink, SearchFacets, SearchHit } from '@studio/index';
 import { createInMemoryVault } from '@studio/storage';
 
 export function note(overrides: Partial<StudioNote> = {}): StudioNote {
@@ -46,7 +46,14 @@ export class RecordingIndex implements IndexPort {
   }
   async remove(id: string): Promise<void> { this.entries.delete(id); }
   async getById(id: string) { return this.entries.get(id) ?? null; }
+  async getManyById(ids: string[]) { return ids.flatMap((id) => {
+    const entry = this.entries.get(id);
+    return entry ? [entry] : [];
+  }); }
   async search(): Promise<SearchHit[]> { return []; }
+  async facets(): Promise<SearchFacets> {
+    return { rooms: [], semanticTypes: [], lifeAreas: [], seasons: [], statuses: [], tags: [], cardTypes: [] };
+  }
   async backlinks(id: string): Promise<string[]> { void id; return []; }
   async forwardLinks(): Promise<IndexedLink[]> { return []; }
   async rebuild(entries: Parameters<IndexPort['rebuild']>[0]): Promise<void> {

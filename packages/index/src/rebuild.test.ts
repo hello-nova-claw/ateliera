@@ -20,7 +20,8 @@ function createVault(files: Record<string, { text: string; hash: string }>) {
 function createRecordingIndex(): IndexPort & { snapshot: () => string[] } {
   let rows: string[] = ['old'];
   return {
-    async upsert() {}, async remove() {}, async getById() { return null; }, async search() { return []; },
+    async upsert() {}, async remove() {}, async getById() { return null; }, async getManyById() { return []; }, async search() { return []; },
+    async facets() { return { rooms: [], semanticTypes: [], lifeAreas: [], seasons: [], statuses: [], tags: [], cardTypes: [] }; },
     async backlinks() { return []; }, async forwardLinks() { return []; },
     async rebuild(entries, onProgress) {
       onProgress?.({ phase: 'indexing', processed: 0, total: entries.length });
