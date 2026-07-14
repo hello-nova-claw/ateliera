@@ -55,6 +55,11 @@ export type ReflectionEvidenceConnection =
       targetState: 'missing';
     };
 
+export interface ReflectionEvidenceTarget {
+  kind: ReflectionEvidenceConnection['kind'];
+  id: string;
+}
+
 export interface ReflectionLifeAreaTarget {
   id: string;
   title: string;
@@ -315,81 +320,114 @@ function stringList(value: unknown): string[] {
   ))];
 }
 
+function resolveReflectionEvidenceTargetFromMap(
+  target: ReflectionEvidenceTarget,
+  targetNotes: ReadonlyMap<string, readonly StudioNote[]>,
+  lifeAreas: readonly ReflectionLifeAreaTarget[],
+): ReflectionEvidenceConnection {
+  const { id, kind } = target;
+  if (kind === 'note') {
+    const targets = targetNotes.get(id) ?? [];
+    const targetState = targets.some(
+      (candidate) =>
+        candidate.status !== 'archived' && candidate.status !== 'trashed',
+    )
+      ? 'available'
+      : targets.some((candidate) => candidate.status === 'archived')
+        ? 'archived'
+        : 'missing';
+    return { kind, id, targetState };
+  }
+
+  const lifeAreasById = new Map(lifeAreas.map((area) => [area.id, area]));
+  if (kind === 'life-area') {
+    const area = lifeAreasById.get(id);
+    if (area === undefined) return { kind, id, targetState: 'missing' };
+    return {
+      kind,
+      id,
+      label: area.title,
+      targetState: area.hidden ? 'archived' : 'available',
+    };
+  }
+
+  const seasonsById = new Map<string, StudioNote[]>();
+  for (const targets of targetNotes.values()) {
+    for (const candidate of targets) {
+      if (candidate.cardType !== 'season') continue;
+      const storedId = candidate.extraFrontmatter.season_id;
+      const seasonId =
+        typeof storedId === 'string' && storedId.trim() !== ''
+          ? storedId.trim()
+          : candidate.id;
+      const seasons = seasonsById.get(seasonId) ?? [];
+      seasons.push(candidate);
+      seasonsById.set(seasonId, seasons);
+    }
+  }
+  const targets = seasonsById.get(id) ?? [];
+  const available = targets.find((candidate) => candidate.status === 'active');
+  if (available !== undefined) {
+    return {
+      kind,
+      id,
+      label: available.title?.trim() || id,
+      targetState: 'available',
+    };
+  }
+  const archived = targets.find((candidate) => candidate.status === 'archived');
+  if (archived !== undefined) {
+    return {
+      kind,
+      id,
+      label: archived.title?.trim() || id,
+      targetState: 'archived',
+    };
+  }
+  return { kind, id, targetState: 'missing' };
+}
+
+export function resolveReflectionEvidenceTarget(
+  target: ReflectionEvidenceTarget,
+  notes: readonly LoadedNote[],
+  lifeAreas: readonly ReflectionLifeAreaTarget[],
+): ReflectionEvidenceConnection {
+  const targetsById = new Map<string, StudioNote[]>();
+  for (const item of notes) {
+    const targets = targetsById.get(item.note.id) ?? [];
+    targets.push(item.note);
+    targetsById.set(item.note.id, targets);
+  }
+  return resolveReflectionEvidenceTargetFromMap(target, targetsById, lifeAreas);
+}
+
 function reflectionEvidenceConnections(
   note: StudioNote,
   targetNotes: ReadonlyMap<string, readonly StudioNote[]>,
   lifeAreas: readonly ReflectionLifeAreaTarget[],
 ): ReflectionEvidenceConnection[] {
-  const noteConnections = stringList(note.extraFrontmatter.related_notes).map(
-    (id): ReflectionEvidenceConnection => {
-      const targets = targetNotes.get(id) ?? [];
-      const targetState = targets.some(
-        (target) => target.status !== 'archived' && target.status !== 'trashed',
-      )
-        ? 'available'
-        : targets.some((target) => target.status === 'archived')
-          ? 'archived'
-          : 'missing';
-      return { kind: 'note', id, targetState };
-    },
-  );
-  const lifeAreasById = new Map(lifeAreas.map((area) => [area.id, area]));
-  const lifeAreaConnections = stringList(note.lifeAreas).map(
-    (id): ReflectionEvidenceConnection => {
-      const target = lifeAreasById.get(id);
-      if (target === undefined) {
-        return { kind: 'life-area', id, targetState: 'missing' };
-      }
-      return {
-        kind: 'life-area',
-        id,
-        label: target.title,
-        targetState: target.hidden ? 'archived' : 'available',
-      };
-    },
-  );
-  const seasonsById = new Map<string, StudioNote[]>();
-  for (const targets of targetNotes.values()) {
-    for (const target of targets) {
-      if (target.cardType !== 'season') continue;
-      const storedId = target.extraFrontmatter.season_id;
-      const id =
-        typeof storedId === 'string' && storedId.trim() !== ''
-          ? storedId.trim()
-          : target.id;
-      const seasons = seasonsById.get(id) ?? [];
-      seasons.push(target);
-      seasonsById.set(id, seasons);
-    }
-  }
-  const seasonConnections = stringList(note.seasons).map(
-    (id): ReflectionEvidenceConnection => {
-      const targets = seasonsById.get(id) ?? [];
-      const available = targets.find((target) => target.status === 'active');
-      if (available !== undefined) {
-        return {
-          kind: 'season',
-          id,
-          label: available.title?.trim() || id,
-          targetState: 'available',
-        };
-      }
-      const archived = targets.find((target) => target.status === 'archived');
-      if (archived !== undefined) {
-        return {
-          kind: 'season',
-          id,
-          label: archived.title?.trim() || id,
-          targetState: 'archived',
-        };
-      }
-      return { kind: 'season', id, targetState: 'missing' };
-    },
-  );
   return [
-    ...noteConnections,
-    ...lifeAreaConnections,
-    ...seasonConnections,
+    ...stringList(note.extraFrontmatter.related_notes).map((id) =>
+      resolveReflectionEvidenceTargetFromMap(
+        { kind: 'note', id },
+        targetNotes,
+        lifeAreas,
+      ),
+    ),
+    ...stringList(note.lifeAreas).map((id) =>
+      resolveReflectionEvidenceTargetFromMap(
+        { kind: 'life-area', id },
+        targetNotes,
+        lifeAreas,
+      ),
+    ),
+    ...stringList(note.seasons).map((id) =>
+      resolveReflectionEvidenceTargetFromMap(
+        { kind: 'season', id },
+        targetNotes,
+        lifeAreas,
+      ),
+    ),
   ];
 }
 

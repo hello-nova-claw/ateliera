@@ -36,6 +36,8 @@ import {
   type LandscapeProjectionQuery,
   type LoadedNote,
   type ReflectionGardenProjection,
+  type ReflectionEvidenceConnection,
+  type ReflectionEvidenceTarget,
   type StudioCardProjection,
   type UnchartedProjection,
   projectCurrentSeason,
@@ -43,6 +45,7 @@ import {
   projectLandscape,
   projectLandscapeBoard,
   projectReflectionGardenRoom,
+  resolveReflectionEvidenceTarget,
   projectRoom,
   projectStream,
   projectUnchartedRoom,
@@ -240,6 +243,9 @@ export interface StudioService {
     seasonId: string;
   }): Promise<SavedNote>;
   projectReflectionGarden(): Promise<ReflectionGardenProjection>;
+  resolveReflectionEvidenceTarget(
+    target: ReflectionEvidenceTarget,
+  ): Promise<ReflectionEvidenceConnection>;
   linkReflectionEvidence(input: {
     path: string;
     expectedHash: string;
@@ -1125,6 +1131,18 @@ export function createStudioService(
       return projectReflectionGardenRoom(
         scanned.notes,
         views,
+        lifeAreaSnapshot.areas,
+      );
+    },
+    async resolveReflectionEvidenceTarget(target) {
+      assertActive();
+      const [scanned, lifeAreaSnapshot] = await Promise.all([
+        scan(),
+        lifeAreas.load(),
+      ]);
+      return resolveReflectionEvidenceTarget(
+        target,
+        scanned.notes,
         lifeAreaSnapshot.areas,
       );
     },
