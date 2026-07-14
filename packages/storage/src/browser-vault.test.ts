@@ -10,14 +10,16 @@ import { describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
 import * as browserApi from './browser-vault';
 import * as storageApi from './index';
-import { VaultUnavailableError } from './conflict';
+import { VaultConflictError, VaultUnavailableError } from './conflict';
 
 class MemoryOpfs {
   readonly files = new Map<string, Uint8Array>();
+  afterWrite: ((path: string) => Promise<void> | void) | undefined;
 
   directory(path = ''): FileSystemDirectoryHandle {
     const files = this.files;
     const makeDirectory = (child: string): FileSystemDirectoryHandle => this.directory(child);
+    const notifyAfterWrite = (file: string): Promise<void> | void => this.afterWrite?.(file);
     const prefix = path === '' ? '' : `${path}/`;
     return {
       kind: 'directory',
@@ -51,7 +53,10 @@ class MemoryOpfs {
                 if (!(value instanceof Uint8Array)) throw new TypeError('Expected binary data.');
                 pending = Uint8Array.from(value);
               },
-              async close() { files.set(filePath, pending); },
+              async close() {
+                files.set(filePath, pending);
+                await notifyAfterWrite(filePath);
+              },
               async abort() {},
             } as FileSystemWritableFileStream;
           },
@@ -562,6 +567,89 @@ describe('OPFS crash recovery', () => {
       await expect(createBrowserVault(name, { storage: 'opfs' }).list())
         .rejects.toBeInstanceOf(VaultUnavailableError);
     } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each(['before', 'after'] as const)(
+    'validates every %s recovery payload before mutating an earlier target',
+    async (side) => {
+      const opfs = new MemoryOpfs();
+      const name = `crash-later-${side}-payload-corrupt`;
+      await seedInterruptedOpfsBatch(opfs, name, false, 1);
+      const root = `the-studio/${name}`;
+      opfs.put(`${root}/.studio-opfs-batch/${side}/1`, 'corrupt');
+      vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
+      try {
+        await expect(createBrowserVault(name, { storage: 'opfs' }).list())
+          .rejects.toBeInstanceOf(VaultUnavailableError);
+        expect(opfs.text(`${root}/Inbox/a.md`)).toBe('new-a');
+        expect(opfs.text(`${root}/Inbox/b.md`)).toBe('old-b');
+        expect([...opfs.files.keys()].some((file) =>
+          file.includes('.studio-opfs-batch'))).toBe(true);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    },
+  );
+
+  it('preserves every target and journal when a later path was externally edited', async () => {
+    const opfs = new MemoryOpfs();
+    const name = 'crash-external-edit';
+    await seedInterruptedOpfsBatch(opfs, name, false, 1);
+    const root = `the-studio/${name}`;
+    opfs.put(`${root}/Inbox/b.md`, 'external-b');
+    vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
+    try {
+      await expect(createBrowserVault(name, { storage: 'opfs' }).list())
+        .rejects.toBeInstanceOf(VaultConflictError);
+      expect(opfs.text(`${root}/Inbox/a.md`)).toBe('new-a');
+      expect(opfs.text(`${root}/Inbox/b.md`)).toBe('external-b');
+      expect([...opfs.files.keys()].some((file) => file.includes('.studio-opfs-batch'))).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('holds the public vault lock for recovery so a live reader cannot observe a partial state', async () => {
+    const opfs = new MemoryOpfs();
+    const name = 'crash-live-reader';
+    vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
+    try {
+      const live = createBrowserVault(name, { storage: 'opfs' });
+      await live.getRevision();
+      await seedInterruptedOpfsBatch(opfs, name, false, 1);
+
+      let reachedFirstRestore: () => void = () => undefined;
+      const firstRestore = new Promise<void>((resolve) => { reachedFirstRestore = resolve; });
+      let resumeRecovery: () => void = () => undefined;
+      const recoveryMayResume = new Promise<void>((resolve) => { resumeRecovery = resolve; });
+      let paused = false;
+      opfs.afterWrite = async (path) => {
+        if (!paused && path.endsWith('/Inbox/a.md')) {
+          paused = true;
+          reachedFirstRestore();
+          await recoveryMayResume;
+        }
+      };
+
+      const recovering = createBrowserVault(name, { storage: 'opfs' });
+      await firstRestore;
+      let readerSettled = false;
+      const reader = live.readText('Inbox/a.md').then((value) => {
+        readerSettled = true;
+        return value;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const settledDuringRecovery = readerSettled;
+
+      resumeRecovery();
+      await reader;
+      await expect(recovering.getRevision()).resolves.toBe('0');
+      expect(settledDuringRecovery).toBe(false);
+      await expect(live.readText('Inbox/a.md')).resolves.toMatchObject({ text: 'old-a' });
+    } finally {
+      opfs.afterWrite = undefined;
       vi.unstubAllGlobals();
     }
   });
