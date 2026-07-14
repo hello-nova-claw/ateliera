@@ -64,11 +64,14 @@ test('keeps the fixed Foyer composition usable at mobile width', async ({
         document.documentElement.clientWidth,
     ),
   ).toBe(true);
-  for (const action of await page
-    .getByRole('button', { name: /^Add / })
-    .all()) {
-    const box = await action.boundingBox();
-    expect(box?.height).toBeGreaterThanOrEqual(44);
+  const actions = page.getByRole('button', { name: /^Add / });
+  await expect(actions).toHaveCount(3);
+  for (let index = 0; index < (await actions.count()); index += 1) {
+    const action = actions.nth(index);
+    await expect(action).toBeVisible();
+    await expect
+      .poll(async () => (await action.boundingBox())?.height ?? 0)
+      .toBeGreaterThanOrEqual(44);
   }
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
