@@ -11,6 +11,7 @@ import type { StudioPath } from './router';
 
 interface RoomProps {
   captures: CaptureEntry[];
+  online?: boolean;
   onOpenCapture?: (id: string, trigger: HTMLButtonElement) => void;
   onCreateFoyer?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
   onCreateLandscape?: (lifeArea: string, anchor: LandscapeAnchor, trigger: HTMLButtonElement) => void;
@@ -49,6 +50,7 @@ export function RoomRoute({
   onCreateFoyer,
   onCreateLandscape,
   onNavigate,
+  online,
   onOpenCard,
   onRemoveFoyerImage,
   path,
@@ -61,6 +63,7 @@ export function RoomRoute({
   onCreateFoyer?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
   onCreateLandscape?: (lifeArea: string, anchor: LandscapeAnchor, trigger: HTMLButtonElement) => void;
   onNavigate?: (path: string, options?: { replace?: boolean }) => void;
+  online?: boolean;
   onOpenCard?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
   onRemoveFoyerImage?: (
     image: FoyerImageProjection,
@@ -86,6 +89,7 @@ export function RoomRoute({
     >
       <Room
         captures={captures}
+        {...(online === undefined ? {} : { online })}
         {...(onCreateFoyer === undefined ? {} : { onCreateFoyer })}
         {...(onCreateLandscape === undefined ? {} : { onCreateLandscape })}
         {...(onNavigate === undefined ? {} : { onNavigate })}

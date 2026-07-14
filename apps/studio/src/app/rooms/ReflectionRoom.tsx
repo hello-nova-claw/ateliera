@@ -5,10 +5,12 @@ import { useReflection } from '../../features/reflection/use-reflection';
 
 export default function ReflectionRoom({
   onOpenCard,
+  online = true,
   projectionRevision = 0,
   service,
 }: {
   onOpenCard?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
+  online?: boolean;
   projectionRevision?: number;
   service?: StudioService;
 }) {
@@ -38,7 +40,9 @@ export default function ReflectionRoom({
       }}
       onConnect={view.connect}
       {...(onOpenCard ? { onOpen: onOpenCard } : {})}
-      state={view.state}
+      state={!online && view.state !== 'loading' && view.state !== 'error'
+        ? 'offline'
+        : view.state}
     />
   );
 }

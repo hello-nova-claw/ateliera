@@ -154,6 +154,7 @@ function StudioApplication({
     () => captureService !== undefined || studioService !== undefined,
   );
   const [projectionRevision, setProjectionRevision] = useState(0);
+  const [online, setOnline] = useState(() => navigator.onLine);
   const [browserStudios, setBrowserStudios] = useState<BrowserStudioRecord[]>(
     () => (isNativeShell() ? [] : readBrowserStudios(localStorage)),
   );
@@ -199,6 +200,16 @@ function StudioApplication({
     setEditorCloseRequest((request) => request + 1);
     return true;
   };
+
+  useEffect(() => {
+    const updateConnectivity = () => setOnline(navigator.onLine);
+    window.addEventListener('online', updateConnectivity);
+    window.addEventListener('offline', updateConnectivity);
+    return () => {
+      window.removeEventListener('online', updateConnectivity);
+      window.removeEventListener('offline', updateConnectivity);
+    };
+  }, []);
 
   useEffect(() => {
     if (studioService !== undefined) {
@@ -661,6 +672,7 @@ function StudioApplication({
       <section className="studio-room">
         <RoomRoute
           captures={captures}
+          online={online}
           onCreateFoyer={beginFoyerCapture}
           onCreateLandscape={beginLandscapeCapture}
           onNavigate={go}
