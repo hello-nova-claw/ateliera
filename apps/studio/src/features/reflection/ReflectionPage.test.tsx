@@ -21,6 +21,11 @@ const model: ReflectionGardenProjection = {
       seasons: ['2026-winter'],
       tags: ['calm'],
       linkedNoteIds: ['identity-1'],
+      evidenceConnections: [
+        { kind: 'life-area', id: 'family' },
+        { kind: 'season', id: '2026-winter' },
+        { kind: 'note', id: 'identity-1', targetState: 'available' },
+      ],
       thenNoteId: 'then',
     },
     {
@@ -38,6 +43,7 @@ const model: ReflectionGardenProjection = {
       seasons: [],
       tags: ['calm'],
       linkedNoteIds: [],
+      evidenceConnections: [],
     },
   ],
   themes: [{ name: 'calm', count: 2 }],
@@ -103,6 +109,89 @@ it('shows linked evidence and an optional Then & now pair', () => {
   expect(screen.getByLabelText('Connections for I returned without making it a failure')).toHaveTextContent(
     'Family',
   );
+});
+
+it('keeps same-label canonical evidence distinct and opens the exact target', () => {
+  const onOpenConnection = vi.fn();
+  const duplicateEvidence = {
+    ...model.cards[0]!,
+    linkedNoteIds: ['identity-1', 'identity-2'],
+    evidenceConnections: [
+      { kind: 'note' as const, id: 'identity-1', targetState: 'available' as const },
+      { kind: 'note' as const, id: 'identity-2', targetState: 'available' as const },
+    ],
+  };
+  render(
+    <ReflectionPage
+      connections={[
+        { id: 'identity-1', kind: 'note', label: 'Creates from calm' },
+        { id: 'identity-2', kind: 'note', label: 'Creates from calm' },
+      ]}
+      model={{ cards: [duplicateEvidence], themes: [] }}
+      onOpenConnection={onOpenConnection}
+    />,
+  );
+  const first = screen.getByRole('button', {
+    name: 'Open Creates from calm, identity-1',
+  });
+  const second = screen.getByRole('button', {
+    name: 'Open Creates from calm, identity-2',
+  });
+  fireEvent.click(second);
+  expect(onOpenConnection).toHaveBeenCalledWith(
+    expect.objectContaining({ kind: 'note', id: 'identity-2' }),
+    second,
+  );
+  expect(first).toBeVisible();
+});
+
+it('leaves missing and archived evidence visible as calm repair states', () => {
+  render(
+    <ReflectionPage
+      model={{
+        cards: [{
+          ...model.cards[0]!,
+          evidenceConnections: [
+            { kind: 'note', id: 'gone', targetState: 'missing' },
+            { kind: 'note', id: 'resting', targetState: 'archived' },
+          ],
+          linkedNoteIds: ['gone', 'resting'],
+        }],
+        themes: [],
+      }}
+    />,
+  );
+  expect(screen.getByText('The connected note gone is not available here.')).toBeVisible();
+  expect(screen.getByText('The connected note resting is archived.')).toBeVisible();
+  expect(screen.queryByRole('button', { name: /Open.*(?:gone|resting)/ })).not.toBeInTheDocument();
+});
+
+it('guards rapid evidence writes and preserves selection and exact focus on failure', async () => {
+  let rejectConnection!: (reason: Error) => void;
+  const pending = new Promise<void>((_resolve, reject) => {
+    rejectConnection = reject;
+  });
+  const onConnect = vi.fn(() => pending);
+  render(
+    <ReflectionPage
+      connections={[{ id: 'identity-2', kind: 'note', label: 'Creates from calm' }]}
+      model={{ cards: [model.cards[0]!], themes: [] }}
+      onConnect={onConnect}
+    />,
+  );
+  const select = screen.getByLabelText('Connect evidence');
+  fireEvent.change(select, { target: { value: 'note:identity-2' } });
+  const connect = screen.getByRole('button', { name: 'Connect' });
+  connect.focus();
+  fireEvent.click(connect);
+  fireEvent.click(connect);
+  expect(connect).toBeDisabled();
+  expect(onConnect).toHaveBeenCalledTimes(1);
+  rejectConnection(new Error('Another version exists.'));
+  expect(await screen.findByText('Another version exists.')).toBeVisible();
+  await waitFor(() => expect(connect).not.toBeDisabled());
+  expect(select).toHaveValue('note:identity-2');
+  expect(connect).toHaveFocus();
 });
 
 it('keeps recoverable loading, offline, stale and malformed states calm', () => {

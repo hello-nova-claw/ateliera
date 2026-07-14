@@ -19,6 +19,7 @@ const card = {
   seasons: [],
   tags: [],
   linkedNoteIds: [],
+  evidenceConnections: [],
 };
 
 function reflectionService(cards: readonly typeof card[]) {
@@ -70,7 +71,7 @@ it('captures, opens and links one canonical Reflection entry', async () => {
   const view = renderHook(() => useReflection(service, 0));
   await waitFor(() => expect(view.result.current.state).toBe('ready'));
   expect(view.result.current.connections).toEqual(expect.arrayContaining([
-    { id: 'identity', kind: 'note', label: 'Creates from calm' },
+    expect.objectContaining({ id: 'identity', kind: 'note', label: 'Creates from calm' }),
     { id: 'home', kind: 'life-area', label: 'Home' },
   ]));
 
@@ -107,6 +108,45 @@ it('keeps valid entries visible when another entry needs metadata repair', async
   const view = renderHook(() => useReflection(service, 0));
   await waitFor(() => expect(view.result.current.state).toBe('error'));
   expect(view.result.current.model.cards).toEqual([card]);
+});
+
+it('coalesces rapid evidence writes and reprojects the durable card after failure', async () => {
+  let rejectConnection!: (reason: Error) => void;
+  const pending = new Promise<never>((_resolve, reject) => {
+    rejectConnection = reject;
+  });
+  const projectReflectionGarden = vi
+    .fn()
+    .mockResolvedValueOnce({ cards: [card], themes: [] })
+    .mockResolvedValue({ cards: [{ ...card, hash: 'durable-hash' }], themes: [] });
+  const linkReflectionEvidence = vi.fn(() => pending);
+  const service = {
+    ...reflectionService([]),
+    projectReflectionGarden,
+    linkReflectionEvidence,
+  } as unknown as StudioService;
+  const view = renderHook(() => useReflection(service, 0));
+  await waitFor(() => expect(view.result.current.state).toBe('ready'));
+  const connection = { id: 'home', kind: 'life-area' as const, label: 'Home' };
+
+  let firstError: unknown;
+  let secondError: unknown;
+  await act(async () => {
+    const first = view.result.current.connect(card, connection).catch((reason: unknown) => {
+      firstError = reason;
+    });
+    const second = view.result.current.connect(card, connection).catch((reason: unknown) => {
+      secondError = reason;
+    });
+    rejectConnection(new Error('Another version exists.'));
+    await Promise.all([first, second]);
+  });
+
+  expect(linkReflectionEvidence).toHaveBeenCalledTimes(1);
+  expect(firstError).toBeInstanceOf(Error);
+  expect(secondError).toBeInstanceOf(Error);
+  await waitFor(() => expect(projectReflectionGarden).toHaveBeenCalledTimes(2));
+  expect(view.result.current.model.cards[0]?.hash).toBe('durable-hash');
 });
 
 it('resolves optional images through the vault media boundary and revokes object URLs', async () => {
