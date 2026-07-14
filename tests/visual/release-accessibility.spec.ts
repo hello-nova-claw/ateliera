@@ -113,6 +113,14 @@ for (const story of stressStories) {
     });
     await expect(page.locator(story.selector)).toBeVisible();
     await expectContained(page);
+    if (story.id === 'rooms-foyer--dense') {
+      const cardWidths = await page
+        .locator('.foyer-season__priorities li, .foyer-principle')
+        .evaluateAll((cards) =>
+          cards.map((card) => card.getBoundingClientRect().width),
+        );
+      expect(Math.min(...cardWidths)).toBeGreaterThanOrEqual(240);
+    }
     await expectAxeClean(page);
     await page.screenshot({
       path: path.join(output, `${story.id}-text-200.png`),

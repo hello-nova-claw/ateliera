@@ -250,7 +250,10 @@
 
 .foyer-season__priorities {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, 10rem), 1fr)
+  );
   gap: var(--studio-space-3);
   margin: var(--studio-space-6) 0 0;
   padding: 0;
@@ -305,7 +308,10 @@
 
 .foyer-principles__grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, 10rem), 1fr)
+  );
   gap: var(--studio-space-4);
   margin-block-start: var(--studio-space-5);
 }
