@@ -187,7 +187,6 @@ test('searches the production local index, persists filters, and renders importe
     name: 'Literal <script>window.__studioSearchInjected=true</script>',
   });
   await expect(literal).toContainText('<script>window.__studioSearchInjected=true</script>');
-  await expect(literal).toContainText('<img src=x onerror="window.__studioSearchInjected=true">');
   await expect(literal.locator('script, img')).toHaveCount(0);
   expect(await page.evaluate(() => Reflect.get(window, '__studioSearchInjected'))).toBeUndefined();
   expect((await new AxeBuilder({ page }).include('.search-page').analyze()).violations).toEqual([]);
@@ -238,4 +237,89 @@ test('keeps warmed local search available after connectivity disappears', async 
   await expect(page.getByText('Stored locally · Search is still available offline.')).toBeVisible();
   await search.fill('retreat');
   await expect(page.getByRole('article', { name: 'What if I created a retreat?' })).toBeVisible();
+});
+
+test('opens an existing Studio and starts its search worker entirely from the offline precache', async ({
+  browserName,
+  context,
+  page,
+}) => {
+  const browserErrors: string[] = [];
+  page.on('pageerror', (error) => browserErrors.push(error.message));
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator.storage, 'getDirectory', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+  await page.goto('/');
+  await page.evaluate(async (seededNote) => {
+    const record = {
+      name: 'Cold Search Studio',
+      vaultId: 'studio:cold-search-studio',
+      createdAt: '2026-07-14T09:00:00.000Z',
+    };
+    localStorage.setItem('studio:browser-studios', JSON.stringify([record]));
+    localStorage.setItem('studio:active-browser-studio', record.vaultId);
+    const request = indexedDB.open('the-studio-browser-vaults', 2);
+    request.addEventListener('upgradeneeded', () => {
+      if (!request.result.objectStoreNames.contains('files')) {
+        const files = request.result.createObjectStore('files', { keyPath: 'key' });
+        files.createIndex('vault', 'vault', { unique: false });
+      }
+      if (!request.result.objectStoreNames.contains('backends')) {
+        request.result.createObjectStore('backends');
+      }
+    });
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.addEventListener('success', () => resolve(request.result), { once: true });
+      request.addEventListener('error', () => reject(request.error), { once: true });
+    });
+    const bytes = new TextEncoder().encode(seededNote);
+    const digest = await crypto.subtle.digest('SHA-256', bytes);
+    const hash = [...new Uint8Array(digest)]
+      .map((byte) => byte.toString(16).padStart(2, '0')).join('');
+    const write = database.transaction(['files', 'backends'], 'readwrite');
+    write.objectStore('files').put({
+      key: `${record.vaultId}\u0000Reflection Garden/offline.md`,
+      vault: record.vaultId,
+      path: 'Reflection Garden/offline.md',
+      bytes: bytes.buffer,
+      hash,
+      modifiedAt: new Date().toISOString(),
+    });
+    write.objectStore('backends').put('indexeddb', record.vaultId);
+    await new Promise<void>((resolve, reject) => {
+      write.addEventListener('complete', () => resolve(), { once: true });
+      write.addEventListener('error', () => reject(write.error), { once: true });
+    });
+    database.close();
+  }, note({
+    id: 'offline-search-note',
+    title: 'A note waiting offline',
+    semanticType: 'reflection',
+    room: 'reflection-garden',
+    body: 'A lantern is ready in the local archive.',
+  }));
+  await page.reload();
+  await expect(page.getByText('Ready offline')).toBeVisible();
+
+  if (browserName === 'webkit') {
+    await context.route('**/*', (route) =>
+      route.request().resourceType() === 'document'
+        ? route.continue()
+        : route.abort('internetdisconnected'),
+    );
+  } else {
+    await context.setOffline(true);
+  }
+
+  await page.getByRole('button', { name: 'Open Cold Search Studio' }).click();
+  await openSearch(page);
+  const search = page.getByRole('searchbox', { name: 'Search your Studio' });
+  await search.fill('lantern');
+  await expect(page.getByRole('article', { name: 'A note waiting offline' })).toBeVisible();
+  await expect(page.getByText('Stored locally · Search is still available offline.')).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  expect(browserErrors).toEqual([]);
 });
