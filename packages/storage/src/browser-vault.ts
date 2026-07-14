@@ -921,24 +921,67 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
     side: 'before' | 'after',
     state: OpfsJournalState,
   ): Promise<StoredBrowserFile | undefined> {
-    if (!state.present) return undefined;
     const file = await readFile(
       `${OPFS_BATCH_JOURNAL}/${side}/${index}`,
       MAX_ATOMIC_FILE_BYTES,
     );
+    if (!state.present) {
+      if (file !== undefined) {
+        throw new VaultUnavailableError('The OPFS recovery journal has an unexpected payload.');
+      }
+      return undefined;
+    }
     if (file === undefined || file.bytes.byteLength !== state.size || file.hash !== state.hash) {
       throw new VaultUnavailableError('The OPFS recovery journal checksum failed.');
     }
     return file;
   }
 
+  function matchesJournalState(
+    file: StoredBrowserFile | undefined,
+    state: OpfsJournalState,
+  ): boolean {
+    return state.present
+      ? file !== undefined && file.hash === state.hash && file.bytes.byteLength === state.size
+      : file === undefined;
+  }
+
+  async function preflightJournal(manifest: OpfsJournalManifest): Promise<ReadonlyArray<{
+    before: StoredBrowserFile | undefined;
+    after: StoredBrowserFile | undefined;
+  }>> {
+    const payloads = [] as Array<{
+      before: StoredBrowserFile | undefined;
+      after: StoredBrowserFile | undefined;
+    }>;
+    for (const [index, entry] of manifest.entries.entries()) {
+      payloads.push({
+        before: await readJournalPayload(index, 'before', entry.before),
+        after: await readJournalPayload(index, 'after', entry.after),
+      });
+    }
+    for (const entry of manifest.entries) {
+      const current = await readFile(entry.path);
+      if (!matchesJournalState(current, entry.before) &&
+        !matchesJournalState(current, entry.after)) {
+        throw new VaultConflictError(
+          'A vault entry changed outside the interrupted OPFS batch.',
+        );
+      }
+    }
+    return payloads;
+  }
+
   async function restoreJournalSide(
     manifest: OpfsJournalManifest,
     side: 'before' | 'after',
+    payloads: ReadonlyArray<{
+      before: StoredBrowserFile | undefined;
+      after: StoredBrowserFile | undefined;
+    }>,
   ): Promise<void> {
     for (const [index, entry] of manifest.entries.entries()) {
-      const state = entry[side];
-      const file = await readJournalPayload(index, side, state);
+      const file = payloads[index]?.[side];
       if (file === undefined) await removeFileIfPresent(entry.path);
       else await writeFile(entry.path, file);
     }
@@ -964,12 +1007,14 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
       throw new VaultUnavailableError('The OPFS recovery journal progress is invalid.');
     }
     const revision = await getRevision();
-    if (revision === manifest.expectedRevision) {
-      await restoreJournalSide(manifest, 'before');
-    } else if (revision === manifest.nextRevision) {
-      await restoreJournalSide(manifest, 'after');
-    } else {
+    if (revision !== manifest.expectedRevision && revision !== manifest.nextRevision) {
       throw new VaultUnavailableError('The OPFS recovery journal revision is inconsistent.');
+    }
+    const payloads = await preflightJournal(manifest);
+    if (revision === manifest.expectedRevision) {
+      await restoreJournalSide(manifest, 'before', payloads);
+    } else {
+      await restoreJournalSide(manifest, 'after', payloads);
     }
     await removeJournal();
   }
@@ -1161,10 +1206,13 @@ export function createBrowserVault(
   if (name.trim() === '') throw new VaultUnavailableError('A vault name is required.');
   const storePromise =
     options.store === undefined
-      ? selectStore(
+      ? withVaultLock(
           name,
-          options.storage ?? 'auto',
-          options.environment ?? defaultEnvironment(),
+          () => selectStore(
+            name,
+            options.storage ?? 'auto',
+            options.environment ?? defaultEnvironment(),
+          ),
         )
       : Promise.resolve(options.store);
   return new BrowserVault(name, storePromise);
