@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { deflateRawSync } from 'node:zlib';
 
 import { createInMemoryVault } from './in-memory-vault';
 import { exportVault } from './export';
@@ -7,6 +8,69 @@ import { createZip32, sha256 } from './zip32';
 import type { VaultPort } from './vault-port';
 
 const note = (id: string, body: string) => `---\nschema_version: 1\nid: ${id}\n---\n${body}\n`;
+
+function zipNumber(value: number, width: 2 | 4): Uint8Array {
+  const bytes = new Uint8Array(width);
+  const view = new DataView(bytes.buffer);
+  if (width === 2) view.setUint16(0, value, true);
+  else view.setUint32(0, value, true);
+  return bytes;
+}
+
+function zipJoin(chunks: readonly Uint8Array[]): Uint8Array {
+  const output = new Uint8Array(chunks.reduce((size, chunk) => size + chunk.byteLength, 0));
+  let offset = 0;
+  for (const chunk of chunks) {
+    output.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return output;
+}
+
+function crc32(bytes: Uint8Array): number {
+  let crc = 0xffff_ffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (0xedb8_8320 & -(crc & 1));
+    }
+  }
+  return (crc ^ 0xffff_ffff) >>> 0;
+}
+
+function createDeflatedZip(files: ReadonlyArray<readonly [string, Uint8Array]>): Uint8Array {
+  const encoder = new TextEncoder();
+  const locals: Uint8Array[] = [];
+  const centrals: Uint8Array[] = [];
+  let localOffset = 0;
+  for (const [path, content] of files) {
+    const name = encoder.encode(path);
+    const compressed = new Uint8Array(deflateRawSync(content));
+    const checksum = crc32(content);
+    const local = zipJoin([
+      zipNumber(0x0403_4b50, 4), zipNumber(20, 2), zipNumber(0x0800, 2),
+      zipNumber(8, 2), zipNumber(0, 2), zipNumber(0, 2), zipNumber(checksum, 4),
+      zipNumber(compressed.byteLength, 4), zipNumber(content.byteLength, 4),
+      zipNumber(name.byteLength, 2), zipNumber(0, 2), name, compressed,
+    ]);
+    locals.push(local);
+    centrals.push(zipJoin([
+      zipNumber(0x0201_4b50, 4), zipNumber(20, 2), zipNumber(20, 2),
+      zipNumber(0x0800, 2), zipNumber(8, 2), zipNumber(0, 2), zipNumber(0, 2),
+      zipNumber(checksum, 4), zipNumber(compressed.byteLength, 4),
+      zipNumber(content.byteLength, 4), zipNumber(name.byteLength, 2), zipNumber(0, 2),
+      zipNumber(0, 2), zipNumber(0, 2), zipNumber(0, 2), zipNumber(0, 4),
+      zipNumber(localOffset, 4), name,
+    ]));
+    localOffset += local.byteLength;
+  }
+  const central = zipJoin(centrals);
+  return zipJoin([
+    ...locals, central, zipNumber(0x0605_4b50, 4), zipNumber(0, 2), zipNumber(0, 2),
+    zipNumber(files.length, 2), zipNumber(files.length, 2), zipNumber(central.byteLength, 4),
+    zipNumber(localOffset, 4), zipNumber(0, 2),
+  ]);
+}
 
 describe('portable vault import', () => {
   it('previews create, overwrite, conflict, and skip before mutation', async () => {
@@ -221,6 +285,35 @@ describe('portable vault import', () => {
     });
     await expect(target.readText('Inbox/existing.md')).resolves.toMatchObject({ text: 'keep' });
     await expect(target.exists('Inbox/note.md')).resolves.toBe(false);
+  });
+
+  it('accepts a canonical manifest and content compressed with standard deflate', async () => {
+    const content = new TextEncoder().encode(note('compressed-id', 'Compressed hill'));
+    const descriptor = {
+      path: 'Inbox/hill.md',
+      sha256: await sha256(content),
+      size: content.byteLength,
+    };
+    const manifest = new TextEncoder().encode(`${JSON.stringify({
+      format: 'the-studio-vault',
+      exportVersion: 1,
+      schemaVersions: { note: 1, settings: 1 },
+      generatedAt: '2026-07-14T00:00:00.000Z',
+      files: [descriptor],
+      excludedCaches: [],
+    }, null, 2)}\n`);
+    const archive = createDeflatedZip([
+      [descriptor.path, content],
+      ['.studio/export-manifest.json', manifest],
+    ]);
+    const target = createInMemoryVault();
+
+    const plan = await prepareVaultImport(target, archive);
+    await applyVaultImport(target, plan, { confirm: true });
+
+    await expect(target.readText(descriptor.path)).resolves.toMatchObject({
+      text: note('compressed-id', 'Compressed hill'),
+    });
   });
 
   it('rejects active, reserved, and case-colliding manifest paths', async () => {
