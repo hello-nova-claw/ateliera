@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { PathEscapeError, VaultConflictError, VaultUnavailableError } from './conflict';
+import { isPublicNotePath } from './vault-port';
 import type { MoveCondition, VaultChange, VaultEntry, VaultPort, WriteCondition } from './vault-port';
 
 interface StoredFile {
@@ -8,18 +9,12 @@ interface StoredFile {
   hash: string;
 }
 
-function isUserNotePath(path: string): boolean {
-  if (path.toLocaleLowerCase('en').startsWith('.studio/')) return false;
-  const name = path.slice(path.lastIndexOf('/') + 1);
-  return name.toLocaleLowerCase('en').endsWith('.md') || !name.includes('.');
-}
-
 function sameUserState(
   files: Map<string, StoredFile>,
   expected: NonNullable<MoveCondition['expectedUserState']>,
 ): boolean {
   const current = [...files.entries()]
-    .filter(([path]) => isUserNotePath(path))
+    .filter(([path]) => isPublicNotePath(path))
     .map(([path, file]) => ({ path, hash: file.hash }))
     .sort((left, right) => left.path.localeCompare(right.path, 'en'));
   const observed = [...expected].sort((left, right) => left.path.localeCompare(right.path, 'en'));
@@ -148,6 +143,10 @@ class InMemoryVault implements VaultPort {
     ) {
       throw new VaultConflictError();
     }
+    if (condition?.expectedUserState !== undefined &&
+      !sameUserState(this.#files, condition.expectedUserState)) {
+      throw new VaultConflictError();
+    }
     if (!this.#files.delete(validPath)) throw new VaultUnavailableError();
     this.#emit({ kind: 'removed', path: validPath });
   }
@@ -173,6 +172,10 @@ class InMemoryVault implements VaultPort {
       throw new VaultConflictError();
     }
     if (condition?.expectedHash !== undefined && previous?.hash !== condition.expectedHash) {
+      throw new VaultConflictError();
+    }
+    if (condition?.expectedUserState !== undefined &&
+      !sameUserState(this.#files, condition.expectedUserState)) {
       throw new VaultConflictError();
     }
 

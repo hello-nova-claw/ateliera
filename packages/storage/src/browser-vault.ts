@@ -3,6 +3,7 @@ import {
   VaultConflictError,
   VaultUnavailableError,
 } from './conflict';
+import { isPublicNotePath } from './vault-port';
 import type {
   MoveCondition,
   VaultChange,
@@ -186,15 +187,13 @@ function parentDirectories(path: string): string[] {
     .map((_, index) => segments.slice(0, index + 1).join('/'));
 }
 
-function isUserNotePath(path: string): boolean {
+function isValidPublicNotePath(path: string): boolean {
   try {
     validatePath(path);
   } catch {
     return false;
   }
-  if (path.toLocaleLowerCase('en').startsWith('.studio/')) return false;
-  const name = path.slice(path.lastIndexOf('/') + 1);
-  return name.toLocaleLowerCase('en').endsWith('.md') || !name.includes('.');
+  return isPublicNotePath(path);
 }
 
 async function sameUserState(
@@ -202,7 +201,7 @@ async function sameUserState(
   expected: NonNullable<MoveCondition['expectedUserState']>,
 ): Promise<boolean> {
   const current = (await store.entries())
-    .filter(([path]) => isUserNotePath(path))
+    .filter(([path]) => isValidPublicNotePath(path))
     .map(([path, file]) => ({ path, hash: file.hash }))
     .sort((left, right) => left.path.localeCompare(right.path, 'en'));
   const observed = [...expected].sort((left, right) => left.path.localeCompare(right.path, 'en'));
@@ -354,6 +353,10 @@ class BrowserVault implements VaultPort {
       ) {
         throw new VaultConflictError();
       }
+      if (condition?.expectedUserState !== undefined &&
+        !(await sameUserState(store, condition.expectedUserState))) {
+        throw new VaultConflictError();
+      }
       await store.remove(validPath);
       this.#emit({ kind: 'removed', path: validPath });
     });
@@ -390,6 +393,10 @@ class BrowserVault implements VaultPort {
         condition?.expectedHash !== undefined &&
         previous?.hash !== condition.expectedHash
       ) {
+        throw new VaultConflictError();
+      }
+      if (condition?.expectedUserState !== undefined &&
+        !(await sameUserState(store, condition.expectedUserState))) {
         throw new VaultConflictError();
       }
       const bytes = sourceBytes.slice();

@@ -10,6 +10,7 @@ import {
   validatePortablePath,
 } from './portability';
 import type { PortableVaultManifest } from './portability';
+import { isPublicNotePath } from './vault-port';
 import type { VaultPort } from './vault-port';
 
 export type VaultImportAction = 'create' | 'overwrite' | 'conflict' | 'skip';
@@ -59,7 +60,7 @@ function translateArchiveError(error: unknown): never {
 }
 
 function extractNoteId(path: string, bytes: Uint8Array): string | undefined {
-  if (!path.toLocaleLowerCase('en').endsWith('.md')) return undefined;
+  if (!isPublicNotePath(path)) return undefined;
   let text: string;
   try {
     text = decoder.decode(bytes);
@@ -366,6 +367,32 @@ function assertUniquePublishedNoteIds(
   }
 }
 
+function publicStateFromFingerprint(
+  fingerprint: readonly TargetFingerprintEntry[],
+): Map<string, string> {
+  return new Map(
+    fingerprint
+      .filter((entry) => isPublicNotePath(entry.path))
+      .map((entry) => [entry.path, entry.sha256] as const),
+  );
+}
+
+function publicStateSnapshot(state: ReadonlyMap<string, string>) {
+  return [...state]
+    .map(([path, hash]) => ({ path, hash }))
+    .sort((left, right) => left.path.localeCompare(right.path, 'en'));
+}
+
+function updatePublicState(
+  state: Map<string, string>,
+  path: string,
+  hash: string | undefined,
+): void {
+  if (!isPublicNotePath(path)) return;
+  if (hash === undefined) state.delete(path);
+  else state.set(path, hash);
+}
+
 export async function applyVaultImport(
   vault: VaultPort,
   plan: VaultImportPlan,
@@ -400,6 +427,7 @@ export async function applyVaultImport(
   }
 
   const mutating = actions.filter(({ action }) => action === 'create' || action === 'overwrite');
+  const publicState = publicStateFromFingerprint(currentFingerprint);
   const stageRoot = `.studio/import-stage/${plan.id}`;
   const backupRoot = `.studio/import-backup/${plan.id}`;
   const cleanupPaths: string[] = [];
@@ -439,10 +467,14 @@ export async function applyVaultImport(
         targetPath,
         await vault.readBinary(`${stageRoot}/${item.path}`),
         action === 'create'
-          ? { expectedMissing: true }
-          : { expectedHash: item.expectedHash as string },
+          ? { expectedMissing: true, expectedUserState: publicStateSnapshot(publicState) }
+          : {
+              expectedHash: item.expectedHash as string,
+              expectedUserState: publicStateSnapshot(publicState),
+            },
       );
       applied.push({ item: { ...item, existingPath: targetPath }, publishedHash: result.hash });
+      updatePublicState(publicState, targetPath, result.hash);
     }
   } catch (error) {
     for (const { item, publishedHash } of [...applied].reverse()) {
@@ -450,9 +482,17 @@ export async function applyVaultImport(
       const prior = backups.get(targetPath);
       try {
         if (prior === undefined) {
-          await vault.remove(targetPath, { expectedHash: publishedHash });
+          await vault.remove(targetPath, {
+            expectedHash: publishedHash,
+            expectedUserState: publicStateSnapshot(publicState),
+          });
+          updatePublicState(publicState, targetPath, undefined);
         } else {
-          await vault.writeBinaryAtomic(targetPath, prior, { expectedHash: publishedHash });
+          await vault.writeBinaryAtomic(targetPath, prior, {
+            expectedHash: publishedHash,
+            expectedUserState: publicStateSnapshot(publicState),
+          });
+          updatePublicState(publicState, targetPath, item.expectedHash);
         }
       } catch {
         throw new VaultUnavailableError(

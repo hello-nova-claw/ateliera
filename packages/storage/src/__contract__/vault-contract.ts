@@ -178,6 +178,18 @@ export function vaultContract(name: string, createVault: () => Promise<VaultPort
       expect(replaced.hash).not.toBe(created.hash);
     });
 
+    it('rejects a guarded write when the public note state changed', async () => {
+      const vault = await createVault();
+      const observed = await vault.writeTextAtomic('Notes/observed', 'observed');
+      await vault.writeTextAtomic('Notes/concurrent.md', 'concurrent identity');
+
+      await expect(vault.writeBinaryAtomic('Attachments/guarded.bin', new Uint8Array([1]), {
+        expectedMissing: true,
+        expectedUserState: [{ path: 'Notes/observed', hash: observed.hash }],
+      })).rejects.toBeInstanceOf(VaultConflictError);
+      await expect(vault.exists('Attachments/guarded.bin')).resolves.toBe(false);
+    });
+
     it('removes only the expected file version', async () => {
       const vault = await createVault();
       const current = await vault.writeBinaryAtomic(

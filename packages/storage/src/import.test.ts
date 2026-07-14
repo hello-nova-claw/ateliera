@@ -141,6 +141,32 @@ describe('portable vault import', () => {
     });
   });
 
+  it('treats extensionless canonical notes as stable-ID owners', async () => {
+    const source = createInMemoryVault();
+    await source.writeTextAtomic('Inbox/renamed', note('stable-id', 'incoming'));
+    const target = createInMemoryVault();
+    await target.writeTextAtomic('Archive/original.md', note('stable-id', 'local'));
+
+    const plan = await prepareVaultImport(target, await exportVault(source));
+    expect(plan.items).toEqual([
+      expect.objectContaining({
+        action: 'conflict',
+        path: 'Inbox/renamed',
+        existingPath: 'Archive/original.md',
+        conflictKind: 'note-id',
+      }),
+    ]);
+  });
+
+  it('rejects duplicate IDs across Markdown and extensionless archive notes', async () => {
+    const source = createInMemoryVault();
+    await source.writeTextAtomic('Inbox/one', note('same-id', 'one'));
+    await source.writeTextAtomic('Inbox/two.md', note('same-id', 'two'));
+
+    await expect(prepareVaultImport(createInMemoryVault(), await exportVault(source)))
+      .rejects.toMatchObject({ code: 'invalid-manifest' });
+  });
+
   it('rejects two incoming notes that would claim the same existing target', async () => {
     const source = createInMemoryVault();
     await source.writeTextAtomic('Inbox/path.md', note('incoming-a', 'incoming A'));
@@ -272,6 +298,40 @@ describe('portable vault import', () => {
     await expect(target.exists('Inbox/new.md')).resolves.toBe(false);
     await expect(target.readText('Archive/external.md')).resolves.toMatchObject({
       text: note('stable-id', 'outside'),
+    });
+  });
+
+  it('rejects a competing stable-ID owner created while import files are staged', async () => {
+    const source = createInMemoryVault();
+    await source.writeTextAtomic('Inbox/new.md', note('stable-id', 'incoming'));
+    const base = createInMemoryVault();
+    let injected = false;
+    const target: VaultPort = {
+      list: (prefix) => base.list(prefix),
+      readText: (path) => base.readText(path),
+      readBinary: (path) => base.readBinary(path),
+      writeTextAtomic: (path, text, condition) => base.writeTextAtomic(path, text, condition),
+      async writeBinaryAtomic(path, content, condition) {
+        const result = await base.writeBinaryAtomic(path, content, condition);
+        if (!injected && path.startsWith('.studio/import-stage/')) {
+          injected = true;
+          await base.writeTextAtomic('Archive/competing.md', note('stable-id', 'competitor'));
+        }
+        return result;
+      },
+      move: (from, to, condition) => base.move(from, to, condition),
+      remove: (path, condition) => base.remove(path, condition),
+      exists: (path) => base.exists(path),
+      watch: (listener) => base.watch(listener),
+    };
+    const plan = await prepareVaultImport(target, await exportVault(source));
+
+    await expect(applyVaultImport(target, plan, { confirm: true })).rejects.toMatchObject({
+      code: 'target-changed',
+    });
+    await expect(target.exists('Inbox/new.md')).resolves.toBe(false);
+    await expect(target.readText('Archive/competing.md')).resolves.toMatchObject({
+      text: note('stable-id', 'competitor'),
     });
   });
 

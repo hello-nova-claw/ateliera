@@ -6,6 +6,17 @@ export interface VaultEntry {
   contentHash?: string;
 }
 
+export interface VaultUserStateEntry {
+  path: string;
+  hash: string;
+}
+
+export function isPublicNotePath(path: string): boolean {
+  if (path.toLocaleLowerCase('en').startsWith('.studio/')) return false;
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  return name.toLocaleLowerCase('en').endsWith('.md') || !name.includes('.');
+}
+
 export interface WriteCondition {
   /**
    * Replace only the version with this content hash. Adapters guarantee this comparison within
@@ -16,13 +27,15 @@ export interface WriteCondition {
   expectedHash?: string;
   /** Create only when the path does not exist. */
   expectedMissing?: true;
+  /** Apply only while the exact public Markdown/extensionless note set is unchanged. */
+  expectedUserState?: ReadonlyArray<VaultUserStateEntry>;
 }
 
 export interface MoveCondition {
   /** Move only when the source still has this content hash. */
   expectedHash?: string;
   /** Exact public Markdown/extensionless note state observed before a guarded recovery move. */
-  expectedUserState?: ReadonlyArray<{ path: string; hash: string }>;
+  expectedUserState?: ReadonlyArray<VaultUserStateEntry>;
 }
 
 export type VaultChange =
