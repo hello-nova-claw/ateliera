@@ -170,6 +170,24 @@
   color: var(--studio-color-ink-soft);
 }
 
+.portability-preview__resolution {
+  display: grid;
+  gap: var(--studio-space-2);
+  margin: var(--studio-space-3) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.portability-preview__resolution label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: var(--studio-space-2);
+  min-block-size: var(--studio-touch-target);
+  color: var(--studio-color-ink);
+  font: var(--studio-type-control);
+}
+
 .portability-preview__details summary {
   min-block-size: var(--studio-touch-target);
   color: var(--studio-color-ink);

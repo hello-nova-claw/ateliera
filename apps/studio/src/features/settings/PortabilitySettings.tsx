@@ -20,7 +20,10 @@ export interface PortabilityPreview {
 export interface PortabilitySettingsProps {
   onExport?: () => Promise<void>;
   onPrepareRestore?: (file: File) => Promise<PortabilityPreview>;
-  onRestore?: (preview: PortabilityPreview) => Promise<void>;
+  onRestore?: (
+    preview: PortabilityPreview,
+    conflicts: Readonly<Record<string, 'overwrite' | 'skip'>>,
+  ) => Promise<void>;
 }
 
 type BusyState = 'export' | 'prepare' | 'restore' | undefined;
@@ -48,6 +51,9 @@ export function PortabilitySettings({
   const [message, setMessage] = useState<string>();
   const [preview, setPreview] = useState<PortabilityPreview>();
   const [confirmed, setConfirmed] = useState(false);
+  const [conflicts, setConflicts] = useState<
+    Readonly<Record<string, 'overwrite' | 'skip'>>
+  >({});
   const selectedFile = useRef<File | undefined>(undefined);
   const restoreButton = useRef<HTMLButtonElement>(null);
 
@@ -78,6 +84,7 @@ export function PortabilitySettings({
     setMessage(undefined);
     setPreview(undefined);
     setConfirmed(false);
+    setConflicts({});
     try {
       setPreview(await onPrepareRestore(file));
     } catch (reason) {
@@ -96,7 +103,9 @@ export function PortabilitySettings({
       busy !== undefined ||
       preview === undefined ||
       !confirmed ||
-      count(preview, 'conflict') > 0 ||
+      preview.items.some(
+        (item) => item.action === 'conflict' && conflicts[item.path] === undefined,
+      ) ||
       onRestore === undefined
     )
       return;
@@ -104,7 +113,7 @@ export function PortabilitySettings({
     setError(undefined);
     setMessage(undefined);
     try {
-      await onRestore(preview);
+      await onRestore(preview, conflicts);
       setMessage('Restore complete. Your Studio is ready to reopen.');
     } catch (reason) {
       setError(
@@ -120,6 +129,16 @@ export function PortabilitySettings({
 
   const overwriteCount = preview === undefined ? 0 : count(preview, 'overwrite');
   const conflictCount = preview === undefined ? 0 : count(preview, 'conflict');
+  const unresolvedConflictCount =
+    preview === undefined
+      ? 0
+      : preview.items.filter(
+          (item) =>
+            item.action === 'conflict' && conflicts[item.path] === undefined,
+        ).length;
+  const filesToOverwrite =
+    overwriteCount +
+    Object.values(conflicts).filter((resolution) => resolution === 'overwrite').length;
 
   return (
     <div className="portability-settings">
@@ -230,7 +249,10 @@ export function PortabilitySettings({
           </ul>
 
           {conflictCount > 0 && (
-            <div className="portability-preview__conflicts" role="alert">
+            <div
+              className="portability-preview__conflicts"
+              role={unresolvedConflictCount > 0 ? 'alert' : 'status'}
+            >
               <h3>Resolve before restoring</h3>
               <p>
                 These files do not have a safe automatic destination. Nothing
@@ -243,6 +265,41 @@ export function PortabilitySettings({
                     <li key={item.path}>
                       <strong>{item.path}</strong>
                       {item.reason !== undefined && <span>{item.reason}</span>}
+                      <fieldset className="portability-preview__resolution">
+                        <legend className="studio-visually-hidden">
+                          Resolve {item.path}
+                        </legend>
+                        <label>
+                          <input
+                            checked={conflicts[item.path] === 'skip'}
+                            name={`conflict-${item.path}`}
+                            onChange={() => {
+                              setConflicts((current) => ({
+                                ...current,
+                                [item.path]: 'skip',
+                              }));
+                              setConfirmed(false);
+                            }}
+                            type="radio"
+                          />
+                          Keep the current file for {item.path}
+                        </label>
+                        <label>
+                          <input
+                            checked={conflicts[item.path] === 'overwrite'}
+                            name={`conflict-${item.path}`}
+                            onChange={() => {
+                              setConflicts((current) => ({
+                                ...current,
+                                [item.path]: 'overwrite',
+                              }));
+                              setConfirmed(false);
+                            }}
+                            type="radio"
+                          />
+                          Use the file from this backup for {item.path}
+                        </label>
+                      </fieldset>
                     </li>
                   ))}
               </ul>
@@ -265,13 +322,13 @@ export function PortabilitySettings({
             <input
               checked={confirmed}
               className="portability-preview__checkbox"
-              disabled={busy !== undefined || conflictCount > 0}
+              disabled={busy !== undefined || unresolvedConflictCount > 0}
               onChange={(event) => setConfirmed(event.currentTarget.checked)}
               type="checkbox"
             />
             <span>
-              I understand that {overwriteCount} existing file
-              {overwriteCount === 1 ? '' : 's'} will be overwritten
+              I understand that {filesToOverwrite} existing file
+              {filesToOverwrite === 1 ? '' : 's'} will be overwritten
             </span>
           </label>
           <div className="portability-preview__actions">
@@ -281,6 +338,7 @@ export function PortabilitySettings({
               onClick={() => {
                 setPreview(undefined);
                 setConfirmed(false);
+                setConflicts({});
                 setMessage('Restore cancelled. Nothing was changed.');
               }}
               type="button"
@@ -292,7 +350,7 @@ export function PortabilitySettings({
               className="portability-settings__primary"
               disabled={
                 busy !== undefined ||
-                conflictCount > 0 ||
+                unresolvedConflictCount > 0 ||
                 !confirmed ||
                 onRestore === undefined
               }

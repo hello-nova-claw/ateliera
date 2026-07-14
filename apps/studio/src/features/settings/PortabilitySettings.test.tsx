@@ -57,6 +57,34 @@ it('validates a ZIP before presenting an exact restore preview', async () => {
   expect(screen.getByRole('button', { name: 'Restore this backup' })).toBeDisabled();
 });
 
+it('requires an explicit choice for every conflict before restore', async () => {
+  const onRestore = vi.fn(async () => undefined);
+  render(
+    <PortabilitySettings
+      onPrepareRestore={vi.fn(async () => preview)}
+      onRestore={onRestore}
+    />,
+  );
+  fireEvent.change(screen.getByLabelText('Choose a Studio backup'), {
+    target: {
+      files: [new File(['safe archive'], 'the-studio.zip', { type: 'application/zip' })],
+    },
+  });
+  await screen.findByRole('heading', { name: 'Review this restore' });
+  const useBackup = screen.getByRole('radio', {
+    name: 'Use the file from this backup for Identity/future-self.md',
+  });
+  fireEvent.click(useBackup);
+  fireEvent.click(screen.getByRole('checkbox', {
+    name: 'I understand that 2 existing files will be overwritten',
+  }));
+  fireEvent.click(screen.getByRole('button', { name: 'Restore this backup' }));
+
+  await waitFor(() => expect(onRestore).toHaveBeenCalledWith(preview, {
+    'Identity/future-self.md': 'overwrite',
+  }));
+});
+
 it('requires explicit confirmation, serializes restore, and restores exact focus', async () => {
   const clearPreview: PortabilityPreview = {
     ...preview,
