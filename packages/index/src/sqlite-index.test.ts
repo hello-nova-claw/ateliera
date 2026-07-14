@@ -347,6 +347,18 @@ describe('SQLite IndexPort', () => {
     expect(await index.search('spaciouness')).toEqual([
       expect.objectContaining({
         id: 'tag',
+        matchReason: { field: 'tags', strategy: 'fuzzy-tag', text: 'spaciousness', distance: 1 },
+      }),
+    ]);
+    expect(await index.search('spaciousmess')).toEqual([
+      expect.objectContaining({
+        id: 'tag',
+        matchReason: { field: 'tags', strategy: 'fuzzy-tag', text: 'spaciousness', distance: 1 },
+      }),
+    ]);
+    expect(await index.search('spacixusmess')).toEqual([
+      expect.objectContaining({
+        id: 'tag',
         matchReason: { field: 'tags', strategy: 'fuzzy-tag', text: 'spaciousness', distance: 2 },
       }),
     ]);

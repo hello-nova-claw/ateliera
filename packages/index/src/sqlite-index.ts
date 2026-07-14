@@ -371,10 +371,6 @@ export class SqliteIndex implements IndexPort {
       )[0];
       if (rationale === undefined || rationale.distance === 0) return [];
       const { snippet } = makeSnippet(item, []);
-      const rationaleToken = queryTokens.find((token) =>
-        closestFuzzyWord(token, [rationale.text])?.text === rationale.text,
-      );
-      const distance = (rationaleToken !== undefined && rationaleToken.length > 5 ? 2 : 1) as 1 | 2;
       return [{
         id: item.id,
         path: item.path,
@@ -390,7 +386,7 @@ export class SqliteIndex implements IndexPort {
           field,
           strategy: field === 'title' ? 'fuzzy-title' as const : 'fuzzy-tag' as const,
           text: rationale.text,
-          distance,
+          distance: rationale.distance,
         },
         ...(field === 'tags' ? { matchContext: { field: 'tags' as const, text: indexedNote.tags.join(', ') } } : {}),
       }];
