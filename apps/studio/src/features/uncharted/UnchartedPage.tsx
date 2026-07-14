@@ -65,7 +65,7 @@ function PossibilityCard({
           <button
             className="uncharted-page__text-action"
             disabled={inviting}
-            onClick={(event) => {
+            onClick={() => {
               if (invitePending.current) return;
               invitePending.current = true;
               setInviting(true);
