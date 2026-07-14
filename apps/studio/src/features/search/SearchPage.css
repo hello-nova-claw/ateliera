@@ -205,7 +205,7 @@
 }
 
 .search-result__snippet mark {
-  color: inherit;
+  color: var(--studio-color-ink-strong);
   background: var(--studio-stock-vision);
   box-shadow: 0 0 0 0.125rem var(--studio-stock-vision);
 }
