@@ -14,14 +14,22 @@ import { VaultConflictError, VaultUnavailableError } from './conflict';
 
 class MemoryOpfs {
   readonly files = new Map<string, Uint8Array>();
+  readonly virtualSizes = new Map<string, number>();
+  readonly modifiedAt = new Map<string, number>();
   readonly arrayBufferReads: string[] = [];
   afterWrite: ((path: string) => Promise<void> | void) | undefined;
+  private clock = 0;
 
   directory(path = ''): FileSystemDirectoryHandle {
     const files = this.files;
     const makeDirectory = (child: string): FileSystemDirectoryHandle => this.directory(child);
     const notifyAfterWrite = (file: string): Promise<void> | void => this.afterWrite?.(file);
     const recordArrayBufferRead = (file: string): void => { this.arrayBufferReads.push(file); };
+    const thisVirtualSizes = this.virtualSizes;
+    const thisModifiedAt = this.modifiedAt;
+    const clearVirtualSize = (file: string): void => { this.virtualSizes.delete(file); };
+    const clearModifiedAt = (file: string): void => { this.modifiedAt.delete(file); };
+    const touch = (file: string): void => { this.modifiedAt.set(file, ++this.clock); };
     const prefix = path === '' ? '' : `${path}/`;
     return {
       kind: 'directory',
@@ -45,8 +53,8 @@ class MemoryOpfs {
           async getFile() {
             const bytes = files.get(filePath) ?? new Uint8Array();
             return {
-              size: bytes.byteLength,
-              lastModified: 0,
+              size: thisVirtualSizes.get(filePath) ?? bytes.byteLength,
+              lastModified: thisModifiedAt.get(filePath) ?? 0,
               async arrayBuffer() {
                 recordArrayBufferRead(filePath);
                 return Uint8Array.from(files.get(filePath) ?? new Uint8Array()).buffer;
@@ -62,6 +70,8 @@ class MemoryOpfs {
               },
               async close() {
                 files.set(filePath, pending);
+                clearVirtualSize(filePath);
+                touch(filePath);
                 await notifyAfterWrite(filePath);
               },
               async abort() {},
@@ -73,11 +83,17 @@ class MemoryOpfs {
         const target = `${prefix}${name}`;
         if (options?.recursive) {
           for (const key of [...files.keys()]) {
-            if (key === target || key.startsWith(`${target}/`)) files.delete(key);
+            if (key === target || key.startsWith(`${target}/`)) {
+              files.delete(key);
+              clearVirtualSize(key);
+              clearModifiedAt(key);
+            }
           }
           return;
         }
         if (!files.delete(target)) throw new DOMException('missing', 'NotFoundError');
+        clearVirtualSize(target);
+        clearModifiedAt(target);
       },
       async *entries() {
         const yielded = new Set<string>();
@@ -97,6 +113,14 @@ class MemoryOpfs {
 
   put(path: string, value: string | Uint8Array): void {
     this.files.set(path, typeof value === 'string' ? new TextEncoder().encode(value) : value.slice());
+    this.virtualSizes.delete(path);
+    this.modifiedAt.set(path, ++this.clock);
+  }
+
+  putVirtual(path: string, size: number): void {
+    this.files.set(path, new Uint8Array());
+    this.virtualSizes.set(path, size);
+    this.modifiedAt.set(path, ++this.clock);
   }
 
   text(path: string): string | undefined {
@@ -624,14 +648,13 @@ describe('OPFS crash recovery', () => {
     await seedInterruptedOpfsBatch(opfs, name, false, 1);
     const root = `the-studio/${name}`;
     const oversizedPath = `${root}/Inbox/b.md`;
-    const oversized = new Uint8Array(64 * 1024 * 1024 + 1);
-    opfs.files.set(oversizedPath, oversized);
+    opfs.putVirtual(oversizedPath, 64 * 1024 * 1024 + 1);
     vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
     try {
       await expect(createBrowserVault(name, { storage: 'opfs' }).list())
         .rejects.toBeInstanceOf(VaultUnavailableError);
       expect(opfs.text(`${root}/Inbox/a.md`)).toBe('new-a');
-      expect(opfs.files.get(oversizedPath)).toBe(oversized);
+      expect(opfs.virtualSizes.get(oversizedPath)).toBe(64 * 1024 * 1024 + 1);
       expect(opfs.arrayBufferReads).not.toContain(oversizedPath);
       expect([...opfs.files.keys()].some((file) => file.includes('.studio-opfs-batch'))).toBe(true);
     } finally {
@@ -701,6 +724,78 @@ describe('OPFS crash recovery', () => {
       await expect(reopened.readText('Inbox/a.md')).resolves.toMatchObject({ text: 'new-a' });
       await expect(reopened.readText('Inbox/b.md')).resolves.toMatchObject({ text: 'new-b' });
       await expect(reopened.getRevision()).resolves.toBe('1');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('lists and previews from OPFS metadata without opening unrelated asset bodies', async () => {
+    const opfs = new MemoryOpfs();
+    const name = 'metadata-only-list';
+    const root = `the-studio/${name}`;
+    const hugeCache = `${root}/.studio/cache/unrelated.bin`;
+    vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
+    try {
+      const vault = createBrowserVault(name, { storage: 'opfs' });
+      const noteText = '---\nid: hill\n---\nRemember the hill.';
+      const note = await vault.writeTextAtomic(
+        'Inbox/hill.md',
+        noteText,
+        { expectedMissing: true },
+      );
+      opfs.putVirtual(hugeCache, 5 * 1024 * 1024 * 1024);
+      opfs.arrayBufferReads.length = 0;
+
+      await expect(vault.list()).resolves.toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          path: 'Inbox/hill.md',
+          size: new TextEncoder().encode(noteText).byteLength,
+          contentHash: note.hash,
+        }),
+        expect.objectContaining({
+          path: '.studio/cache/unrelated.bin',
+          size: 5 * 1024 * 1024 * 1024,
+        }),
+      ]));
+      expect(opfs.arrayBufferReads).not.toContain(`${root}/Inbox/hill.md`);
+      expect(opfs.arrayBufferReads).not.toContain(hugeCache);
+
+      opfs.arrayBufferReads.length = 0;
+      const source = storageApi.createInMemoryVault();
+      const archive = await storageApi.exportVault(source);
+      await expect(storageApi.prepareVaultImport(vault, archive)).resolves.toBeDefined();
+      expect(opfs.arrayBufferReads).toContain(`${root}/Inbox/hill.md`);
+      expect(opfs.arrayBufferReads).not.toContain(hugeCache);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('does not trust stale OPFS metadata after an external same-size replacement', async () => {
+    const opfs = new MemoryOpfs();
+    const name = 'stale-file-metadata';
+    const root = `the-studio/${name}`;
+    const path = 'Attachments/sample.bin';
+    const physicalPath = `${root}/${path}`;
+    vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
+    try {
+      const vault = createBrowserVault(name, { storage: 'opfs' });
+      const original = await vault.writeBinaryAtomic(
+        path,
+        new TextEncoder().encode('original'),
+        { expectedMissing: true },
+      );
+      await expect(vault.list()).resolves.toEqual(expect.arrayContaining([
+        expect.objectContaining({ path, contentHash: original.hash }),
+      ]));
+
+      opfs.put(physicalPath, 'external');
+      opfs.arrayBufferReads.length = 0;
+      const reopened = createBrowserVault(name, { storage: 'opfs' });
+      const entry = (await reopened.list()).find((candidate) => candidate.path === path);
+      expect(entry).toMatchObject({ path, size: 8 });
+      expect(entry).not.toHaveProperty('contentHash');
+      expect(opfs.arrayBufferReads).not.toContain(physicalPath);
     } finally {
       vi.unstubAllGlobals();
     }
