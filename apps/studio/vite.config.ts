@@ -21,7 +21,7 @@ const studioContentSecurityPolicy = [
   "form-action 'none'",
   "frame-ancestors 'none'",
   "frame-src 'none'",
-  "script-src 'self'",
+  "script-src 'self' 'wasm-unsafe-eval'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self'",

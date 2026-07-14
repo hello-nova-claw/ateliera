@@ -19,7 +19,10 @@ describe('web content security policy', () => {
 
   it('defaults to same-origin resources and blocks active embedding', () => {
     expect(directive(policy, 'default-src')).toEqual(["'self'"]);
-    expect(directive(policy, 'script-src')).toEqual(["'self'"]);
+    expect(directive(policy, 'script-src')).toEqual([
+      "'self'",
+      "'wasm-unsafe-eval'",
+    ]);
     expect(directive(policy, 'object-src')).toEqual(["'none'"]);
     expect(directive(policy, 'base-uri')).toEqual(["'none'"]);
     expect(directive(policy, 'form-action')).toEqual(["'none'"]);
@@ -44,7 +47,10 @@ describe('Tauri security boundary', () => {
 
   it('allows only the local webview and Tauri IPC transport', () => {
     expect(directive(policy, 'default-src')).toEqual(["'self'"]);
-    expect(directive(policy, 'script-src')).toEqual(["'self'"]);
+    expect(directive(policy, 'script-src')).toEqual([
+      "'self'",
+      "'wasm-unsafe-eval'",
+    ]);
     expect(directive(policy, 'connect-src')).toEqual(['ipc:', 'http://ipc.localhost']);
     expect(directive(policy, 'img-src')).toEqual(["'self'", 'data:', 'blob:']);
     expect(directive(policy, 'object-src')).toEqual(["'none'"]);
