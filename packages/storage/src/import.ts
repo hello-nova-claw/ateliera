@@ -114,6 +114,21 @@ interface ScannedTarget {
   noteId?: string;
 }
 
+async function readBoundedTarget(
+  vault: VaultPort,
+  path: string,
+  maximumBytes: number,
+): Promise<{ bytes: Uint8Array; hash: string }> {
+  if (vault.readBinaryBounded !== undefined) {
+    return vault.readBinaryBounded(path, maximumBytes);
+  }
+  const bytes = await vault.readBinary(path);
+  if (bytes.byteLength > maximumBytes) {
+    throw new PortableVaultError('archive-too-large', `The target file exceeds 64 MiB: ${path}.`);
+  }
+  return { bytes, hash: await sha256(bytes) };
+}
+
 async function scanIncludedTarget(vault: VaultPort): Promise<IncludedTargetScan> {
   const revision = await vault.getRevision();
   const targetFiles = (await vault.list()).filter((entry) => entry.kind === 'file');
@@ -128,22 +143,28 @@ async function scanIncludedTarget(vault: VaultPort): Promise<IncludedTargetScan>
     } catch {
       continue;
     }
-    if (!Number.isSafeInteger(entry.size) || (entry.size as number) < 0 ||
-      typeof entry.contentHash !== 'string' || !/^[a-f0-9]{64}$/.test(entry.contentHash)) {
+    if (!Number.isSafeInteger(entry.size) || (entry.size as number) < 0) {
       throw new PortableVaultError('target-changed', `Target metadata is incomplete for ${entry.path}.`);
     }
-    const hash = entry.contentHash;
+    const isNote = isPublicNotePath(entry.path);
+    let hash = typeof entry.contentHash === 'string' && /^[a-f0-9]{64}$/.test(entry.contentHash)
+      ? entry.contentHash
+      : undefined;
     let noteId: string | undefined;
-    if (isPublicNotePath(entry.path)) {
+    if (isNote || hash === undefined) {
       if ((entry.size as number) > ZIP32_LIMITS.maxEntryBytes) {
-        throw new PortableVaultError('archive-too-large', `The target note exceeds 64 MiB: ${entry.path}.`);
+        throw new PortableVaultError('archive-too-large', `The target file exceeds 64 MiB: ${entry.path}.`);
       }
-      const bytes = await vault.readBinary(entry.path);
-      if (bytes.byteLength > ZIP32_LIMITS.maxEntryBytes || bytes.byteLength !== entry.size ||
-        await sha256(bytes) !== hash) {
+      const observed = await readBoundedTarget(vault, entry.path, ZIP32_LIMITS.maxEntryBytes);
+      if (observed.bytes.byteLength !== entry.size ||
+        (hash !== undefined && observed.hash !== hash)) {
         throw new PortableVaultError('target-changed', `The target changed while reading ${entry.path}.`);
       }
-      noteId = extractNoteId(entry.path, bytes);
+      hash = observed.hash;
+      if (isNote) noteId = extractNoteId(entry.path, observed.bytes);
+    }
+    if (hash === undefined) {
+      throw new PortableVaultError('target-changed', `Target metadata is incomplete for ${entry.path}.`);
     }
     const key = portablePathKey(path);
     if (byPortablePath.has(key)) {

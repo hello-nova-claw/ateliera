@@ -24,6 +24,7 @@ export interface BrowserVaultStore {
   entries(): Promise<ReadonlyArray<readonly [string, StoredBrowserFile]>>;
   metadataEntries?(): Promise<ReadonlyArray<BrowserVaultStoreMetadata>>;
   read(path: string): Promise<StoredBrowserFile | undefined>;
+  readBounded?(path: string, maximumBytes: number): Promise<StoredBrowserFile | undefined>;
   getRevision(): Promise<string>;
   mutateAtomic(
     expectedRevision: string,
@@ -433,6 +434,27 @@ class BrowserVault implements VaultPort {
     const validPath = validatePath(path);
     return withVaultLock(this.name, async () =>
       (await this.#requiredFile(validPath)).bytes.slice());
+  }
+
+  async readBinaryBounded(
+    path: string,
+    maximumBytes: number,
+  ): Promise<{ bytes: Uint8Array; hash: string }> {
+    const validPath = validatePath(path);
+    if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 0) {
+      throw new VaultUnavailableError('The bounded read limit is invalid.');
+    }
+    return withVaultLock(this.name, async () => {
+      const store = await this.storePromise;
+      const file = store.readBounded === undefined
+        ? await store.read(validPath)
+        : await store.readBounded(validPath, maximumBytes);
+      if (file === undefined) throw new VaultUnavailableError();
+      if (file.bytes.byteLength > maximumBytes) {
+        throw new VaultUnavailableError('The vault entry exceeds the bounded read limit.');
+      }
+      return { bytes: file.bytes.slice(), hash: file.hash };
+    });
   }
 
   async writeBinaryAtomic(
@@ -934,8 +956,11 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
     return `${OPFS_METADATA_DIRECTORY}/${await digest(encoder.encode(path))}.json`;
   }
 
-  async function writeFileMetadata(path: string, file: StoredBrowserFile): Promise<void> {
-    const observed = await fileMetadata(path);
+  async function writeObservedFileMetadata(
+    path: string,
+    file: StoredBrowserFile,
+    observed: { size: number; lastModified: number },
+  ): Promise<void> {
     const bytes = encoder.encode(`${JSON.stringify({
       version: 1,
       path,
@@ -953,6 +978,10 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
     });
   }
 
+  async function writeFileMetadata(path: string, file: StoredBrowserFile): Promise<void> {
+    await writeObservedFileMetadata(path, file, await fileMetadata(path));
+  }
+
   async function removeFileMetadata(path: string): Promise<void> {
     await removeFileIfPresent(await metadataPath(path));
   }
@@ -965,6 +994,44 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
   async function removePublishedFile(path: string): Promise<void> {
     await removeFileIfPresent(path);
     await removeFileMetadata(path);
+  }
+
+  function sameFileMetadata(
+    left: { size: number; lastModified: number },
+    right: { size: number; lastModified: number },
+  ): boolean {
+    return left.size === right.size && left.lastModified === right.lastModified;
+  }
+
+  async function readBoundedAndHeal(
+    path: string,
+    maximumBytes: number,
+  ): Promise<StoredBrowserFile | undefined> {
+    const revision = await getRevision();
+    let before: { size: number; lastModified: number };
+    try {
+      before = await fileMetadata(path);
+    } catch (error) {
+      if (isNotFound(error)) return undefined;
+      throw error;
+    }
+    if (before.size > maximumBytes) {
+      throw new VaultUnavailableError('The vault entry exceeds the bounded read limit.');
+    }
+    const file = await readFile(path, maximumBytes);
+    if (file === undefined) return undefined;
+    const after = await fileMetadata(path);
+    if (!sameFileMetadata(before, after) || file.bytes.byteLength !== after.size ||
+      await getRevision() !== revision) {
+      throw new VaultConflictError('The vault entry changed during its bounded read.');
+    }
+    await writeObservedFileMetadata(path, file, after);
+    const verified = await fileMetadata(path);
+    if (!sameFileMetadata(after, verified) || await getRevision() !== revision) {
+      await removeFileMetadata(path);
+      throw new VaultConflictError('The vault entry changed while healing its metadata.');
+    }
+    return file;
   }
 
   async function readFileMetadata(
@@ -1133,6 +1200,7 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
     entries: () => walk(root),
     metadataEntries: () => walkMetadata(root),
     read: readFile,
+    readBounded: readBoundedAndHeal,
     getRevision,
     async mutateAtomic(expectedRevision, mutations) {
       await recoverJournal();

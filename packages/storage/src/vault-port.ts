@@ -83,6 +83,11 @@ export interface VaultPort {
     condition?: WriteCondition,
   ): Promise<{ hash: string }>;
   readBinary(path: string): Promise<Uint8Array>;
+  /** Read and hash a file only when its current size is within the caller's hard limit. */
+  readBinaryBounded?(
+    path: string,
+    maximumBytes: number,
+  ): Promise<{ bytes: Uint8Array; hash: string }>;
   writeBinaryAtomic(
     path: string,
     bytes: Uint8Array,
