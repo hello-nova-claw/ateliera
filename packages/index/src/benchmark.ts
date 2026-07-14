@@ -35,8 +35,20 @@ try {
   const searchStarted = performance.now();
   const hits = await index.search('calm spacious', { semanticTypes: ['reflection'] });
   const searchMs = performance.now() - searchStarted;
-  console.log(JSON.stringify({ notes: count, rebuildMs: Math.round(rebuildMs), warmSearchMs: Number(searchMs.toFixed(2)), hits: hits.length }));
+  await index.facets('', { semanticTypes: ['reflection'] });
+  const facetsStarted = performance.now();
+  const facets = await index.facets('', { semanticTypes: ['reflection'] });
+  const facetsMs = performance.now() - facetsStarted;
+  console.log(JSON.stringify({
+    notes: count,
+    rebuildMs: Math.round(rebuildMs),
+    warmSearchMs: Number(searchMs.toFixed(2)),
+    warmFacetsMs: Number(facetsMs.toFixed(2)),
+    hits: hits.length,
+    lifeAreaFacets: facets.lifeAreas,
+  }));
   if (searchMs >= 200) throw new Error(`Warm search target missed: ${searchMs.toFixed(2)}ms >= 200ms`);
+  if (facetsMs >= 200) throw new Error(`Warm facets target missed: ${facetsMs.toFixed(2)}ms >= 200ms`);
 } finally {
   index.close();
   rmSync(path, { force: true });

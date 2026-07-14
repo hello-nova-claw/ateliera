@@ -134,6 +134,30 @@ function addSearchFilters(clauses: string[], values: SqlValue[], filters: Search
   addListFilter(clauses, values, 'note_tags', 'tag', filters.tags);
 }
 
+interface SearchSelection {
+  clauses: string[];
+  from: string;
+  values: SqlValue[];
+}
+
+function searchSelection(queryTokens: string[], filters: SearchFilters): SearchSelection {
+  const values: SqlValue[] = [];
+  const clauses: string[] = [];
+  const from = queryTokens.length
+    ? 'notes n JOIN note_fts ON note_fts.id = n.id'
+    : 'notes n';
+  if (queryTokens.length) {
+    clauses.push('note_fts MATCH ?');
+    values.push(ftsQuery(queryTokens));
+  }
+  addSearchFilters(clauses, values, filters);
+  return { clauses, from, values };
+}
+
+function selectionSql(selection: SearchSelection): string {
+  return `${selection.from}${selection.clauses.length ? ` WHERE ${selection.clauses.join(' AND ')}` : ''}`;
+}
+
 function damerauLevenshtein(left: string, right: string, maximum: number): number | null {
   if (Math.abs(left.length - right.length) > maximum) return null;
   const matrix = Array.from({ length: left.length + 1 }, () => new Array<number>(right.length + 1).fill(0));
@@ -249,15 +273,11 @@ export class SqliteIndex implements IndexPort {
     validateQuery(query);
     const queryTokens = tokens(query);
     if (query.trim() && queryTokens.length === 0) return [];
-    const values: SqlValue[] = [];
-    const clauses: string[] = [];
-    const from = queryTokens.length
-      ? 'notes n JOIN note_fts ON note_fts.id = n.id'
-      : 'notes n';
-    if (queryTokens.length) { clauses.push('note_fts MATCH ?'); values.push(ftsQuery(queryTokens)); }
-    addSearchFilters(clauses, values, filters);
+    const selection = searchSelection(queryTokens, filters);
     const rank = queryTokens.length ? 'bm25(note_fts)' : '0';
-    const found = rows<NoteRow>(this.database.prepare(`SELECT n.*, ${rank} AS rank FROM ${from}${clauses.length ? ` WHERE ${clauses.join(' AND ')}` : ''} ORDER BY rank ASC, n.updated DESC, n.id ASC LIMIT 200`).all(...values));
+    const found = rows<NoteRow>(this.database.prepare(
+      `SELECT n.*, ${rank} AS rank FROM ${selectionSql(selection)} ORDER BY rank ASC, n.updated DESC, n.id ASC LIMIT 200`,
+    ).all(...selection.values));
     const exact: SearchHit[] = found.map((item) => {
       const snippet = makeSnippet(item, queryTokens);
       const indexedNote = JSON.parse(item.note_json) as StudioNote;
@@ -293,11 +313,12 @@ export class SqliteIndex implements IndexPort {
 
   async facets(query: string, filters: SearchFilters = {}): Promise<SearchFacets> {
     validateQuery(query);
+    const queryTokens = tokens(query);
     type FilterKey = Exclude<keyof SearchFilters, 'dateFrom' | 'dateTo'>;
-    const idsWithout = async (filter: FilterKey): Promise<string[]> => {
+    const selectionWithout = (filter: FilterKey): SearchSelection => {
       const remaining = { ...filters };
       delete remaining[filter];
-      return (await this.search(query, remaining)).map((hit) => hit.id);
+      return searchSelection(queryTokens, remaining);
     };
     const withSelected = (
       values: Array<{ value: string; count: number }>,
@@ -311,27 +332,61 @@ export class SqliteIndex implements IndexPort {
         right.count - left.count || left.value.localeCompare(right.value, 'en'),
       );
     };
-    const listFacet = async (
+    const fuzzyIds = (filter: FilterKey): string[] => {
+      if (queryTokens.length === 0) return [];
+      const remaining = { ...filters };
+      delete remaining[filter];
+      return this.fuzzySearch(queryTokens, remaining, Number.POSITIVE_INFINITY).map((hit) => hit.id);
+    };
+    const aggregateFuzzy = (
+      ids: string[], table: string, column: string, joinsNotes: boolean,
+    ): Array<{ value: string; count: number }> => {
+      if (ids.length === 0) return [];
+      const placeholders = ids.map(() => '?').join(',');
+      const sql = joinsNotes
+        ? `SELECT n.${column} AS value, count(*) AS count FROM notes n WHERE n.id IN (${placeholders}) GROUP BY n.${column} ORDER BY count DESC, value ASC`
+        : `SELECT f.${column} AS value, count(*) AS count FROM ${table} f WHERE f.note_id IN (${placeholders}) GROUP BY f.${column} ORDER BY count DESC, value ASC`;
+      return rows<{ value: string; count: number }>(this.database.prepare(sql).all(...ids));
+    };
+    const hasExactMatches = (selection: SearchSelection): boolean =>
+      this.database.prepare(`SELECT 1 AS found FROM ${selectionSql(selection)} LIMIT 1`)
+        .get(...selection.values) !== undefined;
+    const listFacet = (
       filter: FilterKey, table: string, column: string, selected: readonly string[] | undefined,
     ) => {
-      const ids = await idsWithout(filter);
-      if (ids.length === 0) return withSelected([], selected);
-      const placeholders = ids.map(() => '?').join(',');
-      return withSelected(rows<{ value: string; count: number }>(this.database.prepare(
-        `SELECT ${column} AS value, count(*) AS count FROM ${table} WHERE note_id IN (${placeholders}) GROUP BY ${column} ORDER BY count DESC, value ASC`,
-      ).all(...ids)), selected);
+      const selection = selectionWithout(filter);
+      const exact = rows<{ value: string; count: number }>(this.database.prepare(
+        `SELECT f.${column} AS value, count(*) AS count FROM ${selection.from} JOIN ${table} f ON f.note_id = n.id${selection.clauses.length ? ` WHERE ${selection.clauses.join(' AND ')}` : ''} GROUP BY f.${column} ORDER BY count DESC, value ASC`,
+      ).all(...selection.values));
+      if (exact.length > 0 || queryTokens.length === 0 || hasExactMatches(selection)) {
+        return withSelected(exact, selected);
+      }
+      return withSelected(aggregateFuzzy(fuzzyIds(filter), table, column, false), selected);
     };
-    const noteFacet = async (
+    const noteFacet = (
       filter: FilterKey, column: string, selected: readonly string[] | undefined,
     ) => {
-      const ids = await idsWithout(filter);
-      if (ids.length === 0) return withSelected([], selected);
-      const placeholders = ids.map(() => '?').join(',');
-      return withSelected(rows<{ value: string; count: number }>(this.database.prepare(
-        `SELECT ${column} AS value, count(*) AS count FROM notes WHERE id IN (${placeholders}) GROUP BY ${column} ORDER BY count DESC, value ASC`,
-      ).all(...ids)), selected);
+      const selection = selectionWithout(filter);
+      const exact = rows<{ value: string; count: number }>(this.database.prepare(
+        `SELECT n.${column} AS value, count(*) AS count FROM ${selectionSql(selection)} GROUP BY n.${column} ORDER BY count DESC, value ASC`,
+      ).all(...selection.values));
+      if (exact.length > 0 || queryTokens.length === 0 || hasExactMatches(selection)) {
+        return withSelected(exact, selected);
+      }
+      return withSelected(aggregateFuzzy(fuzzyIds(filter), 'notes', column, true), selected);
     };
-    const [rooms, semanticTypes, lifeAreas, seasons, statuses, tags, cardTypes] = await Promise.all([
+    if (query.trim() && queryTokens.length === 0) {
+      return {
+        rooms: withSelected([], filters.rooms),
+        semanticTypes: withSelected([], filters.semanticTypes),
+        lifeAreas: withSelected([], filters.lifeAreas),
+        seasons: withSelected([], filters.seasons),
+        statuses: withSelected([], filters.statuses),
+        tags: withSelected([], filters.tags),
+        cardTypes: withSelected([], filters.cardTypes),
+      };
+    }
+    const [rooms, semanticTypes, lifeAreas, seasons, statuses, tags, cardTypes] = [
       listFacet('rooms', 'note_rooms', 'room', filters.rooms),
       noteFacet('semanticTypes', 'semantic_type', filters.semanticTypes),
       listFacet('lifeAreas', 'note_life_areas', 'life_area', filters.lifeAreas),
@@ -339,13 +394,13 @@ export class SqliteIndex implements IndexPort {
       noteFacet('statuses', 'status', filters.statuses),
       listFacet('tags', 'note_tags', 'tag', filters.tags),
       noteFacet('cardTypes', 'card_type', filters.cardTypes),
-    ]);
+    ];
     return {
       rooms, semanticTypes, lifeAreas, seasons, statuses, tags, cardTypes,
     };
   }
 
-  private fuzzySearch(queryTokens: string[], filters: SearchFilters): SearchHit[] {
+  private fuzzySearch(queryTokens: string[], filters: SearchFilters, limit = 200): SearchHit[] {
     if (queryTokens.some((token) => token.length < 3)) return [];
     const values: SqlValue[] = [];
     const clauses: string[] = [];
@@ -401,7 +456,7 @@ export class SqliteIndex implements IndexPort {
       if (field !== 0) return field;
       const updated = right.updated.localeCompare(left.updated, 'en');
       return updated || left.id.localeCompare(right.id, 'en');
-    }).slice(0, 200);
+    }).slice(0, limit);
   }
 
   async backlinks(id: string): Promise<string[]> {
