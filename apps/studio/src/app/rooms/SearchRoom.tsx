@@ -44,6 +44,14 @@ export default function SearchRoom({
 }) {
   const searchService = isSearchService(service) ? service : undefined;
   const view = useSearch(searchService, online, projectionRevision);
+  const indexState = typeof service?.indexState === 'function'
+    ? service.indexState()
+    : 'ready';
+  const searchModel = indexState === 'rebuilding'
+    ? { ...view.model, state: 'loading' as const }
+    : indexState === 'stale' && view.model.state !== 'error'
+      ? { ...view.model, state: 'stale' as const }
+      : view.model;
   const [inspection, setInspection] = useState<StudioSearchInspection | null>();
   const [inspectorState, setInspectorState] = useState<InspectorState>('ready');
   const [inspectorError, setInspectorError] = useState<string>();
@@ -173,7 +181,7 @@ export default function SearchRoom({
         </p>
       )}
       <SearchPage
-        model={view.model}
+        model={searchModel}
         onFiltersChange={view.setFilters}
         {...(searchService ? { onOpenRepairQueue: openRepairs } : {})}
         {...(searchService ? {
