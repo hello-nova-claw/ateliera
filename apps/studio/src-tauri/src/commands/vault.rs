@@ -2681,6 +2681,35 @@ mod tests {
     }
 
     #[test]
+    fn retained_recovery_budget_rejects_growth_after_aggregate_preflight() {
+        let directory = tempfile::tempdir().unwrap();
+        std::fs::write(directory.path().join("first.bin"), b"12345678").unwrap();
+        std::fs::write(directory.path().join("second.bin"), b"abcdefgh").unwrap();
+        let root = Dir::open_ambient_dir(directory.path(), ambient_authority()).unwrap();
+        let mut retained = 0usize;
+
+        let first = read_recovery_payload_after_stat(&root, "first.bin", &mut retained, 16, || {})
+            .unwrap();
+        assert_eq!(first, b"12345678");
+        let result = read_recovery_payload_after_stat(
+            &root,
+            "second.bin",
+            &mut retained,
+            16,
+            || {
+                let file = std::fs::OpenOptions::new()
+                    .append(true)
+                    .open(directory.path().join("second.bin"))
+                    .unwrap();
+                file.set_len(9).unwrap();
+            },
+        );
+
+        assert!(matches!(result, Err(VaultError::Unavailable)));
+        assert_eq!(retained, 8);
+    }
+
+    #[test]
     fn revision_is_monotonic_across_aba_writes_and_reopen() {
         let (directory, vault) = selected_vault();
         assert_eq!(vault.get_revision().unwrap(), "0");
@@ -3054,6 +3083,30 @@ mod tests {
         assert_eq!(recovered.read_binary("first.md").unwrap(), b"before");
         assert!(!recovered.exists("second.bin").unwrap());
         assert_no_transaction_leaks(directory.path());
+    }
+
+    #[test]
+    fn retired_manifest_makes_interrupted_journal_cleanup_recoverable() {
+        let (directory, vault) = selected_vault();
+        let journal = directory.path().join(BATCH_JOURNAL_PATH);
+        std::fs::create_dir(&journal).unwrap();
+        std::fs::write(journal.join(BATCH_JOURNAL_MANIFEST), b"{}").unwrap();
+        std::fs::write(journal.join("previous-0.bin"), b"evidence").unwrap();
+
+        let journal_directory = vault
+            .root
+            .open_dir_nofollow(BATCH_JOURNAL_PATH)
+            .unwrap();
+        vault
+            .retire_batch_journal_manifest_locked(&journal_directory)
+            .unwrap();
+        drop(vault);
+
+        let reopened = VaultRegistry::default();
+        reopened
+            .register_selected_path("cleanup-restart", directory.path())
+            .unwrap();
+        assert!(!journal.exists());
     }
 
     #[test]
