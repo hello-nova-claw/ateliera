@@ -184,7 +184,12 @@ describe('Tauri vault IPC adapter', () => {
     const invoke = vi.fn<TauriVaultBridge['invoke']>(async (command, args) => {
       if (command === 'vault_select') return selection();
       if (command === 'vault_list') {
-        return [{ path: 'Attachments/large.bin', kind: 'file', size, contentHash: hash }];
+        return [{
+          path: 'Attachments/large.bin',
+          kind: 'file',
+          size,
+          contentHash: 'd36f05b3119a19fbd2f98b95308c44f062b8bc98a5bb763c6b327181bd189cee',
+        }];
       }
       if (command === 'vault_read_binary_chunk') {
         const request = args as { offset: number; length: number };
@@ -208,6 +213,20 @@ describe('Tauri vault IPC adapter', () => {
     const chunkCalls = invoke.mock.calls.filter(([command]) => command === 'vault_read_binary_chunk');
     expect(chunkCalls.length).toBeGreaterThan(16);
     expect(chunkCalls.every(([, args]) => (args as { length: number }).length <= chunkBytes)).toBe(true);
+  });
+
+  it('rejects chunk assemblies that do not match stable native metadata', async () => {
+    const invoke = vi.fn<TauriVaultBridge['invoke']>(async (command) => {
+      if (command === 'vault_select') return selection();
+      if (command === 'vault_list') {
+        return [{ path: 'asset.bin', kind: 'file', size: 3, contentHash: hash }];
+      }
+      if (command === 'vault_read_binary_chunk') return new Uint8Array([4, 5, 6]);
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    const vault = await selectTauriVault(bridge(invoke));
+
+    await expect(vault?.readBinary('asset.bin')).rejects.toBeInstanceOf(VaultUnavailableError);
   });
 
   it('uses the strict bounded primitive for portability reads', async () => {
