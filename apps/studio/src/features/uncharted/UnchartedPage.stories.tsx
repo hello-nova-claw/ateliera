@@ -59,7 +59,7 @@ export const LongText: Story = {
     },
   },
 };
+export const Offline: Story = { args: { state: 'offline' } };
 export const Dark: Story = {
   decorators: [(Story) => <div className="studio-app" data-theme="deep-ocean" style={{ background: 'var(--studio-color-canvas)', color: 'var(--studio-color-ink)', minHeight: '100vh', padding: '32px' }}><Story /></div>],
 };
-

@@ -11,6 +11,11 @@ const cards = [
     created: '2026-07-14T09:00:00.000Z', updated: '2026-07-14T09:00:00.000Z',
     lifeAreas: ['family'], seasons: ['winter'], tags: ['calm', 'ordinary-life'],
     linkedNoteIds: ['identity'], thenNoteId: 'then',
+    evidenceConnections: [
+      { kind: 'life-area' as const, id: 'family' },
+      { kind: 'season' as const, id: 'winter' },
+      { kind: 'note' as const, id: 'identity', targetState: 'available' as const },
+    ],
   },
   {
     noteId: 'then', path: 'Reflection Garden/Celebrations/then.md', hash: 'two',
@@ -19,6 +24,7 @@ const cards = [
     semanticType: 'celebration' as const, cardType: 'celebration', status: 'active' as const,
     created: '2025-07-14T09:00:00.000Z', updated: '2025-07-14T09:00:00.000Z',
     lifeAreas: ['creativity'], seasons: [], tags: ['calm', 'evidence'], linkedNoteIds: [],
+    evidenceConnections: [{ kind: 'life-area' as const, id: 'creativity' }],
   },
 ];
 
@@ -54,6 +60,7 @@ export const Dense: Story = {
   },
 };
 export const Loading: Story = { args: { model: { cards: [], themes: [] }, state: 'loading' } };
+export const Offline: Story = { args: { state: 'offline' } };
 export const Malformed: Story = { args: { error: 'One entry needs metadata repair. Its words remain untouched.', state: 'error' } };
 export const Dark: Story = {
   decorators: [(Story) => <div className="studio-app" data-theme="deep-ocean" style={{ background: 'var(--studio-color-canvas)', color: 'var(--studio-color-ink)', minHeight: '100vh', padding: '32px' }}><Story /></div>],
