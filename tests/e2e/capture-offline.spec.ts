@@ -81,7 +81,7 @@ test('falls back to IndexedDB when OPFS is unavailable', async ({ page }) => {
   await page.getByRole('button', { name: 'Remember' }).click();
   await expect(page.getByText('The garden')).toBeVisible();
   await page.waitForFunction(async () => {
-    const request = indexedDB.open('the-studio-browser-vaults', 2);
+    const request = indexedDB.open('the-studio-browser-vaults', 3);
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       request.addEventListener('success', () => resolve(request.result), {
         once: true,

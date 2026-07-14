@@ -76,7 +76,7 @@ async function activeVaultRecords(page: Page): Promise<ActiveVaultRecord[]> {
   return page.evaluate(async () => {
     const active = localStorage.getItem('studio:active-browser-studio');
     if (active === null) throw new Error('No active Studio');
-    const request = indexedDB.open('the-studio-browser-vaults', 2);
+    const request = indexedDB.open('the-studio-browser-vaults', 3);
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       request.addEventListener('success', () => resolve(request.result), { once: true });
       request.addEventListener('error', () => reject(request.error), { once: true });
@@ -111,7 +111,7 @@ async function putActiveVaultText(
   await page.evaluate(async ({ targetPath, targetText }) => {
     const active = localStorage.getItem('studio:active-browser-studio');
     if (active === null) throw new Error('No active Studio');
-    const request = indexedDB.open('the-studio-browser-vaults', 2);
+    const request = indexedDB.open('the-studio-browser-vaults', 3);
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       request.addEventListener('success', () => resolve(request.result), { once: true });
       request.addEventListener('error', () => reject(request.error), { once: true });

@@ -78,7 +78,7 @@ async function putIndexedDbFiles(
   await page.evaluate(async (entries) => {
     const active = localStorage.getItem('studio:active-browser-studio');
     if (!active) throw new Error('No active Studio');
-    const request = indexedDB.open('the-studio-browser-vaults', 2);
+    const request = indexedDB.open('the-studio-browser-vaults', 3);
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       request.addEventListener('success', () => resolve(request.result), { once: true });
       request.addEventListener('error', () => reject(request.error), { once: true });
@@ -289,7 +289,7 @@ test('opens an existing Studio and starts its search worker entirely from the of
     };
     localStorage.setItem('studio:browser-studios', JSON.stringify([record]));
     localStorage.setItem('studio:active-browser-studio', record.vaultId);
-    const request = indexedDB.open('the-studio-browser-vaults', 2);
+    const request = indexedDB.open('the-studio-browser-vaults', 3);
     request.addEventListener('upgradeneeded', () => {
       if (!request.result.objectStoreNames.contains('files')) {
         const files = request.result.createObjectStore('files', { keyPath: 'key' });

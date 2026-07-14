@@ -58,7 +58,7 @@ ${input.body}
 
 async function openDatabase(page: Page): Promise<void> {
   await page.evaluate(async () => {
-    const request = indexedDB.open('the-studio-browser-vaults', 2);
+    const request = indexedDB.open('the-studio-browser-vaults', 3);
     await new Promise<void>((resolve, reject) => {
       request.addEventListener('success', () => {
         request.result.close();
@@ -77,7 +77,7 @@ async function putIndexedDbFiles(
   await page.evaluate(async (entries) => {
     const active = localStorage.getItem('studio:active-browser-studio');
     if (!active) throw new Error('No active Studio');
-    const request = indexedDB.open('the-studio-browser-vaults', 2);
+    const request = indexedDB.open('the-studio-browser-vaults', 3);
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       request.addEventListener('success', () => resolve(request.result), { once: true });
       request.addEventListener('error', () => reject(request.error), { once: true });
@@ -111,7 +111,7 @@ async function readIndexedDbText(page: Page, path: string): Promise<string> {
   return page.evaluate(async (exactPath) => {
     const active = localStorage.getItem('studio:active-browser-studio');
     if (!active) throw new Error('No active Studio');
-    const request = indexedDB.open('the-studio-browser-vaults', 2);
+    const request = indexedDB.open('the-studio-browser-vaults', 3);
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       request.addEventListener('success', () => resolve(request.result), { once: true });
       request.addEventListener('error', () => reject(request.error), { once: true });
@@ -165,7 +165,7 @@ async function mutateIndexedDbText(
   await page.evaluate(async ({ exactPath, replacement }) => {
     const active = localStorage.getItem('studio:active-browser-studio');
     if (!active) throw new Error('No active Studio');
-    const request = indexedDB.open('the-studio-browser-vaults', 2);
+    const request = indexedDB.open('the-studio-browser-vaults', 3);
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       request.addEventListener('success', () => resolve(request.result), { once: true });
       request.addEventListener('error', () => reject(request.error), { once: true });
