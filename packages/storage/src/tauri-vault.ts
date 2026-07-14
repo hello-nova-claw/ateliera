@@ -14,9 +14,19 @@ import type {
   VaultPort,
   WriteCondition,
 } from './vault-port';
+import { sha256 } from './zip32';
 
 const BATCH_MAGIC = new TextEncoder().encode('STUDIOB1');
+const BINARY_CHUNK_BYTES = 4 * 1024 * 1024;
+const MAX_PORTABLE_BINARY_BYTES = 64 * 1024 * 1024;
+const MAX_ORDINARY_BINARY_BYTES = 512 * 1024 * 1024;
 const encoder = new TextEncoder();
+
+function binaryResponse(value: unknown): Uint8Array {
+  if (value instanceof Uint8Array) return value.slice();
+  if (value instanceof ArrayBuffer) return new Uint8Array(value.slice(0));
+  throw new VaultUnavailableError();
+}
 
 function uint32(value: number): Uint8Array {
   if (!Number.isSafeInteger(value) || value < 0 || value > 0xffff_ffff) {
@@ -216,6 +226,24 @@ function createTauriVault(
     }
     return validateBatchResult(response, input);
   };
+  const binaryMetadata = async (path: string): Promise<{ size: number; hash: string }> => {
+    const entries = await call<unknown>('vault_list', { prefix: path });
+    if (!Array.isArray(entries)) throw new VaultUnavailableError();
+    const exact = entries.filter((entry): entry is VaultEntry =>
+      entry !== null && typeof entry === 'object' &&
+      (entry as Partial<VaultEntry>).path === path &&
+      (entry as Partial<VaultEntry>).kind === 'file');
+    if (exact.length !== 1) throw new VaultUnavailableError();
+    const entry = exact[0];
+    if (entry === undefined) throw new VaultUnavailableError();
+    const { size, contentHash } = entry;
+    if (!Number.isSafeInteger(size) || (size as number) < 0 ||
+      (size as number) > MAX_ORDINARY_BINARY_BYTES ||
+      typeof contentHash !== 'string' || !/^[a-f0-9]{64}$/.test(contentHash)) {
+      throw new VaultUnavailableError();
+    }
+    return { size: size as number, hash: contentHash };
+  };
   return {
     recoveryIdentity,
     getRevision,
@@ -230,10 +258,35 @@ function createTauriVault(
         expectedUserState: condition?.expectedUserState,
       }),
     readBinary: async (path) => {
-      const response = await call<unknown>('vault_read_binary', { path });
-      if (response instanceof Uint8Array) return response.slice();
-      if (response instanceof ArrayBuffer) return new Uint8Array(response.slice(0));
-      throw new VaultUnavailableError();
+      const before = await binaryMetadata(path);
+      const output = new Uint8Array(before.size);
+      for (let offset = 0; offset < before.size; offset += BINARY_CHUNK_BYTES) {
+        const length = Math.min(BINARY_CHUNK_BYTES, before.size - offset);
+        const response = binaryResponse(await call<unknown>('vault_read_binary_chunk', {
+          path,
+          offset,
+          length,
+        }));
+        if (response.byteLength !== length) throw new VaultUnavailableError();
+        output.set(response, offset);
+      }
+      const after = await binaryMetadata(path);
+      if (after.size !== before.size || after.hash !== before.hash) {
+        throw new VaultUnavailableError();
+      }
+      return output;
+    },
+    readBinaryBounded: async (path, maximumBytes) => {
+      if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 0 ||
+        maximumBytes > MAX_PORTABLE_BINARY_BYTES) {
+        throw new VaultUnavailableError();
+      }
+      const bytes = binaryResponse(await call<unknown>('vault_read_binary_bounded', {
+        path,
+        maxBytes: maximumBytes,
+      }));
+      if (bytes.byteLength > maximumBytes) throw new VaultUnavailableError();
+      return { bytes, hash: await sha256(bytes) };
     },
     writeBinaryAtomic: async (path, bytes, condition?: WriteCondition) => {
       const snapshot = bytes.slice();

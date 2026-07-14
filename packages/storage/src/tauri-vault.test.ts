@@ -215,6 +215,7 @@ describe('Tauri vault IPC adapter', () => {
     const invoke = vi.fn<TauriVaultBridge['invoke']>(async (command, args) => {
       if (command === 'vault_select') return selection();
       if (command === 'vault_read_binary_bounded') {
+        if ((args as { path: string }).path.startsWith('..')) throw new Error('path_escape');
         expect(args).toEqual({ vaultToken: token, path: 'asset.bin', maxBytes: 64 * 1024 * 1024 });
         return bytes;
       }
