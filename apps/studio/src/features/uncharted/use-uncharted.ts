@@ -4,7 +4,7 @@ import type {
   UnchartedProjection,
 } from '@studio/application';
 import { markdownToPlainText } from '@studio/content';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const empty: UnchartedProjection = { cards: [] };
 
@@ -33,6 +33,7 @@ export function useUncharted(
     service ? 'loading' : 'ready',
   );
   const [error, setError] = useState<string>();
+  const pendingInvites = useRef(new Map<string, Promise<void>>());
 
   useEffect(() => {
     if (!service) {
@@ -101,12 +102,27 @@ export function useUncharted(
     if (!service || !activeSeason) {
       throw new Error('Begin one current season before making this connection.');
     }
-    await service.inviteUnchartedToSeason({
-      path: card.path,
-      expectedHash: card.hash,
-      seasonId: activeSeason.id,
-    });
-    setLocalRevision((value) => value + 1);
+    const pending = pendingInvites.current.get(card.noteId);
+    if (pending) return pending;
+    const operation = (async () => {
+      try {
+        await service.inviteUnchartedToSeason({
+          path: card.path,
+          expectedHash: card.hash,
+          seasonId: activeSeason.id,
+        });
+      } finally {
+        setLocalRevision((value) => value + 1);
+      }
+    })();
+    pendingInvites.current.set(card.noteId, operation);
+    const clear = () => {
+      if (pendingInvites.current.get(card.noteId) === operation) {
+        pendingInvites.current.delete(card.noteId);
+      }
+    };
+    void operation.then(clear, clear);
+    return operation;
   }, [activeSeason, service]);
 
   return {
@@ -118,4 +134,3 @@ export function useUncharted(
     ...(error === undefined ? {} : { error }),
   };
 }
-

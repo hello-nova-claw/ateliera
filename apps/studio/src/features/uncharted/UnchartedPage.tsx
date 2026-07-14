@@ -3,7 +3,7 @@ import type {
   UnchartedProjection,
 } from '@studio/application';
 import { SemanticMark } from '@studio/ui';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import './UnchartedPage.css';
 
@@ -29,6 +29,8 @@ function PossibilityCard({
   onOpen?: UnchartedPageProps['onOpen'];
 }) {
   const [message, setMessage] = useState<string>();
+  const [inviting, setInviting] = useState(false);
+  const invitePending = useRef(false);
   const invited = activeSeason && card.seasons.includes(activeSeason.id);
   return (
     <article
@@ -53,13 +55,16 @@ function PossibilityCard({
         {activeSeason && onInvite && !invited && (
           <button
             className="uncharted-page__text-action"
+            disabled={inviting}
             onClick={(event) => {
+              if (invitePending.current) return;
               const trigger = event.currentTarget;
+              invitePending.current = true;
+              setInviting(true);
               setMessage(undefined);
               void Promise.resolve(onInvite(card)).then(
                 () => {
                   setMessage(`Linked with ${activeSeason.title}.`);
-                  requestAnimationFrame(() => trigger.focus());
                 },
                 (reason: unknown) => {
                   setMessage(
@@ -67,14 +72,17 @@ function PossibilityCard({
                       ? reason.message
                       : 'This invitation could not be kept.',
                   );
-                  requestAnimationFrame(() => trigger.focus());
                 },
-              );
+              ).finally(() => {
+                invitePending.current = false;
+                setInviting(false);
+                requestAnimationFrame(() => trigger.focus());
+              });
             }}
             type="button"
             aria-label={`Invite ${card.title} into ${activeSeason.title}`}
           >
-            Invite into this season
+            {inviting ? 'Inviting…' : 'Invite into this season'}
           </button>
         )}
         {activeSeason && invited && (
@@ -219,4 +227,3 @@ export function UnchartedPage({
     </div>
   );
 }
-
