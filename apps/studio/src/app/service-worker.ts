@@ -8,6 +8,9 @@ const PRECACHE_ENTRIES = __STUDIO_PRECACHE_MANIFEST__ as ReadonlyArray<{
   url: string;
   revision: string;
 }>;
+const PRECACHE_PATHS = new Set(
+  PRECACHE_ENTRIES.map(({ url }) => new URL(url, self.location.origin).pathname),
+);
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -42,7 +45,7 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
   const isAppShellRequest =
     request.mode === 'navigate' ||
-    ['script', 'style', 'font'].includes(request.destination) ||
+    (url.search === '' && PRECACHE_PATHS.has(url.pathname)) ||
     (url.pathname === '/studio-precache-manifest.json' && url.search === '');
   if (!isAppShellRequest) return;
   event.respondWith(
