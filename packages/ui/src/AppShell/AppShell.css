@@ -214,7 +214,9 @@
     z-index: 30;
     inset: auto 0 0;
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    inline-size: 100%;
+    max-inline-size: 100vw;
     padding: var(--studio-space-1) var(--studio-space-2)
       calc(var(--studio-space-1) + env(safe-area-inset-bottom));
     border-block-start: 1px solid var(--studio-color-line);
@@ -223,6 +225,12 @@
 
   .studio-app-shell__more-menu {
     display: grid;
+  }
+
+  .studio-app-shell__mobile-nav .studio-app-shell__nav-link,
+  .studio-app-shell__capture,
+  .studio-app-shell__more-trigger {
+    min-inline-size: 0;
   }
 
   .studio-app-shell__mobile-nav .studio-app-shell__nav-link,
