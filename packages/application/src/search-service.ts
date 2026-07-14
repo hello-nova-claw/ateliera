@@ -247,6 +247,19 @@ async function scanVault(vault: VaultPort): Promise<ScanResult> {
   return { documents, metadata };
 }
 
+async function assertCanonicalIdOwnership(
+  vault: VaultPort,
+  path: string,
+  id: string,
+): Promise<void> {
+  const owner = (await scanVault(vault)).documents.find(
+    (document) => !document.duplicate && document.note.id === id,
+  );
+  if (owner && owner.path !== path) {
+    throw new Error(`Stable note ID "${id}" already belongs to ${owner.path}. Choose a unique ID.`);
+  }
+}
+
 type LinkResolution =
   | { state: 'resolved'; targetId: string }
   | { state: 'broken' }
@@ -522,6 +535,7 @@ export function createStudioSearchService({
         extraFrontmatter: safeExtraFrontmatter(source.frontmatter),
       };
       const attemptedText = assertValidRepair(note);
+      await assertCanonicalIdOwnership(vault, input.path, note.id);
       const written = await publishRepair(input.path, input.expectedHash, attemptedText);
       await updateIndex(note, input.path, written.hash);
       return { note, path: input.path, hash: written.hash };

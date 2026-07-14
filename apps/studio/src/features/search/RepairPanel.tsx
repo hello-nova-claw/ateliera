@@ -15,7 +15,7 @@ import {
   type StudioNote,
 } from '@studio/domain';
 import type { MarkdownLinkEdit } from '@studio/content';
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 
 import './RepairPanel.css';
 
@@ -163,6 +163,7 @@ function MetadataRepair({
   const [message, setMessage] = useState<string>();
   const [conflict, setConflict] = useState<RepairConflictView>();
   const button = useRef<HTMLButtonElement>(null);
+  const timestampHelpId = useId();
 
   function setList(key: 'rooms' | 'lifeAreas' | 'seasons' | 'tags', value: string) {
     setDraft((current) => ({ ...current, [key]: listInput(value) }));
@@ -254,6 +255,35 @@ function MetadataRepair({
             ))}
           </select>
         </label>
+        <label>
+          <span>Created</span>
+          <input
+            aria-describedby={timestampHelpId}
+            onChange={(event) => setDraft((current) => ({
+              ...current,
+              created: event.target.value,
+            }))}
+            required
+            spellCheck={false}
+            value={draft.created}
+          />
+        </label>
+        <label>
+          <span>Updated</span>
+          <input
+            aria-describedby={timestampHelpId}
+            onChange={(event) => setDraft((current) => ({
+              ...current,
+              updated: event.target.value,
+            }))}
+            required
+            spellCheck={false}
+            value={draft.updated}
+          />
+        </label>
+        <p className="repair-card__hint" id={timestampHelpId}>
+          Use an ISO 8601 timestamp including a timezone, for example 2026-07-14T09:00:00.000Z.
+        </p>
         {([
           ['rooms', 'Rooms'],
           ['lifeAreas', 'Life areas'],
