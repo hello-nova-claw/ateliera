@@ -764,6 +764,56 @@ interface IndexedDbRecord {
   modifiedAt: string;
 }
 
+function isCanonicalIsoTimestamp(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  const milliseconds = Date.parse(value);
+  return Number.isFinite(milliseconds) && new Date(milliseconds).toISOString() === value;
+}
+
+async function verifiedIndexedDbRecord(
+  value: unknown,
+  expectedVault: string,
+  expectedKey?: string,
+): Promise<readonly [string, StoredBrowserFile]> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new VaultUnavailableError('The IndexedDB vault contains an invalid file record.');
+  }
+  const record = value as Record<string, unknown>;
+  if (!hasExactKeys(record, ['bytes', 'hash', 'key', 'modifiedAt', 'path', 'vault']) ||
+    typeof record.key !== 'string' ||
+    typeof record.vault !== 'string' ||
+    typeof record.path !== 'string' ||
+    !(record.bytes instanceof ArrayBuffer) ||
+    typeof record.hash !== 'string' ||
+    !SHA256_HASH.test(record.hash) ||
+    !isCanonicalIsoTimestamp(record.modifiedAt) ||
+    record.vault !== expectedVault ||
+    record.key !== `${expectedVault}\u0000${record.path}` ||
+    (expectedKey !== undefined && record.key !== expectedKey)) {
+    throw new VaultUnavailableError('The IndexedDB vault contains an invalid file record.');
+  }
+  try {
+    if (validatePath(record.path) !== record.path) {
+      throw new VaultUnavailableError('The IndexedDB vault contains an invalid file record.');
+    }
+  } catch (error) {
+    if (error instanceof VaultUnavailableError) throw error;
+    throw new VaultUnavailableError('The IndexedDB vault contains an invalid file record.');
+  }
+  const bytes = new Uint8Array(record.bytes.slice(0));
+  if (await digest(bytes) !== record.hash) {
+    throw new VaultUnavailableError('The IndexedDB vault contains a corrupt file record.');
+  }
+  return [
+    record.path,
+    {
+      bytes,
+      hash: record.hash,
+      modifiedAt: record.modifiedAt,
+    },
+  ];
+}
+
 async function openVaultDatabase(): Promise<IDBDatabase> {
   const request = indexedDB.open('the-studio-browser-vaults', 3);
   request.addEventListener('upgradeneeded', () => {
@@ -815,19 +865,9 @@ function createIndexedDbStore(name: string): BrowserVaultStore {
       const complete = transactionComplete(transaction);
       const records = (await requestResult(
         transaction.objectStore('files').index('vault').getAll(name),
-      )) as IndexedDbRecord[];
+      )) as unknown[];
       await complete;
-      return records.map(
-        (record) =>
-          [
-            record.path,
-            {
-              bytes: new Uint8Array(record.bytes.slice(0)),
-              hash: record.hash,
-              modifiedAt: record.modifiedAt,
-            },
-          ] as const,
-      );
+      return Promise.all(records.map((record) => verifiedIndexedDbRecord(record, name)));
     },
     async read(path) {
       const db = await database;
@@ -835,15 +875,11 @@ function createIndexedDbStore(name: string): BrowserVaultStore {
       const complete = transactionComplete(transaction);
       const record = (await requestResult(
         transaction.objectStore('files').get(key(path)),
-      )) as IndexedDbRecord | undefined;
+      )) as unknown;
       await complete;
-      return record === undefined
-        ? undefined
-        : {
-            bytes: new Uint8Array(record.bytes.slice(0)),
-            hash: record.hash,
-            modifiedAt: record.modifiedAt,
-          };
+      if (record === undefined) return undefined;
+      const [, file] = await verifiedIndexedDbRecord(record, name, key(path));
+      return file;
     },
     async getRevision() {
       const db = await database;

@@ -297,7 +297,7 @@ test('rejects a restore target whose IndexedDB bytes no longer match its stored 
   await corruptActiveVaultTextWithoutUpdatingHash(page, sourceNote!.path, corruptedText);
   await page.getByLabel('Choose a Studio backup').setInputFiles(backupPath!);
 
-  await expect(page.getByRole('alert')).toContainText('could not be checked safely');
+  await expect(page.getByRole('alert')).toContainText('corrupt file record');
   await expect(page.getByRole('heading', { name: 'Review this restore' })).toHaveCount(0);
   const [persisted] = (await activeVaultRecords(page)).filter(({ path }) =>
     path === sourceNote!.path,
