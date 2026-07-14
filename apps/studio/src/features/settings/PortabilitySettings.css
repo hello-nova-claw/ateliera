@@ -88,8 +88,10 @@
 }
 
 .portability-settings__file-input {
+  box-sizing: border-box;
+  min-inline-size: 0;
+  inline-size: 100%;
   min-block-size: var(--studio-touch-target);
-  max-inline-size: 100%;
   padding: var(--studio-space-3);
   border: 1px solid var(--studio-color-line-strong);
   border-radius: var(--studio-radius-control, 0.75rem);
