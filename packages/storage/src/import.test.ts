@@ -307,6 +307,7 @@ describe('portable vault import', () => {
     const base = createInMemoryVault();
     let injected = false;
     const target: VaultPort = {
+      getRevision: () => base.getRevision(),
       list: (prefix) => base.list(prefix),
       readText: (path) => base.readText(path),
       readBinary: (path) => base.readBinary(path),
@@ -319,6 +320,7 @@ describe('portable vault import', () => {
         }
         return result;
       },
+      writeBatchAtomic: (input) => base.writeBatchAtomic(input),
       move: (from, to, condition) => base.move(from, to, condition),
       remove: (path, condition) => base.remove(path, condition),
       exists: (path) => base.exists(path),
@@ -478,6 +480,7 @@ describe('portable vault import', () => {
     await base.writeTextAtomic('Inbox/b.md', note('b', 'old b'));
     let publications = 0;
     const target: VaultPort = {
+      getRevision: () => base.getRevision(),
       list: (prefix) => base.list(prefix),
       readText: (path) => base.readText(path),
       readBinary: (path) => base.readBinary(path),
@@ -488,6 +491,7 @@ describe('portable vault import', () => {
         }
         return base.writeBinaryAtomic(path, content, condition);
       },
+      writeBatchAtomic: (input) => base.writeBatchAtomic(input),
       move: (from, to, condition) => base.move(from, to, condition),
       remove: (path, condition) => base.remove(path, condition),
       exists: (path) => base.exists(path),
@@ -499,5 +503,44 @@ describe('portable vault import', () => {
       .rejects.toThrow('simulated storage failure');
     await expect(target.readText('Inbox/a.md')).resolves.toMatchObject({ text: note('a', 'old a') });
     await expect(target.readText('Inbox/b.md')).resolves.toMatchObject({ text: note('b', 'old b') });
+  });
+
+  it('publishes no imported file when a competitor wins at the batch boundary', async () => {
+    const source = createInMemoryVault();
+    await source.writeTextAtomic('Inbox/a.md', note('a', 'new a'));
+    await source.writeTextAtomic('Inbox/b.md', note('b', 'new b'));
+    const base = createInMemoryVault();
+    await base.writeTextAtomic('Inbox/a.md', note('a', 'old a'));
+    await base.writeTextAtomic('Inbox/b.md', note('b', 'old b'));
+    let competed = false;
+    const target: VaultPort = {
+      getRevision: () => base.getRevision(),
+      list: (prefix) => base.list(prefix),
+      readText: (path) => base.readText(path),
+      readBinary: (path) => base.readBinary(path),
+      writeTextAtomic: (path, text, condition) => base.writeTextAtomic(path, text, condition),
+      writeBinaryAtomic: (path, bytes, condition) => base.writeBinaryAtomic(path, bytes, condition),
+      async writeBatchAtomic(input) {
+        competed = true;
+        await base.writeTextAtomic('Inbox/competitor.md', note('competitor', 'winner'));
+        return base.writeBatchAtomic(input);
+      },
+      move: (from, to, condition) => base.move(from, to, condition),
+      remove: (path, condition) => base.remove(path, condition),
+      exists: (path) => base.exists(path),
+      watch: (listener) => base.watch(listener),
+    };
+    const plan = await prepareVaultImport(target, await exportVault(source));
+
+    await expect(applyVaultImport(target, plan, { confirm: true })).rejects.toMatchObject({
+      code: 'target-changed',
+    });
+
+    expect(competed).toBe(true);
+    await expect(target.readText('Inbox/a.md')).resolves.toMatchObject({ text: note('a', 'old a') });
+    await expect(target.readText('Inbox/b.md')).resolves.toMatchObject({ text: note('b', 'old b') });
+    await expect(target.readText('Inbox/competitor.md')).resolves.toMatchObject({
+      text: note('competitor', 'winner'),
+    });
   });
 });
