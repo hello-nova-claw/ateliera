@@ -2560,6 +2560,23 @@ mod tests {
     }
 
     #[test]
+    fn raw_read_rejects_growth_after_stat_without_allocating_past_the_limit() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("growing.bin");
+        std::fs::write(&path, vec![7; 32]).unwrap();
+        let root = Dir::open_ambient_dir(directory.path(), ambient_authority()).unwrap();
+        let file = open_file_nofollow(&root, "growing.bin").unwrap();
+
+        let result = read_exact_bounded_after_stat(file, 32, || {
+            let mut growing = std::fs::OpenOptions::new().append(true).open(&path).unwrap();
+            growing.write_all(&[8]).unwrap();
+            growing.sync_all().unwrap();
+        });
+
+        assert!(matches!(result, Err(VaultError::Unavailable)));
+    }
+
+    #[test]
     fn revision_is_monotonic_across_aba_writes_and_reopen() {
         let (directory, vault) = selected_vault();
         assert_eq!(vault.get_revision().unwrap(), "0");
@@ -2816,6 +2833,138 @@ mod tests {
                 assert!(directory.path().join(BATCH_JOURNAL_PATH).exists());
             }
         }
+    }
+
+    #[test]
+    fn ordinary_operations_fail_closed_until_a_surviving_journal_recovers() {
+        let (directory, vault) = selected_vault();
+        vault
+            .write_text_atomic("first.md", "before", None, false, None)
+            .unwrap();
+        let revision = parse_revision(&vault.get_revision().unwrap()).unwrap();
+        assert!(vault
+            .write_batch_atomic_inner(
+                crash_test_batch(revision),
+                None,
+                None,
+                Some(BatchCrashPoint::Published(0)),
+            )
+            .is_err());
+
+        assert_eq!(vault.read_binary("first.md").unwrap(), b"before");
+        assert!(!vault.exists("second.bin").unwrap());
+        assert_no_transaction_leaks(directory.path());
+    }
+
+    #[test]
+    fn rollback_recovery_tolerates_a_crash_after_staged_cleanup() {
+        let (directory, vault) = selected_vault();
+        vault
+            .write_text_atomic("first.md", "before", None, false, None)
+            .unwrap();
+        let revision = parse_revision(&vault.get_revision().unwrap()).unwrap();
+        assert!(vault
+            .write_batch_atomic_inner(
+                crash_test_batch(revision),
+                None,
+                None,
+                Some(BatchCrashPoint::Published(0)),
+            )
+            .is_err());
+        drop(vault);
+
+        let manifest: BatchJournal = serde_json::from_slice(
+            &std::fs::read(
+                directory
+                    .path()
+                    .join(BATCH_JOURNAL_PATH)
+                    .join(BATCH_JOURNAL_MANIFEST),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let unpublished = &manifest.entries[1];
+        std::fs::remove_file(directory.path().join(&unpublished.temporary)).unwrap();
+
+        let reopened = VaultRegistry::default();
+        let selection = reopened
+            .register_selected_path("recover-cleanup", directory.path())
+            .unwrap();
+        let recovered = reopened
+            .vault("recover-cleanup", &selection.vault_token)
+            .unwrap();
+        assert_eq!(recovered.read_binary("first.md").unwrap(), b"before");
+        assert!(!recovered.exists("second.bin").unwrap());
+        assert_no_transaction_leaks(directory.path());
+    }
+
+    #[test]
+    fn orphaned_native_journal_without_a_manifest_is_removed_before_open() {
+        let directory = tempfile::tempdir().unwrap();
+        std::fs::create_dir(directory.path().join(BATCH_JOURNAL_PATH)).unwrap();
+
+        let registry = VaultRegistry::default();
+        registry
+            .register_selected_path("orphan", directory.path())
+            .unwrap();
+
+        assert!(!directory.path().join(BATCH_JOURNAL_PATH).exists());
+    }
+
+    #[test]
+    fn aggregate_recovery_budget_rejects_forged_valid_files_without_mutation() {
+        let directory = tempfile::tempdir().unwrap();
+        let initial = VaultRegistry::default();
+        let selection = initial
+            .register_selected_path("initial", directory.path())
+            .unwrap();
+        let vault = initial.vault("initial", &selection.vault_token).unwrap();
+        let revision = parse_revision(&vault.get_revision().unwrap()).unwrap();
+        drop(vault);
+        drop(initial);
+
+        let each = (MAX_BATCH_BYTES / 4 + 1) as u64;
+        for name in ["first.bin", "second.bin"] {
+            std::fs::File::create(directory.path().join(name))
+                .unwrap()
+                .set_len(each)
+                .unwrap();
+        }
+        let journal_path = directory.path().join(BATCH_JOURNAL_PATH);
+        std::fs::create_dir(&journal_path).unwrap();
+        let entries = ["first.bin", "second.bin"]
+            .into_iter()
+            .enumerate()
+            .map(|(index, path)| BatchJournalEntry {
+                path: path.to_owned(),
+                temporary: format!(".studio-forged-{index}.tmp"),
+                previous_backup: Some(format!("previous-{index}.bin")),
+                previous_hash: Some("a".repeat(64)),
+                new_hash: "b".repeat(64),
+            })
+            .collect();
+        let journal = BatchJournal {
+            version: 1,
+            original_revision: revision,
+            reserved_revision: revision + 1,
+            phase: JournalPhase::Preparing,
+            progress: 0,
+            entries,
+        };
+        std::fs::write(
+            journal_path.join(BATCH_JOURNAL_MANIFEST),
+            serde_json::to_vec(&journal).unwrap(),
+        )
+        .unwrap();
+
+        assert!(matches!(
+            VaultRegistry::default().register_selected_path("oversized", directory.path()),
+            Err(VaultError::Unavailable)
+        ));
+        for name in ["first.bin", "second.bin"] {
+            assert_eq!(std::fs::metadata(directory.path().join(name)).unwrap().len(), each);
+        }
+        assert!(journal_path.exists());
     }
 
     #[test]
