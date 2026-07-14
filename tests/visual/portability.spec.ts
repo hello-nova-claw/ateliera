@@ -1,7 +1,7 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { analyzeStory } from './axe';
 
 const output = path.resolve('artifacts/visual/task-17-portability');
 
@@ -28,7 +28,7 @@ async function chooseBackup(page: Page): Promise<void> {
 }
 
 async function expectAccessibleAndContained(page: Page): Promise<void> {
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect((await analyzeStory(page)).violations).toEqual([]);
   expect(
     await page.evaluate(
       () =>

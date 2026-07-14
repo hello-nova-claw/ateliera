@@ -1,7 +1,7 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { analyzeStory } from './axe';
 
 const output = path.resolve('artifacts/visual/task-14-season');
 test.beforeAll(async () => {
@@ -27,7 +27,7 @@ for (const fixture of [
       page.locator('.season-page h1, .season-wizard h1, .season-empty h1'),
     ).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await analyzeStory(page)).violations).toEqual([]);
     expect(
       await page.evaluate(
         () =>
@@ -52,6 +52,7 @@ for (const viewport of [
     await page.goto(
       '/iframe.html?id=rooms-current-season--active&viewMode=story',
     );
+    await expect(page.locator('.season-page h1')).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
     expect(
       await page.evaluate(
@@ -60,7 +61,7 @@ for (const viewport of [
           document.documentElement.clientWidth,
       ),
     ).toBe(true);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await analyzeStory(page)).violations).toEqual([]);
     await page.screenshot({
       path: path.join(
         output,
@@ -79,7 +80,7 @@ test('Current Season respects reduced motion and forced colors', async ({
     '/iframe.html?id=rooms-current-season--active&viewMode=story',
   );
   await expect(page.locator('.season-page h1')).toBeVisible();
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect((await analyzeStory(page)).violations).toEqual([]);
   await page.screenshot({
     path: path.join(output, 'active-forced-reduced.png'),
     fullPage: true,

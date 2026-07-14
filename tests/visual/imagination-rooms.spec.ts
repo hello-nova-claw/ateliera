@@ -1,7 +1,7 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { analyzeStory } from './axe';
 
 const output = path.resolve('artifacts/visual/task-15-imagination');
 test.beforeAll(async () => { await mkdir(output, { recursive: true }); });
@@ -12,7 +12,7 @@ for (const fixture of ['sparse', 'empty', 'dense', 'long-text', 'dark'] as const
     await page.goto(`/iframe.html?id=rooms-uncharted--${fixture}&viewMode=story`);
     await expect(page.locator('.uncharted-page h1')).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await analyzeStory(page)).violations).toEqual([]);
     await expect(page.locator('.uncharted-page')).not.toContainText(
       /\b(?:due|overdue|progress|streak|deadline|status)\b/i,
     );
@@ -27,7 +27,7 @@ for (const fixture of ['garden', 'empty', 'dense', 'loading', 'malformed', 'dark
     await page.goto(`/iframe.html?id=rooms-reflection-garden--${fixture}&viewMode=story`);
     await expect(page.locator('.reflection-page h1')).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await analyzeStory(page)).violations).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
     await page.screenshot({ path: path.join(output, `reflection-${fixture}-1440x1000.png`), fullPage: true });
   });
@@ -44,8 +44,9 @@ for (const viewport of [
     test(`${room.id} reflows at ${viewport.name}`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await page.goto(`/iframe.html?id=${room.id}&viewMode=story`);
+      await expect(page.locator(room.selector)).toBeVisible();
       await page.evaluate(() => document.fonts.ready);
-      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+      expect((await analyzeStory(page)).violations).toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
       await page.screenshot({
         path: path.join(output, `${room.id}-${viewport.width}x${viewport.height}.png`),
@@ -57,10 +58,13 @@ for (const viewport of [
 
 test('imagination rooms respect forced colors and reduced motion', async ({ page }) => {
   await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
-  for (const room of ['rooms-uncharted--sparse', 'rooms-reflection-garden--garden']) {
-    await page.goto(`/iframe.html?id=${room}&viewMode=story`);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-    await page.screenshot({ path: path.join(output, `${room}-forced-reduced.png`), fullPage: true });
+  for (const room of [
+    { id: 'rooms-uncharted--sparse', selector: '.uncharted-page' },
+    { id: 'rooms-reflection-garden--garden', selector: '.reflection-page' },
+  ]) {
+    await page.goto(`/iframe.html?id=${room.id}&viewMode=story`);
+    await expect(page.locator(room.selector)).toBeVisible();
+    expect((await analyzeStory(page)).violations).toEqual([]);
+    await page.screenshot({ path: path.join(output, `${room.id}-forced-reduced.png`), fullPage: true });
   }
 });
-

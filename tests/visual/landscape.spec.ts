@@ -1,7 +1,7 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { analyzeStory } from './axe';
 
 const output = path.resolve('artifacts/visual/task-13-landscape');
 
@@ -13,7 +13,7 @@ for (const fixture of ['empty', 'sparse-matrix', 'dense-matrix', 'focus', 'lens'
     await page.goto(`/iframe.html?id=rooms-life-landscape--${fixture}&viewMode=story`);
     await expect(page.getByRole('heading', { name: 'Life Landscape' })).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await analyzeStory(page)).violations).toEqual([]);
     await page.screenshot({ path: path.join(output, `${fixture}-1440x1000.png`), fullPage: true });
   });
 }
@@ -26,9 +26,10 @@ for (const viewport of [
   test(`focused Landscape reflows at ${viewport.name}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto('/iframe.html?id=rooms-life-landscape--focus&viewMode=story');
+    await expect(page.getByRole('heading', { name: 'Life Landscape' })).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await analyzeStory(page)).violations).toEqual([]);
     await page.screenshot({ path: path.join(output, `focus-${viewport.width}x${viewport.height}.png`), fullPage: true });
   });
 }
@@ -37,6 +38,6 @@ test('Landscape respects reduced motion and forced colors', async ({ page }) => 
   await page.emulateMedia({ reducedMotion: 'reduce', forcedColors: 'active' });
   await page.goto('/iframe.html?id=rooms-life-landscape--focus&viewMode=story');
   await expect(page.getByRole('heading', { name: 'Life Landscape' })).toBeVisible();
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect((await analyzeStory(page)).violations).toEqual([]);
   await page.screenshot({ path: path.join(output, 'focus-forced-reduced.png'), fullPage: true });
 });

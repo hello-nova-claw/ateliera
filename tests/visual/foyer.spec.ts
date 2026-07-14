@@ -1,7 +1,7 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { analyzeStory } from './axe';
 
 const output = path.resolve('artifacts/visual/task-12-foyer');
 
@@ -30,7 +30,7 @@ for (const fixture of [
       page.getByRole('heading', { name: 'The Studio' }),
     ).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await analyzeStory(page)).violations).toEqual([]);
     await page.screenshot({
       path: path.join(output, `${fixture}-1440x1000.png`),
       fullPage: true,
@@ -46,6 +46,7 @@ for (const viewport of [
   test(`full Foyer reflows at ${viewport.name}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto('/iframe.html?id=rooms-foyer--full&viewMode=story');
+    await expect(page.getByRole('heading', { name: 'The Studio' })).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
     expect(
       await page.evaluate(
@@ -54,7 +55,7 @@ for (const viewport of [
           document.documentElement.clientWidth,
       ),
     ).toBe(true);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await analyzeStory(page)).violations).toEqual([]);
     await page.screenshot({
       path: path.join(output, `full-${viewport.width}x${viewport.height}.png`),
       fullPage: true,
@@ -65,7 +66,8 @@ for (const viewport of [
 test('Foyer respects reduced motion and forced colors', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce', forcedColors: 'active' });
   await page.goto('/iframe.html?id=rooms-foyer--full&viewMode=story');
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await expect(page.getByRole('heading', { name: 'The Studio' })).toBeVisible();
+  expect((await analyzeStory(page)).violations).toEqual([]);
   expect(
     await page
       .locator('.foyer-polaroid')

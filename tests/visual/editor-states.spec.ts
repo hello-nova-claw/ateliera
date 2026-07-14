@@ -1,7 +1,7 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { analyzeStory } from './axe';
 
 const screenshotsDirectory = path.resolve('artifacts/visual/task-10-editor-states');
 
@@ -16,7 +16,7 @@ for (const state of ['recovery', 'conflict', 'busy', 'error'] as const) {
       `/iframe.html?id=primitives-cardeditor--${state}&viewMode=story`,
     );
     await expect(page.getByRole('article', { name: 'Note editor' })).toBeVisible();
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await analyzeStory(page)).violations).toEqual([]);
     await page.screenshot({
       path: path.join(screenshotsDirectory, `${state}.png`),
       fullPage: true,

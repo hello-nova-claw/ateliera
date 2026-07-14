@@ -1,7 +1,7 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { analyzeStory } from './axe';
 
 const output = path.resolve('artifacts/visual/task-16-search');
 test.beforeAll(async () => { await mkdir(output, { recursive: true }); });
@@ -12,7 +12,7 @@ for (const fixture of ['results', 'empty', 'loading', 'offline', 'error', 'dense
     await page.goto(`/iframe.html?id=rooms-search--${fixture}&viewMode=story`);
     await expect(page.locator('.search-page h1')).toHaveText('Search');
     await page.evaluate(() => document.fonts.ready);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await analyzeStory(page)).violations).toEqual([]);
     expect(await page.evaluate(
       () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
     )).toBe(true);
@@ -32,7 +32,7 @@ for (const viewport of [
     await page.goto('/iframe.html?id=rooms-search--results&viewMode=story');
     await page.getByRole('button', { name: 'Filters' }).click();
     await page.evaluate(() => document.fonts.ready);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await analyzeStory(page)).violations).toEqual([]);
     expect(await page.evaluate(
       () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
     )).toBe(true);
@@ -47,7 +47,7 @@ test('Search respects forced colors and reduced motion', async ({ page }) => {
   await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
   await page.goto('/iframe.html?id=rooms-search--results&viewMode=story');
   await page.getByRole('button', { name: 'Filters' }).click();
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  expect((await analyzeStory(page)).violations).toEqual([]);
   await page.screenshot({
     path: path.join(output, 'search-forced-reduced.png'),
     fullPage: true,

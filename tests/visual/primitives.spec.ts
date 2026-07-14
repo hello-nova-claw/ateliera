@@ -1,7 +1,7 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { analyzeStory } from './axe';
 
 const screenshotsDirectory = path.resolve('artifacts/visual/task-2');
 
@@ -18,7 +18,7 @@ for (const viewport of [
     await page.goto('/iframe.html?id=primitives-card--reflection&viewMode=story');
     await expect(page.getByRole('article', { name: 'What I learned' })).toBeVisible();
 
-    const accessibility = await new AxeBuilder({ page }).analyze();
+    const accessibility = await analyzeStory(page);
     expect(accessibility.violations).toEqual([]);
     await page.screenshot({
       path: path.join(screenshotsDirectory, `card-${viewport.width}x${viewport.height}.png`),
