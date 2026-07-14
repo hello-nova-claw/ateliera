@@ -1,0 +1,154 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  buildDiagnostics,
+  createDiagnosticsRecorder,
+  diagnosticsErrorCode,
+  prepareDiagnosticsExport,
+} from './diagnostics';
+
+const generatedAt = '2026-07-14T03:04:05.000Z';
+
+describe('content-redacted diagnostics', () => {
+  it('retains only allowlisted technical metadata', () => {
+    const report = buildDiagnostics({
+      generatedAt,
+      entries: [{
+        operation: 'save',
+        occurredAt: '2026-07-14T03:03:05.000Z',
+        outcome: 'error',
+        durationMs: 18.75,
+        errorCode: 'vault-conflict',
+        fileId: '01JTESTNOTE',
+        fileHash: 'a'.repeat(64),
+        itemCount: 1,
+        byteCount: 240,
+        noteTitle: 'The private hill',
+        noteBody: 'private words',
+        path: '/Users/anna/Studio/Identity/private.md',
+        error: new Error('private words at /Users/anna/Studio'),
+        metadata: { title: 'still private' },
+      }],
+    });
+
+    expect(report).toEqual({
+      schemaVersion: 1,
+      generatedAt,
+      privacy: {
+        contentIncluded: false,
+        errorMessagesIncluded: false,
+        filePathsIncluded: false,
+        noteTitlesIncluded: false,
+      },
+      entries: [{
+        operation: 'save',
+        occurredAt: '2026-07-14T03:03:05.000Z',
+        outcome: 'error',
+        durationMs: 18.75,
+        errorCode: 'vault-conflict',
+        fileId: '01JTESTNOTE',
+        fileHash: 'a'.repeat(64),
+        itemCount: 1,
+        byteCount: 240,
+      }],
+    });
+    expect(JSON.stringify(report)).not.toMatch(/private|Users|Identity/);
+  });
+
+  it('drops malformed or non-allowlisted values instead of reflecting them', () => {
+    const report = buildDiagnostics({
+      generatedAt,
+      entries: [
+        {
+          operation: 'The private hill',
+          occurredAt: 'not-a-date',
+          outcome: 'oh no',
+          durationMs: -1,
+          errorCode: '/Users/anna/private words',
+          fileId: 'private words with spaces',
+          fileHash: 'not-a-hash',
+          itemCount: 1.5,
+          byteCount: Number.POSITIVE_INFINITY,
+        },
+        null,
+      ],
+    });
+
+    expect(report.entries).toEqual([]);
+    expect(JSON.stringify(report)).not.toMatch(/private|Users/);
+  });
+
+  it('extracts only an own, technical error code and never an error message or stack', () => {
+    const coded = Object.assign(new Error('private words at /Users/anna'), {
+      code: 'INDEX_STALE',
+    });
+    const inherited = Object.create({ code: 'INHERITED_PRIVATE_CODE' }) as Error;
+    inherited.message = 'private words';
+
+    expect(diagnosticsErrorCode(coded)).toBe('index-stale');
+    expect(diagnosticsErrorCode(inherited)).toBe('unexpected-error');
+    expect(diagnosticsErrorCode({ code: '/Users/anna/private' })).toBe('unexpected-error');
+    expect(diagnosticsErrorCode('private words')).toBe('unexpected-error');
+  });
+
+  it('keeps a bounded local chronology and snapshots caller-owned input', () => {
+    const recorder = createDiagnosticsRecorder({ maximumEntries: 2 });
+    const first = {
+      operation: 'save' as const,
+      occurredAt: '2026-07-14T03:01:05.000Z',
+      outcome: 'ok' as const,
+      fileId: 'NOTE-ONE',
+    };
+
+    expect(recorder.record(first)).toBe(true);
+    first.fileId = 'MUTATED';
+    expect(recorder.record({
+      operation: 'search',
+      occurredAt: '2026-07-14T03:02:05.000Z',
+      outcome: 'ok',
+    })).toBe(true);
+    expect(recorder.record({
+      operation: 'restore',
+      occurredAt: '2026-07-14T03:03:05.000Z',
+      outcome: 'error',
+    })).toBe(true);
+    expect(recorder.record({ operation: 'private words' })).toBe(false);
+
+    expect(recorder.entries()).toEqual([
+      {
+        operation: 'search',
+        occurredAt: '2026-07-14T03:02:05.000Z',
+        outcome: 'ok',
+      },
+      {
+        operation: 'restore',
+        occurredAt: '2026-07-14T03:03:05.000Z',
+        outcome: 'error',
+      },
+    ]);
+    recorder.clear();
+    expect(recorder.entries()).toEqual([]);
+  });
+
+  it('previews the exact UTF-8 payload that will be exported', () => {
+    const prepared = prepareDiagnosticsExport({
+      generatedAt,
+      entries: [{
+        operation: 'backup',
+        occurredAt: '2026-07-14T03:03:05.000Z',
+        outcome: 'ok',
+        durationMs: 42,
+        path: '/Users/anna/private.md',
+        noteBody: 'private words',
+      }],
+    });
+
+    expect(prepared.filename).toBe('the-studio-diagnostics-2026-07-14T03-04-05-000Z.json');
+    expect(prepared.preview).toBe(prepared.text);
+    expect(new TextDecoder().decode(prepared.bytes)).toBe(prepared.preview);
+    expect(prepared.byteLength).toBe(prepared.bytes.byteLength);
+    expect(prepared.preview.endsWith('\n')).toBe(true);
+    expect(JSON.parse(prepared.preview)).toEqual(prepared.report);
+    expect(prepared.preview).not.toMatch(/private|Users/);
+  });
+});
