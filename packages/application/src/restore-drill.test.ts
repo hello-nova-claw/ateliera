@@ -72,6 +72,13 @@ it('destructively restores the fixture and rebuilds every MVP room', async () =>
     rooms: ['reflection-garden'],
     tags: ['calm'],
   }))));
+  expected.set('Wisdom Garden/structure.md', encoder.encode(serializeNote(note({
+    id: 'fixture-wisdom',
+    title: 'Enough structure for surprise',
+    cardType: 'principle',
+    semanticType: 'foundations',
+    rooms: ['wisdom-garden'],
+  }))));
   const source = createInMemoryVault();
   for (const [path, bytes] of expected) {
     await source.writeBinaryAtomic(path, bytes);
@@ -102,7 +109,7 @@ it('destructively restores the fixture and rebuilds every MVP room', async () =>
   const index = new RecordingIndex();
   const studio = createStudioService({ vault: restored, index });
   await studio.rebuildIndex();
-  expect(index.entries.size).toBe(5);
+  expect(index.entries.size).toBe(6);
   expect((await studio.projectFoyer()).becoming?.noteId).toBe('fixture-becoming');
   expect((await studio.projectCurrentSeason()).current?.noteId).toBe('fixture-season');
   expect((await studio.projectUncharted()).cards.map((card) => card.noteId)).toEqual([
@@ -111,6 +118,12 @@ it('destructively restores the fixture and rebuilds every MVP room', async () =>
   expect((await studio.projectReflectionGarden()).cards.map((card) => card.noteId)).toEqual([
     'fixture-reflection',
   ]);
+  expect((await studio.projectRoom('identity-studio')).map((card) => card.noteId)).toContain(
+    'fixture-becoming',
+  );
+  expect((await studio.projectRoom('wisdom-garden')).map((card) => card.noteId)).toContain(
+    'fixture-wisdom',
+  );
   const landscape = await studio.projectLandscapeBoard(['home']);
   expect(landscape.cells.flatMap((cell) => cell.noteIds)).toContain(
     '01J2ABC3DEF4GHI5JKL6ABC123',
