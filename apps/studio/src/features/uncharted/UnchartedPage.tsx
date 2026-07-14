@@ -3,7 +3,7 @@ import type {
   UnchartedProjection,
 } from '@studio/application';
 import { SemanticMark } from '@studio/ui';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import './UnchartedPage.css';
 
@@ -31,7 +31,16 @@ function PossibilityCard({
   const [message, setMessage] = useState<string>();
   const [inviting, setInviting] = useState(false);
   const invitePending = useRef(false);
+  const inviteButton = useRef<HTMLButtonElement>(null);
+  const restoreInviteFocus = useRef(false);
   const invited = activeSeason && card.seasons.includes(activeSeason.id);
+  useEffect(() => {
+    if (inviting || !restoreInviteFocus.current) return;
+    restoreInviteFocus.current = false;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => inviteButton.current?.focus());
+    });
+  }, [card.hash, inviting]);
   return (
     <article
       className={`uncharted-card uncharted-card--${card.horizon}`}
@@ -58,7 +67,6 @@ function PossibilityCard({
             disabled={inviting}
             onClick={(event) => {
               if (invitePending.current) return;
-              const trigger = event.currentTarget;
               invitePending.current = true;
               setInviting(true);
               setMessage(undefined);
@@ -75,10 +83,11 @@ function PossibilityCard({
                 },
               ).finally(() => {
                 invitePending.current = false;
+                restoreInviteFocus.current = true;
                 setInviting(false);
-                requestAnimationFrame(() => trigger.focus());
               });
             }}
+            ref={inviteButton}
             type="button"
             aria-label={`Invite ${card.title} into ${activeSeason.title}`}
           >
