@@ -27,7 +27,7 @@ export type MarkdownLinkEdit =
   | { kind: 'remove' }
   | { kind: ParsedLinkKind; target: string };
 
-const UNSAFE_ID = /[\u0000-\u001f\u007f-\u009f/\\?#]/u;
+const UNSAFE_ID = new RegExp(String.raw`[\u0000-\u001f\u007f-\u009f/\\?#]`, 'u');
 
 function parseMarkdown(markdown: string): Root {
   return fromMarkdown(markdown, {

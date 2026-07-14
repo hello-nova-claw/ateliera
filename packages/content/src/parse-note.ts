@@ -15,6 +15,8 @@ export interface RepairSourceInspection {
   frontmatter: Record<string, unknown>;
 }
 
+const UNSAFE_REPAIR_KEY = new RegExp(String.raw`[\u0000-\u001f\u007f-\u009f]`, 'u');
+
 function splitDocument(text: string): {
   yaml?: string;
   body: string;
@@ -49,7 +51,7 @@ function safeRepairValue(value: unknown, depth = 0): unknown {
     if (
       key.length === 0 || key.length > 128 || key !== key.normalize('NFC') ||
       key === '__proto__' || key === 'prototype' || key === 'constructor' ||
-      /[\u0000-\u001f\u007f-\u009f]/u.test(key)
+      UNSAFE_REPAIR_KEY.test(key)
     ) return undefined;
     const nested = safeRepairValue(item, depth + 1);
     if (nested === undefined) return undefined;
