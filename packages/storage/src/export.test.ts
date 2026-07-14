@@ -80,6 +80,7 @@ describe('portable vault export', () => {
   it('rejects entry-size and file-count limits before reading content', async () => {
     const readBinary = vi.fn(async () => new Uint8Array());
     const vault = {
+      getRevision: vi.fn(async () => '0'),
       list: vi.fn(async () => [{
         kind: 'file' as const,
         path: 'Attachments/large.pdf',
@@ -115,6 +116,7 @@ describe('portable vault export', () => {
     await base.writeTextAtomic('Inbox/note.md', 'captured');
     let firstRead = true;
     const vault: VaultPort = {
+      getRevision: () => base.getRevision(),
       list: (prefix) => base.list(prefix),
       readText: (path) => base.readText(path),
       async readBinary(path) {
@@ -127,6 +129,7 @@ describe('portable vault export', () => {
       },
       writeTextAtomic: (path, text, condition) => base.writeTextAtomic(path, text, condition),
       writeBinaryAtomic: (path, bytes, condition) => base.writeBinaryAtomic(path, bytes, condition),
+      writeBatchAtomic: (input) => base.writeBatchAtomic(input),
       move: (from, to, condition) => base.move(from, to, condition),
       remove: (path, condition) => base.remove(path, condition),
       exists: (path) => base.exists(path),
@@ -142,6 +145,7 @@ describe('portable vault export', () => {
     await base.writeTextAtomic('Inbox/b.md', 'b');
     let reads = 0;
     const vault: VaultPort = {
+      getRevision: () => base.getRevision(),
       list: (prefix) => base.list(prefix),
       readText: (path) => base.readText(path),
       async readBinary(path) {
@@ -154,6 +158,7 @@ describe('portable vault export', () => {
       },
       writeTextAtomic: (path, text, condition) => base.writeTextAtomic(path, text, condition),
       writeBinaryAtomic: (path, bytes, condition) => base.writeBinaryAtomic(path, bytes, condition),
+      writeBatchAtomic: (input) => base.writeBatchAtomic(input),
       move: (from, to, condition) => base.move(from, to, condition),
       remove: (path, condition) => base.remove(path, condition),
       exists: (path) => base.exists(path),
@@ -168,6 +173,7 @@ describe('portable vault export', () => {
     await base.writeTextAtomic('Inbox/note.md', 'captured');
     let firstRead = true;
     const vault = {
+      getRevision: () => base.getRevision(),
       list: (prefix?: string) => base.list(prefix),
       async readBinary(path: string) {
         if (firstRead) {

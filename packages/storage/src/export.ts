@@ -104,6 +104,7 @@ export async function exportVault(
   vault: VaultPort,
   options: ExportVaultOptions = {},
 ): Promise<Uint8Array> {
+  const sourceRevision = await vault.getRevision();
   const entries = (await vault.list()).filter((entry) => entry.kind === 'file');
   const included: Array<{ sourcePath: string; path: string; declaredSize?: number }> = [];
   const excludedCaches: string[] = [];
@@ -197,6 +198,7 @@ export async function exportVault(
   }
 
   await assertSourceUnchanged(vault, captured, excludedCaches);
+  if (await vault.getRevision() !== sourceRevision) throw sourceChanged();
 
   const manifestBytes = encoder.encode(`${JSON.stringify(manifest, null, 2)}\n`);
   expandedSize += manifestBytes.byteLength;
