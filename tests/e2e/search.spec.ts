@@ -302,7 +302,27 @@ test('opens an existing Studio and starts its search worker entirely from the of
     body: 'A lantern is ready in the local archive.',
   }));
   await page.reload();
-  await expect(page.getByText('Ready offline')).toBeVisible();
+  await expect.poll(() => page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+    const manifest = (await (
+      await fetch('/studio-precache-manifest.json')
+    ).json()) as {
+      version: string;
+      entries: Array<{ url: string }>;
+    };
+    const cache = await caches.open(`studio-app-shell-${manifest.version}`);
+    const required = manifest.entries
+      .map(({ url }) => url)
+      .filter((url) => url.endsWith('.wasm') || url.includes('worker'));
+    const matches = await Promise.all(required.map((url) => cache.match(url)));
+    return required.filter((_url, index) => matches[index] === undefined);
+  })).toEqual([]);
+  expect(await page.evaluate(async () => {
+    const manifest = (await (
+      await fetch('/studio-precache-manifest.json')
+    ).json()) as { entries: Array<{ url: string }> };
+    return manifest.entries.filter(({ url }) => url.endsWith('.wasm') || url.includes('worker'));
+  })).toHaveLength(3);
 
   if (browserName === 'webkit') {
     await context.route('**/*', (route) =>
