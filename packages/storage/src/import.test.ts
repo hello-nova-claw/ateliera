@@ -110,6 +110,48 @@ describe('portable vault import', () => {
     });
   });
 
+  it('accepts only exact own-property conflict resolutions', async () => {
+    const source = createInMemoryVault();
+    await source.writeTextAtomic('Inbox/conflict.md', note('incoming', 'incoming'));
+    const target = createInMemoryVault();
+    await target.writeTextAtomic('Inbox/conflict.md', note('local', 'local'));
+    const plan = await prepareVaultImport(target, await exportVault(source));
+    const inherited = Object.create({ 'Inbox/conflict.md': 'overwrite' }) as Record<
+      string,
+      'overwrite' | 'skip'
+    >;
+
+    await expect(applyVaultImport(target, plan, {
+      confirm: true,
+      conflicts: inherited,
+    })).rejects.toMatchObject({ code: 'unresolved-conflict' });
+    await expect(applyVaultImport(target, plan, {
+      confirm: true,
+      conflicts: { 'Inbox/conflict.md': 'invalid' } as unknown as Record<
+        string,
+        'overwrite' | 'skip'
+      >,
+    })).rejects.toMatchObject({ code: 'unresolved-conflict' });
+    await expect(target.readText('Inbox/conflict.md')).resolves.toMatchObject({
+      text: note('local', 'local'),
+    });
+  });
+
+  it.each(['constructor', 'toString'])('does not resolve the inherited %s property', async (path) => {
+    const source = createInMemoryVault();
+    await source.writeTextAtomic(path, 'incoming');
+    const target = createInMemoryVault();
+    const existingPath = `${path[0]?.toLocaleUpperCase('en')}${path.slice(1)}`;
+    await target.writeTextAtomic(existingPath, 'local');
+    const plan = await prepareVaultImport(target, await exportVault(source));
+
+    await expect(applyVaultImport(target, plan, {
+      confirm: true,
+      conflicts: {},
+    })).rejects.toMatchObject({ code: 'unresolved-conflict' });
+    await expect(target.readText(existingPath)).resolves.toMatchObject({ text: 'local' });
+  });
+
   it('rejects a changed target after preview without overwriting it', async () => {
     const source = createInMemoryVault();
     await source.writeTextAtomic('Inbox/note.md', note('same', 'incoming'));

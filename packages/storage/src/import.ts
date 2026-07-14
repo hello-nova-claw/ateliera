@@ -306,8 +306,14 @@ function resolvedAction(
   options: ApplyVaultImportOptions,
 ): Exclude<VaultImportAction, 'conflict'> {
   if (item.action !== 'conflict') return item.action;
-  const resolution = options.conflicts?.[item.path];
-  if (resolution === undefined) {
+  if (
+    options.conflicts === undefined ||
+    !Object.prototype.hasOwnProperty.call(options.conflicts, item.path)
+  ) {
+    throw new PortableVaultError('unresolved-conflict', `Choose how to resolve ${item.path}.`);
+  }
+  const resolution: unknown = options.conflicts[item.path];
+  if (resolution !== 'overwrite' && resolution !== 'skip') {
     throw new PortableVaultError('unresolved-conflict', `Choose how to resolve ${item.path}.`);
   }
   return resolution;
