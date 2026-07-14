@@ -28,29 +28,119 @@ function serializedBytes(value: unknown): number {
   return new TextEncoder().encode(json).byteLength;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function assertText(value: unknown, label: string, maximum: number, allowEmpty = false): asserts value is string {
+  if (typeof value !== 'string' || value.length > maximum || (!allowEmpty && value.length === 0)) {
+    throw new TypeError(`${label} must be text no longer than ${maximum.toLocaleString('en')} characters.`);
+  }
+}
+
+function assertTextId(value: unknown): asserts value is string {
+  assertText(value, 'Search index text ID', 1_024);
+}
+
+function assertFilters(value: unknown): void {
+  if (value === undefined) return;
+  if (!isRecord(value)) throw new TypeError('Search filters must be an object.');
+  const listKeys = ['rooms', 'semanticTypes', 'lifeAreas', 'seasons', 'statuses', 'tags', 'cardTypes'];
+  for (const key of listKeys) {
+    const items = value[key];
+    if (items === undefined) continue;
+    if (!Array.isArray(items) || items.length > 100 || items.some((item) => typeof item !== 'string' || item.length > 256)) {
+      throw new RangeError(`Search filter ${key} may contain at most 100 short text values.`);
+    }
+  }
+  for (const key of ['dateFrom', 'dateTo']) {
+    const date = value[key];
+    if (date !== undefined) assertText(date, `Search filter ${key}`, 100);
+  }
+}
+
+function assertIndexedContent(value: unknown): void {
+  if (!isRecord(value)) throw new TypeError('Indexed note content must be an object.');
+  assertText(value.searchText, 'Indexed search text', 4 * 1024 * 1024, true);
+  if (!Array.isArray(value.links) || value.links.length > 10_000) {
+    throw new RangeError('Indexed note content may contain at most 10,000 links.');
+  }
+  for (const link of value.links) {
+    if (!isRecord(link) || !['wiki', 'path', 'id'].includes(link.kind as string)) {
+      throw new TypeError('Indexed links must have a supported kind.');
+    }
+    assertText(link.target, 'Indexed link target', 4_096);
+    assertText(link.label, 'Indexed link label', 4_096, true);
+  }
+}
+
+function assertStudioNote(value: unknown): void {
+  if (!isRecord(value)) throw new TypeError('Indexed note must be an object.');
+  assertText(value.id, 'Indexed note ID', 1_024);
+  assertText(value.body, 'Indexed note body', 4 * 1024 * 1024, true);
+  for (const key of ['cardType', 'semanticType', 'status', 'created', 'updated']) {
+    assertText(value[key], `Indexed note ${key}`, 256);
+  }
+  for (const key of ['rooms', 'lifeAreas', 'seasons', 'tags', 'attachments']) {
+    const items = value[key];
+    if (!Array.isArray(items) || items.length > 10_000 || items.some((item) => typeof item !== 'string')) {
+      throw new TypeError(`Indexed note ${key} must be a bounded text array.`);
+    }
+  }
+}
+
+function assertIndexEntry(value: unknown): void {
+  if (!isRecord(value)) throw new TypeError('Index rebuild entry must be an object.');
+  assertStudioNote(value.note);
+  assertText(value.path, 'Indexed note path', 4_096);
+  assertText(value.hash, 'Indexed note hash', 1_024);
+  assertIndexedContent(value.content);
+}
+
+function assertMethodArguments(request: SearchIndexRequest): void {
+  const { args, method } = request;
+  if (method === 'clear' || method === 'close') {
+    if (args.length !== 0) throw new TypeError(`${method} does not accept arguments.`);
+    return;
+  }
+  if (method === 'search' || method === 'facets') {
+    if (args.length < 1 || args.length > 2) throw new TypeError(`${method} requires a query and optional filters.`);
+    assertText(args[0], 'Search query', SEARCH_INDEX_MAX_QUERY_LENGTH, true);
+    assertFilters(args[1]);
+    return;
+  }
+  if (method === 'getManyById') {
+    const ids = args[0];
+    if (args.length !== 1 || !Array.isArray(ids) || ids.length > 10_000 || ids.some((id) => typeof id !== 'string' || id.length > 1_024)) {
+      throw new RangeError('Inspector requests may contain at most 10,000 text IDs.');
+    }
+    return;
+  }
+  if (method === 'rebuild') {
+    const entries = args[0];
+    if (args.length !== 1 || !Array.isArray(entries) || entries.length > 20_000) {
+      throw new RangeError('Index rebuilds may contain at most 20,000 entries.');
+    }
+    entries.forEach(assertIndexEntry);
+    return;
+  }
+  if (method === 'upsert') {
+    if (args.length !== 4) throw new TypeError('upsert requires a note, path, hash, and indexed content.');
+    assertStudioNote(args[0]);
+    assertText(args[1], 'Indexed note path', 4_096);
+    assertText(args[2], 'Indexed note hash', 1_024);
+    assertIndexedContent(args[3]);
+    return;
+  }
+  if (args.length !== 1) throw new TypeError(`${method} requires one text ID.`);
+  assertTextId(args[0]);
+}
+
 export function assertBoundedSearchIndexRequest(request: SearchIndexRequest): void {
   if (!Number.isSafeInteger(request.id) || request.id < 1) throw new TypeError('Invalid search index request ID.');
   if (!searchIndexMethods.includes(request.method)) throw new TypeError('Unknown search index method.');
   if (!Array.isArray(request.args)) throw new TypeError('Search index request arguments must be an array.');
-  if ((request.method === 'search' || request.method === 'facets')) {
-    const query = request.args[0];
-    if (typeof query !== 'string') throw new TypeError('Search query must be text.');
-    if (query.length > SEARCH_INDEX_MAX_QUERY_LENGTH) {
-      throw new RangeError(`Search queries must be ${SEARCH_INDEX_MAX_QUERY_LENGTH} characters or fewer.`);
-    }
-  }
-  if (request.method === 'getManyById') {
-    const ids = request.args[0];
-    if (!Array.isArray(ids) || ids.length > 10_000 || ids.some((id) => typeof id !== 'string')) {
-      throw new RangeError('Inspector requests may contain at most 10,000 text IDs.');
-    }
-  }
-  if (request.method === 'rebuild') {
-    const entries = request.args[0];
-    if (!Array.isArray(entries) || entries.length > 20_000) {
-      throw new RangeError('Index rebuilds may contain at most 20,000 entries.');
-    }
-  }
+  assertMethodArguments(request);
   if (serializedBytes(request) > SEARCH_INDEX_MAX_REQUEST_BYTES) {
     throw new RangeError('Search index request is too large.');
   }
