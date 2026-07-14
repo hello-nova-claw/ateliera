@@ -14,7 +14,11 @@ import type {
 } from './vault-port';
 
 export interface TauriVaultBridge {
-  invoke(command: string, args: Record<string, unknown>): Promise<unknown>;
+  invoke(
+    command: string,
+    args: Record<string, unknown> | number[] | ArrayBuffer | Uint8Array,
+    options?: { headers: HeadersInit },
+  ): Promise<unknown>;
   listen(
     event: string,
     listener: (payload: unknown) => void,
@@ -22,7 +26,7 @@ export interface TauriVaultBridge {
 }
 
 const defaultBridge: TauriVaultBridge = {
-  invoke,
+  invoke: (command, args, options) => invoke(command, args, options),
   listen: async (event, listener) => {
     const stop = await listen(event, ({ payload }) => listener(payload));
     return stop;
@@ -75,9 +79,10 @@ export async function saveTauriVaultBackup(
   }
   let response: unknown;
   try {
-    response = await bridge.invoke('backup_save_zip', {
-      bytes: [...bytes],
-      suggestedFileName,
+    response = await bridge.invoke('backup_save_zip', bytes, {
+      headers: {
+        'x-studio-backup-name': encodeURIComponent(suggestedFileName),
+      },
     });
   } catch (error) {
     translate(error);

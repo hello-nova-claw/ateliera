@@ -30,16 +30,21 @@ function bridge(
 
 describe('Tauri vault IPC adapter', () => {
   it('saves backup bytes through a path-private native destination picker', async () => {
-    const invoke = vi.fn(async () => 'saved');
+    const invoke = vi.fn<TauriVaultBridge['invoke']>(async () => 'saved');
+    const archive = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
     await expect(saveTauriVaultBackup(
-      new Uint8Array([0x50, 0x4b, 0x03, 0x04]),
+      archive,
       'the-studio-backup-2026-07-14.zip',
       bridge(invoke),
     )).resolves.toBe('saved');
-    expect(invoke).toHaveBeenCalledWith('backup_save_zip', {
-      bytes: [0x50, 0x4b, 0x03, 0x04],
-      suggestedFileName: 'the-studio-backup-2026-07-14.zip',
+    expect(invoke).toHaveBeenCalledWith('backup_save_zip', archive, {
+      headers: {
+        'x-studio-backup-name': 'the-studio-backup-2026-07-14.zip',
+      },
     });
+    expect(invoke.mock.calls[0]?.[1]).toBeInstanceOf(Uint8Array);
+    expect(invoke.mock.calls[0]?.[1]).toBe(archive);
+    expect(Array.isArray(invoke.mock.calls[0]?.[1])).toBe(false);
     expect(JSON.stringify(invoke.mock.calls)).not.toContain('/Users/');
   });
 

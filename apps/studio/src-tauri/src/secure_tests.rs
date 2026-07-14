@@ -7,7 +7,7 @@ use std::{
 };
 
 use serde_json::json;
-use tauri::{Listener, Manager, test, webview::InvokeRequest};
+use tauri::{Listener, Manager, http::HeaderMap, ipc::InvokeBody, test, webview::InvokeRequest};
 
 use crate::{
     commands::vault::{ExpectedUserState, Vault, VaultRegistry},
@@ -62,6 +62,29 @@ fn backup_destination_rejects_unsafe_names_and_non_zip_paths() {
         crate::commands::backup::write_backup_atomically_for_test(&disguised, b"data").is_err()
     );
     assert!(!disguised.exists());
+}
+
+#[test]
+fn backup_ipc_accepts_a_bounded_raw_binary_body_without_json_expansion() {
+    let body = InvokeBody::Raw(b"PK\x03\x04safe".to_vec());
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "x-studio-backup-name",
+        "the-studio-backup-2026-07-14.zip".parse().unwrap(),
+    );
+
+    let (name, bytes) =
+        crate::commands::backup::decode_backup_request_for_test(&body, &headers).unwrap();
+
+    assert_eq!(name, "the-studio-backup-2026-07-14.zip");
+    assert_eq!(bytes, b"PK\x03\x04safe");
+    assert!(
+        crate::commands::backup::decode_backup_request_for_test(
+            &InvokeBody::Json(json!({ "bytes": [80, 75, 3, 4] })),
+            &headers,
+        )
+        .is_err()
+    );
 }
 
 fn invoke_mock(
