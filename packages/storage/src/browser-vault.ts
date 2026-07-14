@@ -961,7 +961,7 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
       });
     }
     for (const entry of manifest.entries) {
-      const current = await readFile(entry.path);
+      const current = await readFile(entry.path, MAX_ATOMIC_FILE_BYTES);
       if (!matchesJournalState(current, entry.before) &&
         !matchesJournalState(current, entry.after)) {
         throw new VaultConflictError(
