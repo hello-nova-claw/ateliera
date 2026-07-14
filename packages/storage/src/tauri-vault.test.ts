@@ -6,6 +6,7 @@ import {
   VaultUnavailableError,
 } from './conflict';
 import {
+  createTauriStudio,
   saveTauriVaultBackup,
   selectTauriVault,
   type TauriVaultBridge,
@@ -30,6 +31,35 @@ function bridge(
 }
 
 describe('Tauri vault IPC adapter', () => {
+  it('creates a named Studio through a distinct native command', async () => {
+    const invoke = vi.fn(async (command: string, args: Record<string, unknown>) => {
+      expect(command).toBe('vault_create');
+      expect(args).toEqual({ name: 'My Calm Studio' });
+      return selection();
+    });
+
+    const studio = await createTauriStudio('My Calm Studio', bridge(invoke));
+
+    expect(studio?.recoveryIdentity).toBe(recoveryIdentity);
+    expect(invoke).toHaveBeenCalledOnce();
+  });
+
+  it('returns null when native Studio creation is cancelled', async () => {
+    const invoke = vi.fn(async () => null);
+
+    await expect(createTauriStudio('My Studio', bridge(invoke))).resolves.toBeNull();
+    expect(invoke).toHaveBeenCalledWith('vault_create', { name: 'My Studio' });
+  });
+
+  it('rejects empty native Studio names before opening the chooser', async () => {
+    const invoke = vi.fn(async () => selection());
+
+    await expect(createTauriStudio('   ', bridge(invoke))).rejects.toBeInstanceOf(
+      VaultUnavailableError,
+    );
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
   it('saves backup bytes through a path-private native destination picker', async () => {
     const invoke = vi.fn<TauriVaultBridge['invoke']>(async () => 'saved');
     const archive = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);

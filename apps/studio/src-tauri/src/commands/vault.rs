@@ -2646,6 +2646,45 @@ pub fn vault_unwatch<R: Runtime>(
 mod tests {
     use super::*;
 
+    #[test]
+    fn studio_folder_name_is_trimmed_and_whitespace_is_normalized() {
+        assert_eq!(normalize_studio_folder_name("  My\t Calm   Studio  ").unwrap(), "My Calm Studio");
+    }
+
+    #[test]
+    fn studio_folder_name_rejects_traversal_and_unsafe_components() {
+        for name in ["", "   ", ".", "..", "../Elsewhere", "Nested/Studio", "Nested\\Studio", "bad\0name"] {
+            assert_eq!(normalize_studio_folder_name(name), Err(VaultError::PathEscape));
+        }
+    }
+
+    #[test]
+    fn creating_a_studio_uses_a_new_named_child_and_never_opens_a_collision() {
+        let parent = tempfile::tempdir().unwrap();
+        let registry = VaultRegistry::default();
+
+        let selection = registry
+            .create_in_selected_parent("main", parent.path(), "  My   Studio ")
+            .unwrap();
+        let studio_path = parent.path().join("My Studio");
+        assert!(studio_path.is_dir());
+        assert_eq!(registry.capability_count_for_test(), 1);
+        assert_eq!(
+            selection.recovery_identity,
+            registry
+                .vault_for_test("main", &selection.vault_token)
+                .unwrap()
+                .recovery_identity()
+                .unwrap()
+        );
+
+        assert_eq!(
+            registry.create_in_selected_parent("other", parent.path(), "My Studio"),
+            Err(VaultError::Conflict)
+        );
+        assert_eq!(registry.capability_count_for_test(), 1);
+    }
+
     fn selected_vault() -> (tempfile::TempDir, Arc<Vault>) {
         let directory = tempfile::tempdir().unwrap();
         let registry = VaultRegistry::default();
