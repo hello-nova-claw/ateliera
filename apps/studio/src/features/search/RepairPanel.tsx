@@ -5,8 +5,10 @@ import type {
 } from '@studio/application';
 import { inspectRepairSource } from '@studio/content';
 import {
+  landscapeAnchors,
   noteStatuses,
   semanticTypes,
+  type LandscapeAnchor,
   type NoteStatus,
   type SemanticType,
   type StudioNote,
@@ -50,6 +52,23 @@ function selectedStatus(value: unknown): NoteStatus {
     : 'draft';
 }
 
+function selectedLandscapeAnchor(value: unknown): LandscapeAnchor | undefined {
+  return landscapeAnchors.includes(value as LandscapeAnchor)
+    ? value as LandscapeAnchor
+    : undefined;
+}
+
+function selectedSource(value: unknown): StudioNote['source'] {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const source = value as Record<string, unknown>;
+  const selected = {
+    ...(typeof source.title === 'string' ? { title: source.title } : {}),
+    ...(typeof source.creator === 'string' ? { creator: source.creator } : {}),
+    ...(typeof source.url === 'string' ? { url: source.url } : {}),
+  };
+  return Object.keys(selected).length > 0 ? selected : undefined;
+}
+
 function listInput(value: string): string[] {
   return [...new Set(value.split(',').map((item) => item.trim()).filter(Boolean))];
 }
@@ -71,6 +90,8 @@ function metadataFromItem(item: MetadataRepairItem): StudioNote {
     ? data.privacy as Record<string, unknown>
     : {};
   const now = new Date().toISOString();
+  const landscapeAnchor = selectedLandscapeAnchor(data.landscape_anchor);
+  const sourceContext = selectedSource(data.source);
   return {
     schemaVersion: 1,
     id: stringValue(data.id),
@@ -81,10 +102,12 @@ function metadataFromItem(item: MetadataRepairItem): StudioNote {
     status: selectedStatus(data.status),
     rooms: stringList(data.rooms),
     lifeAreas: stringList(data.life_areas),
+    ...(landscapeAnchor === undefined ? {} : { landscapeAnchor }),
     seasons: stringList(data.seasons),
     tags: stringList(data.tags),
     created: stringValue(data.created, now),
     updated: stringValue(data.updated, now),
+    ...(sourceContext === undefined ? {} : { source: sourceContext }),
     attachments: stringList(data.attachments),
     display: {
       featured: display.featured === true,
