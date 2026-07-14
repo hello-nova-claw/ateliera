@@ -212,6 +212,7 @@ function NoteCard({
   const menuRef = useRef<HTMLDivElement>(null);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const failedActionFocusRef = useRef<HTMLButtonElement | undefined>(undefined);
+  const restoreTriggerFocusRef = useRef(false);
   const latestCardRef = useRef(card);
   const { attributes, isDragging, listeners, setActivatorNodeRef, setNodeRef } =
     useDraggable({
@@ -261,6 +262,12 @@ function NoteCard({
       '[role="menuitem"]:not(:disabled)',
     );
     (fallback ?? menuTriggerRef.current)?.focus();
+  }, [busy]);
+
+  useEffect(() => {
+    if (busy || !restoreTriggerFocusRef.current) return;
+    restoreTriggerFocusRef.current = false;
+    menuTriggerRef.current?.focus();
   }, [busy]);
 
   function navigateMenu(event: ReactKeyboardEvent<HTMLDivElement>) {
@@ -315,6 +322,7 @@ function NoteCard({
         lifeAreas,
       };
       setAnnouncement(`${card.title} moved.`);
+      restoreTriggerFocusRef.current = true;
       closeMenu();
     } catch (reason) {
       failedActionFocusRef.current = actionTarget;
@@ -347,6 +355,7 @@ function NoteCard({
       setAnnouncement(
         `${card.title} moved ${offset < 0 ? 'earlier' : 'later'}.`,
       );
+      restoreTriggerFocusRef.current = true;
       closeMenu();
     } catch (reason) {
       failedActionFocusRef.current = actionTarget;
@@ -428,6 +437,7 @@ function NoteCard({
             aria-expanded={menuOpen}
             aria-haspopup="menu"
             aria-label={`Move ${card.title}`}
+            disabled={busy}
             onClick={() => setMenuOpen((open) => !open)}
             ref={menuTriggerRef}
             type="button"
@@ -646,14 +656,23 @@ export function LandscapePage({
       if (clear) pendingFocus.current = undefined;
       return;
     }
+    const targetArea = pending.card.lifeAreas[0];
     const title = document.querySelector<HTMLButtonElement>(
-      `[data-landscape-note-id="${CSS.escape(pending.card.noteId)}"] .life-landscape-card__title`,
+      `[data-landscape-note-id="${CSS.escape(pending.card.noteId)}"]` +
+        `[data-drop-anchor="${CSS.escape(pending.card.anchor)}"]` +
+        `${targetArea ? `[data-drop-area="${CSS.escape(targetArea)}"]` : ''}` +
+        ' .life-landscape-card__title',
     );
-    const fallback =
-      title ??
-      document.querySelector<HTMLButtonElement>('.life-landscape__undo button');
-    fallback?.focus();
-    if (fallback || clear) pendingFocus.current = undefined;
+    if (title) {
+      title.focus();
+      pendingFocus.current = undefined;
+      return;
+    }
+    if (clear) {
+      document
+        .querySelector<HTMLButtonElement>('.life-landscape__undo button')
+        ?.focus();
+    }
   }, []);
 
   function restoreFocusAfterMutation(
@@ -681,7 +700,13 @@ export function LandscapePage({
         anchor: move.card.anchor,
       },
     });
-    restoreFocusAfterMutation(move.card, focusTarget);
+    const triggerSurvivesMove =
+      move.anchor === move.card.anchor &&
+      move.card.lifeAreas.every((area) => move.lifeAreas.includes(area));
+    restoreFocusAfterMutation(
+      { ...move.card, anchor: move.anchor, lifeAreas: move.lifeAreas },
+      triggerSurvivesMove ? focusTarget : undefined,
+    );
     return saved;
   }
 

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import {
   defaultLifeAreas,
   landscapeAnchors,
@@ -611,7 +611,7 @@ describe('LandscapePage', () => {
     );
   });
 
-  it('moves focus to the reparented card title when its menu trigger is gone', async () => {
+  it('moves focus to the reparented card title after a delayed projection replaces its trigger', async () => {
     const card = {
       noteId: 'reparented-note',
       path: 'Life Landscape/home/reparented.md',
@@ -644,7 +644,7 @@ describe('LandscapePage', () => {
           areas={[...defaultLifeAreas.slice(0, 5)]}
           board={board}
           onMove={async (move) => {
-            setAnchor(move.anchor);
+            setTimeout(() => setAnchor(move.anchor), 1_100);
             return { hash: 'moved-hash' };
           }}
           onNavigate={vi.fn()}
@@ -660,9 +660,13 @@ describe('LandscapePage', () => {
     fireEvent.click(
       screen.getByRole('menuitem', { name: /Move to Practices/ }),
     );
-    const title = await screen.findByRole('button', {
-      name: 'A reparented note',
-    });
+    const title = await within(
+      screen.getByRole('region', { name: 'Practices' }),
+    ).findByRole(
+      'button',
+      { name: 'A reparented note' },
+      { timeout: 2_000 },
+    );
     await vi.waitFor(() => expect(title).toHaveFocus());
   });
 });
