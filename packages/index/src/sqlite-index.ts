@@ -17,7 +17,7 @@ import type { SqlValue, SqliteDatabase } from './sqlite-driver';
 
 interface NoteRow {
   id: string; path: string; hash: string; title: string; body: string;
-  note_json: string; rank?: number;
+  note_json: string; rank?: number; updated: string;
 }
 
 interface LinkRow {
@@ -30,6 +30,14 @@ function row<T>(value: unknown): T | undefined { return value as T | undefined; 
 
 function tokens(query: string): string[] {
   return [...new Set((query.match(/[\p{L}\p{N}_-]+/gu) ?? []).map((token) => foldForMatch(token)).filter(Boolean))];
+}
+
+const MAX_QUERY_LENGTH = 512;
+
+function validateQuery(query: string): void {
+  if (query.length > MAX_QUERY_LENGTH) {
+    throw new RangeError(`Search queries must be ${MAX_QUERY_LENGTH} characters or fewer.`);
+  }
 }
 
 function ftsQuery(queryTokens: string[]): string {
@@ -95,6 +103,77 @@ function addListFilter(
   values.push(...items);
 }
 
+function addSearchFilters(clauses: string[], values: SqlValue[], filters: SearchFilters): void {
+  if (filters.semanticTypes?.length) {
+    clauses.push(`n.semantic_type IN (${filters.semanticTypes.map(() => '?').join(',')})`);
+    values.push(...filters.semanticTypes);
+  }
+  if (filters.statuses?.length) {
+    clauses.push(`n.status IN (${filters.statuses.map(() => '?').join(',')})`);
+    values.push(...filters.statuses);
+  } else {
+    clauses.push("n.status <> 'trashed'");
+  }
+  if (filters.cardTypes?.length) {
+    clauses.push(`n.card_type IN (${filters.cardTypes.map(() => '?').join(',')})`);
+    values.push(...filters.cardTypes);
+  }
+  if (filters.dateFrom) { clauses.push('n.updated >= ?'); values.push(filters.dateFrom); }
+  if (filters.dateTo) { clauses.push('n.updated <= ?'); values.push(filters.dateTo); }
+  addListFilter(clauses, values, 'note_rooms', 'room', filters.rooms);
+  addListFilter(clauses, values, 'note_life_areas', 'life_area', filters.lifeAreas);
+  addListFilter(clauses, values, 'note_seasons', 'season', filters.seasons);
+  addListFilter(clauses, values, 'note_tags', 'tag', filters.tags);
+}
+
+function damerauLevenshtein(left: string, right: string, maximum: number): number | null {
+  if (Math.abs(left.length - right.length) > maximum) return null;
+  const matrix = Array.from({ length: left.length + 1 }, () => new Array<number>(right.length + 1).fill(0));
+  for (let row = 0; row <= left.length; row += 1) matrix[row]![0] = row;
+  for (let column = 0; column <= right.length; column += 1) matrix[0]![column] = column;
+  for (let row = 1; row <= left.length; row += 1) {
+    let rowMinimum = maximum + 1;
+    for (let column = 1; column <= right.length; column += 1) {
+      const substitution = left[row - 1] === right[column - 1] ? 0 : 1;
+      let distance = Math.min(
+        matrix[row - 1]![column]! + 1,
+        matrix[row]![column - 1]! + 1,
+        matrix[row - 1]![column - 1]! + substitution,
+      );
+      if (
+        row > 1 && column > 1 &&
+        left[row - 1] === right[column - 2] &&
+        left[row - 2] === right[column - 1]
+      ) {
+        distance = Math.min(distance, matrix[row - 2]![column - 2]! + 1);
+      }
+      matrix[row]![column] = distance;
+      rowMinimum = Math.min(rowMinimum, distance);
+    }
+    if (rowMinimum > maximum) return null;
+  }
+  const distance = matrix[left.length]![right.length]!;
+  return distance <= maximum ? distance : null;
+}
+
+interface FuzzyWordMatch { text: string; distance: 0 | 1 | 2 }
+
+function closestFuzzyWord(queryToken: string, values: readonly string[]): FuzzyWordMatch | null {
+  if (queryToken.length < 3) return null;
+  const maximum = queryToken.length <= 5 ? 1 : 2;
+  const candidates = values.flatMap((value) =>
+    (value.match(/[\p{L}\p{N}_-]+/gu) ?? []).map((text) => ({ text, folded: foldForMatch(text) })),
+  );
+  return candidates.reduce<FuzzyWordMatch | null>((best, candidate) => {
+    const distance = damerauLevenshtein(queryToken, candidate.folded, maximum);
+    if (distance === null) return best;
+    const match = { text: candidate.text, distance: distance as 0 | 1 | 2 };
+    if (best === null || match.distance < best.distance) return match;
+    if (match.distance === best.distance && match.text.localeCompare(best.text, 'en') < 0) return match;
+    return best;
+  }, null);
+}
+
 function normalizePath(path: string): string | null {
   const output: string[] = [];
   for (const segment of path.split('/')) {
@@ -137,11 +216,29 @@ export class SqliteIndex implements IndexPort {
     return found ? { note: JSON.parse(found.note_json) as StudioNote, path: found.path, hash: found.hash } : null;
   }
 
-  async getManyById(_ids: string[]): Promise<Array<{ note: StudioNote; path: string; hash: string }>> {
-    return [];
+  async getManyById(ids: string[]): Promise<Array<{ note: StudioNote; path: string; hash: string }>> {
+    const distinct = [...new Set(ids)];
+    if (distinct.length === 0) return [];
+    const found: NoteRow[] = [];
+    for (let offset = 0; offset < distinct.length; offset += 200) {
+      const chunk = distinct.slice(offset, offset + 200);
+      found.push(...rows<NoteRow>(this.database.prepare(
+        `SELECT * FROM notes WHERE id IN (${chunk.map(() => '?').join(',')})`,
+      ).all(...chunk)));
+    }
+    const byId = new Map(found.map((item) => [item.id, item]));
+    return distinct.flatMap((id) => {
+      const item = byId.get(id);
+      return item === undefined ? [] : [{
+        note: JSON.parse(item.note_json) as StudioNote,
+        path: item.path,
+        hash: item.hash,
+      }];
+    });
   }
 
   async search(query: string, filters: SearchFilters = {}): Promise<SearchHit[]> {
+    validateQuery(query);
     const queryTokens = tokens(query);
     if (query.trim() && queryTokens.length === 0) return [];
     const values: SqlValue[] = [];
@@ -150,27 +247,10 @@ export class SqliteIndex implements IndexPort {
       ? 'notes n JOIN note_fts ON note_fts.id = n.id'
       : 'notes n';
     if (queryTokens.length) { clauses.push('note_fts MATCH ?'); values.push(ftsQuery(queryTokens)); }
-    if (filters.semanticTypes?.length) {
-      clauses.push(`n.semantic_type IN (${filters.semanticTypes.map(() => '?').join(',')})`);
-      values.push(...filters.semanticTypes);
-    }
-    if (filters.statuses?.length) {
-      clauses.push(`n.status IN (${filters.statuses.map(() => '?').join(',')})`);
-      values.push(...filters.statuses);
-    }
-    if (filters.cardTypes?.length) {
-      clauses.push(`n.card_type IN (${filters.cardTypes.map(() => '?').join(',')})`);
-      values.push(...filters.cardTypes);
-    }
-    if (filters.dateFrom) { clauses.push('n.updated >= ?'); values.push(filters.dateFrom); }
-    if (filters.dateTo) { clauses.push('n.updated <= ?'); values.push(filters.dateTo); }
-    addListFilter(clauses, values, 'note_rooms', 'room', filters.rooms);
-    addListFilter(clauses, values, 'note_life_areas', 'life_area', filters.lifeAreas);
-    addListFilter(clauses, values, 'note_seasons', 'season', filters.seasons);
-    addListFilter(clauses, values, 'note_tags', 'tag', filters.tags);
+    addSearchFilters(clauses, values, filters);
     const rank = queryTokens.length ? 'bm25(note_fts)' : '0';
     const found = rows<NoteRow>(this.database.prepare(`SELECT n.*, ${rank} AS rank FROM ${from}${clauses.length ? ` WHERE ${clauses.join(' AND ')}` : ''} ORDER BY rank ASC, n.updated DESC, n.id ASC LIMIT 200`).all(...values));
-    return found.map((item) => {
+    const exact: SearchHit[] = found.map((item) => {
       const snippet = makeSnippet(item, queryTokens);
       const indexedNote = JSON.parse(item.note_json) as StudioNote;
       const sourceText = [indexedNote.source?.title, indexedNote.source?.creator, indexedNote.source?.url].filter(Boolean).join(' ');
@@ -198,13 +278,100 @@ export class SqliteIndex implements IndexPort {
         ...(matchContext ? { matchContext } : {}),
       };
     });
+    return exact.length > 0 || queryTokens.length === 0
+      ? exact
+      : this.fuzzySearch(queryTokens, filters);
   }
 
-  async facets(_query: string, _filters: SearchFilters = {}): Promise<SearchFacets> {
-    return {
-      rooms: [], semanticTypes: [], lifeAreas: [], seasons: [], statuses: [],
-      tags: [], cardTypes: [],
+  async facets(query: string, filters: SearchFilters = {}): Promise<SearchFacets> {
+    validateQuery(query);
+    const ids = (await this.search(query, filters)).map((hit) => hit.id);
+    if (ids.length === 0) return {
+      rooms: [], semanticTypes: [], lifeAreas: [], seasons: [], statuses: [], tags: [], cardTypes: [],
     };
+    const placeholders = ids.map(() => '?').join(',');
+    const listFacet = (table: string, column: string) => rows<{ value: string; count: number }>(
+      this.database.prepare(
+        `SELECT ${column} AS value, count(*) AS count FROM ${table} WHERE note_id IN (${placeholders}) GROUP BY ${column} ORDER BY count DESC, value ASC`,
+      ).all(...ids),
+    );
+    const noteFacet = (column: string) => rows<{ value: string; count: number }>(
+      this.database.prepare(
+        `SELECT ${column} AS value, count(*) AS count FROM notes WHERE id IN (${placeholders}) GROUP BY ${column} ORDER BY count DESC, value ASC`,
+      ).all(...ids),
+    );
+    return {
+      rooms: listFacet('note_rooms', 'room'),
+      semanticTypes: noteFacet('semantic_type'),
+      lifeAreas: listFacet('note_life_areas', 'life_area'),
+      seasons: listFacet('note_seasons', 'season'),
+      statuses: noteFacet('status'),
+      tags: listFacet('note_tags', 'tag'),
+      cardTypes: noteFacet('card_type'),
+    };
+  }
+
+  private fuzzySearch(queryTokens: string[], filters: SearchFilters): SearchHit[] {
+    if (queryTokens.some((token) => token.length < 3)) return [];
+    const values: SqlValue[] = [];
+    const clauses: string[] = [];
+    addSearchFilters(clauses, values, filters);
+    const candidates = rows<NoteRow>(this.database.prepare(
+      `SELECT n.*, 0 AS rank FROM notes n${clauses.length ? ` WHERE ${clauses.join(' AND ')}` : ''} ORDER BY n.updated DESC, n.id ASC`,
+    ).all(...values));
+    const matches = candidates.flatMap((item) => {
+      const indexedNote = JSON.parse(item.note_json) as StudioNote;
+      const titleMatches = queryTokens.map((token) => closestFuzzyWord(token, [item.title]));
+      const tagMatches = queryTokens.map((token) => closestFuzzyWord(token, indexedNote.tags));
+      const field = titleMatches.every((match) => match !== null)
+        ? 'title' as const
+        : tagMatches.every((match) => match !== null)
+          ? 'tags' as const
+          : null;
+      if (field === null) return [];
+      const matches = (field === 'title' ? titleMatches : tagMatches).filter(
+        (match): match is FuzzyWordMatch => match !== null,
+      );
+      const rationale = [...matches].sort((left, right) =>
+        right.distance - left.distance || left.text.localeCompare(right.text, 'en'),
+      )[0];
+      if (rationale === undefined || rationale.distance === 0) return [];
+      const { snippet } = makeSnippet(item, []);
+      const rationaleToken = queryTokens.find((token) =>
+        closestFuzzyWord(token, [rationale.text])?.text === rationale.text,
+      );
+      const distance = (rationaleToken !== undefined && rationaleToken.length > 5 ? 2 : 1) as 1 | 2;
+      return [{
+        id: item.id,
+        path: item.path,
+        title: item.title,
+        snippet,
+        highlightRanges: [],
+        score: -(matches.reduce((sum, match) => sum + match.distance, 0)),
+        semanticType: indexedNote.semanticType,
+        cardType: indexedNote.cardType,
+        status: indexedNote.status,
+        updated: indexedNote.updated,
+        matchReason: {
+          field,
+          strategy: field === 'title' ? 'fuzzy-title' as const : 'fuzzy-tag' as const,
+          text: rationale.text,
+          distance,
+        },
+        ...(field === 'tags' ? { matchContext: { field: 'tags' as const, text: indexedNote.tags.join(', ') } } : {}),
+      }];
+    });
+    const preferred = matches.some((match) => match.matchReason.field === 'title')
+      ? matches.filter((match) => match.matchReason.field === 'title')
+      : matches;
+    return preferred.sort((left, right) => {
+      const distance = (left.matchReason.distance ?? 0) - (right.matchReason.distance ?? 0);
+      if (distance !== 0) return distance;
+      const field = left.matchReason.field.localeCompare(right.matchReason.field, 'en');
+      if (field !== 0) return field;
+      const updated = right.updated.localeCompare(left.updated, 'en');
+      return updated || left.id.localeCompare(right.id, 'en');
+    }).slice(0, 200);
   }
 
   async backlinks(id: string): Promise<string[]> {
