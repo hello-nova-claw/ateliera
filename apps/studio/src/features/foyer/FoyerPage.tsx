@@ -49,6 +49,7 @@ function FoyerImage({
     return (
       <div className="foyer-polaroid__missing">
         <p>This image is not available here.</p>
+        <p className="foyer-polaroid__description">{image.alt}</p>
         {onRemove && (
           <button
             className="foyer-text-action"

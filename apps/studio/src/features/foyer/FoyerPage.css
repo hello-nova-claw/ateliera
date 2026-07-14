@@ -406,6 +406,12 @@
   text-align: center;
 }
 
+.foyer-polaroid__description {
+  color: var(--studio-color-ink-1);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
 .foyer-legend {
   margin-block-start: clamp(5rem, 12vw, 10rem);
   padding-block: var(--studio-space-6) var(--studio-space-3);

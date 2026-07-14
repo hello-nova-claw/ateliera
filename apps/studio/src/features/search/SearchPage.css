@@ -188,7 +188,10 @@
 }
 
 .search-result h2 button {
+  display: inline-flex;
+  align-items: center;
   max-inline-size: 100%;
+  min-block-size: var(--studio-touch-target);
   padding: 0;
   border: 0;
   color: var(--studio-color-ink-strong);
