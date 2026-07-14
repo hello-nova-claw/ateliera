@@ -1,0 +1,59 @@
+name: Release candidate
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'studio-v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify-macos:
+    runs-on: macos-14
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/studio/src-tauri
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install chromium webkit
+      - run: pnpm verify:release
+
+      - name: Upload release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-release-evidence-${{ github.run_id }}
+          path: artifacts/release-evidence
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload unsigned macOS bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-macos-unsigned-${{ github.run_id }}
+          path: apps/studio/src-tauri/target/release/bundle
+          if-no-files-found: warn
+          retention-days: 30
+
