@@ -59,6 +59,34 @@ describe('useSearch', () => {
     expect(replace).toHaveBeenCalled();
   });
 
+  it('does not delay or rescan warm results while the repair count is gathering', async () => {
+    let finishRepairs: ((value: []) => void) | undefined;
+    const searchService = service();
+    vi.mocked(searchService.repairQueue).mockImplementation(
+      () => new Promise((resolve) => { finishRepairs = resolve; }),
+    );
+    const { result, rerender } = renderHook(
+      ({ revision }) => useSearch(searchService, true, revision),
+      { initialProps: { revision: 0 } },
+    );
+
+    await waitFor(() => expect(result.current.model.state).toBe('ready'));
+    expect(result.current.model.results.map((item) => item.id)).toEqual(['calm']);
+    act(() => result.current.setQuery('newest'));
+    await waitFor(() => expect(searchService.search).toHaveBeenLastCalledWith(
+      'newest',
+      { semanticTypes: ['reflection'] },
+    ));
+    expect(searchService.repairQueue).toHaveBeenCalledOnce();
+
+    rerender({ revision: 1 });
+    await waitFor(() => expect(searchService.repairQueue).toHaveBeenCalledTimes(2));
+    await act(async () => {
+      finishRepairs?.([]);
+      await Promise.resolve();
+    });
+  });
+
   it('stays writable and clearly local while offline', async () => {
     const searchService = service();
     const { result } = renderHook(() => useSearch(searchService, false, 0));
