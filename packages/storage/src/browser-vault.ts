@@ -85,6 +85,14 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder('utf-8', { fatal: true });
 const WINDOWS_DRIVE_PATH = /^[A-Za-z]:/;
 const SHA256_HASH = /^[a-f0-9]{64}$/;
+const OPFS_BATCH_JOURNAL = '.studio-opfs-batch';
+const OPFS_BATCH_MANIFEST = `${OPFS_BATCH_JOURNAL}/manifest.json`;
+const OPFS_BATCH_PROGRESS = `${OPFS_BATCH_JOURNAL}/progress`;
+const MAX_ATOMIC_BATCH_WRITES = 9_999;
+const MAX_ATOMIC_FILE_BYTES = 64 * 1024 * 1024;
+const MAX_ATOMIC_JOURNAL_BYTES = 512 * 1024 * 1024;
+const MAX_OPFS_MANIFEST_BYTES = 16 * 1024 * 1024;
+const MAX_OPFS_PROGRESS_BYTES = String(MAX_ATOMIC_BATCH_WRITES).length;
 const locks = new Map<string, Promise<void>>();
 interface WatchHub {
   channel?: BroadcastChannel;
@@ -187,6 +195,101 @@ async function digest(bytes: Uint8Array): Promise<string> {
 
 function cloneFile(file: StoredBrowserFile): StoredBrowserFile {
   return { ...file, bytes: file.bytes.slice() };
+}
+
+interface OpfsJournalState {
+  present: boolean;
+  hash: string | null;
+  size: number;
+}
+
+interface OpfsJournalEntry {
+  path: string;
+  before: OpfsJournalState;
+  after: OpfsJournalState;
+}
+
+interface OpfsJournalManifest {
+  version: 1;
+  expectedRevision: string;
+  nextRevision: string;
+  entries: OpfsJournalEntry[];
+}
+
+function validDecimalRevision(value: unknown): value is string {
+  return typeof value === 'string' && /^(?:0|[1-9][0-9]*)$/.test(value);
+}
+
+function validJournalState(value: unknown): value is OpfsJournalState {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const state = value as Record<string, unknown>;
+  if (!hasExactKeys(state, ['hash', 'present', 'size']) ||
+    typeof state.present !== 'boolean' || !Number.isSafeInteger(state.size) ||
+    (state.size as number) < 0 || (state.size as number) > MAX_ATOMIC_FILE_BYTES) return false;
+  return state.present
+    ? typeof state.hash === 'string' && SHA256_HASH.test(state.hash)
+    : state.hash === null && state.size === 0;
+}
+
+function parseJournalManifest(bytes: Uint8Array): OpfsJournalManifest {
+  if (bytes.byteLength > MAX_OPFS_MANIFEST_BYTES) {
+    throw new VaultUnavailableError('The OPFS recovery journal manifest is too large.');
+  }
+  let value: unknown;
+  try {
+    value = JSON.parse(decoder.decode(bytes));
+  } catch {
+    throw new VaultUnavailableError('The OPFS recovery journal is invalid.');
+  }
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new VaultUnavailableError('The OPFS recovery journal is invalid.');
+  }
+  const manifest = value as Record<string, unknown>;
+  if (!hasExactKeys(manifest, ['entries', 'expectedRevision', 'nextRevision', 'version']) ||
+    manifest.version !== 1 || !validDecimalRevision(manifest.expectedRevision) ||
+    !validDecimalRevision(manifest.nextRevision) ||
+    BigInt(manifest.nextRevision) !== BigInt(manifest.expectedRevision) + 1n ||
+    !Array.isArray(manifest.entries) || manifest.entries.length === 0 ||
+    manifest.entries.length > MAX_ATOMIC_BATCH_WRITES) {
+    throw new VaultUnavailableError('The OPFS recovery journal is invalid.');
+  }
+  const paths = new Set<string>();
+  let payloadBytes = 0;
+  const entries = manifest.entries.map((value) => {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      throw new VaultUnavailableError('The OPFS recovery journal is invalid.');
+    }
+    const entry = value as Record<string, unknown>;
+    let validPath = false;
+    if (typeof entry.path === 'string') {
+      try {
+        validPath = validatePath(entry.path) === entry.path;
+      } catch {
+        validPath = false;
+      }
+    }
+    if (!hasExactKeys(entry, ['after', 'before', 'path']) || !validPath ||
+      paths.has(entry.path as string) || !validJournalState(entry.before) ||
+      !validJournalState(entry.after)) {
+      throw new VaultUnavailableError('The OPFS recovery journal is invalid.');
+    }
+    paths.add(entry.path as string);
+    payloadBytes += entry.before.size + entry.after.size;
+    if (!Number.isSafeInteger(payloadBytes) || payloadBytes > MAX_ATOMIC_JOURNAL_BYTES) {
+      throw new VaultUnavailableError('The OPFS recovery journal exceeds its safety limit.');
+    }
+    return {
+      path: entry.path as string,
+      before: entry.before,
+      after: entry.after,
+    };
+  });
+  return {
+    version: 1,
+    expectedRevision: manifest.expectedRevision,
+    nextRevision: manifest.nextRevision,
+    entries,
+  };
 }
 
 function parentDirectories(path: string): string[] {
@@ -735,10 +838,16 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
     return results;
   }
 
-  async function readFile(path: string): Promise<StoredBrowserFile | undefined> {
+  async function readFile(
+    path: string,
+    maximumBytes?: number,
+  ): Promise<StoredBrowserFile | undefined> {
     try {
       const { directory, name: filename } = await directoryForPath(root, path, false);
       const file = await (await directory.getFileHandle(filename)).getFile();
+      if (maximumBytes !== undefined && file.size > maximumBytes) {
+        throw new VaultUnavailableError('An OPFS recovery journal file is too large.');
+      }
       const bytes = new Uint8Array(await file.arrayBuffer());
       return {
         bytes,
@@ -770,6 +879,32 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
     await directory.removeEntry(filename);
   }
 
+  async function removeFileIfPresent(path: string): Promise<void> {
+    try {
+      await removeFile(path);
+    } catch (error) {
+      if (!isNotFound(error)) throw error;
+    }
+  }
+
+  async function journalExists(): Promise<boolean> {
+    try {
+      await root.getDirectoryHandle(OPFS_BATCH_JOURNAL);
+      return true;
+    } catch (error) {
+      if (isNotFound(error)) return false;
+      throw error;
+    }
+  }
+
+  async function removeJournal(): Promise<void> {
+    try {
+      await root.removeEntry(OPFS_BATCH_JOURNAL, { recursive: true });
+    } catch (error) {
+      if (!isNotFound(error)) throw error;
+    }
+  }
+
   const revisionPath = '.studio-revision';
   async function getRevision(): Promise<string> {
     const revision = await readFile(revisionPath);
@@ -781,40 +916,170 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
     return value;
   }
 
+  async function readJournalPayload(
+    index: number,
+    side: 'before' | 'after',
+    state: OpfsJournalState,
+  ): Promise<StoredBrowserFile | undefined> {
+    if (!state.present) return undefined;
+    const file = await readFile(
+      `${OPFS_BATCH_JOURNAL}/${side}/${index}`,
+      MAX_ATOMIC_FILE_BYTES,
+    );
+    if (file === undefined || file.bytes.byteLength !== state.size || file.hash !== state.hash) {
+      throw new VaultUnavailableError('The OPFS recovery journal checksum failed.');
+    }
+    return file;
+  }
+
+  async function restoreJournalSide(
+    manifest: OpfsJournalManifest,
+    side: 'before' | 'after',
+  ): Promise<void> {
+    for (const [index, entry] of manifest.entries.entries()) {
+      const state = entry[side];
+      const file = await readJournalPayload(index, side, state);
+      if (file === undefined) await removeFileIfPresent(entry.path);
+      else await writeFile(entry.path, file);
+    }
+  }
+
+  async function recoverJournal(): Promise<void> {
+    if (!await journalExists()) return;
+    const manifestFile = await readFile(OPFS_BATCH_MANIFEST, MAX_OPFS_MANIFEST_BYTES);
+    if (manifestFile === undefined) {
+      await removeJournal();
+      return;
+    }
+    const manifest = parseJournalManifest(manifestFile.bytes);
+    const progressFile = await readFile(OPFS_BATCH_PROGRESS, MAX_OPFS_PROGRESS_BYTES);
+    if (progressFile === undefined) {
+      throw new VaultUnavailableError('The OPFS recovery journal progress is missing.');
+    }
+    if (progressFile.bytes.byteLength > MAX_OPFS_PROGRESS_BYTES) {
+      throw new VaultUnavailableError('The OPFS recovery journal progress is invalid.');
+    }
+    const progress = decoder.decode(progressFile.bytes);
+    if (!/^(?:0|[1-9][0-9]*)$/.test(progress) || Number(progress) > manifest.entries.length) {
+      throw new VaultUnavailableError('The OPFS recovery journal progress is invalid.');
+    }
+    const revision = await getRevision();
+    if (revision === manifest.expectedRevision) {
+      await restoreJournalSide(manifest, 'before');
+    } else if (revision === manifest.nextRevision) {
+      await restoreJournalSide(manifest, 'after');
+    } else {
+      throw new VaultUnavailableError('The OPFS recovery journal revision is inconsistent.');
+    }
+    await removeJournal();
+  }
+
+  await recoverJournal();
+
   return {
     entries: () => walk(root),
     read: readFile,
     getRevision,
     async mutateAtomic(expectedRevision, mutations) {
+      await recoverJournal();
       if (await getRevision() !== expectedRevision) throw new VaultConflictError();
-      const previous = new Map<string, StoredBrowserFile | undefined>();
-      for (const mutation of mutations) {
-        if (!previous.has(mutation.path)) previous.set(mutation.path, await readFile(mutation.path));
+      if (mutations.length === 0 || mutations.length > MAX_ATOMIC_BATCH_WRITES) {
+        throw new VaultUnavailableError('The OPFS batch size is invalid.');
       }
-      const applied: string[] = [];
-      try {
-        for (const mutation of mutations) {
-          if (mutation.kind === 'write') await writeFile(mutation.path, mutation.file);
-          else await removeFile(mutation.path);
-          applied.push(mutation.path);
+      const paths = new Set<string>();
+      const prepared: Array<{
+        mutation: BrowserVaultStoreMutation;
+        before: StoredBrowserFile | undefined;
+        after: StoredBrowserFile | undefined;
+      }> = [];
+      let journalBytes = 0;
+      for (const mutation of mutations) {
+        if (paths.has(mutation.path)) throw new VaultConflictError();
+        paths.add(mutation.path);
+        const before = await readFile(mutation.path);
+        const after = mutation.kind === 'write' ? cloneFile(mutation.file) : undefined;
+        if ((before?.bytes.byteLength ?? 0) > MAX_ATOMIC_FILE_BYTES ||
+          (after?.bytes.byteLength ?? 0) > MAX_ATOMIC_FILE_BYTES) {
+          throw new VaultUnavailableError('An OPFS batch file exceeds 64 MiB.');
         }
-        const next = (BigInt(expectedRevision) + 1n).toString();
-        const bytes = encoder.encode(next);
+        journalBytes += (before?.bytes.byteLength ?? 0) + (after?.bytes.byteLength ?? 0);
+        if (!Number.isSafeInteger(journalBytes) || journalBytes > MAX_ATOMIC_JOURNAL_BYTES) {
+          throw new VaultUnavailableError('The OPFS batch journal exceeds 512 MiB.');
+        }
+        prepared.push({ mutation, before, after });
+      }
+      const nextRevision = (BigInt(expectedRevision) + 1n).toString();
+      const manifest: OpfsJournalManifest = {
+        version: 1,
+        expectedRevision,
+        nextRevision,
+        entries: prepared.map(({ mutation, before, after }) => ({
+          path: mutation.path,
+          before: {
+            present: before !== undefined,
+            hash: before?.hash ?? null,
+            size: before?.bytes.byteLength ?? 0,
+          },
+          after: {
+            present: after !== undefined,
+            hash: after?.hash ?? null,
+            size: after?.bytes.byteLength ?? 0,
+          },
+        })),
+      };
+      let manifestDurable = false;
+      try {
+        await removeJournal();
+        for (const [index, entry] of prepared.entries()) {
+          if (entry.before !== undefined) {
+            await writeFile(`${OPFS_BATCH_JOURNAL}/before/${index}`, entry.before);
+          }
+          if (entry.after !== undefined) {
+            await writeFile(`${OPFS_BATCH_JOURNAL}/after/${index}`, entry.after);
+          }
+        }
+        const progress = encoder.encode('0');
+        await writeFile(OPFS_BATCH_PROGRESS, {
+          bytes: progress,
+          hash: await digest(progress),
+          modifiedAt: new Date().toISOString(),
+        });
+        const manifestBytes = encoder.encode(`${JSON.stringify(manifest)}\n`);
+        if (manifestBytes.byteLength > MAX_OPFS_MANIFEST_BYTES) {
+          throw new VaultUnavailableError('The OPFS batch manifest is too large.');
+        }
+        await writeFile(OPFS_BATCH_MANIFEST, {
+          bytes: manifestBytes,
+          hash: await digest(manifestBytes),
+          modifiedAt: new Date().toISOString(),
+        });
+        manifestDurable = true;
+        for (const [index, entry] of prepared.entries()) {
+          if (entry.after === undefined) await removeFileIfPresent(entry.mutation.path);
+          else await writeFile(entry.mutation.path, entry.after);
+          const progressBytes = encoder.encode(String(index + 1));
+          await writeFile(OPFS_BATCH_PROGRESS, {
+            bytes: progressBytes,
+            hash: await digest(progressBytes),
+            modifiedAt: new Date().toISOString(),
+          });
+        }
+        const bytes = encoder.encode(nextRevision);
         await writeFile(revisionPath, {
           bytes,
           hash: await digest(bytes),
           modifiedAt: new Date().toISOString(),
         });
-        return next;
+        await removeJournal();
+        return nextRevision;
       } catch (error) {
         try {
-          for (const path of [...applied].reverse()) {
-            const prior = previous.get(path);
-            if (prior === undefined) await removeFile(path);
-            else await writeFile(path, prior);
-          }
+          if (manifestDurable) await recoverJournal();
+          else await removeJournal();
         } catch {
-          throw new VaultUnavailableError('The browser vault batch failed and rollback could not restore it.');
+          throw new VaultUnavailableError(
+            'The browser vault batch failed and its recovery journal was preserved.',
+          );
         }
         throw error;
       }
