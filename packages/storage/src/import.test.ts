@@ -301,7 +301,7 @@ describe('portable vault import', () => {
     });
   });
 
-  it('rejects a competing stable-ID owner created while import files are staged', async () => {
+  it('rejects a competing stable-ID owner created at atomic publication', async () => {
     const source = createInMemoryVault();
     await source.writeTextAtomic('Inbox/new.md', note('stable-id', 'incoming'));
     const base = createInMemoryVault();
@@ -312,15 +312,15 @@ describe('portable vault import', () => {
       readText: (path) => base.readText(path),
       readBinary: (path) => base.readBinary(path),
       writeTextAtomic: (path, text, condition) => base.writeTextAtomic(path, text, condition),
-      async writeBinaryAtomic(path, content, condition) {
-        const result = await base.writeBinaryAtomic(path, content, condition);
-        if (!injected && path.startsWith('.studio/import-stage/')) {
+      writeBinaryAtomic: (path, content, condition) =>
+        base.writeBinaryAtomic(path, content, condition),
+      async writeBatchAtomic(input) {
+        if (!injected) {
           injected = true;
           await base.writeTextAtomic('Archive/competing.md', note('stable-id', 'competitor'));
         }
-        return result;
+        return base.writeBatchAtomic(input);
       },
-      writeBatchAtomic: (input) => base.writeBatchAtomic(input),
       move: (from, to, condition) => base.move(from, to, condition),
       remove: (path, condition) => base.remove(path, condition),
       exists: (path) => base.exists(path),
@@ -471,27 +471,24 @@ describe('portable vault import', () => {
     expect(arrayBuffer).not.toHaveBeenCalled();
   });
 
-  it('rolls back already published files after a later write fails', async () => {
+  it('publishes no files when the adapter rejects an atomic batch', async () => {
     const source = createInMemoryVault();
     await source.writeTextAtomic('Inbox/a.md', note('a', 'new a'));
     await source.writeTextAtomic('Inbox/b.md', note('b', 'new b'));
     const base = createInMemoryVault();
     await base.writeTextAtomic('Inbox/a.md', note('a', 'old a'));
     await base.writeTextAtomic('Inbox/b.md', note('b', 'old b'));
-    let publications = 0;
     const target: VaultPort = {
       getRevision: () => base.getRevision(),
       list: (prefix) => base.list(prefix),
       readText: (path) => base.readText(path),
       readBinary: (path) => base.readBinary(path),
       writeTextAtomic: (path, text, condition) => base.writeTextAtomic(path, text, condition),
-      async writeBinaryAtomic(path, content, condition) {
-        if (!path.startsWith('.studio/import-') && ++publications === 2) {
-          throw new Error('simulated storage failure');
-        }
-        return base.writeBinaryAtomic(path, content, condition);
+      writeBinaryAtomic: (path, content, condition) =>
+        base.writeBinaryAtomic(path, content, condition),
+      async writeBatchAtomic() {
+        throw new Error('simulated storage failure');
       },
-      writeBatchAtomic: (input) => base.writeBatchAtomic(input),
       move: (from, to, condition) => base.move(from, to, condition),
       remove: (path, condition) => base.remove(path, condition),
       exists: (path) => base.exists(path),

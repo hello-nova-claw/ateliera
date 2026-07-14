@@ -1,4 +1,4 @@
-import { VaultConflictError, VaultUnavailableError } from './conflict';
+import { VaultConflictError } from './conflict';
 import { ZIP32_LIMITS, Zip32Error, parseZip32, sha256 } from './zip32';
 import {
   PORTABLE_MANIFEST_PATH,
@@ -34,6 +34,7 @@ export interface VaultImportPlan {
   manifest: PortableVaultManifest;
   items: readonly VaultImportItem[];
   readonly targetFingerprint: readonly TargetFingerprintEntry[];
+  readonly targetRevision: string;
   readonly files: ReadonlyMap<string, Uint8Array>;
 }
 
@@ -104,9 +105,11 @@ interface IncludedTargetScan {
   byPortablePath: Map<string, { path: string; hash: string; bytes: Uint8Array }>;
   byNoteId: Map<string, { path: string; hash: string; bytes: Uint8Array }>;
   fingerprint: TargetFingerprintEntry[];
+  revision: string;
 }
 
 async function scanIncludedTarget(vault: VaultPort): Promise<IncludedTargetScan> {
+  const revision = await vault.getRevision();
   const targetFiles = (await vault.list()).filter((entry) => entry.kind === 'file');
   const byPortablePath = new Map<string, { path: string; hash: string; bytes: Uint8Array }>();
   const byNoteId = new Map<string, { path: string; hash: string; bytes: Uint8Array }>();
@@ -145,7 +148,10 @@ async function scanIncludedTarget(vault: VaultPort): Promise<IncludedTargetScan>
   fingerprint.sort((left, right) =>
     left.portablePath.localeCompare(right.portablePath, 'en') ||
     left.path.localeCompare(right.path, 'en'));
-  return { byPortablePath, byNoteId, fingerprint };
+  if (await vault.getRevision() !== revision) {
+    throw new PortableVaultError('target-changed', 'The import target changed while it was being read.');
+  }
+  return { byPortablePath, byNoteId, fingerprint, revision };
 }
 
 function sameTargetFingerprint(
@@ -298,6 +304,7 @@ export async function prepareVaultImport(
     manifest,
     items,
     targetFingerprint: target.fingerprint,
+    targetRevision: target.revision,
     files: validated,
   };
 }
@@ -367,32 +374,6 @@ function assertUniquePublishedNoteIds(
   }
 }
 
-function publicStateFromFingerprint(
-  fingerprint: readonly TargetFingerprintEntry[],
-): Map<string, string> {
-  return new Map(
-    fingerprint
-      .filter((entry) => isPublicNotePath(entry.path))
-      .map((entry) => [entry.path, entry.sha256] as const),
-  );
-}
-
-function publicStateSnapshot(state: ReadonlyMap<string, string>) {
-  return [...state]
-    .map(([path, hash]) => ({ path, hash }))
-    .sort((left, right) => left.path.localeCompare(right.path, 'en'));
-}
-
-function updatePublicState(
-  state: Map<string, string>,
-  path: string,
-  hash: string | undefined,
-): void {
-  if (!isPublicNotePath(path)) return;
-  if (hash === undefined) state.delete(path);
-  else state.set(path, hash);
-}
-
 export async function applyVaultImport(
   vault: VaultPort,
   plan: VaultImportPlan,
@@ -403,16 +384,19 @@ export async function applyVaultImport(
   }
   const actions = plan.items.map((item) => ({ item, action: resolvedAction(item, options) }));
 
-  let currentFingerprint: readonly TargetFingerprintEntry[];
+  let currentTarget: IncludedTargetScan;
   try {
-    currentFingerprint = (await scanIncludedTarget(vault)).fingerprint;
+    currentTarget = await scanIncludedTarget(vault);
   } catch {
     throw new PortableVaultError('target-changed', 'The import target changed after preview.');
   }
-  if (!sameTargetFingerprint(plan.targetFingerprint, currentFingerprint)) {
+  if (
+    plan.targetRevision !== currentTarget.revision ||
+    !sameTargetFingerprint(plan.targetFingerprint, currentTarget.fingerprint)
+  ) {
     throw new PortableVaultError('target-changed', 'The import target changed after preview.');
   }
-  assertUniquePublishedNoteIds(currentFingerprint, actions, plan.files);
+  assertUniquePublishedNoteIds(currentTarget.fingerprint, actions, plan.files);
 
   for (const { item } of actions) {
     const targetPath = item.existingPath ?? item.path;
@@ -427,86 +411,32 @@ export async function applyVaultImport(
   }
 
   const mutating = actions.filter(({ action }) => action === 'create' || action === 'overwrite');
-  const publicState = publicStateFromFingerprint(currentFingerprint);
-  const stageRoot = `.studio/import-stage/${plan.id}`;
-  const backupRoot = `.studio/import-backup/${plan.id}`;
-  const cleanupPaths: string[] = [];
-  const backups = new Map<string, Uint8Array>();
-  const applied: Array<{ item: VaultImportItem; publishedHash: string }> = [];
-  const cleanup = async () => {
-    for (const path of [...cleanupPaths].reverse()) {
-      try {
-        if (await vault.exists(path)) await vault.remove(path);
-      } catch {
-        // A failed cleanup is disposable and excluded from future exports.
-      }
+  const writes = [] as Array<{
+    path: string;
+    bytes: Uint8Array;
+    expectedHash?: string;
+    expectedMissing?: true;
+  }>;
+  for (const { item, action } of mutating) {
+    const content = plan.files.get(item.path);
+    if (content === undefined || await sha256(content) !== item.sha256) {
+      throw new PortableVaultError('checksum-failed', `Import plan checksum failed for ${item.path}.`);
     }
-  };
-
+    const path = action === 'overwrite' ? item.existingPath ?? item.path : item.path;
+    writes.push(action === 'create'
+      ? { path, bytes: content, expectedMissing: true }
+      : { path, bytes: content, expectedHash: item.expectedHash as string });
+  }
   try {
-    for (const { item, action } of mutating) {
-      const content = plan.files.get(item.path);
-      if (content === undefined || await sha256(content) !== item.sha256) {
-        throw new PortableVaultError('checksum-failed', `Import plan checksum failed for ${item.path}.`);
-      }
-      const stagePath = `${stageRoot}/${item.path}`;
-      await vault.writeBinaryAtomic(stagePath, content, { expectedMissing: true });
-      cleanupPaths.push(stagePath);
-      if (action === 'overwrite') {
-        const targetPath = item.existingPath ?? item.path;
-        const previous = await vault.readBinary(targetPath);
-        backups.set(targetPath, previous);
-        const backupPath = `${backupRoot}/${item.path}`;
-        await vault.writeBinaryAtomic(backupPath, previous, { expectedMissing: true });
-        cleanupPaths.push(backupPath);
-      }
-    }
-    for (const { item, action } of mutating) {
-      const targetPath = action === 'overwrite' ? item.existingPath ?? item.path : item.path;
-      const result = await vault.writeBinaryAtomic(
-        targetPath,
-        await vault.readBinary(`${stageRoot}/${item.path}`),
-        action === 'create'
-          ? { expectedMissing: true, expectedUserState: publicStateSnapshot(publicState) }
-          : {
-              expectedHash: item.expectedHash as string,
-              expectedUserState: publicStateSnapshot(publicState),
-            },
-      );
-      applied.push({ item: { ...item, existingPath: targetPath }, publishedHash: result.hash });
-      updatePublicState(publicState, targetPath, result.hash);
+    if (writes.length > 0) {
+      await vault.writeBatchAtomic({ expectedRevision: currentTarget.revision, writes });
     }
   } catch (error) {
-    for (const { item, publishedHash } of [...applied].reverse()) {
-      const targetPath = item.existingPath ?? item.path;
-      const prior = backups.get(targetPath);
-      try {
-        if (prior === undefined) {
-          await vault.remove(targetPath, {
-            expectedHash: publishedHash,
-            expectedUserState: publicStateSnapshot(publicState),
-          });
-          updatePublicState(publicState, targetPath, undefined);
-        } else {
-          await vault.writeBinaryAtomic(targetPath, prior, {
-            expectedHash: publishedHash,
-            expectedUserState: publicStateSnapshot(publicState),
-          });
-          updatePublicState(publicState, targetPath, item.expectedHash);
-        }
-      } catch {
-        throw new VaultUnavailableError(
-          `Import failed and rollback could not restore ${targetPath}. Backups remain in ${backupRoot}.`,
-        );
-      }
-    }
-    await cleanup();
     if (error instanceof VaultConflictError) {
       throw new PortableVaultError('target-changed', 'The target changed while the import was being applied.');
     }
     throw error;
   }
-  await cleanup();
   return {
     created: actions.filter(({ action }) => action === 'create').length,
     overwritten: actions.filter(({ action }) => action === 'overwrite').length,
