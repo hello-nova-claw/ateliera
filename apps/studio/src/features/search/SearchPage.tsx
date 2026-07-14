@@ -152,6 +152,11 @@ function SearchResult({
         <HighlightedText ranges={hit.highlightRanges} text={hit.snippet} />
       </p>
       <p className="search-result__reason">{reason}</p>
+      {hit.matchContext && (
+        <p className="search-result__context">
+          {hit.matchContext.field === 'tags' ? 'Tag' : 'Source'} · {hit.matchContext.text}
+        </p>
+      )}
     </article>
   );
 }

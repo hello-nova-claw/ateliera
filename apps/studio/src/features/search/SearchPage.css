@@ -188,11 +188,13 @@
 }
 
 .search-result h2 button {
+  max-inline-size: 100%;
   padding: 0;
   border: 0;
   color: var(--studio-color-ink-strong);
   background: transparent;
   font: inherit;
+  overflow-wrap: anywhere;
   text-align: start;
   cursor: pointer;
 }
@@ -214,6 +216,13 @@
   margin: var(--studio-space-3) 0 0;
   color: var(--studio-color-ink-muted);
   font: var(--studio-type-metadata);
+}
+
+.search-result__context {
+  margin: var(--studio-space-2) 0 0;
+  color: var(--studio-color-ink-soft);
+  font: var(--studio-type-metadata);
+  overflow-wrap: anywhere;
 }
 
 .search-page__search input:focus-visible,
