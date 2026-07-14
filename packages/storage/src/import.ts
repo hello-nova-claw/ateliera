@@ -102,17 +102,23 @@ function assertManifestOrder(manifest: PortableVaultManifest): void {
 }
 
 interface IncludedTargetScan {
-  byPortablePath: Map<string, { path: string; hash: string; bytes: Uint8Array }>;
-  byNoteId: Map<string, { path: string; hash: string; bytes: Uint8Array }>;
+  byPortablePath: Map<string, ScannedTarget>;
+  byNoteId: Map<string, ScannedTarget>;
   fingerprint: TargetFingerprintEntry[];
   revision: string;
+}
+
+interface ScannedTarget {
+  path: string;
+  hash: string;
+  noteId?: string;
 }
 
 async function scanIncludedTarget(vault: VaultPort): Promise<IncludedTargetScan> {
   const revision = await vault.getRevision();
   const targetFiles = (await vault.list()).filter((entry) => entry.kind === 'file');
-  const byPortablePath = new Map<string, { path: string; hash: string; bytes: Uint8Array }>();
-  const byNoteId = new Map<string, { path: string; hash: string; bytes: Uint8Array }>();
+  const byPortablePath = new Map<string, ScannedTarget>();
+  const byNoteId = new Map<string, ScannedTarget>();
   const fingerprint: TargetFingerprintEntry[] = [];
   for (const entry of targetFiles) {
     if (exportDisposition(entry.path) !== 'include') continue;
@@ -122,15 +128,33 @@ async function scanIncludedTarget(vault: VaultPort): Promise<IncludedTargetScan>
     } catch {
       continue;
     }
-    const bytes = await vault.readBinary(entry.path);
-    const hash = await sha256(bytes);
+    if (!Number.isSafeInteger(entry.size) || (entry.size as number) < 0 ||
+      typeof entry.contentHash !== 'string' || !/^[a-f0-9]{64}$/.test(entry.contentHash)) {
+      throw new PortableVaultError('target-changed', `Target metadata is incomplete for ${entry.path}.`);
+    }
+    const hash = entry.contentHash;
+    let noteId: string | undefined;
+    if (isPublicNotePath(entry.path)) {
+      if ((entry.size as number) > ZIP32_LIMITS.maxEntryBytes) {
+        throw new PortableVaultError('archive-too-large', `The target note exceeds 64 MiB: ${entry.path}.`);
+      }
+      const bytes = await vault.readBinary(entry.path);
+      if (bytes.byteLength > ZIP32_LIMITS.maxEntryBytes || bytes.byteLength !== entry.size ||
+        await sha256(bytes) !== hash) {
+        throw new PortableVaultError('target-changed', `The target changed while reading ${entry.path}.`);
+      }
+      noteId = extractNoteId(entry.path, bytes);
+    }
     const key = portablePathKey(path);
     if (byPortablePath.has(key)) {
       throw new PortableVaultError('path-collision', 'The target contains case- or Unicode-colliding paths.');
     }
-    const target = { path: entry.path, hash, bytes };
+    const target: ScannedTarget = {
+      path: entry.path,
+      hash,
+      ...(noteId === undefined ? {} : { noteId }),
+    };
     byPortablePath.set(key, target);
-    const noteId = extractNoteId(entry.path, bytes);
     if (noteId !== undefined) {
       const previous = byNoteId.get(noteId);
       if (previous !== undefined && previous.path !== entry.path) {
@@ -280,7 +304,7 @@ export async function prepareVaultImport(
       items.push({ action: 'skip', ...descriptor, expectedHash: existing.hash });
       continue;
     }
-    const existingNoteId = extractNoteId(existing.path, existing.bytes);
+    const existingNoteId = existing.noteId;
     const portablePathConflict = existing.path !== descriptor.path;
     const noteIdConflict = pathTarget !== undefined && incomingNoteId !== undefined &&
       existingNoteId !== undefined && incomingNoteId !== existingNoteId;
@@ -397,18 +421,6 @@ export async function applyVaultImport(
     throw new PortableVaultError('target-changed', 'The import target changed after preview.');
   }
   assertUniquePublishedNoteIds(currentTarget.fingerprint, actions, plan.files);
-
-  for (const { item } of actions) {
-    const targetPath = item.existingPath ?? item.path;
-    const exists = await vault.exists(targetPath);
-    if (item.action === 'create') {
-      if (exists) throw new PortableVaultError('target-changed', `The import target changed: ${item.path}.`);
-      continue;
-    }
-    if (!exists || await sha256(await vault.readBinary(targetPath)) !== item.expectedHash) {
-      throw new PortableVaultError('target-changed', `The import target changed: ${item.path}.`);
-    }
-  }
 
   const mutating = actions.filter(({ action }) => action === 'create' || action === 'overwrite');
   const writes = [] as Array<{

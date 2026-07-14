@@ -471,6 +471,108 @@ describe('portable vault import', () => {
     expect(arrayBuffer).not.toHaveBeenCalled();
   });
 
+  it('uses listing metadata for multi-gigabyte unrelated assets without reading them', async () => {
+    const source = createInMemoryVault();
+    await source.writeTextAtomic('Inbox/new.md', note('new', 'incoming'));
+    const base = createInMemoryVault();
+    const readBinary = vi.fn(async (path: string) => {
+      if (path === 'Attachments/multi-gigabyte.bin') throw new Error('must not read huge asset');
+      return base.readBinary(path);
+    });
+    const target: VaultPort = {
+      getRevision: () => base.getRevision(),
+      async list(prefix) {
+        return [
+          ...await base.list(prefix),
+          {
+            path: 'Attachments/multi-gigabyte.bin',
+            kind: 'file' as const,
+            size: 5 * 1024 * 1024 * 1024,
+            contentHash: 'a'.repeat(64),
+          },
+        ];
+      },
+      readText: (path) => base.readText(path),
+      readBinary,
+      writeTextAtomic: (path, text, condition) => base.writeTextAtomic(path, text, condition),
+      writeBinaryAtomic: (path, bytes, condition) => base.writeBinaryAtomic(path, bytes, condition),
+      writeBatchAtomic: (input) => base.writeBatchAtomic(input),
+      move: (from, to, condition) => base.move(from, to, condition),
+      remove: (path, condition) => base.remove(path, condition),
+      exists: (path) => base.exists(path),
+      watch: (listener) => base.watch(listener),
+    };
+
+    const plan = await prepareVaultImport(target, await exportVault(source));
+    expect(readBinary).not.toHaveBeenCalledWith('Attachments/multi-gigabyte.bin');
+    expect(plan.targetFingerprint).toContainEqual({
+      path: 'Attachments/multi-gigabyte.bin',
+      portablePath: 'attachments/multi-gigabyte.bin',
+      sha256: 'a'.repeat(64),
+    });
+  });
+
+  it('rejects an oversized colliding target note from metadata before reading it', async () => {
+    const source = createInMemoryVault();
+    await source.writeTextAtomic('Inbox/huge.md', note('incoming', 'incoming'));
+    const base = createInMemoryVault();
+    const readBinary = vi.fn(async () => {
+      throw new Error('oversized note must be rejected before read');
+    });
+    const target: VaultPort = {
+      getRevision: () => base.getRevision(),
+      list: async () => [{
+        path: 'Inbox/huge.md',
+        kind: 'file',
+        size: 64 * 1024 * 1024 + 1,
+        contentHash: 'b'.repeat(64),
+      }],
+      readText: (path) => base.readText(path),
+      readBinary,
+      writeTextAtomic: (path, text, condition) => base.writeTextAtomic(path, text, condition),
+      writeBinaryAtomic: (path, bytes, condition) => base.writeBinaryAtomic(path, bytes, condition),
+      writeBatchAtomic: (input) => base.writeBatchAtomic(input),
+      move: (from, to, condition) => base.move(from, to, condition),
+      remove: (path, condition) => base.remove(path, condition),
+      exists: (path) => base.exists(path),
+      watch: (listener) => base.watch(listener),
+    };
+
+    await expect(prepareVaultImport(target, await exportVault(source))).rejects.toMatchObject({
+      code: 'archive-too-large',
+    });
+    expect(readBinary).not.toHaveBeenCalled();
+  });
+
+  it('never rereads existing asset bytes during preview or apply revalidation', async () => {
+    const source = createInMemoryVault();
+    await source.writeBinaryAtomic('Attachments/image.bin', new Uint8Array([4, 5, 6]));
+    const base = createInMemoryVault();
+    await base.writeBinaryAtomic('Attachments/image.bin', new Uint8Array([1, 2, 3]));
+    const readBinary = vi.fn((path: string) => base.readBinary(path));
+    const target: VaultPort = {
+      getRevision: () => base.getRevision(),
+      list: (prefix) => base.list(prefix),
+      readText: (path) => base.readText(path),
+      readBinary,
+      writeTextAtomic: (path, text, condition) => base.writeTextAtomic(path, text, condition),
+      writeBinaryAtomic: (path, bytes, condition) => base.writeBinaryAtomic(path, bytes, condition),
+      writeBatchAtomic: (input) => base.writeBatchAtomic(input),
+      move: (from, to, condition) => base.move(from, to, condition),
+      remove: (path, condition) => base.remove(path, condition),
+      exists: (path) => base.exists(path),
+      watch: (listener) => base.watch(listener),
+    };
+
+    const plan = await prepareVaultImport(target, await exportVault(source));
+    await expect(applyVaultImport(target, plan, { confirm: true })).resolves.toEqual({
+      created: 0,
+      overwritten: 1,
+      skipped: 0,
+    });
+    expect(readBinary).not.toHaveBeenCalled();
+  });
+
   it('publishes no files when the adapter rejects an atomic batch', async () => {
     const source = createInMemoryVault();
     await source.writeTextAtomic('Inbox/a.md', note('a', 'new a'));
