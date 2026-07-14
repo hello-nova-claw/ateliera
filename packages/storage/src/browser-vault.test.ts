@@ -662,6 +662,40 @@ describe('OPFS crash recovery', () => {
     }
   });
 
+  it('rejects an oversized atomic overwrite before opening any target body or mutating peers', async () => {
+    const opfs = new MemoryOpfs();
+    const name = 'oversized-atomic-overwrite';
+    const root = `the-studio/${name}`;
+    const hugePath = `${root}/Attachments/huge.bin`;
+    opfs.putVirtual(hugePath, 5 * 1024 * 1024 * 1024);
+    opfs.put(`${root}/.studio-revision`, '0');
+    vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
+    try {
+      const vault = createBrowserVault(name, { storage: 'opfs' });
+      await expect(vault.writeBatchAtomic({
+        expectedRevision: '0',
+        writes: [
+          {
+            path: 'Inbox/new.md',
+            bytes: new TextEncoder().encode('must not publish'),
+            expectedMissing: true,
+          },
+          {
+            path: 'Attachments/huge.bin',
+            bytes: new Uint8Array([1, 2, 3]),
+          },
+        ],
+      })).rejects.toBeInstanceOf(VaultUnavailableError);
+      expect(opfs.arrayBufferReads).not.toContain(hugePath);
+      expect(opfs.virtualSizes.get(hugePath)).toBe(5 * 1024 * 1024 * 1024);
+      expect(opfs.files.has(`${root}/Inbox/new.md`)).toBe(false);
+      expect(opfs.text(`${root}/.studio-revision`)).toBe('0');
+      expect([...opfs.files.keys()].some((file) => file.includes('.studio-opfs-batch'))).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('holds the public vault lock for recovery so a live reader cannot observe a partial state', async () => {
     const opfs = new MemoryOpfs();
     const name = 'crash-live-reader';
