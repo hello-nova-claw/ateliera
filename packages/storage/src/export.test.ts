@@ -5,6 +5,7 @@ import { exportVault } from './export';
 import { importVault } from './import';
 import type { VaultPort } from './vault-port';
 import { parseZip32, sha256 } from './zip32';
+import { VaultUnavailableError } from './conflict';
 
 async function snapshot(vault: ReturnType<typeof createInMemoryVault>) {
   const files = (await vault.list()).filter((entry) => entry.kind === 'file');
@@ -134,6 +135,30 @@ describe('portable vault export', () => {
       size: 0,
     })));
     await expect(exportVault(vault)).rejects.toMatchObject({ code: 'archive-too-large' });
+    expect(readBinary).not.toHaveBeenCalled();
+  });
+
+  it('uses the bounded primitive when a listed source grows before capture', async () => {
+    const readBinary = vi.fn(async () => new Uint8Array([1]));
+    const readBinaryBounded = vi.fn(async () => {
+      throw new VaultUnavailableError('The source grew beyond 64 MiB.');
+    });
+    const vault = {
+      getRevision: vi.fn(async () => '0'),
+      list: vi.fn(async () => [{
+        kind: 'file' as const,
+        path: 'Attachments/growing.bin',
+        size: 1,
+      }]),
+      readBinary,
+      readBinaryBounded,
+    } as unknown as VaultPort;
+
+    await expect(exportVault(vault)).rejects.toMatchObject({ code: 'source-changed' });
+    expect(readBinaryBounded).toHaveBeenCalledWith(
+      'Attachments/growing.bin',
+      64 * 1024 * 1024,
+    );
     expect(readBinary).not.toHaveBeenCalled();
   });
 
