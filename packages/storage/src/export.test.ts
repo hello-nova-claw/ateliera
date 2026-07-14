@@ -154,7 +154,11 @@ describe('portable vault export', () => {
       readBinaryBounded,
     } as unknown as VaultPort;
 
-    await expect(exportVault(vault)).rejects.toMatchObject({ code: 'source-changed' });
+    await expect(exportVault(vault)).rejects.toMatchObject({
+      code: 'source-changed',
+      message:
+        'The Studio changed while the backup was being created. Nothing was exported; try again.',
+    });
     expect(readBinaryBounded).toHaveBeenCalledWith(
       'Attachments/growing.bin',
       64 * 1024 * 1024,

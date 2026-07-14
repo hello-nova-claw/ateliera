@@ -14,7 +14,7 @@ import {
   type StudioCommand,
 } from '@studio/ui';
 import type { BrowserPersistenceStatus } from '@studio/storage/browser';
-import type { VaultPort } from '@studio/storage/portable';
+import { VaultConflictError, type VaultPort } from '@studio/storage/portable';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { StudioProviders } from './providers';
 import {
@@ -445,6 +445,12 @@ function StudioApplication({
       setCreateOpen(false);
       finishOnboarding();
     } catch (reason) {
+      if (isNativeShell() && reason instanceof VaultConflictError) {
+        setCreateError(
+          `A Studio named “${name.trim()}” already exists there. Choose another location or name, or open the existing Studio.`,
+        );
+        return;
+      }
       setCreateError(
         isNativeShell()
           ? 'Your Studio couldn’t be created. Choose another location or try again.'

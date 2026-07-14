@@ -15,6 +15,7 @@ import {
 } from '@studio/application';
 import { defaultLifeAreas, type StudioNote } from '@studio/domain';
 import type { VaultPort } from '@studio/storage/portable';
+import { VaultConflictError } from '@studio/storage/portable';
 import { StrictMode } from 'react';
 import { afterEach, vi } from 'vitest';
 import { App } from './App';
@@ -555,6 +556,25 @@ it('uses calm Studio language when native creation cannot finish', async () => {
     'Your Studio couldn’t be created. Choose another location or try again.',
   );
   expect(alert).not.toHaveTextContent(/vault/i);
+});
+
+it('explains when a named native Studio already exists', async () => {
+  Object.defineProperty(window, '__TAURI_INTERNALS__', {
+    configurable: true,
+    value: {},
+  });
+  createTauriStudio.mockRejectedValue(new VaultConflictError());
+
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: 'Create a Studio' }));
+  fireEvent.change(screen.getByLabelText('Studio name'), {
+    target: { value: 'Anna’s Studio' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /^Create$/ }));
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'A Studio named “Anna’s Studio” already exists there. Choose another location or name, or open the existing Studio.',
+  );
 });
 
 it('starts, subscribes, and reprojects the active Studio without leaking its subscription', async () => {

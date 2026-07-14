@@ -453,7 +453,7 @@ class BrowserVault implements VaultPort {
       return { text: decoder.decode(file.bytes), hash: file.hash };
     } catch {
       throw new VaultUnavailableError(
-        'The requested vault entry is not valid UTF-8 text.',
+        'The requested Studio file is not valid UTF-8 text.',
       );
     }
   }
@@ -487,7 +487,7 @@ class BrowserVault implements VaultPort {
         : await store.readBounded(validPath, maximumBytes);
       if (file === undefined) throw new VaultUnavailableError();
       if (file.bytes.byteLength > maximumBytes) {
-        throw new VaultUnavailableError('The vault entry exceeds the bounded read limit.');
+        throw new VaultUnavailableError('The Studio file exceeds the bounded read limit.');
       }
       return { bytes: file.bytes.slice(), hash: file.hash };
     });
@@ -776,7 +776,7 @@ async function verifiedIndexedDbRecord(
   expectedKey?: string,
 ): Promise<readonly [string, StoredBrowserFile]> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new VaultUnavailableError('The IndexedDB vault contains an invalid file record.');
+    throw new VaultUnavailableError('The local Studio contains an invalid file record.');
   }
   const record = value as Record<string, unknown>;
   if (!hasExactKeys(record, ['bytes', 'hash', 'key', 'modifiedAt', 'path', 'vault']) ||
@@ -790,19 +790,19 @@ async function verifiedIndexedDbRecord(
     record.vault !== expectedVault ||
     record.key !== `${expectedVault}\u0000${record.path}` ||
     (expectedKey !== undefined && record.key !== expectedKey)) {
-    throw new VaultUnavailableError('The IndexedDB vault contains an invalid file record.');
+    throw new VaultUnavailableError('The local Studio contains an invalid file record.');
   }
   try {
     if (validatePath(record.path) !== record.path) {
-      throw new VaultUnavailableError('The IndexedDB vault contains an invalid file record.');
+      throw new VaultUnavailableError('The local Studio contains an invalid file record.');
     }
   } catch (error) {
     if (error instanceof VaultUnavailableError) throw error;
-    throw new VaultUnavailableError('The IndexedDB vault contains an invalid file record.');
+    throw new VaultUnavailableError('The local Studio contains an invalid file record.');
   }
   const bytes = new Uint8Array(record.bytes.slice(0));
   if (await digest(bytes) !== record.hash) {
-    throw new VaultUnavailableError('The IndexedDB vault contains a corrupt file record.');
+    throw new VaultUnavailableError('The local Studio contains a corrupt file record.');
   }
   return [
     record.path,
@@ -1194,7 +1194,7 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
       const after = await optionalFileMetadata(path);
       if (file === undefined || after === undefined ||
         !sameFileMetadata(before, after) || file.bytes.byteLength !== after.size) {
-        throw new VaultConflictError('A vault entry changed during atomic preflight.');
+        throw new VaultConflictError('A Studio file changed during atomic preflight.');
       }
       files.set(path, file);
     }
@@ -1203,7 +1203,7 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
       const after = await optionalFileMetadata(path);
       if (before === undefined ? after !== undefined :
         after === undefined || !sameFileMetadata(before, after)) {
-        throw new VaultConflictError('A vault entry changed during atomic preflight.');
+        throw new VaultConflictError('A Studio file changed during atomic preflight.');
       }
     }
     return files;
@@ -1222,20 +1222,20 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
       throw error;
     }
     if (before.size > maximumBytes) {
-      throw new VaultUnavailableError('The vault entry exceeds the bounded read limit.');
+      throw new VaultUnavailableError('The Studio file exceeds the bounded read limit.');
     }
     const file = await readFile(path, maximumBytes);
     if (file === undefined) return undefined;
     const after = await fileMetadata(path);
     if (!sameFileMetadata(before, after) || file.bytes.byteLength !== after.size ||
       await getRevision() !== revision) {
-      throw new VaultConflictError('The vault entry changed during its bounded read.');
+      throw new VaultConflictError('The Studio file changed during its bounded read.');
     }
     await writeObservedFileMetadata(path, file, after);
     const verified = await fileMetadata(path);
     if (!sameFileMetadata(after, verified) || await getRevision() !== revision) {
       await removeFileMetadata(path);
-      throw new VaultConflictError('The vault entry changed while healing its metadata.');
+      throw new VaultConflictError('The Studio file changed while healing its metadata.');
     }
     return file;
   }
@@ -1292,7 +1292,7 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
     if (revision === undefined) return '0';
     const value = decoder.decode(revision.bytes);
     if (!/^(?:0|[1-9][0-9]*)$/.test(value)) {
-      throw new VaultUnavailableError('The browser vault revision is invalid.');
+      throw new VaultUnavailableError('The local Studio revision is invalid.');
     }
     return value;
   }
@@ -1346,7 +1346,7 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
       if (!matchesJournalState(current, entry.before) &&
         !matchesJournalState(current, entry.after)) {
         throw new VaultConflictError(
-          'A vault entry changed outside the interrupted OPFS batch.',
+          'A Studio file changed outside the interrupted OPFS batch.',
         );
       }
     }
@@ -1445,7 +1445,7 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
         if (mutation.expectedBefore !== undefined &&
           !matchesExpectedFile(before, mutation.expectedBefore)) {
           throw new VaultConflictError(
-            'A vault entry changed after its write condition was validated.',
+            'A Studio file changed after its write condition was validated.',
           );
         }
         const after = mutation.kind === 'write' ? cloneFile(mutation.file) : undefined;
@@ -1513,7 +1513,7 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
             expectedFile(entry.before),
           )) {
             throw new VaultConflictError(
-              'A vault entry changed before atomic publication.',
+              'A Studio file changed before atomic publication.',
             );
           }
         }
@@ -1542,7 +1542,7 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
           else await removeJournal();
         } catch {
           throw new VaultUnavailableError(
-            'The browser vault batch failed and its recovery journal was preserved.',
+            'The local Studio update failed and its recovery journal was preserved.',
           );
         }
         throw error;
@@ -1622,7 +1622,7 @@ export function createBrowserVault(
   name: string,
   options: BrowserVaultOptions = {},
 ): VaultPort {
-  if (name.trim() === '') throw new VaultUnavailableError('A vault name is required.');
+  if (name.trim() === '') throw new VaultUnavailableError('A Studio name is required.');
   const storePromise =
     options.store === undefined
       ? withVaultLock(

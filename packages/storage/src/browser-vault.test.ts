@@ -12,6 +12,12 @@ import * as browserApi from './browser-vault';
 import * as storageApi from './index';
 import { VaultConflictError, VaultUnavailableError } from './conflict';
 
+describe('user-facing terminology', () => {
+  it('describes the named workspace as a Studio', () => {
+    expect(() => createBrowserVault('')).toThrow('A Studio name is required.');
+  });
+});
+
 class MemoryOpfs {
   readonly files = new Map<string, Uint8Array>();
   readonly virtualSizes = new Map<string, number>();

@@ -41,7 +41,7 @@ interface CapturedExportEntry {
 function sourceChanged(): PortableVaultError {
   return new PortableVaultError(
     'source-changed',
-    'The vault changed while the backup was being created. Nothing was exported; try again.',
+    'The Studio changed while the backup was being created. Nothing was exported; try again.',
   );
 }
 
