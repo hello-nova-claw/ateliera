@@ -13,6 +13,7 @@
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build -o artifacts/storybook",
     "test": "vitest run",
+    "test:security": "vitest run packages/content/src/render-markdown.test.ts packages/application/src/diagnostics.test.ts apps/studio/src/app/security-config.test.ts",
     "tauri:build": "cd apps/studio/src-tauri && RUSTUP_HOME=../../../.toolchains/rustup CARGO_HOME=../../../.toolchains/cargo ../../../.toolchains/cargo/bin/cargo build --bin studio-desktop",
     "tauri:test": "cd apps/studio/src-tauri && RUSTUP_HOME=../../../.toolchains/rustup CARGO_HOME=../../../.toolchains/cargo ../../../.toolchains/cargo/bin/cargo test",
     "test:e2e": "env -u NO_COLOR playwright test",
