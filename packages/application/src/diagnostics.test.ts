@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   buildDiagnostics,
@@ -84,6 +84,48 @@ describe('content-redacted diagnostics', () => {
     expect(invalidTime.entries).toEqual([]);
   });
 
+  it('never evaluates accessor-backed, inherited, or hostile proxy entry fields', () => {
+    const privatePath = '/Users/anna/PRIVATE-diagnostic.md';
+    const getter = vi.fn(() => 'save');
+    const inherited = Object.create({ operation: 'save' }) as Record<string, unknown>;
+    inherited.occurredAt = '2026-07-14T03:03:05.000Z';
+    inherited.outcome = 'ok';
+    const accessor = {
+      get operation() {
+        return getter();
+      },
+      occurredAt: '2026-07-14T03:03:05.000Z',
+      outcome: 'ok',
+      path: privatePath,
+    };
+    const hostile = new Proxy({}, {
+      ownKeys() {
+        throw new Error(privatePath);
+      },
+    });
+
+    const report = buildDiagnostics({ generatedAt, entries: [accessor, inherited, hostile] });
+
+    expect(report.entries).toEqual([]);
+    expect(getter).not.toHaveBeenCalled();
+    expect(JSON.stringify(report)).not.toContain(privatePath);
+  });
+
+  it('snapshots top-level data properties without evaluating getters twice', () => {
+    const privatePath = '/Users/anna/PRIVATE-generated-at';
+    let calls = 0;
+    const input = {
+      get generatedAt() {
+        calls += 1;
+        return calls === 1 ? generatedAt : privatePath;
+      },
+      entries: [],
+    };
+
+    expect(() => buildDiagnostics(input)).toThrow('Invalid diagnostics input.');
+    expect(calls).toBe(0);
+  });
+
   it('fails closed when report metadata is malformed', () => {
     expect(() => buildDiagnostics({ generatedAt: 'private words', entries: [] })).toThrow(
       'Invalid diagnostics input.',
@@ -91,6 +133,10 @@ describe('content-redacted diagnostics', () => {
     expect(() => buildDiagnostics({ generatedAt, entries: null as never })).toThrow(
       'Invalid diagnostics input.',
     );
+    expect(() => buildDiagnostics({
+      generatedAt,
+      entries: Array.from({ length: 10_001 }),
+    })).toThrow('Invalid diagnostics input.');
   });
 
   it('extracts only an own, technical error code and never an error message or stack', () => {

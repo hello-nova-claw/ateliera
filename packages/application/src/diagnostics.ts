@@ -14,6 +14,7 @@ const diagnosticOperationValues = [
   'watcher',
 ] as const;
 const diagnosticOperations = new Set<string>(diagnosticOperationValues);
+const maximumDiagnosticEntries = 10_000;
 
 const diagnosticErrorCodes = new Set([
   'active-content',
@@ -94,8 +95,39 @@ export interface DiagnosticsRecorder {
 const noteIdPattern = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 const sha256Pattern = /^[a-f0-9]{64}$/;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+type DataProperties = Record<string, PropertyDescriptor>;
+
+function dataProperties(value: unknown): DataProperties | undefined {
+  try {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+    return Object.getOwnPropertyDescriptors(value);
+  } catch {
+    return undefined;
+  }
+}
+
+function dataValue(properties: DataProperties, key: string): unknown {
+  const descriptor = properties[key];
+  return descriptor !== undefined && Object.hasOwn(descriptor, 'value')
+    ? descriptor.value
+    : undefined;
+}
+
+function snapshotArray(value: unknown): unknown[] | undefined {
+  try {
+    if (!Array.isArray(value)) return undefined;
+    const properties = Object.getOwnPropertyDescriptors(value);
+    const length = dataValue(properties, 'length');
+    if (
+      typeof length !== 'number' ||
+      !Number.isSafeInteger(length) ||
+      length < 0 ||
+      length > maximumDiagnosticEntries
+    ) return undefined;
+    return Array.from({ length }, (_, index) => dataValue(properties, String(index)));
+  } catch {
+    return undefined;
+  }
 }
 
 function isIsoInstant(value: unknown): value is string {
@@ -130,25 +162,29 @@ function safeMeasure(value: unknown, integer: boolean): number | undefined {
 }
 
 function sanitizeEntry(input: unknown): DiagnosticEntry | undefined {
-  if (!isRecord(input)) return undefined;
+  const properties = dataProperties(input);
+  if (properties === undefined) return undefined;
+  const operation = dataValue(properties, 'operation');
+  const occurredAt = dataValue(properties, 'occurredAt');
+  const outcome = dataValue(properties, 'outcome');
   if (
-    typeof input.operation !== 'string' ||
-    !diagnosticOperations.has(input.operation) ||
-    !isIsoInstant(input.occurredAt) ||
-    (input.outcome !== 'ok' && input.outcome !== 'error')
+    typeof operation !== 'string' ||
+    !diagnosticOperations.has(operation) ||
+    !isIsoInstant(occurredAt) ||
+    (outcome !== 'ok' && outcome !== 'error')
   ) return undefined;
 
   const entry: DiagnosticEntry = {
-    operation: input.operation as DiagnosticOperation,
-    occurredAt: input.occurredAt,
-    outcome: input.outcome,
+    operation: operation as DiagnosticOperation,
+    occurredAt,
+    outcome,
   };
-  const durationMs = safeMeasure(input.durationMs, false);
-  const errorCode = safeTechnicalCode(input.errorCode);
-  const fileId = safeIdentifier(input.fileId);
-  const fileHash = safeHash(input.fileHash);
-  const itemCount = safeMeasure(input.itemCount, true);
-  const byteCount = safeMeasure(input.byteCount, true);
+  const durationMs = safeMeasure(dataValue(properties, 'durationMs'), false);
+  const errorCode = safeTechnicalCode(dataValue(properties, 'errorCode'));
+  const fileId = safeIdentifier(dataValue(properties, 'fileId'));
+  const fileHash = safeHash(dataValue(properties, 'fileHash'));
+  const itemCount = safeMeasure(dataValue(properties, 'itemCount'), true);
+  const byteCount = safeMeasure(dataValue(properties, 'byteCount'), true);
 
   if (durationMs !== undefined) entry.durationMs = durationMs;
   if (errorCode !== undefined) entry.errorCode = errorCode;
@@ -160,22 +196,27 @@ function sanitizeEntry(input: unknown): DiagnosticEntry | undefined {
 }
 
 export function diagnosticsErrorCode(error: unknown): string {
-  if (!isRecord(error) || !Object.hasOwn(error, 'code')) return 'unexpected-error';
-  return safeTechnicalCode(error.code) ?? 'unexpected-error';
+  const properties = dataProperties(error);
+  if (properties === undefined) return 'unexpected-error';
+  return safeTechnicalCode(dataValue(properties, 'code')) ?? 'unexpected-error';
 }
 
 export function buildDiagnostics(input: DiagnosticsInput): DiagnosticsReport {
-  if (!isIsoInstant(input.generatedAt) || !Array.isArray(input.entries)) {
+  const properties = dataProperties(input);
+  const generatedAt = properties === undefined ? undefined : dataValue(properties, 'generatedAt');
+  const entriesInput = properties === undefined ? undefined : dataValue(properties, 'entries');
+  const inputEntries = snapshotArray(entriesInput);
+  if (!isIsoInstant(generatedAt) || inputEntries === undefined) {
     throw new Error('Invalid diagnostics input.');
   }
   const entries: DiagnosticEntry[] = [];
-  for (const candidate of input.entries) {
+  for (const candidate of inputEntries) {
     const entry = sanitizeEntry(candidate);
     if (entry !== undefined) entries.push(entry);
   }
   return {
     schemaVersion: 1,
-    generatedAt: input.generatedAt,
+    generatedAt,
     privacy: {
       contentIncluded: false,
       errorMessagesIncluded: false,
@@ -192,7 +233,7 @@ export function createDiagnosticsRecorder(
   if (
     !Number.isSafeInteger(options.maximumEntries) ||
     options.maximumEntries < 1 ||
-    options.maximumEntries > 10_000
+    options.maximumEntries > maximumDiagnosticEntries
   ) throw new Error('Invalid diagnostics retention limit.');
 
   let retained: DiagnosticEntry[] = [];
