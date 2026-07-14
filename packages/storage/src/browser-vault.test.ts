@@ -735,6 +735,7 @@ describe('OPFS crash recovery', () => {
     const name = 'atomic-condition-creation-race';
     const root = `the-studio/${name}`;
     const target = `${root}/Inbox/new.md`;
+    opfs.put(`${root}/Inbox/.keep`, 'directory sentinel');
     opfs.put(`${root}/.studio-revision`, '0');
     let targetLookups = 0;
     opfs.beforeFileLookup = (path) => {
