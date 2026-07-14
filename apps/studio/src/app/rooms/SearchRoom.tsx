@@ -53,18 +53,23 @@ export default function SearchRoom({
   const [repairState, setRepairState] = useState<'ready' | 'loading' | 'error'>('ready');
   const [repairError, setRepairError] = useState<string>();
   const requestedInspection = useRef<string | undefined>(undefined);
+  const inspectionRequest = useRef(0);
 
   async function inspect(id: string): Promise<void> {
     if (!searchService) return;
+    const request = inspectionRequest.current + 1;
+    inspectionRequest.current = request;
     requestedInspection.current = id;
     setInspectorOpen(true);
     setInspectorState('loading');
     setInspectorError(undefined);
     try {
       const next = await searchService.inspect(id);
+      if (inspectionRequest.current !== request) return;
       setInspection(next);
       setInspectorState(next ? (online ? 'ready' : 'offline') : 'missing');
     } catch (reason) {
+      if (inspectionRequest.current !== request) return;
       setInspectorError(
         reason instanceof Error ? reason.message : 'This note could not be opened.',
       );
