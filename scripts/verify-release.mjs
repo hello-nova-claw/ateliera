@@ -103,6 +103,15 @@ try {
   // A gate can fail before Playwright creates evidence. The manifest records it.
 }
 
+try {
+  await cp(resolve(root, 'artifacts/visual'), resolve(evidence, 'visual'), {
+    force: true,
+    recursive: true,
+  });
+} catch {
+  // A gate can fail before the visual suite creates review screenshots.
+}
+
 const git = spawnSync('git', ['rev-parse', 'HEAD'], {
   cwd: root,
   encoding: 'utf8',

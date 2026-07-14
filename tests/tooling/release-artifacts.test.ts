@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
 import { inspectPwaArtifact } from '../../scripts/lib/release-artifacts.mjs';
+import { verifyDiskImage } from '../../scripts/lib/macos-artifact.mjs';
 
 async function fixture(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'studio-release-'));
@@ -78,5 +79,24 @@ describe('PWA release artifact inspection', () => {
         expect.stringContaining('/assets/app.js'),
       ]),
     );
+  });
+});
+
+describe('macOS release artifact inspection', () => {
+  test('accepts only a disk image that hdiutil can verify', () => {
+    const valid = verifyDiskImage('/tmp/The Studio.dmg', () => ({
+      status: 0,
+      stderr: '',
+      stdout: 'verified CRC32 checksum $12345678 is VALID',
+    }));
+    const corrupt = verifyDiskImage('/tmp/The Studio.dmg', () => ({
+      status: 1,
+      stderr: 'hdiutil: verify failed - image data corrupted',
+      stdout: '',
+    }));
+
+    expect(valid).toMatchObject({ status: 0, verified: true });
+    expect(corrupt).toMatchObject({ status: 1, verified: false });
+    expect(corrupt.output).toContain('image data corrupted');
   });
 });

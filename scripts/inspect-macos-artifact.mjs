@@ -3,6 +3,8 @@ import { spawnSync } from 'node:child_process';
 import { mkdir, readFile, readdir, readlink, writeFile } from 'node:fs/promises';
 import { relative, resolve, sep } from 'node:path';
 
+import { verifyDiskImage } from './lib/macos-artifact.mjs';
+
 const root = resolve(import.meta.dirname, '..');
 const bundleRoot = resolve(
   root,
@@ -52,6 +54,12 @@ const issues = [];
 if (!appExecutable) issues.push('The Studio.app executable is missing.');
 if (!appInfo) issues.push('The Studio.app Info.plist is missing.');
 if (!dmg) issues.push('The Studio DMG is missing.');
+const dmgVerification = dmg
+  ? verifyDiskImage(resolve(bundleRoot, dmg.path))
+  : { output: 'The Studio DMG is missing.', status: null, verified: false };
+if (dmg && !dmgVerification.verified) {
+  issues.push(`The Studio DMG failed hdiutil verification: ${dmgVerification.output}`);
+}
 if (inventory.some(({ path }) => /(?:The Studio\.dc\.html|original-mockup|design\/reference)/iu.test(path))) {
   issues.push('The packaged app contains design prototype material.');
 }
@@ -90,6 +98,7 @@ const report = {
         ? 'Developer ID signed and notarization ticket validated.'
         : 'Signing-ready local artifact; not signed or notarized for distribution.',
   },
+  dmgVerification,
   inventory,
   issues,
 };

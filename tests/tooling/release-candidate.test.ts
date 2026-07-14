@@ -22,6 +22,7 @@ describe('release candidate contract', () => {
 
   test('runs the release gate on macOS and preserves its evidence', async () => {
     const workflow = await read('.github/workflows/release-candidate.yml');
+    const verifier = await read('scripts/verify-release.mjs');
 
     expect(workflow).toContain('runs-on: macos-14');
     expect(workflow).toContain('pnpm verify:release');
@@ -29,6 +30,8 @@ describe('release candidate contract', () => {
     expect(workflow).toContain('artifacts/release-evidence');
     expect(workflow).toContain('apps/studio/src-tauri/target/release/bundle');
     expect(workflow).toContain('if: always()');
+    expect(verifier).toContain("resolve(root, 'artifacts/visual')");
+    expect(verifier).toContain("resolve(evidence, 'visual')");
   });
 
   test('keeps credentialed signing separate from reproducible verification', async () => {
