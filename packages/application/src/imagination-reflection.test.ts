@@ -176,6 +176,153 @@ describe('Uncharted and Reflection Garden application behavior', () => {
     ]);
   });
 
+  it('orders the garden by created time with a stable id tie-breaker and ignores manual room order', async () => {
+    const vault = await seed([
+      {
+        path: 'Reflection Garden/Reflections/older-created.md',
+        note: note({
+          id: 'older-created',
+          semanticType: 'reflection',
+          rooms: ['reflection-garden'],
+          created: '2026-07-12T08:00:00.000Z',
+          updated: '2026-07-14T12:00:00.000Z',
+        }),
+      },
+      {
+        path: 'Reflection Garden/Reflections/z-at-same-time.md',
+        note: note({
+          id: 'z-at-same-time',
+          semanticType: 'reflection',
+          rooms: ['reflection-garden'],
+          created: '2026-07-14T08:00:00.000Z',
+          updated: '2026-07-13T08:00:00.000Z',
+        }),
+      },
+      {
+        path: 'Reflection Garden/Celebrations/a-at-same-time.md',
+        note: note({
+          id: 'a-at-same-time',
+          cardType: 'celebration',
+          semanticType: 'celebration',
+          rooms: ['reflection-garden'],
+          created: '2026-07-14T08:00:00.000Z',
+          updated: '2026-07-12T08:00:00.000Z',
+        }),
+      },
+    ]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    await service.views.save('room:reflection-garden', [
+      'older-created',
+      'z-at-same-time',
+      'a-at-same-time',
+    ]);
+
+    expect(
+      (await service.projectReflectionGarden()).cards.map((card) => card.noteId),
+    ).toEqual(['a-at-same-time', 'z-at-same-time', 'older-created']);
+  });
+
+  it('preserves evidence kind and canonical id without collapsing equal labels', async () => {
+    const vault = await seed([
+      {
+        path: 'Identity/first.md',
+        note: note({
+          id: 'identity-first',
+          title: 'A calm creator',
+          semanticType: 'foundations',
+          rooms: ['identity-studio'],
+        }),
+      },
+      {
+        path: 'Identity/second.md',
+        note: note({
+          id: 'identity-second',
+          title: 'A calm creator',
+          semanticType: 'foundations',
+          rooms: ['identity-studio'],
+        }),
+      },
+      {
+        path: 'Reflection Garden/Reflections/evidence.md',
+        note: note({
+          id: 'evidence',
+          semanticType: 'reflection',
+          rooms: ['reflection-garden'],
+          lifeAreas: ['shared-id'],
+          seasons: ['shared-id'],
+          extraFrontmatter: {
+            related_notes: [
+              'identity-first',
+              'identity-second',
+              'shared-id',
+              'identity-first',
+              '',
+              42,
+            ],
+          },
+        }),
+      },
+    ]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    expect(
+      (await service.projectReflectionGarden()).cards[0]?.evidenceConnections,
+    ).toEqual([
+      { kind: 'note', id: 'identity-first', targetState: 'available' },
+      { kind: 'note', id: 'identity-second', targetState: 'available' },
+      { kind: 'note', id: 'shared-id', targetState: 'missing' },
+      { kind: 'life-area', id: 'shared-id' },
+      { kind: 'season', id: 'shared-id' },
+    ]);
+  });
+
+  it('keeps missing and archived note evidence visible for repair', async () => {
+    const vault = await seed([
+      {
+        path: 'Identity/archived.md',
+        note: note({
+          id: 'archived-identity',
+          semanticType: 'foundations',
+          status: 'archived',
+          rooms: ['identity-studio'],
+        }),
+      },
+      {
+        path: 'Identity/trashed.md',
+        note: note({
+          id: 'trashed-identity',
+          semanticType: 'foundations',
+          status: 'trashed',
+          rooms: ['identity-studio'],
+        }),
+      },
+      {
+        path: 'Reflection Garden/Reflections/evidence-repair.md',
+        note: note({
+          id: 'evidence-repair',
+          semanticType: 'reflection',
+          rooms: ['reflection-garden'],
+          extraFrontmatter: {
+            related_notes: [
+              'archived-identity',
+              'missing-identity',
+              'trashed-identity',
+            ],
+          },
+        }),
+      },
+    ]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    expect(
+      (await service.projectReflectionGarden()).cards[0]?.evidenceConnections,
+    ).toEqual([
+      { kind: 'note', id: 'archived-identity', targetState: 'archived' },
+      { kind: 'note', id: 'missing-identity', targetState: 'missing' },
+      { kind: 'note', id: 'trashed-identity', targetState: 'missing' },
+    ]);
+  });
+
   it('adds canonical evidence links once with exact CAS and unknown-key fidelity', async () => {
     const vault = await seed([
       {
