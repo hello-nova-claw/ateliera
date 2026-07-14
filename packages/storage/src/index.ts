@@ -30,6 +30,7 @@ export type {
 export type {
   VaultChange,
   VaultEntry,
+  VaultUserStateEntry,
   MoveCondition,
   VaultPort,
   WriteCondition,
