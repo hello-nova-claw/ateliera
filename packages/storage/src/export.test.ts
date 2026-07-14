@@ -99,6 +99,14 @@ describe('portable vault export', () => {
     })));
     await expect(exportVault(vault)).rejects.toMatchObject({ code: 'archive-too-large' });
     expect(readBinary).not.toHaveBeenCalled();
+
+    vault.list = vi.fn(async () => Array.from({ length: 10_000 }, (_, index) => ({
+      kind: 'file' as const,
+      path: `.studio/cache/${index}.bin`,
+      size: 0,
+    })));
+    await expect(exportVault(vault)).rejects.toMatchObject({ code: 'archive-too-large' });
+    expect(readBinary).not.toHaveBeenCalled();
   });
 
   it.each([
