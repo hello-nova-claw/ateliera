@@ -135,4 +135,22 @@ describe('portable vault export', () => {
 
     await expect(exportVault(vault)).rejects.toMatchObject({ code: 'source-changed' });
   });
+
+  it('returns a typed source change when a listed file disappears before capture', async () => {
+    const base = createInMemoryVault();
+    await base.writeTextAtomic('Inbox/note.md', 'captured');
+    let firstRead = true;
+    const vault = {
+      list: (prefix?: string) => base.list(prefix),
+      async readBinary(path: string) {
+        if (firstRead) {
+          firstRead = false;
+          await base.remove(path);
+        }
+        return base.readBinary(path);
+      },
+    } as VaultPort;
+
+    await expect(exportVault(vault)).rejects.toMatchObject({ code: 'source-changed' });
+  });
 });

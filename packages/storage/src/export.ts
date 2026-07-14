@@ -172,7 +172,12 @@ export async function exportVault(
     if (encoder.encode(entry.path).byteLength > 0xffff) {
       throw new PortableVaultError('archive-too-large', `The path is too long to export: ${entry.path}.`);
     }
-    const bytes = await vault.readBinary(entry.sourcePath);
+    let bytes: Uint8Array;
+    try {
+      bytes = await vault.readBinary(entry.sourcePath);
+    } catch {
+      throw sourceChanged();
+    }
     if (bytes.byteLength > limits.maxEntryBytes) {
       throw new PortableVaultError('archive-too-large', `The file exceeds 64 MiB: ${entry.path}.`);
     }
