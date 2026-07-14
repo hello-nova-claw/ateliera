@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createInMemoryVault } from './in-memory-vault';
 import { exportVault } from './export';
 import { importVault } from './import';
+import type { VaultPort } from './vault-port';
 
 async function snapshot(vault: ReturnType<typeof createInMemoryVault>) {
   const files = (await vault.list()).filter((entry) => entry.kind === 'file');
@@ -56,5 +57,28 @@ describe('portable vault export', () => {
     await expect(exportVault(collision)).rejects.toMatchObject({
       code: 'path-collision',
     });
+  });
+
+  it('rejects entry-size and file-count limits before reading content', async () => {
+    const readBinary = vi.fn(async () => new Uint8Array());
+    const vault = {
+      list: vi.fn(async () => [{
+        kind: 'file' as const,
+        path: 'Attachments/large.pdf',
+        size: 65 * 1024 * 1024,
+      }]),
+      readBinary,
+    } as unknown as VaultPort;
+
+    await expect(exportVault(vault)).rejects.toMatchObject({ code: 'archive-too-large' });
+    expect(readBinary).not.toHaveBeenCalled();
+
+    vault.list = vi.fn(async () => Array.from({ length: 10_000 }, (_, index) => ({
+      kind: 'file' as const,
+      path: `Inbox/${index}.md`,
+      size: 0,
+    })));
+    await expect(exportVault(vault)).rejects.toMatchObject({ code: 'archive-too-large' });
+    expect(readBinary).not.toHaveBeenCalled();
   });
 });

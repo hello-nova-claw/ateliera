@@ -35,7 +35,7 @@ export async function exportVault(
   options: ExportVaultOptions = {},
 ): Promise<Uint8Array> {
   const entries = (await vault.list()).filter((entry) => entry.kind === 'file');
-  const included: Array<{ sourcePath: string; path: string }> = [];
+  const included: Array<{ sourcePath: string; path: string; declaredSize?: number }> = [];
   const excludedCaches: string[] = [];
   const pathKeys = new Set<string>();
   const excludedKeys = new Set<string>();
@@ -64,7 +64,11 @@ export async function exportVault(
       throw new PortableVaultError('path-collision', `Portable paths collide after normalization: ${path}.`);
     }
     pathKeys.add(key);
-    included.push({ sourcePath: entry.path, path });
+    included.push({
+      sourcePath: entry.path,
+      path,
+      ...(entry.size === undefined ? {} : { declaredSize: entry.size }),
+    });
   }
   included.sort((left, right) => left.path.localeCompare(right.path, 'en'));
   excludedCaches.sort((left, right) => left.localeCompare(right, 'en'));
@@ -91,6 +95,9 @@ export async function exportVault(
   };
   let expandedSize = 0;
   for (const entry of included) {
+    if (entry.declaredSize !== undefined && entry.declaredSize > limits.maxEntryBytes) {
+      throw new PortableVaultError('archive-too-large', `The file exceeds 64 MiB: ${entry.path}.`);
+    }
     if (encoder.encode(entry.path).byteLength > 0xffff) {
       throw new PortableVaultError('archive-too-large', `The path is too long to export: ${entry.path}.`);
     }
