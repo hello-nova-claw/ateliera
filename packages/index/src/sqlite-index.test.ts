@@ -104,6 +104,22 @@ describe('SQLite IndexPort', () => {
     expect(await index.search('calm', { rooms: ['foyer'], seasons: ['winter'], dateTo: '2026-07-11T00:00:00.000Z' })).toEqual(before);
   });
 
+  it('treats a date-only upper bound as the inclusive end of that day', async () => {
+    await upsert(index, note({
+      id: 'same-day',
+      body: 'A calm afternoon.',
+      updated: '2026-07-14T16:45:00.000Z',
+    }), 'Reflection/same-day.md', 'same-day');
+    await upsert(index, note({
+      id: 'next-day',
+      body: 'A calm tomorrow.',
+      updated: '2026-07-15T00:00:00.000Z',
+    }), 'Reflection/next-day.md', 'next-day');
+
+    expect((await index.search('calm', { dateTo: '2026-07-14' })).map(({ id }) => id))
+      .toEqual(['same-day']);
+  });
+
   it('re-resolves an existing broken link when its target is indexed later', async () => {
     const source = note({ id: 'source', title: 'Source' });
     await upsert(index, source, 'Reflection/source.md', 'source', [{ kind: 'wiki', target: 'Later', label: 'Later' }]);
