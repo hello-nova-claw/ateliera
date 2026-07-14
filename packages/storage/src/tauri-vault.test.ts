@@ -189,17 +189,14 @@ describe('Tauri vault IPC adapter', () => {
           path: 'Attachments/large.bin',
           kind: 'file',
           size,
-          contentHash: 'd36f05b3119a19fbd2f98b95308c44f062b8bc98a5bb763c6b327181bd189cee',
+          contentHash: '7f446c5fe80cdf8ba38dbd1d39beb311da47f942da47e035ba3409107395a518',
         }];
       }
       if (command === 'vault_read_binary_chunk') {
         const request = args as { offset: number; length: number };
         expect(request.length).toBeLessThanOrEqual(chunkBytes);
         const length = Math.min(request.length, size - request.offset);
-        return Uint8Array.from(
-          { length },
-          (_, index) => ((request.offset + index) * 31 + 7) % 251,
-        );
+        return new Uint8Array(length).fill(Math.floor(request.offset / chunkBytes));
       }
       throw new Error(`Unexpected command: ${command}`);
     });
@@ -208,9 +205,11 @@ describe('Tauri vault IPC adapter', () => {
     const bytes = await vault?.readBinary('Attachments/large.bin');
 
     expect(bytes?.byteLength).toBe(size);
-    for (const index of [0, chunkBytes - 1, chunkBytes, 64 * 1024 * 1024, size - 1]) {
-      expect(bytes?.[index]).toBe((index * 31 + 7) % 251);
-    }
+    expect(bytes?.[0]).toBe(0);
+    expect(bytes?.[chunkBytes - 1]).toBe(0);
+    expect(bytes?.[chunkBytes]).toBe(1);
+    expect(bytes?.[64 * 1024 * 1024]).toBe(16);
+    expect(bytes?.[size - 1]).toBe(16);
     const chunkCalls = invoke.mock.calls.filter(([command]) => command === 'vault_read_binary_chunk');
     expect(chunkCalls.length).toBeGreaterThan(16);
     expect(chunkCalls.every(([, args]) => (args as { length: number }).length <= chunkBytes)).toBe(true);
