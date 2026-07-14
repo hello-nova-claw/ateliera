@@ -22,8 +22,8 @@ const model: ReflectionGardenProjection = {
       tags: ['calm'],
       linkedNoteIds: ['identity-1'],
       evidenceConnections: [
-        { kind: 'life-area', id: 'family' },
-        { kind: 'season', id: '2026-winter' },
+        { kind: 'life-area', id: 'family', label: 'Family', targetState: 'available' },
+        { kind: 'season', id: '2026-winter', label: 'Winter 2026', targetState: 'available' },
         { kind: 'note', id: 'identity-1', targetState: 'available' },
       ],
       thenNoteId: 'then',
@@ -154,6 +154,10 @@ it('leaves missing and archived evidence visible as calm repair states', () => {
           evidenceConnections: [
             { kind: 'note', id: 'gone', targetState: 'missing' },
             { kind: 'note', id: 'resting', targetState: 'archived' },
+            { kind: 'life-area', id: 'old-home', label: 'Old Home', targetState: 'archived' },
+            { kind: 'life-area', id: 'lost-area', targetState: 'missing' },
+            { kind: 'season', id: 'past-season', label: 'A Past Season', targetState: 'archived' },
+            { kind: 'season', id: 'lost-season', targetState: 'missing' },
           ],
           linkedNoteIds: ['gone', 'resting'],
         }],
@@ -163,7 +167,13 @@ it('leaves missing and archived evidence visible as calm repair states', () => {
   );
   expect(screen.getByText('The connected note gone is not available here.')).toBeVisible();
   expect(screen.getByText('The connected note resting is archived.')).toBeVisible();
-  expect(screen.queryByRole('button', { name: /Open.*(?:gone|resting)/ })).not.toBeInTheDocument();
+  expect(screen.getByText('The connected life area Old Home is archived.')).toBeVisible();
+  expect(screen.getByText('The connected life area lost-area is not available here.')).toBeVisible();
+  expect(screen.getByText('The connected season A Past Season is historical.')).toBeVisible();
+  expect(screen.getByText('The connected season lost-season is not available here.')).toBeVisible();
+  expect(screen.queryByRole('button', {
+    name: /Open.*(?:gone|resting|old-home|lost-area|past-season|lost-season)/,
+  })).not.toBeInTheDocument();
 });
 
 it('guards rapid evidence writes and preserves selection and exact focus on failure', async () => {
