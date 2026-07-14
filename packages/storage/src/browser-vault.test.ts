@@ -11,6 +11,117 @@ import { vi } from 'vitest';
 import * as browserApi from './browser-vault';
 import * as storageApi from './index';
 
+class MemoryOpfs {
+  readonly files = new Map<string, Uint8Array>();
+
+  directory(path = ''): FileSystemDirectoryHandle {
+    const storage = this;
+    const prefix = path === '' ? '' : `${path}/`;
+    return {
+      kind: 'directory',
+      name: path.split('/').at(-1) ?? '',
+      async getDirectoryHandle(name, options) {
+        const child = `${prefix}${name}`;
+        const exists = [...storage.files].some(([file]) => file.startsWith(`${child}/`));
+        if (!exists && !options?.create) throw new DOMException('missing', 'NotFoundError');
+        if (options?.create && !exists) storage.files.set(`${child}/.directory`, new Uint8Array());
+        return storage.directory(child);
+      },
+      async getFileHandle(name, options) {
+        const filePath = `${prefix}${name}`;
+        if (!storage.files.has(filePath) && !options?.create) {
+          throw new DOMException('missing', 'NotFoundError');
+        }
+        if (!storage.files.has(filePath)) storage.files.set(filePath, new Uint8Array());
+        return {
+          kind: 'file',
+          name,
+          async getFile() {
+            return new File([storage.files.get(filePath) ?? new Uint8Array()], name, {
+              lastModified: 0,
+            });
+          },
+          async createWritable() {
+            let pending = new Uint8Array();
+            return {
+              async write(value) { pending = value.slice(); },
+              async close() { storage.files.set(filePath, pending); },
+              async abort() {},
+            };
+          },
+        } as FileSystemFileHandle;
+      },
+      async removeEntry(name, options) {
+        const target = `${prefix}${name}`;
+        if (options?.recursive) {
+          for (const key of [...storage.files.keys()]) {
+            if (key === target || key.startsWith(`${target}/`)) storage.files.delete(key);
+          }
+          return;
+        }
+        if (!storage.files.delete(target)) throw new DOMException('missing', 'NotFoundError');
+      },
+      async *entries() {
+        const yielded = new Set<string>();
+        for (const key of [...storage.files.keys()].sort()) {
+          if (!key.startsWith(prefix)) continue;
+          const remainder = key.slice(prefix.length);
+          const [name, ...tail] = remainder.split('/');
+          if (name === undefined || name === '.directory' || yielded.has(name)) continue;
+          yielded.add(name);
+          yield tail.length > 0
+            ? [name, storage.directory(`${prefix}${name}`)]
+            : [name, await this.getFileHandle(name)];
+        }
+      },
+    } as FileSystemDirectoryHandle;
+  }
+
+  put(path: string, value: string | Uint8Array): void {
+    this.files.set(path, typeof value === 'string' ? new TextEncoder().encode(value) : value.slice());
+  }
+
+  text(path: string): string | undefined {
+    const value = this.files.get(path);
+    return value === undefined ? undefined : new TextDecoder().decode(value);
+  }
+}
+
+async function checksum(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function seedInterruptedOpfsBatch(
+  opfs: MemoryOpfs,
+  name: string,
+  revisionCommitted: boolean,
+  published: number,
+): Promise<void> {
+  const root = `the-studio/${encodeURIComponent(name)}`;
+  const entries = await Promise.all(['a', 'b'].map(async (key, index) => {
+    const before = `old-${key}`;
+    const after = `new-${key}`;
+    opfs.put(`${root}/.studio-opfs-batch/before/${index}`, before);
+    opfs.put(`${root}/.studio-opfs-batch/after/${index}`, after);
+    opfs.put(`${root}/Inbox/${key}.md`, index < published ? after : before);
+    return {
+      path: `Inbox/${key}.md`,
+      before: { present: true, hash: await checksum(before), size: before.length },
+      after: { present: true, hash: await checksum(after), size: after.length },
+    };
+  }));
+  opfs.put(`${root}/.studio-revision`, revisionCommitted ? '1' : '0');
+  opfs.put(`${root}/.studio-opfs-batch/progress`, String(published));
+  opfs.put(`${root}/.studio-opfs-batch/manifest.json`, `${JSON.stringify({
+    version: 1,
+    expectedRevision: '0',
+    nextRevision: '1',
+    entries,
+  })}\n`);
+}
+
 function createTestStore(): BrowserVaultStore {
   const files = new Map<string, StoredBrowserFile>();
   let revision = 0n;
@@ -321,5 +432,45 @@ describe('persistent browser storage', () => {
       }),
     ).resolves.toBe('best-effort');
     await expect(ensureBrowserPersistence({})).resolves.toBe('best-effort');
+  });
+});
+
+describe('OPFS crash recovery', () => {
+  it.each([
+    ['after the journal is durable', false, 0],
+    ['after the first file is published', false, 1],
+    ['after every file is published but before revision commit', false, 2],
+  ] as const)('restores the complete old state %s', async (_boundary, committed, published) => {
+    const opfs = new MemoryOpfs();
+    const name = `crash-old-${published}`;
+    await seedInterruptedOpfsBatch(opfs, name, committed, published);
+    vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
+    try {
+      const reopened = createBrowserVault(name, { storage: 'opfs' });
+
+      await expect(reopened.readText('Inbox/a.md')).resolves.toMatchObject({ text: 'old-a' });
+      await expect(reopened.readText('Inbox/b.md')).resolves.toMatchObject({ text: 'old-b' });
+      await expect(reopened.getRevision()).resolves.toBe('0');
+      expect([...opfs.files.keys()].some((path) => path.includes('.studio-opfs-batch'))).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('completes the new state when revision committed before journal cleanup', async () => {
+    const opfs = new MemoryOpfs();
+    const name = 'crash-new';
+    await seedInterruptedOpfsBatch(opfs, name, true, 1);
+    vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
+    try {
+      const reopened = createBrowserVault(name, { storage: 'opfs' });
+
+      await expect(reopened.readText('Inbox/a.md')).resolves.toMatchObject({ text: 'new-a' });
+      await expect(reopened.readText('Inbox/b.md')).resolves.toMatchObject({ text: 'new-b' });
+      await expect(reopened.getRevision()).resolves.toBe('1');
+      expect([...opfs.files.keys()].some((path) => path.includes('.studio-opfs-batch'))).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
