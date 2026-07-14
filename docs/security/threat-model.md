@@ -17,6 +17,12 @@ The primary goals are:
 - make diagnostics useful without copying titles, bodies, or external absolute paths;
 - limit the damage possible through a compromised webview or dependency.
 
+## MVP implementation status
+
+Current production React surfaces render note titles and bodies as text and do not use an HTML injection sink. The hardened `renderMarkdown` function is a tested boundary for a future rendered preview; it is not currently called by the production UI. Any future callsite must retain its fixed allowlist and receive a separate DOM-sink review.
+
+The application package exposes an in-memory, bounded diagnostics recorder and an exact-preview/export builder. They are not yet wired to a persistent log or Settings screen. No production diagnostic upload, telemetry transport, or third-party analytics callsite exists. A future UI must show the returned `preview` verbatim before saving the identical returned bytes.
+
 ## Assets and sensitivity
 
 | Asset | Security need | Notes |
@@ -60,7 +66,7 @@ The primary goals are:
 
 **Current controls:**
 
-- raw HTML is excluded by the Markdown rendering allowlist;
+- the available Markdown rendering boundary excludes raw HTML, but the current production UI does not render Markdown as HTML;
 - text and attributes are escaped, and link/image URLs are validated before HTML is produced;
 - `javascript:`, `data:`, `file:`, protocol-relative, control-character, and encoded scheme tricks are rejected;
 - rendered Markdown images are restricted to relative raster formats; remote and SVG sources are not loaded;
@@ -92,7 +98,7 @@ The primary goals are:
 **Current controls:**
 
 - no production `dangerouslySetInnerHTML` or direct `innerHTML` content sink exists;
-- the Markdown renderer emits a fixed HTML tag/attribute allowlist;
+- the tested Markdown renderer boundary emits a fixed HTML tag/attribute allowlist and has no current production DOM sink;
 - web and Tauri CSPs default to packaged/same-origin resources, deny objects, forms, frames, and base-tag changes, and list only required image, font, worker, and IPC transports;
 - the single Tauri capability targets only the `main` local window, grants `core:default` only, and defines no remote URL pattern;
 - native commands require window-owned vault authority rather than accepting an absolute vault path.
