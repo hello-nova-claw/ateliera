@@ -13,6 +13,30 @@ const metadata: StudioSearchRepairItem = {
   errors: [{ code: 'invalid-frontmatter', path: 'id', message: 'Required' }],
 };
 
+const metadataWithRecognizedContext: StudioSearchRepairItem = {
+  ...metadata,
+  sourceText: `---
+id: kept-context
+title: Kept context
+card_type: text
+semantic_type: reflection
+status: not-a-status
+rooms: [life-landscape]
+life_areas: [home]
+landscape_anchor: vision
+seasons: []
+tags: []
+created: 2026-07-13T00:00:00.000Z
+updated: 2026-07-14T00:00:00.000Z
+source: { title: A Book, creator: Anna, url: https://example.test/book }
+attachments: []
+display: { featured: false }
+privacy: { sensitivity: private, ai_access: ask }
+---
+Words remain.
+`,
+};
+
 const broken: StudioSearchRepairItem = {
   kind: 'broken-link',
   path: 'Reflection Garden/link.md',
@@ -52,6 +76,30 @@ describe('RepairPanel', () => {
         title: 'Kept title',
         body: 'Words remain.\r\n',
         cardType: 'reflection',
+      }),
+    );
+  });
+
+  it('preserves valid source and Landscape context while repairing another field', async () => {
+    const onRepairMetadata = vi.fn(async () => undefined);
+    render(
+      <RepairPanel
+        items={[metadataWithRecognizedContext]}
+        onRepairMetadata={onRepairMetadata}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Repair metadata' }));
+    await screen.findByRole('status');
+
+    expect(onRepairMetadata).toHaveBeenCalledWith(
+      metadataWithRecognizedContext,
+      expect.objectContaining({
+        landscapeAnchor: 'vision',
+        source: {
+          title: 'A Book',
+          creator: 'Anna',
+          url: 'https://example.test/book',
+        },
       }),
     );
   });
