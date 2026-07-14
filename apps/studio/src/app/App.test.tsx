@@ -20,9 +20,11 @@ import { afterEach, vi } from 'vitest';
 import { App } from './App';
 
 const selectTauriVault = vi.fn();
+const createTauriStudio = vi.fn();
 
 vi.mock('@studio/storage/tauri', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@studio/storage/tauri')>()),
+  createTauriStudio,
   selectTauriVault,
 }));
 
@@ -30,6 +32,7 @@ afterEach(() => {
   cleanup();
   history.replaceState(null, '', '/foyer');
   Reflect.deleteProperty(window, '__TAURI_INTERNALS__');
+  createTauriStudio.mockReset();
   selectTauriVault.mockReset();
   vi.unstubAllGlobals();
 });
@@ -458,7 +461,7 @@ it.each(['Not now', 'Remember'])(
   },
 );
 
-it('asks the native shell to select a vault before opening the Studio', async () => {
+it('asks the native shell to select a Studio folder before opening an existing Studio', async () => {
   Object.defineProperty(window, '__TAURI_INTERNALS__', {
     configurable: true,
     value: {},
@@ -466,7 +469,9 @@ it('asks the native shell to select a vault before opening the Studio', async ()
   selectTauriVault.mockResolvedValue(null);
 
   render(<App />);
-  fireEvent.click(screen.getByRole('button', { name: 'Open this Studio' }));
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Open an existing Studio' }),
+  );
 
   await waitFor(() => expect(selectTauriVault).toHaveBeenCalledOnce());
   expect(
@@ -490,11 +495,66 @@ it('requires native folder selection again after a persisted browser-style relau
   expect(
     screen.getByRole('heading', { name: 'Make this space yours.' }),
   ).toBeVisible();
-  fireEvent.click(screen.getByRole('button', { name: 'Open this Studio' }));
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Open an existing Studio' }),
+  );
   await waitFor(() => expect(selectTauriVault).toHaveBeenCalledOnce());
   expect(
     screen.getByRole('heading', { name: 'Make this space yours.' }),
   ).toBeVisible();
+});
+
+it('creates a named native Studio separately from opening an existing one', async () => {
+  Object.defineProperty(window, '__TAURI_INTERNALS__', {
+    configurable: true,
+    value: {},
+  });
+  let finishCreate: ((value: null) => void) | undefined;
+  createTauriStudio.mockImplementation(
+    () =>
+      new Promise<null>((resolve) => {
+        finishCreate = resolve;
+      }),
+  );
+
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: 'Create a Studio' }));
+  fireEvent.change(screen.getByLabelText('Studio name'), {
+    target: { value: '  Anna’s Studio  ' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /^Create$/ }));
+
+  await waitFor(() =>
+    expect(createTauriStudio).toHaveBeenCalledWith('Anna’s Studio'),
+  );
+  expect(selectTauriVault).not.toHaveBeenCalled();
+  expect(
+    screen.getByRole('button', { name: 'Creating your Studio…' }),
+  ).toBeDisabled();
+  finishCreate?.(null);
+  await waitFor(() =>
+    expect(
+      screen.getByRole('button', { name: /^Create$/ }),
+    ).toBeEnabled(),
+  );
+});
+
+it('uses calm Studio language when native creation cannot finish', async () => {
+  Object.defineProperty(window, '__TAURI_INTERNALS__', {
+    configurable: true,
+    value: {},
+  });
+  createTauriStudio.mockRejectedValue(new Error('vault_unavailable'));
+
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: 'Create a Studio' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Create$/ }));
+
+  const alert = await screen.findByRole('alert');
+  expect(alert).toHaveTextContent(
+    'Your Studio couldn’t be created. Choose another location or try again.',
+  );
+  expect(alert).not.toHaveTextContent(/vault/i);
 });
 
 it('starts, subscribes, and reprojects the active Studio without leaking its subscription', async () => {

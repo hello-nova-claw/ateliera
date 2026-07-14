@@ -50,7 +50,7 @@ test('offers to open an existing Studio instead of overwriting it', async ({
   await page.getByRole('button', { name: 'Create', exact: true }).click();
 
   await expect(page.getByRole('alert')).toContainText('already exists');
-  await page.getByRole('button', { name: 'Open existing Studio' }).click();
+  await page.getByRole('button', { name: 'Open The Studio' }).click();
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
 });
 
@@ -72,7 +72,9 @@ test('native relaunch requires a fresh session-scoped folder selection', async (
   await expect(
     page.getByRole('heading', { name: 'Make this space yours.' }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Open this Studio' }).click();
+  await page
+    .getByRole('button', { name: 'Open an existing Studio' })
+    .click();
   await expect(
     page.getByRole('heading', { name: 'Make this space yours.' }),
   ).toBeVisible();

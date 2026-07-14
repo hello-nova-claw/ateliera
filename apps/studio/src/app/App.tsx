@@ -182,6 +182,9 @@ function StudioApplication({
   const [error, setError] = useState<string>();
   const [createError, setCreateError] = useState<string>();
   const [duplicateStudio, setDuplicateStudio] = useState<BrowserStudioRecord>();
+  const [studioAction, setStudioAction] = useState<'create' | 'open' | null>(
+    null,
+  );
   const searchButton = useRef<HTMLButtonElement>(null);
   const captureButton = useRef<HTMLButtonElement>(null);
   const editorTrigger = useRef<HTMLButtonElement>(null);
@@ -338,24 +341,27 @@ function StudioApplication({
     );
   }
 
-  async function selectNativeService(): Promise<boolean> {
-    if (captureService !== undefined || !isNativeShell()) return true;
-    const { selectTauriVault } = await import('@studio/storage/tauri');
-    const vault = await selectTauriVault();
-    if (vault === null) return false;
+  async function activateNativeStudio(vault: {
+    recoveryIdentity: string;
+  } & VaultPort): Promise<void> {
     setEditor(undefined);
     setActiveVault(vault);
     setActiveStudioId(`native:${vault.recoveryIdentity}`);
     setService(await createAppStudioService(vault));
     setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
-    return true;
   }
 
   async function openStudio(record?: BrowserStudioRecord): Promise<void> {
     setError(undefined);
     try {
       if (isNativeShell()) {
-        if (await selectNativeService()) finishOnboarding();
+        setStudioAction('open');
+        const { selectTauriVault } = await import('@studio/storage/tauri');
+        const selected = await selectTauriVault();
+        if (selected !== null) {
+          await activateNativeStudio(selected);
+          finishOnboarding();
+        }
         return;
       }
       if (record === undefined) return;
@@ -372,10 +378,14 @@ function StudioApplication({
       finishOnboarding();
     } catch (reason) {
       setError(
-        reason instanceof Error
-          ? reason.message
-          : 'The Studio could not open this folder.',
+        isNativeShell()
+          ? 'This Studio couldn’t be opened. Choose its folder and try again.'
+          : reason instanceof Error
+            ? reason.message
+            : 'This Studio couldn’t be opened.',
       );
+    } finally {
+      setStudioAction(null);
     }
   }
 
@@ -384,9 +394,19 @@ function StudioApplication({
     setDuplicateStudio(undefined);
     try {
       if (isNativeShell()) {
-        if (!(await selectNativeService())) return;
-        setCreateOpen(false);
-        finishOnboarding();
+        const studioName = name.trim();
+        if (studioName === '') {
+          setCreateError('Give your Studio a name before creating it.');
+          return;
+        }
+        setStudioAction('create');
+        const { createTauriStudio } = await import('@studio/storage/tauri');
+        const created = await createTauriStudio(studioName);
+        if (created !== null) {
+          await activateNativeStudio(created);
+          setCreateOpen(false);
+          finishOnboarding();
+        }
         return;
       }
 
@@ -426,10 +446,14 @@ function StudioApplication({
       finishOnboarding();
     } catch (reason) {
       setCreateError(
-        reason instanceof Error
-          ? reason.message
-          : 'The Studio could not create this space.',
+        isNativeShell()
+          ? 'Your Studio couldn’t be created. Choose another location or try again.'
+          : reason instanceof Error
+            ? reason.message
+            : 'Your Studio couldn’t be created. Try again.',
       );
+    } finally {
+      setStudioAction(null);
     }
   }
 
@@ -669,7 +693,7 @@ function StudioApplication({
     <AppShell
       activePath={path}
       captureEnabled={opened && service !== null}
-      localStatus={opened ? 'Stored locally' : 'No Studio selected'}
+      localStatus={opened ? 'Stored locally' : 'No Studio open'}
       onCapture={(trigger) => {
         if (!opened || service === null) return;
         captureButton.current = trigger;
@@ -723,6 +747,7 @@ function StudioApplication({
             isNative={isNativeShell()}
             onCreate={() => setCreateOpen(true)}
             onOpen={(record) => void openStudio(record)}
+            opening={studioAction === 'open'}
           />
         )}
       </section>
@@ -750,6 +775,7 @@ function StudioApplication({
           <h2>Create a Studio</h2>
           <label htmlFor="studio-name">Studio name</label>
           <input
+            disabled={studioAction === 'create'}
             id="studio-name"
             onChange={(event) => setName(event.target.value)}
             value={name}
@@ -762,13 +788,18 @@ function StudioApplication({
           <div className="studio-form__actions">
             <button
               className="studio-form__button studio-form__button--secondary"
+              disabled={studioAction === 'create'}
               onClick={() => setCreateOpen(false)}
               type="button"
             >
               Not now
             </button>
-            <button className="studio-form__button" type="submit">
-              Create
+            <button
+              className="studio-form__button"
+              disabled={studioAction === 'create'}
+              type="submit"
+            >
+              {studioAction === 'create' ? 'Creating your Studio…' : 'Create'}
             </button>
             {duplicateStudio && (
               <button
@@ -779,7 +810,7 @@ function StudioApplication({
                 }}
                 type="button"
               >
-                Open existing Studio
+                Open {duplicateStudio.name}
               </button>
             )}
           </div>
@@ -884,11 +915,13 @@ function Onboarding({
   isNative,
   onCreate,
   onOpen,
+  opening,
 }: {
   browserStudios: BrowserStudioRecord[];
   isNative: boolean;
   onCreate: () => void;
   onOpen: (record?: BrowserStudioRecord) => void;
+  opening: boolean;
 }) {
   const [selectedVault, setSelectedVault] = useState(
     browserStudios[0]?.vaultId ?? '',
@@ -904,8 +937,9 @@ function Onboarding({
       </p>
       <h2 id="onboarding-title">Make this space yours.</h2>
       <p>
-        Your Studio stays on this device. Begin a new one, or return to the
-        local space already waiting here.
+        {isNative
+          ? 'Create a new Studio, or open one you already have.'
+          : 'Your Studio stays on this device. Begin a new one, or return to the local Studio already waiting here.'}
       </p>
       <div className="studio-onboarding__actions">
         <button
@@ -917,7 +951,7 @@ function Onboarding({
         </button>
         {!isNative && browserStudios.length > 1 && (
           <label className="studio-onboarding__picker">
-            Local Studio
+            Choose a Studio
             <select
               onChange={(event) => setSelectedVault(event.target.value)}
               value={selectedVault}
@@ -932,15 +966,17 @@ function Onboarding({
         )}
         <button
           className="studio-onboarding__button studio-onboarding__button--secondary"
-          disabled={!isNative && selected === undefined}
+          disabled={opening || (!isNative && selected === undefined)}
           onClick={() => onOpen(selected)}
           type="button"
         >
           {isNative
-            ? 'Open this Studio'
+            ? opening
+              ? 'Opening your Studio…'
+              : 'Open an existing Studio'
             : selected
               ? `Open ${selected.name}`
-              : 'No local Studio to open'}
+              : 'No existing Studio found'}
         </button>
       </div>
     </section>
