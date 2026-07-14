@@ -211,4 +211,14 @@ describe('SearchRoom', () => {
     render(<SearchRoom service={{} as StudioService} />);
     expect(await screen.findByText('Search becomes available once your Studio is open.')).toBeVisible();
   });
+
+  it('does not present the initial disposable index as an authoritative empty result', async () => {
+    const rebuilding = Object.assign(service({ search: vi.fn().mockResolvedValue([]) }), {
+      indexState: () => 'rebuilding' as const,
+    });
+    render(<SearchRoom service={rebuilding} />);
+
+    expect(await screen.findByText('Gathering your Studio…')).toBeVisible();
+    expect(screen.queryByText('No notes match this search.')).not.toBeInTheDocument();
+  });
 });
