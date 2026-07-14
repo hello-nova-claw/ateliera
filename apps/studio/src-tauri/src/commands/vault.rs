@@ -552,12 +552,28 @@ fn read_file_nofollow_bounded(
     basename: &str,
     maximum: usize,
 ) -> Result<Vec<u8>, VaultError> {
-    let mut bytes = Vec::new();
-    open_file_nofollow(directory, basename)?
-        .take((maximum + 1) as u64)
-        .read_to_end(&mut bytes)
+    read_exact_bounded_after_stat(open_file_nofollow(directory, basename)?, maximum, || {})
+}
+
+fn read_exact_bounded_after_stat<F>(
+    mut file: cap_std::fs::File,
+    maximum: usize,
+    after_stat: F,
+) -> Result<Vec<u8>, VaultError>
+where
+    F: FnOnce(),
+{
+    let size = file.metadata().map_err(|_| VaultError::Unavailable)?.len();
+    let size = usize::try_from(size).map_err(|_| VaultError::Unavailable)?;
+    if size > maximum {
+        return Err(VaultError::Unavailable);
+    }
+    after_stat();
+    let mut bytes = vec![0; size];
+    file.read_exact(&mut bytes)
         .map_err(|_| VaultError::Unavailable)?;
-    if bytes.len() > maximum {
+    let mut probe = [0_u8; 1];
+    if file.read(&mut probe).map_err(|_| VaultError::Unavailable)? != 0 {
         return Err(VaultError::Unavailable);
     }
     Ok(bytes)
@@ -783,6 +799,7 @@ impl Vault {
 
     fn get_revision(&self) -> Result<String, VaultError> {
         let _write_guard = self.lock_writes()?;
+        self.recover_pending_locked()?;
         Ok(self.revision_locked()?.to_string())
     }
 
@@ -965,6 +982,62 @@ impl Vault {
         }
     }
 
+    fn optional_regular_file_len(directory: &Dir, name: &str) -> Result<Option<usize>, VaultError> {
+        match directory.symlink_metadata(name) {
+            Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => {
+                usize::try_from(metadata.len())
+                    .map(Some)
+                    .map_err(|_| VaultError::Unavailable)
+            }
+            Ok(_) => Err(VaultError::PathEscape),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(map_path_error(error)),
+        }
+    }
+
+    fn target_and_staged_lengths_locked(
+        &self,
+        entry: &BatchJournalEntry,
+    ) -> Result<(Option<usize>, Option<usize>), VaultError> {
+        let parent = match open_parent(&self.root, &entry.path, false) {
+            Ok(parent) => parent,
+            Err(VaultError::Unavailable) => return Ok((None, None)),
+            Err(error) => return Err(error),
+        };
+        Ok((
+            Self::optional_regular_file_len(&parent.directory, &parent.basename)?,
+            Self::optional_regular_file_len(&parent.directory, &entry.temporary)?,
+        ))
+    }
+
+    fn preflight_recovery_budget_locked(
+        &self,
+        directory: &Dir,
+        journal: &BatchJournal,
+    ) -> Result<(), VaultError> {
+        let mut aggregate = 0usize;
+        let mut include = |size: Option<usize>| -> Result<(), VaultError> {
+            if let Some(size) = size {
+                aggregate = aggregate
+                    .checked_add(size)
+                    .filter(|total| *total <= MAX_BATCH_BYTES)
+                    .ok_or(VaultError::Unavailable)?;
+            }
+            Ok(())
+        };
+        for entry in &journal.entries {
+            let backup = match entry.previous_backup.as_deref() {
+                Some(path) => Self::optional_regular_file_len(directory, path)?,
+                None => None,
+            };
+            let (target, staged) = self.target_and_staged_lengths_locked(entry)?;
+            include(backup)?;
+            include(target)?;
+            include(staged)?;
+        }
+        Ok(())
+    }
+
     fn recover_journal_locked(
         &self,
         directory: &Dir,
@@ -992,6 +1065,11 @@ impl Vault {
         {
             return Err(VaultError::Unavailable);
         }
+
+        // The recovery process can retain prior-state, current-target, and staged-new payloads at
+        // the same time. Bound that complete allocation set from metadata before allocating or
+        // mutating anything. A forged journal remains available for explicit recovery.
+        self.preflight_recovery_budget_locked(directory, journal)?;
 
         // Preflight pass 1: load and checksum every prior-state payload before inspecting or
         // changing any target. Publishing/committed journals must have the complete backup set.
@@ -1086,13 +1164,12 @@ impl Vault {
                 }
             }
             JournalPhase::Publishing => {
-                for (index, (((entry, backup), current), staged_bytes)) in journal
+                for (((entry, backup), current), staged_bytes) in journal
                     .entries
                     .iter()
                     .zip(&backups)
                     .zip(&targets)
                     .zip(&staged)
-                    .enumerate()
                 {
                     match (&entry.previous_hash, backup, current) {
                         (Some(previous_hash), Some(_), Some(bytes))
@@ -1111,9 +1188,8 @@ impl Vault {
                         (Some(previous_hash), Some(_), Some(bytes))
                             if hash(bytes) == *previous_hash =>
                         {
-                            if staged_bytes.is_none() && index >= journal.progress {
-                                return Err(VaultError::Unavailable);
-                            }
+                            // The target is already in the chosen rollback state. Its staged
+                            // new-state file may have been removed by an interrupted cleanup.
                         }
                         // Missing content for a file known to have existed is never reconstructed
                         // speculatively; it is an external conflict and the evidence is retained.
@@ -1128,9 +1204,8 @@ impl Vault {
                             });
                         }
                         (None, None, None) => {
-                            if staged_bytes.is_none() && index >= journal.progress {
-                                return Err(VaultError::Unavailable);
-                            }
+                            // The absent target is already in the chosen rollback state. Missing
+                            // staging is safe after an interrupted cleanup and remains idempotent.
                         }
                         _ => return Err(VaultError::Conflict),
                     }
@@ -1184,8 +1259,27 @@ impl Vault {
         self.cleanup_batch_journal_locked()
     }
 
-    fn recover_batch(&self) -> Result<(), VaultError> {
-        let _write_guard = self.lock_writes()?;
+    fn recover_pending_locked(&self) -> Result<(), VaultError> {
+        let metadata = match self.root.symlink_metadata(BATCH_JOURNAL_PATH) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(map_path_error(error)),
+        };
+        if !metadata.is_dir() || metadata.file_type().is_symlink() {
+            return Err(VaultError::Unavailable);
+        }
+        let directory = self
+            .root
+            .open_dir_nofollow(BATCH_JOURNAL_PATH)
+            .map_err(map_path_error)?;
+        match directory.symlink_metadata(BATCH_JOURNAL_MANIFEST) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return self.cleanup_batch_journal_locked();
+            }
+            Ok(metadata) if metadata.is_file() && !metadata.file_type().is_symlink() => {}
+            Ok(_) => return Err(VaultError::Unavailable),
+            Err(error) => return Err(map_path_error(error)),
+        }
         // A malformed journal may describe a transaction that already published one or more
         // targets. Preserve it as forensic/recovery evidence and keep the vault unavailable.
         let journal = self.read_journal_locked()?;
@@ -1193,6 +1287,11 @@ impl Vault {
             return Ok(());
         };
         self.recover_journal_locked(&directory, &journal)
+    }
+
+    fn recover_batch(&self) -> Result<(), VaultError> {
+        let _write_guard = self.lock_writes()?;
+        self.recover_pending_locked()
     }
 
     fn require_expected_hash(
@@ -1308,6 +1407,7 @@ impl Vault {
 
     pub fn read_text(&self, path: &str) -> Result<ReadTextResult, VaultError> {
         let _write_guard = self.lock_writes()?;
+        self.recover_pending_locked()?;
         self.read_text_unlocked(path)
     }
 
@@ -1323,25 +1423,17 @@ impl Vault {
 
     fn read_binary(&self, path: &str) -> Result<Vec<u8>, VaultError> {
         let _write_guard = self.lock_writes()?;
+        self.recover_pending_locked()?;
         self.read_binary_unlocked(path)
     }
 
     fn read_binary_unlocked(&self, path: &str) -> Result<Vec<u8>, VaultError> {
         let parent = open_parent(&self.root, path, false)?;
-        let file = open_file_nofollow(&parent.directory, &parent.basename)?;
-        let size = file.metadata().map_err(|_| VaultError::Unavailable)?.len();
-        if size > MAX_PORTABLE_ENTRY_BYTES {
-            return Err(VaultError::Unavailable);
-        }
-        let capacity = usize::try_from(size).map_err(|_| VaultError::Unavailable)?;
-        let mut bytes = Vec::with_capacity(capacity);
-        file.take(MAX_PORTABLE_ENTRY_BYTES + 1)
-            .read_to_end(&mut bytes)
-            .map_err(|_| VaultError::Unavailable)?;
-        if bytes.len() != capacity {
-            return Err(VaultError::Unavailable);
-        }
-        Ok(bytes)
+        read_file_nofollow_bounded(
+            &parent.directory,
+            &parent.basename,
+            usize::try_from(MAX_PORTABLE_ENTRY_BYTES).map_err(|_| VaultError::Unavailable)?,
+        )
     }
 
     fn write_atomic<F>(
@@ -1357,6 +1449,7 @@ impl Vault {
         F: FnOnce(),
     {
         let _write_guard = self.lock_writes()?;
+        self.recover_pending_locked()?;
         let parent = open_parent(&self.root, path, true)?;
         Self::require_write_condition(
             &parent.directory,
@@ -1491,17 +1584,14 @@ impl Vault {
         if batch.writes.is_empty() || batch.writes.len() > MAX_BATCH_WRITES {
             return Err(VaultError::Unavailable);
         }
-        batch.writes.iter().try_fold(0usize, |total, write| {
+        let new_bytes = batch.writes.iter().try_fold(0usize, |total, write| {
             total
                 .checked_add(write.bytes.len())
                 .filter(|value| *value <= MAX_BATCH_BYTES)
                 .ok_or(VaultError::Unavailable)
         })?;
         let _write_guard = self.lock_writes()?;
-        match self.root.symlink_metadata(BATCH_JOURNAL_PATH) {
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            _ => return Err(VaultError::Unavailable),
-        }
+        self.recover_pending_locked()?;
         if self.revision_locked()? != batch.expected_revision {
             return Err(VaultError::Conflict);
         }
@@ -1558,6 +1648,12 @@ impl Vault {
                 }
             }
         }
+
+        previous_bytes
+            .checked_mul(2)
+            .and_then(|total| total.checked_add(new_bytes))
+            .filter(|total| *total <= MAX_BATCH_BYTES)
+            .ok_or(VaultError::Unavailable)?;
 
         self.require_user_state(batch.expected_user_state.as_deref())?;
         let reserved_revision = batch
@@ -1799,6 +1895,7 @@ impl Vault {
         expected_user_state: Option<&[ExpectedUserState]>,
     ) -> Result<(), VaultError> {
         let _write_guard = self.lock_writes()?;
+        self.recover_pending_locked()?;
         let from_parent = open_parent(&self.root, from, false)?;
         let metadata = from_parent
             .directory
@@ -1831,6 +1928,7 @@ impl Vault {
         expected_user_state: Option<&[ExpectedUserState]>,
     ) -> Result<(), VaultError> {
         let _write_guard = self.lock_writes()?;
+        self.recover_pending_locked()?;
         let parent = open_parent(&self.root, path, false)?;
         let metadata = parent
             .directory
@@ -1856,6 +1954,7 @@ impl Vault {
 
     fn exists(&self, path: &str) -> Result<bool, VaultError> {
         let _write_guard = self.lock_writes()?;
+        self.recover_pending_locked()?;
         self.exists_unlocked(path)
     }
 
@@ -1875,6 +1974,7 @@ impl Vault {
 
     fn list(&self, prefix: Option<&str>) -> Result<Vec<VaultEntry>, VaultError> {
         let _write_guard = self.lock_writes()?;
+        self.recover_pending_locked()?;
         self.list_unlocked(prefix)
     }
 
@@ -1913,6 +2013,7 @@ impl Vault {
     fn snapshot(&self) -> Result<BTreeMap<String, SnapshotFile>, VaultError> {
         // Watch reconciliation must never observe or emit an intermediate batch state.
         let _write_guard = self.lock_writes()?;
+        self.recover_pending_locked()?;
         let mut entries = Vec::new();
         collect_entries(&self.root, "", &mut entries)?;
         Ok(entries
@@ -2568,7 +2669,10 @@ mod tests {
         let file = open_file_nofollow(&root, "growing.bin").unwrap();
 
         let result = read_exact_bounded_after_stat(file, 32, || {
-            let mut growing = std::fs::OpenOptions::new().append(true).open(&path).unwrap();
+            let mut growing = std::fs::OpenOptions::new()
+                .append(true)
+                .open(&path)
+                .unwrap();
             growing.write_all(&[8]).unwrap();
             growing.sync_all().unwrap();
         });
@@ -2842,18 +2946,70 @@ mod tests {
             .write_text_atomic("first.md", "before", None, false, None)
             .unwrap();
         let revision = parse_revision(&vault.get_revision().unwrap()).unwrap();
-        assert!(vault
-            .write_batch_atomic_inner(
-                crash_test_batch(revision),
-                None,
-                None,
-                Some(BatchCrashPoint::Published(0)),
-            )
-            .is_err());
+        assert!(
+            vault
+                .write_batch_atomic_inner(
+                    crash_test_batch(revision),
+                    None,
+                    None,
+                    Some(BatchCrashPoint::Published(0)),
+                )
+                .is_err()
+        );
 
         assert_eq!(vault.read_binary("first.md").unwrap(), b"before");
         assert!(!vault.exists("second.bin").unwrap());
         assert_no_transaction_leaks(directory.path());
+    }
+
+    #[test]
+    fn ordinary_operations_never_bypass_an_unrecoverable_journal() {
+        let (directory, vault) = selected_vault();
+        vault
+            .write_text_atomic("first.md", "before-first", None, false, None)
+            .unwrap();
+        vault
+            .write_text_atomic("second.md", "before-second", None, false, None)
+            .unwrap();
+        let revision = parse_revision(&vault.get_revision().unwrap()).unwrap();
+        assert!(
+            vault
+                .write_batch_atomic_inner(
+                    two_existing_files_batch(revision),
+                    None,
+                    None,
+                    Some(BatchCrashPoint::Published(1)),
+                )
+                .is_err()
+        );
+        let journal = directory.path().join(BATCH_JOURNAL_PATH);
+        std::fs::write(journal.join("previous-0.bin"), b"corrupt").unwrap();
+
+        assert!(vault.read_binary("first.md").is_err());
+        assert!(vault.read_text("first.md").is_err());
+        assert!(vault.list(None).is_err());
+        assert!(vault.snapshot().is_err());
+        assert!(vault.exists("first.md").is_err());
+        assert!(vault.get_revision().is_err());
+        assert!(
+            vault
+                .write_text_atomic("third.md", "unsafe", None, true, None)
+                .is_err()
+        );
+        assert!(vault.move_path("first.md", "moved.md", None, None).is_err());
+        assert!(vault.remove("first.md", None, false, None).is_err());
+
+        assert_eq!(
+            std::fs::read(directory.path().join("first.md")).unwrap(),
+            b"after-first"
+        );
+        assert_eq!(
+            std::fs::read(directory.path().join("second.md")).unwrap(),
+            b"after-second"
+        );
+        assert!(!directory.path().join("third.md").exists());
+        assert!(!directory.path().join("moved.md").exists());
+        assert!(journal.exists());
     }
 
     #[test]
@@ -2863,14 +3019,16 @@ mod tests {
             .write_text_atomic("first.md", "before", None, false, None)
             .unwrap();
         let revision = parse_revision(&vault.get_revision().unwrap()).unwrap();
-        assert!(vault
-            .write_batch_atomic_inner(
-                crash_test_batch(revision),
-                None,
-                None,
-                Some(BatchCrashPoint::Published(0)),
-            )
-            .is_err());
+        assert!(
+            vault
+                .write_batch_atomic_inner(
+                    crash_test_batch(revision),
+                    None,
+                    None,
+                    Some(BatchCrashPoint::Published(0)),
+                )
+                .is_err()
+        );
         drop(vault);
 
         let manifest: BatchJournal = serde_json::from_slice(
@@ -2923,7 +3081,7 @@ mod tests {
         drop(vault);
         drop(initial);
 
-        let each = (MAX_BATCH_BYTES / 4 + 1) as u64;
+        let each = (MAX_BATCH_BYTES / 2 + 1) as u64;
         for name in ["first.bin", "second.bin"] {
             std::fs::File::create(directory.path().join(name))
                 .unwrap()
@@ -2962,7 +3120,12 @@ mod tests {
             Err(VaultError::Unavailable)
         ));
         for name in ["first.bin", "second.bin"] {
-            assert_eq!(std::fs::metadata(directory.path().join(name)).unwrap().len(), each);
+            assert_eq!(
+                std::fs::metadata(directory.path().join(name))
+                    .unwrap()
+                    .len(),
+                each
+            );
         }
         assert!(journal_path.exists());
     }
