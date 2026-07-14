@@ -4,11 +4,13 @@ import { ReflectionPage } from '../../features/reflection/ReflectionPage';
 import { useReflection } from '../../features/reflection/use-reflection';
 
 export default function ReflectionRoom({
+  onNavigate,
   onOpenCard,
   online = true,
   projectionRevision = 0,
   service,
 }: {
+  onNavigate?: (path: string, options?: { replace?: boolean }) => void;
   onOpenCard?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
   online?: boolean;
   projectionRevision?: number;
@@ -39,6 +41,17 @@ export default function ReflectionRoom({
         }
       }}
       onConnect={view.connect}
+      onOpenConnection={(connection, trigger) => {
+        if (connection.kind === 'note' && connection.card && onOpenCard) {
+          onOpenCard(connection.card, trigger);
+          return;
+        }
+        if (connection.kind === 'life-area') {
+          onNavigate?.(`/landscape/${connection.id}`);
+          return;
+        }
+        if (connection.kind === 'season') onNavigate?.('/season');
+      }}
       {...(onOpenCard ? { onOpen: onOpenCard } : {})}
       state={!online && view.state !== 'loading' && view.state !== 'error'
         ? 'offline'

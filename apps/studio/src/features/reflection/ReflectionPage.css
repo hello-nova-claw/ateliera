@@ -233,6 +233,21 @@
   font: var(--studio-type-eyebrow);
 }
 
+.reflection-entry__connections button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+}
+
+.reflection-entry__connection-repair {
+  font-style: italic;
+}
+
 .reflection-entry__connect {
   display: grid;
   grid-template-columns: auto minmax(9rem, 1fr) auto;

@@ -1,6 +1,7 @@
 import type {
   ReflectionCardProjection,
   ReflectionGardenProjection,
+  StudioCardProjection,
 } from '@studio/application';
 import { SemanticMark } from '@studio/ui';
 import { useMemo, useRef, useState } from 'react';
@@ -9,6 +10,7 @@ import './ReflectionPage.css';
 
 type ReflectionView = 'garden' | 'reflection' | 'celebration' | 'themes';
 export type ReflectionConnection = {
+  card?: StudioCardProjection;
   id: string;
   kind: 'note' | 'season' | 'life-area';
   label: string;
@@ -30,6 +32,10 @@ export interface ReflectionPageProps {
     card: ReflectionCardProjection,
     connection: ReflectionConnection,
   ) => Promise<void> | void;
+  onOpenConnection?: (
+    connection: ReflectionConnection,
+    trigger: HTMLButtonElement,
+  ) => void;
   onOpen?: (card: ReflectionCardProjection, trigger: HTMLButtonElement) => void;
   state?: 'ready' | 'loading' | 'offline' | 'stale' | 'error';
 }
@@ -55,6 +61,7 @@ function EntryCard({
   imageUrl,
   imageUnavailable = false,
   onConnect,
+  onOpenConnection,
   onOpen,
 }: {
   card: ReflectionCardProjection;
@@ -62,22 +69,49 @@ function EntryCard({
   imageUrl?: string;
   imageUnavailable?: boolean;
   onConnect?: ReflectionPageProps['onConnect'];
+  onOpenConnection?: ReflectionPageProps['onOpenConnection'];
   onOpen?: ReflectionPageProps['onOpen'];
 }) {
   const [connectionId, setConnectionId] = useState('');
   const [message, setMessage] = useState<string>();
+  const [connecting, setConnecting] = useState(false);
+  const connectionPending = useRef(false);
   const available = connections.filter((candidate) => {
     if (candidate.kind === 'life-area') return !card.lifeAreas.includes(candidate.id);
     if (candidate.kind === 'season') return !card.seasons.includes(candidate.id);
     return !card.linkedNoteIds.includes(candidate.id) && candidate.id !== card.noteId;
   });
-  const labels = [
-    ...card.lifeAreas.map(displayLabel),
-    ...card.seasons.map(displayLabel),
-    ...card.linkedNoteIds.map((id) =>
-      connections.find((candidate) => candidate.kind === 'note' && candidate.id === id)?.label ?? 'Linked note',
-    ),
-  ];
+  const evidence = card.evidenceConnections.map((item) => {
+    const resolved = connections.find(
+      (candidate) => candidate.kind === item.kind && candidate.id === item.id,
+    );
+    const label = resolved?.label ?? displayLabel(item.id);
+    if (item.kind === 'note' && item.targetState !== 'available') {
+      return {
+        ...item,
+        label,
+        repair: item.targetState === 'archived'
+          ? `The connected note ${item.id} is archived.`
+          : `The connected note ${item.id} is not available here.`,
+      };
+    }
+    if (item.kind === 'note' && !resolved) {
+      return {
+        ...item,
+        label,
+        repair: `The connected note ${item.id} is not available here.`,
+      };
+    }
+    return {
+      ...item,
+      label,
+      connection: resolved ?? { id: item.id, kind: item.kind, label },
+    };
+  });
+  const labelCounts = new Map<string, number>();
+  for (const item of evidence) {
+    labelCounts.set(item.label, (labelCounts.get(item.label) ?? 0) + 1);
+  }
   return (
     <article
       aria-labelledby={`reflection-${card.noteId}`}
@@ -99,12 +133,31 @@ function EntryCard({
       </div>
       <h3 id={`reflection-${card.noteId}`}>{card.title}</h3>
       {card.excerpt && <p>{card.excerpt}</p>}
-      {labels.length > 0 && (
+      {evidence.length > 0 && (
         <ul
           aria-label={`Connections for ${card.title}`}
           className="reflection-entry__connections"
         >
-          {[...new Set(labels)].map((label) => <li key={label}>{label}</li>)}
+          {evidence.map((item) => (
+            <li key={`${item.kind}:${item.id}`}>
+              {'repair' in item ? (
+                <span className="reflection-entry__connection-repair">
+                  {item.repair}
+                </span>
+              ) : onOpenConnection && item.connection ? (
+                <button
+                  aria-label={`Open ${item.label}, ${item.id}`}
+                  onClick={(event) => onOpenConnection(item.connection, event.currentTarget)}
+                  type="button"
+                >
+                  {item.label}
+                  {(labelCounts.get(item.label) ?? 0) > 1 && (
+                    <span> · {item.id}</span>
+                  )}
+                </button>
+              ) : item.label}
+            </li>
+          ))}
         </ul>
       )}
       <div className="reflection-entry__actions">
@@ -118,27 +171,38 @@ function EntryCard({
             className="reflection-entry__connect"
             onSubmit={(event) => {
               event.preventDefault();
+              if (connectionPending.current) return;
               const connection = available.find(
                 (candidate) => `${candidate.kind}:${candidate.id}` === connectionId,
               );
               if (!connection) return;
+              const trigger = event.nativeEvent.submitter as HTMLButtonElement;
+              connectionPending.current = true;
+              setConnecting(true);
               setMessage(undefined);
               void Promise.resolve(onConnect(card, connection)).then(
                 () => {
                   setMessage(`Connected with ${connection.label}.`);
                   setConnectionId('');
                 },
-                (reason: unknown) => setMessage(
-                  reason instanceof Error
-                    ? reason.message
-                    : 'This connection could not be kept.',
-                ),
-              );
+                (reason: unknown) => {
+                  setMessage(
+                    reason instanceof Error
+                      ? reason.message
+                      : 'This connection could not be kept.',
+                  );
+                },
+              ).finally(() => {
+                connectionPending.current = false;
+                setConnecting(false);
+                requestAnimationFrame(() => trigger.focus());
+              });
             }}
           >
             <label htmlFor={`connect-${card.noteId}`}>Connect evidence</label>
             <select
               id={`connect-${card.noteId}`}
+              disabled={connecting}
               onChange={(event) => setConnectionId(event.target.value)}
               value={connectionId}
             >
@@ -149,7 +213,9 @@ function EntryCard({
                 </option>
               ))}
             </select>
-            <button disabled={connectionId === ''} type="submit">Connect</button>
+            <button disabled={connecting || connectionId === ''} type="submit">
+              {connecting ? 'Connecting…' : 'Connect'}
+            </button>
           </form>
         )}
       </div>
@@ -192,6 +258,7 @@ export function ReflectionPage({
   model,
   onCapture,
   onConnect,
+  onOpenConnection,
   onOpen,
   state = 'ready',
 }: ReflectionPageProps) {
@@ -350,6 +417,7 @@ export function ReflectionPage({
                 : { imageUrl: imageUrls[card.noteId] })}
               imageUnavailable={imageUnavailableIds.has(card.noteId)}
               {...(onConnect === undefined ? {} : { onConnect })}
+              {...(onOpenConnection === undefined ? {} : { onOpenConnection })}
               {...(onOpen === undefined ? {} : { onOpen })}
             />
           </div>

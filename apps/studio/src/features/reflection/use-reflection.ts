@@ -5,7 +5,7 @@ import type {
   StudioService,
 } from '@studio/application';
 import { markdownToPlainText } from '@studio/content';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ReflectionConnection } from './ReflectionPage';
 
@@ -47,6 +47,7 @@ export function useReflection(
     service ? 'loading' : 'ready',
   );
   const [error, setError] = useState<string>();
+  const pendingConnections = useRef(new Map<string, Promise<void>>());
 
   useEffect(() => {
     if (!service) {
@@ -67,11 +68,13 @@ export function useReflection(
     ]).then(async ([projection, identity, uncharted, season, areas, repairs]) => {
       const nextConnections: ReflectionConnection[] = [
         ...identity.map((card) => ({
+          card,
           id: card.noteId,
           kind: 'note' as const,
           label: card.title,
         })),
         ...uncharted.cards.map((card) => ({
+          card,
           id: card.noteId,
           kind: 'note' as const,
           label: card.title,
@@ -185,14 +188,30 @@ export function useReflection(
     connection: ReflectionConnection,
   ) => {
     if (!service) throw new Error('Open a Studio before making a connection.');
-    await service.linkReflectionEvidence({
-      path: card.path,
-      expectedHash: card.hash,
-      ...(connection.kind === 'note' ? { noteIds: [connection.id] } : {}),
-      ...(connection.kind === 'life-area' ? { lifeAreas: [connection.id] } : {}),
-      ...(connection.kind === 'season' ? { seasons: [connection.id] } : {}),
-    });
-    setLocalRevision((value) => value + 1);
+    const key = `${card.noteId}:${connection.kind}:${connection.id}`;
+    const pending = pendingConnections.current.get(key);
+    if (pending) return pending;
+    const operation = (async () => {
+      try {
+        await service.linkReflectionEvidence({
+          path: card.path,
+          expectedHash: card.hash,
+          ...(connection.kind === 'note' ? { noteIds: [connection.id] } : {}),
+          ...(connection.kind === 'life-area' ? { lifeAreas: [connection.id] } : {}),
+          ...(connection.kind === 'season' ? { seasons: [connection.id] } : {}),
+        });
+      } finally {
+        setLocalRevision((value) => value + 1);
+      }
+    })();
+    pendingConnections.current.set(key, operation);
+    const clear = () => {
+      if (pendingConnections.current.get(key) === operation) {
+        pendingConnections.current.delete(key);
+      }
+    };
+    void operation.then(clear, clear);
+    return operation;
   }, [service]);
 
   return {
