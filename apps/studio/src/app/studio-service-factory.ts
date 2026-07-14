@@ -26,10 +26,21 @@ export function createAppStudioService(
   const index = createIndex();
   const lifecycle = createStudioService({ vault, index });
   const search = createStudioSearchService({ vault, index });
+  let startPromise: Promise<void> | undefined;
   let disposePromise: Promise<void> | undefined;
   return {
     ...lifecycle,
     ...search,
+    start() {
+      startPromise ??= (async () => {
+        await lifecycle.start();
+        await lifecycle.rebuildIndex();
+      })().catch((error: unknown) => {
+        startPromise = undefined;
+        throw error;
+      });
+      return startPromise;
+    },
     dispose() {
       if (disposePromise !== undefined) return disposePromise;
       disposePromise = (async () => {
