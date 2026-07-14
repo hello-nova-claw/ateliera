@@ -17,6 +17,7 @@ export type PortableVaultErrorCode =
   | 'invalid-manifest'
   | 'invalid-path'
   | 'path-collision'
+  | 'source-changed'
   | 'target-changed'
   | 'unresolved-conflict'
   | 'unsupported-archive';

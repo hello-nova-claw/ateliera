@@ -99,4 +99,40 @@ describe('portable vault export', () => {
     await expect(exportVault(vault)).rejects.toMatchObject({ code: 'archive-too-large' });
     expect(readBinary).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ['edited', async (vault: VaultPort) => {
+      await vault.writeTextAtomic('Inbox/note.md', 'edited after capture');
+    }],
+    ['added', async (vault: VaultPort) => {
+      await vault.writeTextAtomic('Inbox/added.md', 'added after capture');
+    }],
+    ['removed', async (vault: VaultPort) => {
+      await vault.remove('Inbox/note.md');
+    }],
+  ] as const)('rejects when a source file is %s during export', async (_change, mutate) => {
+    const base = createInMemoryVault();
+    await base.writeTextAtomic('Inbox/note.md', 'captured');
+    let firstRead = true;
+    const vault: VaultPort = {
+      list: (prefix) => base.list(prefix),
+      readText: (path) => base.readText(path),
+      async readBinary(path) {
+        const bytes = await base.readBinary(path);
+        if (firstRead) {
+          firstRead = false;
+          await mutate(base);
+        }
+        return bytes;
+      },
+      writeTextAtomic: (path, text, condition) => base.writeTextAtomic(path, text, condition),
+      writeBinaryAtomic: (path, bytes, condition) => base.writeBinaryAtomic(path, bytes, condition),
+      move: (from, to, condition) => base.move(from, to, condition),
+      remove: (path, condition) => base.remove(path, condition),
+      exists: (path) => base.exists(path),
+      watch: (listener) => base.watch(listener),
+    };
+
+    await expect(exportVault(vault)).rejects.toMatchObject({ code: 'source-changed' });
+  });
 });

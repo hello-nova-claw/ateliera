@@ -30,6 +30,76 @@ function validateGeneratedAt(value: string): string {
   return new Date(value).toISOString();
 }
 
+interface CapturedExportEntry {
+  sourcePath: string;
+  path: string;
+  sha256: string;
+  size: number;
+}
+
+function sourceChanged(): PortableVaultError {
+  return new PortableVaultError(
+    'source-changed',
+    'The vault changed while the backup was being created. Nothing was exported; try again.',
+  );
+}
+
+async function assertSourceUnchanged(
+  vault: VaultPort,
+  captured: readonly CapturedExportEntry[],
+  capturedExcludedCaches: readonly string[],
+): Promise<void> {
+  try {
+    const entries = (await vault.list()).filter((entry) => entry.kind === 'file');
+    const included: Array<{ sourcePath: string; path: string }> = [];
+    const excludedCaches: string[] = [];
+    const includedKeys = new Set<string>();
+    const excludedKeys = new Set<string>();
+
+    for (const entry of entries) {
+      const disposition = exportDisposition(entry.path);
+      if (disposition === 'internal') continue;
+      const path = validatePortablePath(entry.path.normalize('NFC'));
+      const key = portablePathKey(path);
+      if (disposition === 'cache') {
+        if (excludedKeys.has(key)) throw sourceChanged();
+        excludedKeys.add(key);
+        excludedCaches.push(path);
+        continue;
+      }
+      assertNoActiveContent(path);
+      if (path === PORTABLE_MANIFEST_PATH || includedKeys.has(key)) throw sourceChanged();
+      includedKeys.add(key);
+      included.push({ sourcePath: entry.path, path });
+    }
+
+    included.sort((left, right) => left.path.localeCompare(right.path, 'en'));
+    excludedCaches.sort((left, right) => left.localeCompare(right, 'en'));
+    if (
+      included.length !== captured.length ||
+      included.some((entry, index) => {
+        const prior = captured[index];
+        return prior === undefined || entry.path !== prior.path || entry.sourcePath !== prior.sourcePath;
+      }) ||
+      excludedCaches.length !== capturedExcludedCaches.length ||
+      excludedCaches.some((path, index) => path !== capturedExcludedCaches[index])
+    ) {
+      throw sourceChanged();
+    }
+
+    for (const [index, entry] of included.entries()) {
+      const prior = captured[index] as CapturedExportEntry;
+      const bytes = await vault.readBinary(entry.sourcePath);
+      if (bytes.byteLength !== prior.size || await sha256(bytes) !== prior.sha256) {
+        throw sourceChanged();
+      }
+    }
+  } catch (error) {
+    if (error instanceof PortableVaultError && error.code === 'source-changed') throw error;
+    throw sourceChanged();
+  }
+}
+
 export async function exportVault(
   vault: VaultPort,
   options: ExportVaultOptions = {},
@@ -82,6 +152,7 @@ export async function exportVault(
   }
 
   const files: Array<readonly [string, Uint8Array]> = [];
+  const captured: CapturedExportEntry[] = [];
   const manifest: PortableVaultManifest = {
     format: PORTABLE_FORMAT,
     exportVersion: PORTABLE_EXPORT_VERSION,
@@ -112,7 +183,15 @@ export async function exportVault(
     const checksum = await sha256(bytes);
     files.push([entry.path, bytes]);
     manifest.files.push({ path: entry.path, sha256: checksum, size: bytes.byteLength });
+    captured.push({
+      sourcePath: entry.sourcePath,
+      path: entry.path,
+      sha256: checksum,
+      size: bytes.byteLength,
+    });
   }
+
+  await assertSourceUnchanged(vault, captured, excludedCaches);
 
   const manifestBytes = encoder.encode(`${JSON.stringify(manifest, null, 2)}\n`);
   expandedSize += manifestBytes.byteLength;
