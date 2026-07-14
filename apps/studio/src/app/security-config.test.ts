@@ -46,6 +46,7 @@ describe('Tauri security boundary', () => {
     expect(directive(policy, 'default-src')).toEqual(["'self'"]);
     expect(directive(policy, 'script-src')).toEqual(["'self'"]);
     expect(directive(policy, 'connect-src')).toEqual(['ipc:', 'http://ipc.localhost']);
+    expect(directive(policy, 'img-src')).toEqual(["'self'", 'data:', 'blob:']);
     expect(directive(policy, 'object-src')).toEqual(["'none'"]);
     expect(directive(policy, 'base-uri')).toEqual(["'none'"]);
     expect(policy).not.toMatch(/https:\/\/|\*/);
