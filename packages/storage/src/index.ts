@@ -41,3 +41,22 @@ export type {
   VaultPort,
   WriteCondition,
 } from './vault-port';
+export { exportVault, PortableVaultError } from './export';
+export type {
+  ExportVaultOptions,
+  PortableVaultErrorCode,
+  PortableVaultManifest,
+} from './export';
+export { applyVaultImport, importVault, prepareVaultImport } from './import';
+export type {
+  ApplyVaultImportOptions,
+  VaultImportAction,
+  VaultImportItem,
+  VaultImportPlan,
+} from './import';
+export { createVaultBackup, restoreVaultBackup } from './backup';
+export type {
+  CreateVaultBackupOptions,
+  VaultBackup,
+  VaultBackupReason,
+} from './backup';
