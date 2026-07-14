@@ -4,7 +4,7 @@ import type {
   StudioCardProjection,
 } from '@studio/application';
 import { SemanticMark } from '@studio/ui';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import './ReflectionPage.css';
 
@@ -76,6 +76,15 @@ function EntryCard({
   const [message, setMessage] = useState<string>();
   const [connecting, setConnecting] = useState(false);
   const connectionPending = useRef(false);
+  const connectButton = useRef<HTMLButtonElement>(null);
+  const restoreConnectionFocus = useRef(false);
+  useEffect(() => {
+    if (connecting || !restoreConnectionFocus.current) return;
+    restoreConnectionFocus.current = false;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => connectButton.current?.focus());
+    });
+  }, [card.hash, connecting]);
   const available = connections.filter((candidate) => {
     if (candidate.kind === 'life-area') return !card.lifeAreas.includes(candidate.id);
     if (candidate.kind === 'season') return !card.seasons.includes(candidate.id);
@@ -176,7 +185,6 @@ function EntryCard({
                 (candidate) => `${candidate.kind}:${candidate.id}` === connectionId,
               );
               if (!connection) return;
-              const trigger = event.nativeEvent.submitter as HTMLButtonElement;
               connectionPending.current = true;
               setConnecting(true);
               setMessage(undefined);
@@ -194,8 +202,8 @@ function EntryCard({
                 },
               ).finally(() => {
                 connectionPending.current = false;
+                restoreConnectionFocus.current = true;
                 setConnecting(false);
-                requestAnimationFrame(() => trigger.focus());
               });
             }}
           >
@@ -213,7 +221,11 @@ function EntryCard({
                 </option>
               ))}
             </select>
-            <button disabled={connecting || connectionId === ''} type="submit">
+            <button
+              disabled={connecting || connectionId === ''}
+              ref={connectButton}
+              type="submit"
+            >
               {connecting ? 'Connecting…' : 'Connect'}
             </button>
           </form>
