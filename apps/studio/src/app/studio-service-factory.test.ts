@@ -60,8 +60,10 @@ Already here.
     const workerIndex = index();
     const service = createAppStudioService(vault, () => workerIndex);
 
+    expect(service.indexState()).toBe('rebuilding');
     await service.start();
 
+    expect(service.indexState()).toBe('ready');
     expect(workerIndex.rebuild).toHaveBeenCalledOnce();
     expect([...workerIndex.entries]).toEqual([
       ['existing-note', expect.objectContaining({ path: 'Reflection Garden/existing.md' })],
