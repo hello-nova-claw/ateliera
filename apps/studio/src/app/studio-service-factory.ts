@@ -26,6 +26,7 @@ export function createAppStudioService(
   const index = createIndex();
   const lifecycle = createStudioService({ vault, index });
   const search = createStudioSearchService({ vault, index });
+  let initialRebuildComplete = false;
   let startPromise: Promise<void> | undefined;
   let disposePromise: Promise<void> | undefined;
   return {
@@ -35,11 +36,16 @@ export function createAppStudioService(
       startPromise ??= (async () => {
         await lifecycle.start();
         await lifecycle.rebuildIndex();
+        initialRebuildComplete = true;
       })().catch((error: unknown) => {
         startPromise = undefined;
         throw error;
       });
       return startPromise;
+    },
+    indexState() {
+      const current = lifecycle.indexState();
+      return initialRebuildComplete || current === 'stale' ? current : 'rebuilding';
     },
     dispose() {
       if (disposePromise !== undefined) return disposePromise;
