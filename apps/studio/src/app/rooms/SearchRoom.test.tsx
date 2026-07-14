@@ -167,6 +167,27 @@ describe('SearchRoom', () => {
     expect(inspect).toHaveBeenNthCalledWith(2, note.id);
   });
 
+  it('does not let a slow earlier inspection replace the latest note', async () => {
+    let finishFirst: ((value: StudioSearchInspection) => void) | undefined;
+    const linked = { ...note, id: 'linked', title: 'Linked note', body: 'Latest body.' };
+    const inspect = vi.fn((id: string) => id === note.id
+      ? new Promise<StudioSearchInspection>((resolve) => { finishFirst = resolve; })
+      : Promise.resolve({ ...inspection, note: linked, path: 'Reflection/Linked.md' }));
+    const search = vi.fn().mockResolvedValue([
+      hit,
+      { ...hit, id: linked.id, title: linked.title!, path: 'Reflection/Linked.md' },
+    ]);
+    render(<SearchRoom service={service({ inspect, search })} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'The quiet hill' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Linked note' }));
+    expect(await screen.findByRole('dialog', { name: 'Inspect Linked note' })).toBeVisible();
+    await act(async () => { finishFirst?.(inspection); });
+
+    expect(screen.getByRole('dialog', { name: 'Inspect Linked note' })).toBeVisible();
+    expect(screen.getByText('Latest body.')).toBeVisible();
+  });
+
   it('shows a calm unavailable state when the base service lacks search', async () => {
     render(<SearchRoom service={{} as StudioService} />);
     expect(await screen.findByText('Search becomes available once your Studio is open.')).toBeVisible();
