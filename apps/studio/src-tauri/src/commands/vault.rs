@@ -2757,6 +2757,23 @@ mod tests {
         assert_eq!(registry.capability_count_for_test(), 1);
     }
 
+    #[test]
+    fn failed_studio_initialization_leaves_no_named_or_staging_folder() {
+        let parent = tempfile::tempdir().unwrap();
+        let registry = VaultRegistry::default();
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = registry.vaults.lock().unwrap();
+            panic!("poison registry");
+        }));
+
+        assert!(matches!(
+            registry.create_in_selected_parent("main", parent.path(), "My Studio"),
+            Err(VaultError::Unavailable)
+        ));
+        assert!(!parent.path().join("My Studio").exists());
+        assert_eq!(std::fs::read_dir(parent.path()).unwrap().count(), 0);
+    }
+
     fn selected_vault() -> (tempfile::TempDir, Arc<Vault>) {
         let directory = tempfile::tempdir().unwrap();
         let registry = VaultRegistry::default();
