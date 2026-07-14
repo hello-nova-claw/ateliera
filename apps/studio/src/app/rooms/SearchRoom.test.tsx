@@ -154,6 +154,20 @@ describe('SearchRoom', () => {
     expect(await screen.findByText('Nothing needs repair.')).toBeVisible();
   });
 
+  it('retries the exact requested note after its first inspection fails', async () => {
+    const inspect = vi.fn()
+      .mockRejectedValueOnce(new Error('Vault unavailable'))
+      .mockResolvedValueOnce(inspection);
+    render(<SearchRoom service={service({ inspect })} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'The quiet hill' }));
+    expect(await screen.findByText('This note could not be opened.')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Inspect The quiet hill' })).toBeVisible();
+    expect(inspect).toHaveBeenNthCalledWith(2, note.id);
+  });
+
   it('shows a calm unavailable state when the base service lacks search', async () => {
     render(<SearchRoom service={{} as StudioService} />);
     expect(await screen.findByText('Search becomes available once your Studio is open.')).toBeVisible();
