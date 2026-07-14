@@ -18,6 +18,7 @@ import { RecordingIndex } from './test-helpers';
 
 function recordingBrowserStore(paths: string[]): BrowserVaultStore {
   const files = new Map<string, StoredBrowserFile>();
+  let revision = 0n;
   return {
     async entries() {
       return [...files.entries()];
@@ -26,16 +27,19 @@ function recordingBrowserStore(paths: string[]): BrowserVaultStore {
       paths.push(path);
       return files.get(path);
     },
-    async write(path, file) {
-      paths.push(path);
-      files.set(path, {
-        ...file,
-        bytes: file.bytes.slice(),
-      });
-    },
-    async remove(path) {
-      paths.push(path);
-      files.delete(path);
+    async getRevision() { return revision.toString(); },
+    async mutateAtomic(expectedRevision, mutations) {
+      if (expectedRevision !== revision.toString()) throw new Error('conflict');
+      const next = new Map(files);
+      for (const mutation of mutations) {
+        paths.push(mutation.path);
+        if (mutation.kind === 'remove') next.delete(mutation.path);
+        else next.set(mutation.path, { ...mutation.file, bytes: mutation.file.bytes.slice() });
+      }
+      files.clear();
+      for (const entry of next) files.set(...entry);
+      revision += 1n;
+      return revision.toString();
     },
   };
 }

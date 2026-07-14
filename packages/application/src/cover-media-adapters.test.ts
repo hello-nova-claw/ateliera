@@ -15,6 +15,7 @@ const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 function browserStore(): BrowserVaultStore {
   const files = new Map<string, StoredBrowserFile>();
+  let revision = 0n;
   return {
     async entries() {
       return [...files].map(([path, file]) =>
@@ -24,10 +25,19 @@ function browserStore(): BrowserVaultStore {
       const file = files.get(path);
       return file === undefined ? undefined : { ...file, bytes: file.bytes.slice() };
     },
-    async write(path, file) {
-      files.set(path, { ...file, bytes: file.bytes.slice() });
+    async getRevision() { return revision.toString(); },
+    async mutateAtomic(expectedRevision, mutations) {
+      if (expectedRevision !== revision.toString()) throw new Error('conflict');
+      const next = new Map(files);
+      for (const mutation of mutations) {
+        if (mutation.kind === 'remove') next.delete(mutation.path);
+        else next.set(mutation.path, { ...mutation.file, bytes: mutation.file.bytes.slice() });
+      }
+      files.clear();
+      for (const entry of next) files.set(...entry);
+      revision += 1n;
+      return revision.toString();
     },
-    async remove(path) { files.delete(path); },
   };
 }
 

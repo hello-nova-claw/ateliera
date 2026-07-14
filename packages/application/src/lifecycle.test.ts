@@ -74,11 +74,13 @@ describe('service lifecycle and reconciliation', () => {
       return originalRead(path);
     });
     const racing: VaultPort = {
+      getRevision: backing.getRevision.bind(backing),
       list: backing.list.bind(backing),
       readText: read,
       writeTextAtomic: backing.writeTextAtomic.bind(backing),
       readBinary: backing.readBinary.bind(backing),
       writeBinaryAtomic: backing.writeBinaryAtomic.bind(backing),
+      writeBatchAtomic: backing.writeBatchAtomic.bind(backing),
       move: backing.move.bind(backing),
       remove: backing.remove.bind(backing),
       exists: backing.exists.bind(backing),
@@ -257,11 +259,13 @@ describe('service lifecycle and reconciliation', () => {
       return Promise.resolve(vi.fn());
     });
     const vault: VaultPort = {
+      getRevision: backing.getRevision.bind(backing),
       list: backing.list.bind(backing),
       readText: backing.readText.bind(backing),
       writeTextAtomic: backing.writeTextAtomic.bind(backing),
       readBinary: backing.readBinary.bind(backing),
       writeBinaryAtomic: backing.writeBinaryAtomic.bind(backing),
+      writeBatchAtomic: backing.writeBatchAtomic.bind(backing),
       move: backing.move.bind(backing),
       remove: backing.remove.bind(backing),
       exists: backing.exists.bind(backing),
@@ -356,11 +360,13 @@ describe('service lifecycle and reconciliation', () => {
       const backing = createInMemoryVault();
       let listener: Parameters<VaultPort['watch']>[0] | undefined;
       const vault: VaultPort = {
+        getRevision: backing.getRevision.bind(backing),
         list: backing.list.bind(backing),
         readText: backing.readText.bind(backing),
         writeTextAtomic: backing.writeTextAtomic.bind(backing),
         readBinary: backing.readBinary.bind(backing),
         writeBinaryAtomic: backing.writeBinaryAtomic.bind(backing),
+        writeBatchAtomic: backing.writeBatchAtomic.bind(backing),
         move: backing.move.bind(backing),
         remove: backing.remove.bind(backing),
         exists: backing.exists.bind(backing),
@@ -401,6 +407,7 @@ describe('service lifecycle and reconciliation', () => {
     const secondWriteDurable = new Promise<string>((resolve) => { secondWriteStarted = resolve; });
     let writes = 0;
     const vault: VaultPort = {
+      getRevision: backing.getRevision.bind(backing),
       list: backing.list.bind(backing),
       readText: backing.readText.bind(backing),
       async writeTextAtomic(path, value, options) {
@@ -414,6 +421,7 @@ describe('service lifecycle and reconciliation', () => {
       },
       readBinary: backing.readBinary.bind(backing),
       writeBinaryAtomic: backing.writeBinaryAtomic.bind(backing),
+      writeBatchAtomic: backing.writeBatchAtomic.bind(backing),
       move: backing.move.bind(backing),
       remove: backing.remove.bind(backing),
       exists: backing.exists.bind(backing),
@@ -459,6 +467,7 @@ describe('service lifecycle and reconciliation', () => {
     const backing = createInMemoryVault();
     let listener: Parameters<VaultPort['watch']>[0] | undefined;
     const vault: VaultPort = {
+      getRevision: backing.getRevision.bind(backing),
       list: backing.list.bind(backing),
       readText: backing.readText.bind(backing),
       async writeTextAtomic(path, value, options) {
@@ -468,6 +477,7 @@ describe('service lifecycle and reconciliation', () => {
       },
       readBinary: backing.readBinary.bind(backing),
       writeBinaryAtomic: backing.writeBinaryAtomic.bind(backing),
+      writeBatchAtomic: backing.writeBatchAtomic.bind(backing),
       move: backing.move.bind(backing),
       remove: backing.remove.bind(backing),
       exists: backing.exists.bind(backing),
@@ -492,6 +502,7 @@ describe('service lifecycle and reconciliation', () => {
     let release!: () => void;
     const gate = new Promise<void>((resolve) => { release = resolve; });
     const vault: VaultPort = {
+      getRevision: backing.getRevision.bind(backing),
       list: backing.list.bind(backing),
       readText: backing.readText.bind(backing),
       async writeTextAtomic(path, value, options) {
@@ -500,6 +511,7 @@ describe('service lifecycle and reconciliation', () => {
       },
       readBinary: backing.readBinary.bind(backing),
       writeBinaryAtomic: backing.writeBinaryAtomic.bind(backing),
+      writeBatchAtomic: backing.writeBatchAtomic.bind(backing),
       move: backing.move.bind(backing),
       remove: backing.remove.bind(backing),
       exists: backing.exists.bind(backing),
@@ -518,6 +530,7 @@ describe('service lifecycle and reconciliation', () => {
     let release!: () => void;
     const gate = new Promise<void>((resolve) => { release = resolve; });
     const vault: VaultPort = {
+      getRevision: backing.getRevision.bind(backing),
       list: backing.list.bind(backing),
       readText: backing.readText.bind(backing),
       async writeTextAtomic(path, value, options) {
@@ -526,6 +539,7 @@ describe('service lifecycle and reconciliation', () => {
       },
       readBinary: backing.readBinary.bind(backing),
       writeBinaryAtomic: backing.writeBinaryAtomic.bind(backing),
+      writeBatchAtomic: backing.writeBatchAtomic.bind(backing),
       move: backing.move.bind(backing),
       remove: backing.remove.bind(backing),
       exists: backing.exists.bind(backing),
