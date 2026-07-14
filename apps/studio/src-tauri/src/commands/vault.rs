@@ -2237,6 +2237,16 @@ impl Vault {
     }
 
     #[cfg(test)]
+    pub fn read_binary_chunk_for_test(
+        &self,
+        path: &str,
+        offset: u64,
+        length: u32,
+    ) -> Result<Vec<u8>, VaultError> {
+        self.read_binary_chunk(path, offset, length)
+    }
+
+    #[cfg(test)]
     pub fn start_watch_with_registration_hooks_for_test<R, B, A>(
         self: &Arc<Self>,
         app: AppHandle<R>,
@@ -2710,6 +2720,53 @@ mod tests {
         assert_eq!(bytes.len() as u64, MAX_PORTABLE_ENTRY_BYTES);
         assert_eq!(bytes.first(), Some(&0));
         assert_eq!(bytes.last(), Some(&0));
+    }
+
+    #[test]
+    fn ordinary_large_attachment_reads_in_exact_bounded_chunks() {
+        let (directory, vault) = selected_vault();
+        let size = usize::try_from(MAX_PORTABLE_ENTRY_BYTES).unwrap() + 17;
+        let expected = (0..size)
+            .map(|index| ((index * 31 + 7) % 251) as u8)
+            .collect::<Vec<_>>();
+        std::fs::create_dir(directory.path().join("Attachments")).unwrap();
+        std::fs::write(directory.path().join("Attachments/large.bin"), &expected).unwrap();
+
+        let mut actual = Vec::with_capacity(size);
+        let mut offset = 0_u64;
+        loop {
+            let chunk = vault
+                .read_binary_chunk_for_test(
+                    "Attachments/large.bin",
+                    offset,
+                    u32::try_from(MAX_BINARY_CHUNK_BYTES).unwrap(),
+                )
+                .unwrap();
+            assert!(chunk.len() <= MAX_BINARY_CHUNK_BYTES);
+            if chunk.is_empty() {
+                break;
+            }
+            offset += chunk.len() as u64;
+            actual.extend_from_slice(&chunk);
+        }
+
+        assert_eq!(actual, expected);
+        assert!(matches!(
+            vault.read_binary("Attachments/large.bin"),
+            Err(VaultError::Unavailable)
+        ));
+        assert!(matches!(
+            vault.read_binary_chunk_for_test("../outside.bin", 0, 1),
+            Err(VaultError::PathEscape)
+        ));
+        assert!(matches!(
+            vault.read_binary_chunk_for_test(
+                "Attachments/large.bin",
+                0,
+                u32::try_from(MAX_BINARY_CHUNK_BYTES + 1).unwrap(),
+            ),
+            Err(VaultError::Unavailable)
+        ));
     }
 
     #[test]
