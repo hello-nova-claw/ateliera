@@ -17,3 +17,12 @@ export {
   SemanticMark,
   type SemanticMarkProps,
 } from './SemanticMark/SemanticMark';
+export {
+  Inspector,
+  type InspectorForwardLink,
+  type InspectorNoteReference,
+  type InspectorOpenReference,
+  type InspectorProps,
+  type InspectorResult,
+  type InspectorState,
+} from './Inspector/Inspector';
