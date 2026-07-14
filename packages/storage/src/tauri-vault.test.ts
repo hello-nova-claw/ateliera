@@ -208,6 +208,53 @@ describe('Tauri vault IPC adapter', () => {
     expect(batchCalls[0]?.[1]).toBeInstanceOf(Uint8Array);
   });
 
+  it('copies batch bytes before asynchronous native publication begins', async () => {
+    let rawBody: unknown;
+    const invoke = vi.fn<TauriVaultBridge['invoke']>(async (command, args) => {
+      if (command === 'vault_select') return selection();
+      if (command === 'vault_write_batch_atomic') {
+        rawBody = args;
+        await Promise.resolve();
+        return { revision: '2', results: [{ path: 'asset.bin', hash }] };
+      }
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    const vault = await selectTauriVault(bridge(invoke));
+    const source = new Uint8Array([1, 2, 3]);
+    const pending = vault?.writeBatchAtomic({
+      expectedRevision: '1',
+      writes: [{ path: 'asset.bin', bytes: source, expectedMissing: true }],
+    });
+    source.fill(9);
+    await pending;
+
+    expect(rawBody).toBeInstanceOf(Uint8Array);
+    expect(Array.from((rawBody as Uint8Array).slice(-3))).toEqual([1, 2, 3]);
+  });
+
+  it('snapshots ordinary binary bytes before awaiting the native revision', async () => {
+    let resolveRevision: ((revision: string) => void) | undefined;
+    let rawBody: unknown;
+    const revision = new Promise<string>((resolve) => { resolveRevision = resolve; });
+    const invoke = vi.fn<TauriVaultBridge['invoke']>(async (command, args) => {
+      if (command === 'vault_select') return selection();
+      if (command === 'vault_get_revision') return revision;
+      if (command === 'vault_write_batch_atomic') {
+        rawBody = args;
+        return { revision: '2', results: [{ path: 'asset.bin', hash }] };
+      }
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    const vault = await selectTauriVault(bridge(invoke));
+    const source = new Uint8Array([1, 2, 3]);
+    const pending = vault?.writeBinaryAtomic('asset.bin', source, { expectedMissing: true });
+    source.fill(9);
+    resolveRevision?.('1');
+    await pending;
+
+    expect(Array.from((rawBody as Uint8Array).slice(-3))).toEqual([1, 2, 3]);
+  });
+
   it('routes lifecycle control paths only through the trusted boundary', async () => {
     const invoke = vi.fn(async (command: string) => {
       if (command === 'vault_select') return selection();

@@ -52,7 +52,7 @@ function encodeBatch(
 ): Uint8Array {
   const chunks: Uint8Array[] = [BATCH_MAGIC, ...field(input.expectedRevision)];
   const state = expectedUserState ?? [];
-  chunks.push(uint32(state.length));
+  chunks.push(new Uint8Array([expectedUserState === undefined ? 0 : 1]), uint32(state.length));
   for (const entry of state) chunks.push(...field(entry.path), ...field(entry.hash));
   chunks.push(uint32(input.writes.length));
   for (const write of input.writes) {
@@ -79,9 +79,10 @@ function validateBatchResult(
   const results = candidate.results.map((result, index) => {
     if (result === null || typeof result !== 'object') throw new VaultUnavailableError();
     const item = result as { path?: unknown; hash?: unknown };
-    if (item.path !== expected.writes[index]?.path || typeof item.hash !== 'string' ||
+    const expectedPath = expected.writes[index]?.path;
+    if (expectedPath === undefined || item.path !== expectedPath || typeof item.hash !== 'string' ||
       !/^[a-f0-9]{64}$/.test(item.hash)) throw new VaultUnavailableError();
-    return { path: item.path, hash: item.hash };
+    return { path: expectedPath, hash: item.hash };
   });
   return { revision: candidate.revision, results };
 }
@@ -89,13 +90,27 @@ function validateBatchResult(
 export interface TauriVaultBridge {
   invoke(
     command: string,
-    args: Record<string, unknown> | number[] | ArrayBuffer | Uint8Array,
+    args: Record<string, unknown>,
     options?: { headers: HeadersInit },
   ): Promise<unknown>;
   listen(
     event: string,
     listener: (payload: unknown) => void,
   ): Promise<() => void>;
+}
+
+function invokeRaw(
+  bridge: TauriVaultBridge,
+  command: string,
+  bytes: Uint8Array,
+  headers: HeadersInit,
+): Promise<unknown> {
+  const invoke = bridge.invoke as unknown as (
+    command: string,
+    body: Uint8Array,
+    options: { headers: HeadersInit },
+  ) => Promise<unknown>;
+  return invoke(command, bytes, { headers });
 }
 
 const defaultBridge: TauriVaultBridge = {
@@ -152,10 +167,8 @@ export async function saveTauriVaultBackup(
   }
   let response: unknown;
   try {
-    response = await bridge.invoke('backup_save_zip', bytes, {
-      headers: {
+    response = await invokeRaw(bridge, 'backup_save_zip', bytes, {
         'x-studio-backup-name': encodeURIComponent(suggestedFileName),
-      },
     });
   } catch (error) {
     translate(error);
@@ -192,10 +205,11 @@ function createTauriVault(
   ): Promise<VaultAtomicWriteResult> => {
     let response: unknown;
     try {
-      response = await bridge.invoke(
+      response = await invokeRaw(
+        bridge,
         'vault_write_batch_atomic',
         encodeBatch(input, expectedUserState),
-        { headers: { 'x-studio-vault-token': vaultToken } },
+        { 'x-studio-vault-token': vaultToken },
       );
     } catch (error) {
       translate(error);
@@ -222,16 +236,18 @@ function createTauriVault(
       throw new VaultUnavailableError();
     },
     writeBinaryAtomic: async (path, bytes, condition?: WriteCondition) => {
+      const snapshot = bytes.slice();
+      const expectedUserState = condition?.expectedUserState?.map((entry) => ({ ...entry }));
       const result = await writeBatch({
         expectedRevision: await getRevision(),
         writes: [{
           path,
-          bytes,
+          bytes: snapshot,
           ...(condition?.expectedHash === undefined
             ? {} : { expectedHash: condition.expectedHash }),
           ...(condition?.expectedMissing ? { expectedMissing: true as const } : {}),
         }],
-      }, condition?.expectedUserState);
+      }, expectedUserState);
       const written = result.results[0];
       if (written === undefined) throw new VaultUnavailableError();
       return { hash: written.hash };
