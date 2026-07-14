@@ -26,7 +26,8 @@ async function fixtureFiles(root: string): Promise<Map<string, Uint8Array>> {
 
 it('destructively restores the fixture from only its portable backup', async () => {
   const root = resolve(
-    process.env.STUDIO_RESTORE_FIXTURE ?? 'fixtures/vaults/anna-sample',
+    process.env.STUDIO_RESTORE_FIXTURE ??
+      resolve(import.meta.dirname, '../../../fixtures/vaults/anna-sample'),
   );
   const expected = await fixtureFiles(root);
   expected.set(
