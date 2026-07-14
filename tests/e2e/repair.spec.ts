@@ -131,7 +131,7 @@ async function seedRepairFixture(page: Page): Promise<void> {
   await putIndexedDbFiles(page, [
     {
       path: 'Reflection Garden/broken-metadata.md',
-      text: '---\r\nid: broken-metadata\r\ntitle: Kept title\r\nlegacy_key: kept\r\n---\r\nWords remain recoverable.\r\n',
+      text: '---\r\nid: broken-metadata\r\ntitle: Kept title\r\ncreated: yesterday\r\nupdated: tomorrow\r\nlegacy_key: kept\r\n---\r\nWords remain recoverable.\r\n',
     },
     {
       path: 'Reflection Garden/broken-links.md',
@@ -209,6 +209,10 @@ test('repairs malformed metadata without changing the body or unknown safe keys'
   await repair.getByText('Read the untouched body').click();
   await expect(repair).toContainText('Words remain recoverable.');
   await expect(repair.getByLabel('Title')).toHaveValue('Kept title');
+  await expect(repair.getByLabel('Created')).toHaveValue('yesterday');
+  await expect(repair.getByLabel('Updated')).toHaveValue('tomorrow');
+  await repair.getByLabel('Created').fill('2026-07-13T00:00:00.000Z');
+  await repair.getByLabel('Updated').fill('2026-07-14T00:00:00.000Z');
   await repair.getByLabel('Stable note ID').fill('repaired-metadata');
   await repair.getByLabel('Card type').fill('reflection');
   await repair.getByRole('button', { name: 'Repair metadata' }).click();

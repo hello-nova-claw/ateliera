@@ -40,6 +40,32 @@ Words remain.
 `,
 };
 
+const metadataWithInvalidTimestamps: StudioSearchRepairItem = {
+  ...metadata,
+  sourceText: `---
+id: timestamp-repair
+title: Repair dates
+card_type: reflection
+semantic_type: reflection
+status: active
+rooms: [reflection-garden]
+life_areas: []
+seasons: []
+tags: []
+created: yesterday
+updated: tomorrow
+attachments: []
+display: { featured: false }
+privacy: { sensitivity: private, ai_access: ask }
+---
+Words remain.
+`,
+  errors: [
+    { code: 'invalid-frontmatter', path: 'created', message: 'Invalid ISO datetime' },
+    { code: 'invalid-frontmatter', path: 'updated', message: 'Invalid ISO datetime' },
+  ],
+};
+
 const broken: StudioSearchRepairItem = {
   kind: 'broken-link',
   path: 'Reflection Garden/link.md',
@@ -103,6 +129,36 @@ describe('RepairPanel', () => {
           creator: 'Anna',
           url: 'https://example.test/book',
         },
+      }),
+    );
+  });
+
+  it('exposes malformed timestamps as accessible editable repair fields', async () => {
+    const onRepairMetadata = vi.fn(async () => undefined);
+    render(
+      <RepairPanel
+        items={[metadataWithInvalidTimestamps]}
+        onRepairMetadata={onRepairMetadata}
+      />,
+    );
+
+    const created = screen.getByRole('textbox', { name: 'Created' });
+    const updated = screen.getByRole('textbox', { name: 'Updated' });
+    expect(created).toHaveValue('yesterday');
+    expect(updated).toHaveValue('tomorrow');
+    expect(created).toHaveAccessibleDescription(/ISO 8601 timestamp including a timezone/u);
+    expect(updated).toHaveAccessibleDescription(/ISO 8601 timestamp including a timezone/u);
+
+    fireEvent.change(created, { target: { value: '2026-07-13T00:00:00.000Z' } });
+    fireEvent.change(updated, { target: { value: '2026-07-14T00:00:00.000Z' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Repair metadata' }));
+    await screen.findByRole('status');
+
+    expect(onRepairMetadata).toHaveBeenCalledWith(
+      metadataWithInvalidTimestamps,
+      expect.objectContaining({
+        created: '2026-07-13T00:00:00.000Z',
+        updated: '2026-07-14T00:00:00.000Z',
       }),
     );
   });

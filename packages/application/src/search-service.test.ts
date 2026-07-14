@@ -444,6 +444,61 @@ describe('StudioSearchService repairs', () => {
     })).rejects.toThrow('still invalid');
   });
 
+  it('rejects a stable ID owned by another canonical path before publishing a repair', async () => {
+    const events: string[] = [];
+    const vault = await seed([
+      { path: 'A.md', note: note({ id: 'shared-id', title: 'Canonical owner' }) },
+      { path: 'B.md', note: note({ id: 'shared-id', title: 'Duplicate' }) },
+    ]);
+    const duplicate = await vault.readText('B.md');
+    const originalWrite = vault.writeTextAtomic.bind(vault);
+    const writes = vi.spyOn(vault, 'writeTextAtomic');
+    const index = new RecordingIndex();
+    const upsert = vi.spyOn(index, 'upsert');
+    const service = createStudioSearchService({ vault, index, revisions: revisions(events) });
+
+    await expect(service.repairMetadata({
+      path: 'B.md',
+      expectedHash: duplicate.hash,
+      sourceText: duplicate.text,
+      metadata: note({ id: 'shared-id', title: 'Still duplicate' }),
+    })).rejects.toThrow('already belongs to A.md');
+
+    expect(events).toEqual([]);
+    expect(writes).not.toHaveBeenCalled();
+    expect(upsert).not.toHaveBeenCalled();
+    await expect(vault.readText('B.md')).resolves.toEqual(duplicate);
+    writes.mockRestore();
+    vault.writeTextAtomic = originalWrite;
+  });
+
+  it('allows the canonical owning path and a unique replacement stable ID', async () => {
+    const vault = await seed([
+      { path: 'A.md', note: note({ id: 'shared-id', title: 'Canonical owner' }) },
+      { path: 'B.md', note: note({ id: 'shared-id', title: 'Duplicate' }) },
+    ]);
+    const owner = await vault.readText('A.md');
+    const duplicate = await vault.readText('B.md');
+    const index = new RecordingIndex();
+    const service = createStudioSearchService({ vault, index, revisions: revisions() });
+
+    await expect(service.repairMetadata({
+      path: 'A.md',
+      expectedHash: owner.hash,
+      sourceText: owner.text,
+      metadata: note({ id: 'shared-id', title: 'Owner repaired' }),
+    })).resolves.toMatchObject({ note: { id: 'shared-id' }, path: 'A.md' });
+
+    await expect(service.repairMetadata({
+      path: 'B.md',
+      expectedHash: duplicate.hash,
+      sourceText: duplicate.text,
+      metadata: note({ id: 'unique-id', title: 'Duplicate repaired' }),
+    })).resolves.toMatchObject({ note: { id: 'unique-id' }, path: 'B.md' });
+    expect(index.entries.get('shared-id')?.path).toBe('A.md');
+    expect(index.entries.get('unique-id')?.path).toBe('B.md');
+  });
+
   it('repairs or removes exactly one positioned link and keeps the durable result if indexing fails', async () => {
     const original = note({ id: 'source', body: '[[Missing]] and [[Missing]]' });
     const vault = await seed([{ path: 'Source.md', note: original }]);
