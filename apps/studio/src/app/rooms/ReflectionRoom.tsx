@@ -42,9 +42,27 @@ export default function ReflectionRoom({
         }
       }}
       onConnect={view.connect}
-      onOpenConnection={(connection, trigger) => {
+      onOpenConnection={async (connection, trigger) => {
+        if (service) {
+          const target = await service.resolveReflectionEvidenceTarget({
+            id: connection.id,
+            kind: connection.kind,
+          });
+          if (target.targetState !== 'available') {
+            const subject = connection.kind === 'life-area' ? 'life area' : connection.kind;
+            const label = 'label' in target ? target.label : connection.label;
+            throw new Error(
+              `The connected ${subject} ${label} is no longer available.`,
+            );
+          }
+        }
         const canonical = canonicalReflectionConnection(connection, view.connections);
-        if (!canonical) return;
+        if (!canonical) {
+          const subject = connection.kind === 'life-area' ? 'life area' : connection.kind;
+          throw new Error(
+            `The connected ${subject} ${connection.label} is no longer available.`,
+          );
+        }
         if (canonical.kind === 'note' && canonical.card && onOpenCard) {
           onOpenCard(canonical.card, trigger);
           return;

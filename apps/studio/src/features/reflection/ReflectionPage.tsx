@@ -35,7 +35,7 @@ export interface ReflectionPageProps {
   onOpenConnection?: (
     connection: ReflectionConnection,
     trigger: HTMLButtonElement,
-  ) => void;
+  ) => Promise<void> | void;
   onOpen?: (card: ReflectionCardProjection, trigger: HTMLButtonElement) => void;
   state?: 'ready' | 'loading' | 'offline' | 'stale' | 'error';
 }
@@ -67,7 +67,9 @@ function EntryCard({
   const [connectionId, setConnectionId] = useState('');
   const [message, setMessage] = useState<string>();
   const [connecting, setConnecting] = useState(false);
+  const [openingConnection, setOpeningConnection] = useState<string>();
   const connectionPending = useRef(false);
+  const openingPending = useRef(false);
   const connectButton = useRef<HTMLButtonElement>(null);
   const restoreConnectionFocus = useRef(false);
   useEffect(() => {
@@ -152,7 +154,29 @@ function EntryCard({
               ) : onOpenConnection && item.connection ? (
                 <button
                   aria-label={`Open ${item.label}, ${item.id}`}
-                  onClick={(event) => onOpenConnection(item.connection, event.currentTarget)}
+                  disabled={openingConnection !== undefined}
+                  onClick={(event) => {
+                    if (openingPending.current) return;
+                    const trigger = event.currentTarget;
+                    openingPending.current = true;
+                    setOpeningConnection(`${item.kind}:${item.id}`);
+                    setMessage(undefined);
+                    void Promise.resolve(onOpenConnection(item.connection, trigger)).catch(
+                      (reason: unknown) => {
+                        setMessage(
+                          reason instanceof Error
+                            ? reason.message
+                            : 'This connection is no longer available.',
+                        );
+                      },
+                    ).finally(() => {
+                      openingPending.current = false;
+                      setOpeningConnection(undefined);
+                      requestAnimationFrame(() => {
+                        requestAnimationFrame(() => trigger.focus());
+                      });
+                    });
+                  }}
                   type="button"
                 >
                   {item.label}

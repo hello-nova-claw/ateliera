@@ -120,7 +120,7 @@ it('shows linked evidence and an optional Then & now pair', () => {
   );
 });
 
-it('keeps same-label canonical evidence distinct and opens the exact target', () => {
+it('keeps same-label canonical evidence distinct and opens the exact target', async () => {
   const onOpenConnection = vi.fn();
   const duplicateEvidence = {
     ...model.cards[0]!,
@@ -147,10 +147,10 @@ it('keeps same-label canonical evidence distinct and opens the exact target', ()
     name: 'Open Creates from calm, identity-2',
   });
   fireEvent.click(second);
-  expect(onOpenConnection).toHaveBeenCalledWith(
+  await waitFor(() => expect(onOpenConnection).toHaveBeenCalledWith(
     expect.objectContaining({ kind: 'note', id: 'identity-2' }),
     second,
-  );
+  ));
   expect(first).toBeVisible();
 });
 

@@ -145,6 +145,11 @@ function studioService(overrides: Partial<StudioService> = {}) {
     inviteUnchartedToSeason: vi.fn(),
     projectReflectionGarden: vi.fn(async () => ({ cards: [], themes: [] })),
     linkReflectionEvidence: vi.fn(),
+    resolveReflectionEvidenceTarget: vi.fn(async ({ id, kind }) => ({
+      id,
+      kind,
+      targetState: 'missing' as const,
+    })),
     projectCurrentSeason: vi.fn(async () => ({ current: null, conflicts: [] })),
     projectStream: vi.fn(async () => []),
     resolveCover: vi.fn(async () => ({ kind: 'none' as const })),
