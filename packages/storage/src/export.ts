@@ -45,6 +45,13 @@ function sourceChanged(): PortableVaultError {
   );
 }
 
+async function readPortableSource(vault: VaultPort, path: string): Promise<Uint8Array> {
+  if (vault.readBinaryBounded !== undefined) {
+    return (await vault.readBinaryBounded(path, ZIP32_LIMITS.maxEntryBytes)).bytes;
+  }
+  return vault.readBinary(path);
+}
+
 async function assertSourceUnchanged(
   vault: VaultPort,
   captured: readonly CapturedExportEntry[],
@@ -96,7 +103,7 @@ async function assertSourceUnchanged(
 
     for (const [index, entry] of included.entries()) {
       const prior = captured[index] as CapturedExportEntry;
-      const bytes = await vault.readBinary(entry.sourcePath);
+      const bytes = await readPortableSource(vault, entry.sourcePath);
       if (bytes.byteLength !== prior.size || await sha256(bytes) !== prior.sha256) {
         throw sourceChanged();
       }
@@ -188,7 +195,7 @@ export async function exportVault(
     }
     let bytes: Uint8Array;
     try {
-      bytes = await vault.readBinary(entry.sourcePath);
+      bytes = await readPortableSource(vault, entry.sourcePath);
     } catch {
       throw sourceChanged();
     }
