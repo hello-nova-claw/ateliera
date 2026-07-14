@@ -58,7 +58,8 @@ describe('useSearch', () => {
   });
 
   it('stays writable and clearly local while offline', async () => {
-    const { result } = renderHook(() => useSearch(service(), false, 0));
+    const searchService = service();
+    const { result } = renderHook(() => useSearch(searchService, false, 0));
     await waitFor(() => expect(result.current.model.state).toBe('offline'));
     act(() => result.current.setFilters({ semanticTypes: ['celebration'] }));
     await waitFor(() => expect(result.current.model.filters).toEqual({ semanticTypes: ['celebration'] }));
