@@ -112,9 +112,15 @@ function nativeBridge(): TauriVaultBridge {
         }
         case 'vault_read_binary':
           return files.get(path)?.slice() ?? new Uint8Array();
+        case 'vault_read_binary_chunk': {
+          const bytes = files.get(path);
+          if (bytes === undefined) throw new Error('unavailable');
+          const offset = args.offset as number;
+          return bytes.slice(offset, offset + (args.length as number));
+        }
         case 'vault_list':
           return [...files].map(([filePath, bytes]) => ({
-            path: filePath, kind: 'file', size: bytes.byteLength, contentHash: hash(bytes),
+            path: filePath, kind: 'file', size: bytes.byteLength, contentHash: 'a'.repeat(64),
           }));
         case 'vault_exists':
           return files.has(path);
