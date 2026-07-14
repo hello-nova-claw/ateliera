@@ -15,7 +15,7 @@ import {
   type InspectorOpenReference,
   type InspectorState,
 } from '@studio/ui';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { RepairPanel } from '../../features/search/RepairPanel';
 import { SearchPage } from '../../features/search/SearchPage';
@@ -52,9 +52,11 @@ export default function SearchRoom({
   const [repairItems, setRepairItems] = useState<StudioSearchRepairItem[]>([]);
   const [repairState, setRepairState] = useState<'ready' | 'loading' | 'error'>('ready');
   const [repairError, setRepairError] = useState<string>();
+  const requestedInspection = useRef<string | undefined>(undefined);
 
   async function inspect(id: string): Promise<void> {
     if (!searchService) return;
+    requestedInspection.current = id;
     setInspectorOpen(true);
     setInspectorState('loading');
     setInspectorError(undefined);
@@ -167,7 +169,9 @@ export default function SearchRoom({
         onOpenNote={openReferencedNote}
         onRepairLink={openLinkRepair}
         onRepairMissing={openRepairs}
-        onRetry={() => inspection ? inspect(inspection.note.id) : Promise.resolve()}
+        onRetry={() => requestedInspection.current
+          ? inspect(requestedInspection.current)
+          : Promise.resolve()}
         {...(inspection === undefined ? {} : { result: inspection })}
         state={inspectorState}
       />
