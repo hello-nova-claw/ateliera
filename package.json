@@ -8,6 +8,7 @@
   },
   "scripts": {
     "benchmark:index": "pnpm --filter @studio/index benchmark --",
+    "audit:rust:macos": "node scripts/audit-rust-macos.mjs",
     "build": "pnpm -r build",
     "lint": "eslint . && stylelint \"**/*.css\"",
     "storybook": "storybook dev -p 6006",
