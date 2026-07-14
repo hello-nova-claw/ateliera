@@ -10,6 +10,7 @@ import type {
   VaultPort,
   WriteCondition,
 } from './vault-port';
+import { ZIP32_LIMITS, Zip32Error, createZip32, parseZip32 } from './zip32';
 
 export interface StoredBrowserFile {
   bytes: Uint8Array;
@@ -806,257 +807,31 @@ export class VaultArchiveError extends VaultUnavailableError {
   }
 }
 
-function crc32(bytes: Uint8Array): number {
-  let crc = 0xffffffff;
-  for (const byte of bytes) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit += 1) {
-      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
-    }
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
-function uint16(value: number): Uint8Array {
-  const bytes = new Uint8Array(2);
-  new DataView(bytes.buffer).setUint16(0, value, true);
-  return bytes;
-}
-
-function uint32(value: number): Uint8Array {
-  const bytes = new Uint8Array(4);
-  new DataView(bytes.buffer).setUint32(0, value, true);
-  return bytes;
-}
-
-function joinBytes(chunks: readonly Uint8Array[]): Uint8Array {
-  const output = new Uint8Array(
-    chunks.reduce((total, chunk) => total + chunk.byteLength, 0),
-  );
-  let offset = 0;
-  for (const chunk of chunks) {
-    output.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return output;
-}
+const MAX_ARCHIVE_BYTES = ZIP32_LIMITS.maxArchiveBytes;
+const MAX_ENTRY_BYTES = ZIP32_LIMITS.maxEntryBytes;
+const MAX_TOTAL_BYTES = ZIP32_LIMITS.maxTotalBytes;
+const MAX_ENTRY_COUNT = ZIP32_LIMITS.maxEntryCount;
 
 function createZip(files: ReadonlyArray<readonly [string, Uint8Array]>): Uint8Array {
-  const localChunks: Uint8Array[] = [];
-  const centralChunks: Uint8Array[] = [];
-  let offset = 0;
-  for (const [path, bytes] of files) {
-    const name = encoder.encode(path);
-    const checksum = crc32(bytes);
-    const local = joinBytes([
-      uint32(0x04034b50),
-      uint16(20),
-      uint16(0x0800),
-      uint16(0),
-      uint16(0),
-      uint16(0),
-      uint32(checksum),
-      uint32(bytes.byteLength),
-      uint32(bytes.byteLength),
-      uint16(name.byteLength),
-      uint16(0),
-      name,
-      bytes,
-    ]);
-    localChunks.push(local);
-    centralChunks.push(
-      joinBytes([
-        uint32(0x02014b50),
-        uint16(20),
-        uint16(20),
-        uint16(0x0800),
-        uint16(0),
-        uint16(0),
-        uint16(0),
-        uint32(checksum),
-        uint32(bytes.byteLength),
-        uint32(bytes.byteLength),
-        uint16(name.byteLength),
-        uint16(0),
-        uint16(0),
-        uint16(0),
-        uint16(0),
-        uint32(0),
-        uint32(offset),
-        name,
-      ]),
-    );
-    offset += local.byteLength;
-  }
-  const central = joinBytes(centralChunks);
-  return joinBytes([
-    ...localChunks,
-    central,
-    uint32(0x06054b50),
-    uint16(0),
-    uint16(0),
-    uint16(files.length),
-    uint16(files.length),
-    uint32(central.byteLength),
-    uint32(offset),
-    uint16(0),
-  ]);
-}
-
-const MAX_ARCHIVE_BYTES = 512 * 1024 * 1024;
-const MAX_ENTRY_BYTES = 64 * 1024 * 1024;
-const MAX_TOTAL_BYTES = 512 * 1024 * 1024;
-const MAX_ENTRY_COUNT = 10_000;
-
-function requireRange(
-  bytes: Uint8Array,
-  offset: number,
-  length: number,
-  label: string,
-): void {
-  if (
-    !Number.isSafeInteger(offset) ||
-    !Number.isSafeInteger(length) ||
-    offset < 0 ||
-    length < 0 ||
-    offset + length > bytes.byteLength
-  ) {
-    throw new VaultArchiveError('invalid-archive', `${label} is outside the ZIP archive.`);
-  }
-}
-
-async function inflateRaw(bytes: Uint8Array, maximumSize: number): Promise<Uint8Array> {
-  if (typeof DecompressionStream === 'undefined') {
-    throw new VaultArchiveError(
-      'unsupported-archive',
-      'Compressed ZIP entries are not supported by this browser.',
-    );
-  }
   try {
-    const stream = new Blob([bytes.slice().buffer]).stream().pipeThrough(
-      new DecompressionStream('deflate-raw' as CompressionFormat),
-    );
-    const reader = stream.getReader();
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > maximumSize) {
-        await reader.cancel();
-        throw new VaultArchiveError(
-          'archive-too-large',
-          'A compressed ZIP entry expands beyond its declared safety limit.',
-        );
-      }
-      chunks.push(value);
-    }
-    return joinBytes(chunks);
+    return createZip32(files);
   } catch (error) {
-    if (error instanceof VaultArchiveError) throw error;
-    throw new VaultArchiveError('invalid-archive', 'A compressed ZIP entry is invalid.');
+    if (error instanceof Zip32Error) {
+      throw new VaultArchiveError(error.code, error.message);
+    }
+    throw error;
   }
 }
 
 async function parseZip(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
-  if (bytes.byteLength > MAX_ARCHIVE_BYTES) {
-    throw new VaultArchiveError('archive-too-large', 'The ZIP archive is too large.');
+  try {
+    return await parseZip32(bytes);
+  } catch (error) {
+    if (error instanceof Zip32Error) {
+      throw new VaultArchiveError(error.code, error.message);
+    }
+    throw error;
   }
-  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  let endOffset = bytes.byteLength - 22;
-  const searchFloor = Math.max(0, bytes.byteLength - 65_557);
-  while (endOffset >= searchFloor && view.getUint32(endOffset, true) !== 0x06054b50) {
-    endOffset -= 1;
-  }
-  if (endOffset < searchFloor) {
-    throw new VaultArchiveError('invalid-archive', 'The ZIP archive is invalid.');
-  }
-  requireRange(bytes, endOffset, 22, 'The ZIP end record');
-  const commentLength = view.getUint16(endOffset + 20, true);
-  if (endOffset + 22 + commentLength !== bytes.byteLength) {
-    throw new VaultArchiveError('invalid-archive', 'The ZIP end record is invalid.');
-  }
-  const count = view.getUint16(endOffset + 10, true);
-  if (count > MAX_ENTRY_COUNT || view.getUint16(endOffset + 8, true) !== count) {
-    throw new VaultArchiveError('archive-too-large', 'The ZIP contains too many entries.');
-  }
-  const centralSize = view.getUint32(endOffset + 12, true);
-  let offset = view.getUint32(endOffset + 16, true);
-  const centralEnd = offset + centralSize;
-  requireRange(bytes, offset, centralSize, 'The ZIP directory');
-  if (centralEnd !== endOffset) {
-    throw new VaultArchiveError('invalid-archive', 'The ZIP directory length is invalid.');
-  }
-  const files = new Map<string, Uint8Array>();
-  let totalSize = 0;
-  for (let index = 0; index < count; index += 1) {
-    requireRange(bytes, offset, 46, 'A ZIP directory entry');
-    if (view.getUint32(offset, true) !== 0x02014b50) {
-      throw new VaultArchiveError('invalid-archive', 'The ZIP directory is invalid.');
-    }
-    const flags = view.getUint16(offset + 8, true);
-    const method = view.getUint16(offset + 10, true);
-    const expectedCrc = view.getUint32(offset + 16, true);
-    const compressedSize = view.getUint32(offset + 20, true);
-    const uncompressedSize = view.getUint32(offset + 24, true);
-    const nameLength = view.getUint16(offset + 28, true);
-    const extraLength = view.getUint16(offset + 30, true);
-    const entryCommentLength = view.getUint16(offset + 32, true);
-    const localOffset = view.getUint32(offset + 42, true);
-    const entryLength = 46 + nameLength + extraLength + entryCommentLength;
-    requireRange(bytes, offset, entryLength, 'A ZIP directory entry');
-    if ((flags & 0x0001) !== 0 || (flags & ~0x0808) !== 0 || ![0, 8].includes(method)) {
-      throw new VaultArchiveError(
-        'unsupported-archive',
-        'The ZIP uses unsupported encryption, flags, or compression.',
-      );
-    }
-    if (uncompressedSize > MAX_ENTRY_BYTES) {
-      throw new VaultArchiveError('archive-too-large', 'A ZIP entry is too large.');
-    }
-    const path = decoder.decode(bytes.slice(offset + 46, offset + 46 + nameLength));
-    validatePath(path);
-    requireRange(bytes, localOffset, 30, 'A ZIP local entry');
-    if (view.getUint32(localOffset, true) !== 0x04034b50) {
-      throw new VaultArchiveError('invalid-archive', 'A ZIP local entry is invalid.');
-    }
-    const localFlags = view.getUint16(localOffset + 6, true);
-    const localMethod = view.getUint16(localOffset + 8, true);
-    const localNameLength = view.getUint16(localOffset + 26, true);
-    const localExtraLength = view.getUint16(localOffset + 28, true);
-    const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
-    requireRange(bytes, localOffset + 30, localNameLength + localExtraLength, 'A ZIP local header');
-    requireRange(bytes, dataOffset, compressedSize, 'ZIP entry data');
-    const localName = decoder.decode(
-      bytes.slice(localOffset + 30, localOffset + 30 + localNameLength),
-    );
-    if (localName !== path || localFlags !== flags || localMethod !== method) {
-      throw new VaultArchiveError('invalid-archive', 'ZIP headers do not agree.');
-    }
-    const compressed = bytes.slice(dataOffset, dataOffset + compressedSize);
-    const content =
-      method === 0 ? compressed : await inflateRaw(compressed, uncompressedSize);
-    if (content.byteLength !== uncompressedSize) {
-      throw new VaultArchiveError('invalid-archive', `ZIP size validation failed for ${path}.`);
-    }
-    if (crc32(content) !== expectedCrc) {
-      throw new VaultArchiveError('checksum-failed', `ZIP checksum failed for ${path}.`);
-    }
-    if (files.has(path)) {
-      throw new VaultArchiveError('invalid-archive', 'The ZIP contains duplicate paths.');
-    }
-    files.set(path, content);
-    totalSize += content.byteLength;
-    if (totalSize > MAX_TOTAL_BYTES) {
-      throw new VaultArchiveError('archive-too-large', 'The expanded ZIP is too large.');
-    }
-    offset += entryLength;
-  }
-  if (offset !== centralEnd) {
-    throw new VaultArchiveError('invalid-archive', 'The ZIP directory is malformed.');
-  }
-  return files;
 }
 
 const MANIFEST_PATH = '.studio/export-manifest.json';
