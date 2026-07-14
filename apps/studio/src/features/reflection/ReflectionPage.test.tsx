@@ -154,6 +154,33 @@ it('keeps same-label canonical evidence distinct and opens the exact target', ()
   expect(first).toBeVisible();
 });
 
+it('serializes evidence opening and preserves exact focus when click-time validation fails', async () => {
+  let rejectOpen!: (reason: Error) => void;
+  const pending = new Promise<void>((_resolve, reject) => {
+    rejectOpen = reject;
+  });
+  const onOpenConnection = vi.fn(() => pending);
+  render(
+    <ReflectionPage
+      connections={[{ id: 'family', kind: 'life-area', label: 'Family' }]}
+      model={{ cards: [model.cards[0]!], themes: [] }}
+      onOpenConnection={onOpenConnection}
+    />,
+  );
+  const evidence = screen.getByRole('button', { name: 'Open Family, family' });
+  evidence.focus();
+  fireEvent.click(evidence);
+  fireEvent.click(evidence);
+  expect(onOpenConnection).toHaveBeenCalledTimes(1);
+  expect(evidence).toBeDisabled();
+  rejectOpen(new Error('The connected life area Family is no longer available.'));
+  expect(await screen.findByText(
+    'The connected life area Family is no longer available.',
+  )).toBeVisible();
+  await waitFor(() => expect(evidence).not.toBeDisabled());
+  expect(evidence).toHaveFocus();
+});
+
 it('leaves missing and archived evidence visible as calm repair states', () => {
   render(
     <ReflectionPage
