@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 async function createLocalStudio(
   page: Page,
-  name = 'The Studio',
+  name = 'Ateliera',
 ): Promise<void> {
   await page.getByRole('button', { name: 'Create a Studio' }).click();
   await page.getByLabel('Studio name').fill(name);
@@ -17,7 +17,7 @@ test('creates a local Studio and enters the Foyer', async ({ page }) => {
   await createLocalStudio(page, 'Anna’s Studio');
 
   await expect(page).toHaveURL(/\/foyer$/);
-  await expect(page.getByRole('heading', { name: 'The Studio' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ateliera' })).toBeVisible();
   const mobile = (page.viewportSize()?.width ?? 1440) < 768;
   await expect(
     page.getByRole('navigation', {
@@ -35,7 +35,7 @@ test('opens an existing browser Studio', async ({ page }) => {
   await page.goto('/');
   await createLocalStudio(page);
   await page.reload();
-  await page.getByRole('button', { name: 'Open The Studio' }).click();
+  await page.getByRole('button', { name: 'Open Ateliera' }).click();
   await expect(page).toHaveURL(/\/foyer$/);
 });
 
@@ -46,11 +46,14 @@ test('offers to open an existing Studio instead of overwriting it', async ({
   await createLocalStudio(page);
   await page.reload();
   await page.getByRole('button', { name: 'Create a Studio' }).click();
-  await page.getByLabel('Studio name').fill('the studio');
+  await page.getByLabel('Studio name').fill('ateliera');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
 
   await expect(page.getByRole('alert')).toContainText('already exists');
-  await page.getByRole('button', { name: 'Open The Studio' }).click();
+  await page
+    .getByLabel('Create a Studio')
+    .getByRole('button', { name: 'Open Ateliera' })
+    .click();
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
 });
 

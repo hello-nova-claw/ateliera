@@ -41,7 +41,7 @@ pub fn studio_builder<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<
 pub fn run() {
     studio_builder(tauri::Builder::default())
         .build(tauri::generate_context!())
-        .expect("failed to build The Studio desktop app")
+        .expect("failed to build Ateliera desktop app")
         .run(|app, event| {
             if matches!(event, tauri::RunEvent::Exit) {
                 app.state::<VaultRegistry>().revoke_all();

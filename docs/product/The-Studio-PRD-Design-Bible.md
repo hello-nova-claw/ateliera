@@ -1,4 +1,4 @@
-# The Studio
+# Ateliera
 
 ## Product Requirements & Design Bible
 
@@ -6,7 +6,7 @@
 **Version:** 1.1
 **Date:** 13 July 2026  
 **Product owner:** Anna McPhee  
-**Working definition:** A private, calm, Markdown-native personal environment for identity architecture, life design, reflection, and imagination.
+**Working definition:** A private studio for designing a life from the inside out.
 
 > **Create enough structure that your imagination has somewhere to surprise you.**
 
@@ -14,7 +14,7 @@
 
 ## 1. How to use this document
 
-This is the product’s durable source of truth, not a frozen contract. It records the product philosophy, user experience, content model, technical architecture, and staged delivery plan so that design and engineering decisions remain coherent as The Studio evolves.
+This is the product’s durable source of truth, not a frozen contract. It records the product philosophy, user experience, content model, technical architecture, and staged delivery plan so that design and engineering decisions remain coherent as Ateliera evolves.
 
 Use the following labels throughout implementation:
 
@@ -36,15 +36,15 @@ The app is successful when Anna wants to return to it and can still understand, 
 
 ### 1.1 Companion implementation authorities
 
-- [The Studio Final Visual Design Addendum](../design/The-Studio-Final-Visual-Design-Addendum.md) is authoritative for the accepted final visual system, exact themes, typography, screen composition, component states, responsive behavior, and visual acceptance tests.
-- [The Studio implementation plan](../superpowers/plans/2026-07-13-the-studio-mvp.md) is authoritative for sequencing, package boundaries, executable acceptance criteria, and MVP delivery gates.
+- [Ateliera Final Visual Design Addendum](../design/The-Studio-Final-Visual-Design-Addendum.md) is authoritative for the accepted final visual system, exact themes, typography, screen composition, component states, responsive behavior, and visual acceptance tests.
+- [Ateliera implementation plan](../superpowers/plans/2026-07-13-the-studio-mvp.md) is authoritative for sequencing, package boundaries, executable acceptance criteria, and MVP delivery gates.
 - Product behavior, privacy, data ownership, safety, and MVP scope remain authoritative in this bible if a static mockup or prototype suggests otherwise.
 
 ---
 
 ## 2. Executive summary
 
-The Studio is a private personal web app that combines the ownership model of Obsidian with a highly opinionated, editorial interface designed around one person’s way of thinking. It supports life vision, identity work, seasonal focus, imaginative possibility, collected wisdom, and reflective learning without becoming a task manager, generic second brain, or manifestation course.
+Ateliera is a private personal web app that combines the ownership model of Obsidian with a highly opinionated, editorial interface designed around one person’s way of thinking. It supports life vision, identity work, seasonal focus, imaginative possibility, collected wisdom, and reflective learning without becoming a task manager, generic second brain, or manifestation course.
 
 The app presents a stable house of rooms:
 
@@ -61,18 +61,18 @@ All durable user content is stored as ordinary Markdown and media files. YAML fr
 
 ### 2.1 Product promise
 
-The Studio remembers what matters without turning life into a dashboard. It helps the user move among experience, meaning, identity, and action while leaving room for emergence.
+Ateliera remembers what matters without turning life into a dashboard. It helps the user move among experience, meaning, identity, and action while leaving room for emergence.
 
 ### 2.2 Product boundaries
 
-The Studio is:
+Ateliera is:
 
 - a beautiful window onto user-owned files;
 - a structured thinking environment;
 - a companion for noticing patterns over time;
 - a place for both conscious design and open-ended imagination.
 
-The Studio is not:
+Ateliera is not:
 
 - a general-purpose project manager;
 - a streak-driven habit tracker;
@@ -101,7 +101,7 @@ Create a calm, aesthetically nourishing place where Anna can design a meaningful
 
 ### 3.2 Core philosophy
 
-The Studio occupies the middle ground between rigid planning and unbounded imagination. Productivity tools often over-specify outcomes and actions; manifestation tools can under-specify practical support. The Studio holds both:
+Ateliera occupies the middle ground between rigid planning and unbounded imagination. Productivity tools often over-specify outcomes and actions; manifestation tools can under-specify practical support. Ateliera holds both:
 
 **experience → meaning → identity → decisions → practices and structures → lived experience**
 
@@ -110,7 +110,7 @@ The loop is cyclical rather than linear. Reflections can revise identity. Celebr
 ### 3.3 Foundational principles
 
 1. **Create enough structure that imagination has somewhere to surprise you.** Stable rooms and prompts create containment; their contents remain alive.
-2. **The Studio belongs to Anna, not to the app.** Plain files are the durable product. The interface is replaceable.
+2. **Ateliera belongs to Anna, not to the app.** Plain files are the durable product. The interface is replaceable.
 3. **Depth over novelty.** The app helps synthesize and practice what already resonates instead of encouraging endless collection.
 4. **A life is seasonal.** Focus changes with children, energy, work, health, and circumstance. The system must not mistake change for failure.
 5. **The function matters more than the form.** A five-minute practice that survives a difficult day is more valuable than an ideal ritual that cannot.
@@ -165,7 +165,7 @@ Avoid engagement metrics that reward compulsive use. Evaluate meaningful utility
 - **Return:** The user voluntarily returns at least weekly after the first month.
 - **Orientation:** She can identify the current season, its priorities, and what is intentionally “not now” in under one minute.
 - **Capture:** A thought can be safely captured on iPhone in under 15 seconds.
-- **Ownership:** A full export can be opened and understood without The Studio.
+- **Ownership:** A full export can be opened and understood without Ateliera.
 - **Recovery:** A clean install can rebuild all primary views from the vault with no semantic loss.
 - **Calm:** Qualitative testing describes the interface as calm, spacious, clear, and inviting—not busy, demanding, or corporate.
 - **Continuity:** Seasonal review makes progress and learning visible without requiring continuous tracking.
@@ -244,7 +244,7 @@ Tokens are semantic CSS custom properties applied at the app root. Components mu
 | Celebration | Warm orange | Wins, gratitude, evidence, meaningful moments | What is working? |
 | Uncharted | Dusty purple | Possibilities beyond the current map | What if…? |
 
-The removed “Action” color is intentional. Execution belongs primarily in calendars or task systems. Within The Studio, decisions and practices may be represented structurally without creating a seventh semantic category.
+The removed “Action” color is intentional. Execution belongs primarily in calendars or task systems. Within Ateliera, decisions and practices may be represented structurally without creating a seventh semantic category.
 
 ### 6.4 Typography
 
@@ -470,7 +470,7 @@ Family, Home, Health & Wellbeing, Work/Business, Money, Creativity, Relationship
 - Moving a card to another cell updates `life_areas` and `landscape_anchor` metadata.
 - A card can appear in multiple life areas; dragging with a modifier/explicit command chooses move versus link.
 - Decisions may carry a horizon (`30d`, `60d`, `90d`, or `someday`) without becoming tasks.
-- Practices can link outward to a calendar or reminders URI, but The Studio does not schedule them in MVP.
+- Practices can link outward to a calendar or reminders URI, but Ateliera does not schedule them in MVP.
 - The matrix must remain legible with missing cells; blank space is not an error.
 
 ### Prompts
@@ -869,7 +869,7 @@ No secret keys should be stored unencrypted in the vault.
 - Avoid reserved proprietary Markdown syntax when standard Markdown or frontmatter will work.
 - Wiki links and attachments should open in Obsidian.
 - App-specific folders are hidden-prefixed where appropriate.
-- The Studio should ignore `.obsidian/` safely.
+- Ateliera should ignore `.obsidian/` safely.
 - Provide an interoperability document explaining which Studio features degrade to plain notes in Obsidian.
 
 ---
@@ -879,7 +879,7 @@ No secret keys should be stored unencrypted in the vault.
 Recommended human-readable structure:
 
 ```text
-The Studio/
+Ateliera/
 ├── Foyer/
 ├── Identity Studio/
 ├── Life Landscape/
@@ -1288,11 +1288,11 @@ These descriptions are implementation references for wireframes and high-fidelit
 
 ### 20.1 App shell — desktop
 
-A warm-white window with a narrow left rail. At the top sits “The Studio” in a restrained serif, followed by seven room labels with small line icons. The active room is indicated by a pale surface and a thin semantic-neutral marker, not a bright block. Search and Inbox sit near the bottom; Settings is visually quiet. The central canvas has generous margins. A right inspector slides in only when requested.
+A warm-white window with a narrow left rail. At the top sits “Ateliera” in a restrained serif, followed by seven room labels with small line icons. The active room is indicated by a pale surface and a thin semantic-neutral marker, not a bright block. Search and Inbox sit near the bottom; Settings is visually quiet. The central canvas has generous margins. A right inspector slides in only when requested.
 
 ### 20.2 Foyer
 
-The room title “The Studio” appears large but not heavy. Beneath it: “Life by design” or the current motto in muted sans serif. The page is asymmetrical but aligned: a wide left column holds “Currently becoming…” and Current Season; a narrower right column holds one personal image and a small cluster of desired feelings. Three guiding principles float below as cream cards with tiny grey hearts. The six-heart legend sits quietly near the footer. At least 35% of the visible canvas remains empty.
+The room title “Ateliera” appears large but not heavy. Beneath it: “Life by design” or the current motto in muted sans serif. The page is asymmetrical but aligned: a wide left column holds “Currently becoming…” and Current Season; a narrower right column holds one personal image and a small cluster of desired feelings. Three guiding principles float below as cream cards with tiny grey hearts. The six-heart legend sits quietly near the footer. At least 35% of the visible canvas remains empty.
 
 ### 20.3 Identity Studio
 
@@ -1450,7 +1450,7 @@ Prefer:
 - What feels true already?
 - What would enough look like?
 - Would you like to revisit this?
-- The Studio is stored locally.
+- Ateliera is stored locally.
 
 Avoid:
 
@@ -1601,7 +1601,7 @@ Calm. Capable. Curious. Connected.
 
 ## Enough
 
-The house becomes easier in the few places that most affect daily life; The Studio reaches a genuinely usable first version; family rhythms feel supported rather than optimized.
+The house becomes easier in the few places that most affect daily life; Ateliera reaches a genuinely usable first version; family rhythms feel supported rather than optimized.
 
 ## Not now
 
@@ -1802,7 +1802,7 @@ privacy.ai_access:
 ### ADR-005: No manufactured urgency
 
 **Decision:** No streaks, overdue badges, red alerts, or compulsory rituals.  
-**Why:** The Studio exists to create clarity and return, not engagement pressure.  
+**Why:** Ateliera exists to create clarity and return, not engagement pressure.
 **Consequence:** Success must be measured qualitatively and through durable value rather than daily active use.
 
 ### ADR-006: Token override themes preserve semantic identity

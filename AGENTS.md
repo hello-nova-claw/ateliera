@@ -1,4 +1,4 @@
-# The Studio — Agent Instructions
+# Ateliera — Agent Instructions
 
 ## Product sources of truth
 

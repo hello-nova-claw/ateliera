@@ -6,7 +6,7 @@ test.describe.configure({ mode: 'serial' });
 async function createLocalStudio(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByRole('button', { name: 'Create a Studio' }).click();
-  await page.getByLabel('Studio name').fill('The Studio');
+  await page.getByLabel('Studio name').fill('Ateliera');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
 }
@@ -41,7 +41,7 @@ async function replaceFirstOpfsCapture(
       const active = localStorage.getItem('studio:active-browser-studio');
       if (active === null) throw new Error('No active Studio');
       const root = await navigator.storage.getDirectory();
-      const studioRoot = await root.getDirectoryHandle('the-studio');
+      const studioRoot = await root.getDirectoryHandle('ateliera');
       const vault = await studioRoot.getDirectoryHandle(encodeURIComponent(active));
       const inbox = await vault.getDirectoryHandle('Inbox');
       let fileHandle: FileSystemFileHandle | undefined;
@@ -93,7 +93,7 @@ test('offers an interrupted draft after reload and saves only after restore', as
     .getByRole('textbox', { name: 'Markdown body' })
     .fill('Words interrupted before autosave');
   await page.reload();
-  await page.getByRole('button', { name: 'Open The Studio' }).click();
+  await page.getByRole('button', { name: 'Open Ateliera' }).click();
   await openEditor(page, 'Durable beginning');
 
   await expect(page.getByText('Unsaved words are waiting.')).toBeVisible();
@@ -246,7 +246,7 @@ test('keeps the durable IndexedDB version across browsers when choosing Keep oth
   await page.evaluate(async () => {
     const active = localStorage.getItem('studio:active-browser-studio');
     if (active === null) throw new Error('No active Studio');
-    const request = indexedDB.open('the-studio-browser-vaults', 3);
+    const request = indexedDB.open('ateliera-browser-vaults', 3);
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       request.addEventListener('success', () => resolve(request.result), { once: true });
       request.addEventListener('error', () => reject(request.error), { once: true });
@@ -298,7 +298,7 @@ test('keeps the durable IndexedDB version across browsers when choosing Keep oth
   const durableText = await page.evaluate(async () => {
     const active = localStorage.getItem('studio:active-browser-studio');
     if (active === null) throw new Error('No active Studio');
-    const request = indexedDB.open('the-studio-browser-vaults', 3);
+    const request = indexedDB.open('ateliera-browser-vaults', 3);
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       request.addEventListener('success', () => resolve(request.result), { once: true });
       request.addEventListener('error', () => reject(request.error), { once: true });

@@ -1,4 +1,4 @@
-# The Studio threat model
+# Ateliera threat model
 
 **Status:** MVP security baseline  
 **Last reviewed:** 2026-07-14  
@@ -6,7 +6,7 @@
 
 ## Purpose and posture
 
-The Studio holds intimate notes, reflections, plans, images, and dream material. It is private by default, local by default, usable without AI, and has no third-party telemetry. Markdown and ordinary media remain the user's durable source of truth. This document names realistic protections and residual risks; it does not claim that local storage or the application is perfectly secure.
+Ateliera holds intimate notes, reflections, plans, images, and dream material. It is private by default, local by default, usable without AI, and has no third-party telemetry. Markdown and ordinary media remain the user's durable source of truth. This document names realistic protections and residual risks; it does not claim that local storage or the application is perfectly secure.
 
 The primary goals are:
 
@@ -41,8 +41,8 @@ The application package exposes an in-memory, bounded diagnostics recorder and a
 2. **Imported archive or Markdown to content engine.** Filenames, YAML, Markdown, links, and bytes are hostile even when the archive belongs to the user.
 3. **Webview to native commands.** IPC arguments are untrusted. The native process validates the window-owned vault token, path, bounds, expected revision/hash, and command-specific data.
 4. **Native process to selected filesystem directory.** The retained directory capability is trusted as the root; names below it are not. Operations use relative component traversal without following symlinks.
-5. **App to browser origin storage.** OPFS/IndexedDB and service-worker storage are controlled by the browser profile and device account, not encrypted by The Studio.
-6. **App to backup destination or external sync.** The destination is outside The Studio's confidentiality boundary after the user confirms it.
+5. **App to browser origin storage.** OPFS/IndexedDB and service-worker storage are controlled by the browser profile and device account, not encrypted by Ateliera.
+6. **App to backup destination or external sync.** The destination is outside Ateliera's confidentiality boundary after the user confirms it.
 7. **App to future AI or cloud services.** No provider exists in the MVP. Future transmission must be allowlisted, locally policy-checked, exactly previewed, and confirmed before payload construction.
 
 ## Threats, controls, and residual risks
@@ -89,7 +89,7 @@ The application package exposes an in-memory, bounded diagnostics recorder and a
 - multi-file imports and migrations are all-or-none, revision-guarded operations with durable crash-recovery journals;
 - ZIP import rejects absolute, escaping, duplicate, oversized, over-count, unsupported, and checksum-invalid entries before mutation.
 
-**Residual risks:** arbitrary external programs need not honor The Studio's advisory lock. The app detects conflicts but cannot make unrelated tools transactional. Filesystem, disk, or OS failure can still cause loss, so tested backups remain required.
+**Residual risks:** arbitrary external programs need not honor Ateliera's advisory lock. The app detects conflicts but cannot make unrelated tools transactional. Filesystem, disk, or OS failure can still cause loss, so tested backups remain required.
 
 ### Cross-site scripting and webview compromise
 
@@ -117,7 +117,7 @@ The application package exposes an in-memory, bounded diagnostics recorder and a
 - no credentials are stored in the vault by the application;
 - documentation and UI describe backups as complete private copies.
 
-**Residual risks:** backup ZIPs are not encrypted, cloud providers can retain versions, and Git history preserves removed files. The Studio cannot revoke a copy after export. Users should keep vaults out of public repositories, use encrypted destinations, review sync-sharing settings, and rotate any credential accidentally written into a note.
+**Residual risks:** backup ZIPs are not encrypted, cloud providers can retain versions, and Git history preserves removed files. Ateliera cannot revoke a copy after export. Users should keep vaults out of public repositories, use encrypted destinations, review sync-sharing settings, and rotate any credential accidentally written into a note.
 
 ### AI and network disclosure
 

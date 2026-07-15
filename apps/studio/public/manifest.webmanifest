@@ -1,7 +1,7 @@
 {
-  "name": "The Studio",
-  "short_name": "Studio",
-  "description": "A quiet, local-first place to remember and reflect.",
+  "name": "Ateliera",
+  "short_name": "Ateliera",
+  "description": "A private studio for designing a life from the inside out.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

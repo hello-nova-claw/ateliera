@@ -199,7 +199,7 @@ it('announces the canonical Foyer after an unknown URL is replaced', async () =>
   );
 
   expect(replaceState).toHaveBeenCalledWith(null, '', '/foyer');
-  await waitFor(() => expect(document.title).toBe('Foyer — The Studio'));
+  await waitFor(() => expect(document.title).toBe('Foyer — Ateliera'));
   expect(screen.getByText(/Foyer opened\./)).toBeInTheDocument();
 });
 
@@ -215,7 +215,7 @@ it('renders the Studio landmark', async () => {
   await act(async () => {
     await Promise.resolve();
   });
-  expect(screen.getByRole('main', { name: 'The Studio' })).toBeVisible();
+  expect(screen.getByRole('main', { name: 'Ateliera' })).toBeVisible();
   expect(screen.queryByText('Ready offline')).not.toBeInTheDocument();
 });
 

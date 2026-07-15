@@ -532,7 +532,7 @@ describe('LandscapePage', () => {
 
     expect(
       screen.getByRole('status', { name: 'Life area compatibility' }),
-    ).toHaveTextContent('newer version of The Studio');
+    ).toHaveTextContent('newer version of Ateliera');
     expect(screen.queryByText('Manage life areas')).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: /Rename/ }),

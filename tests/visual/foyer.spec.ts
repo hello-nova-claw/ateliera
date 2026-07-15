@@ -27,7 +27,7 @@ for (const fixture of [
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`/iframe.html?id=rooms-foyer--${fixture}&viewMode=story`);
     await expect(
-      page.getByRole('heading', { name: 'The Studio' }),
+      page.getByRole('heading', { name: 'Ateliera' }),
     ).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
     expect((await analyzeStory(page)).violations).toEqual([]);
@@ -46,7 +46,7 @@ for (const viewport of [
   test(`full Foyer reflows at ${viewport.name}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto('/iframe.html?id=rooms-foyer--full&viewMode=story');
-    await expect(page.getByRole('heading', { name: 'The Studio' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Ateliera' })).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
     expect(
       await page.evaluate(
@@ -66,7 +66,7 @@ for (const viewport of [
 test('Foyer respects reduced motion and forced colors', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce', forcedColors: 'active' });
   await page.goto('/iframe.html?id=rooms-foyer--full&viewMode=story');
-  await expect(page.getByRole('heading', { name: 'The Studio' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ateliera' })).toBeVisible();
   expect((await analyzeStory(page)).violations).toEqual([]);
   expect(
     await page

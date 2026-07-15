@@ -6,7 +6,7 @@ import {
 } from './PortabilitySettings';
 
 const preview: PortabilityPreview = {
-  archiveName: 'the-studio-2026-07-14.zip',
+  archiveName: 'ateliera-2026-07-14.zip',
   exportedAt: '2026-07-14T09:00:00.000Z',
   items: [
     {

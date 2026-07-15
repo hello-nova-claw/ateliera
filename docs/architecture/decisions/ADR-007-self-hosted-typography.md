@@ -5,7 +5,7 @@
 
 ## Context
 
-The final handoff replaces the earlier conceptual Canela/Avenir direction with legally free typefaces: Newsreader for editorial display, Hanken Grotesk for interface and body text, and Caveat for rare handwritten accents. The Studio must work offline, avoid leaking usage through third-party font requests, and remain visually stable across desktop and PWA installations.
+The final handoff replaces the earlier conceptual Canela/Avenir direction with legally free typefaces: Newsreader for editorial display, Hanken Grotesk for interface and body text, and Caveat for rare handwritten accents. Ateliera must work offline, avoid leaking usage through third-party font requests, and remain visually stable across desktop and PWA installations.
 
 ## Decision
 

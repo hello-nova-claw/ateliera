@@ -254,7 +254,7 @@ export function createDiagnosticsRecorder(
 }
 
 function exportFilename(generatedAt: string): string {
-  return `the-studio-diagnostics-${generatedAt.replaceAll(':', '-').replace('.', '-')}.json`;
+  return `ateliera-diagnostics-${generatedAt.replaceAll(':', '-').replace('.', '-')}.json`;
 }
 
 export function prepareDiagnosticsExport(input: DiagnosticsInput): PreparedDiagnosticsExport {

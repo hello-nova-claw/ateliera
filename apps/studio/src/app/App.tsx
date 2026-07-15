@@ -169,7 +169,7 @@ function StudioApplication({
   const [commandOpen, setCommandOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [themeOpen, setThemeOpen] = useState(false);
-  const [name, setName] = useState('The Studio');
+  const [name, setName] = useState('Ateliera');
   const [toast, setToast] = useState('');
   const [status, setStatus] = useState(() =>
     captureService === undefined && studioService === undefined
@@ -266,7 +266,7 @@ function StudioApplication({
         setError(
           reason instanceof Error
             ? reason.message
-            : 'The Studio could not watch this folder.',
+            : 'Ateliera could not watch this folder.',
         );
       }
     });
@@ -301,7 +301,7 @@ function StudioApplication({
           setError(
             reason instanceof Error
               ? reason.message
-              : 'The Studio could not open.',
+              : 'Ateliera could not open.',
           ),
       );
     void prepareOfflineShell()
@@ -316,7 +316,7 @@ function StudioApplication({
   }, [projectionRevision, service]);
 
   useEffect(() => {
-    document.title = `${title} — The Studio`;
+    document.title = `${title} — Ateliera`;
   }, [title]);
 
   useEffect(() => {
@@ -721,7 +721,7 @@ function StudioApplication({
         setCaptureOpen(true);
       }}
       onNavigate={go}
-      roomTitle={path === '/foyer' ? 'The Studio' : title}
+      roomTitle={path === '/foyer' ? 'Ateliera' : title}
       topbar={topbar}
     >
       <span aria-live="polite" className="studio-visually-hidden">

@@ -224,16 +224,16 @@ export async function prepareVaultImport(
   }
   const manifestBytes = archiveFiles.get(PORTABLE_MANIFEST_PATH);
   if (manifestBytes === undefined) {
-    throw new PortableVaultError('invalid-manifest', 'The Studio export manifest is missing.');
+    throw new PortableVaultError('invalid-manifest', 'Ateliera export manifest is missing.');
   }
   let parsed: unknown;
   try {
     parsed = JSON.parse(decoder.decode(manifestBytes));
   } catch {
-    throw new PortableVaultError('invalid-manifest', 'The Studio export manifest is invalid.');
+    throw new PortableVaultError('invalid-manifest', 'Ateliera export manifest is invalid.');
   }
   if (!validPortableManifest(parsed)) {
-    throw new PortableVaultError('invalid-manifest', 'The Studio export schema is unsupported.');
+    throw new PortableVaultError('invalid-manifest', 'Ateliera export schema is unsupported.');
   }
   const manifest = parsed;
   assertManifestOrder(manifest);

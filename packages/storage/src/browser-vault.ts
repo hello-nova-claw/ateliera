@@ -184,7 +184,7 @@ function watchHub(name: string): WatchHub {
   if (existing !== undefined) return existing;
   const hub: WatchHub = { listeners: new Set() };
   if (typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined') {
-    hub.channel = new BroadcastChannel(`the-studio:vault:${name}`);
+    hub.channel = new BroadcastChannel(`ateliera:vault:${name}`);
     hub.channel.addEventListener('message', (message: MessageEvent<unknown>) => {
       if (validBroadcastChange(message.data)) {
         deliver(hub, message.data);
@@ -389,7 +389,7 @@ async function withVaultLock<T>(name: string, action: () => Promise<T>): Promise
   const lockManager =
     typeof navigator === 'undefined' ? undefined : navigator.locks;
   if (lockManager !== undefined) {
-    return lockManager.request(`the-studio:${name}`, { mode: 'exclusive' }, action);
+    return lockManager.request(`ateliera:${name}`, { mode: 'exclusive' }, action);
   }
   return withModuleLock(name, action);
 }
@@ -487,7 +487,7 @@ class BrowserVault implements VaultPort {
         : await store.readBounded(validPath, maximumBytes);
       if (file === undefined) throw new VaultUnavailableError();
       if (file.bytes.byteLength > maximumBytes) {
-        throw new VaultUnavailableError('The Studio file exceeds the bounded read limit.');
+        throw new VaultUnavailableError('Ateliera file exceeds the bounded read limit.');
       }
       return { bytes: file.bytes.slice(), hash: file.hash };
     });
@@ -815,7 +815,7 @@ async function verifiedIndexedDbRecord(
 }
 
 async function openVaultDatabase(): Promise<IDBDatabase> {
-  const request = indexedDB.open('the-studio-browser-vaults', 3);
+  const request = indexedDB.open('ateliera-browser-vaults', 3);
   request.addEventListener('upgradeneeded', () => {
     if (!request.result.objectStoreNames.contains('files')) {
       const store = request.result.createObjectStore('files', { keyPath: 'key' });
@@ -968,7 +968,7 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
     throw new VaultUnavailableError('OPFS is unavailable in this browser.');
   }
   const originRoot = await storage.getDirectory();
-  const studioRoot = await originRoot.getDirectoryHandle('the-studio', {
+  const studioRoot = await originRoot.getDirectoryHandle('ateliera', {
     create: true,
   });
   const root = await studioRoot.getDirectoryHandle(encodeURIComponent(name), {
@@ -1222,20 +1222,20 @@ async function createOpfsStore(name: string): Promise<BrowserVaultStore> {
       throw error;
     }
     if (before.size > maximumBytes) {
-      throw new VaultUnavailableError('The Studio file exceeds the bounded read limit.');
+      throw new VaultUnavailableError('Ateliera file exceeds the bounded read limit.');
     }
     const file = await readFile(path, maximumBytes);
     if (file === undefined) return undefined;
     const after = await fileMetadata(path);
     if (!sameFileMetadata(before, after) || file.bytes.byteLength !== after.size ||
       await getRevision() !== revision) {
-      throw new VaultConflictError('The Studio file changed during its bounded read.');
+      throw new VaultConflictError('Ateliera file changed during its bounded read.');
     }
     await writeObservedFileMetadata(path, file, after);
     const verified = await fileMetadata(path);
     if (!sameFileMetadata(after, verified) || await getRevision() !== revision) {
       await removeFileMetadata(path);
-      throw new VaultConflictError('The Studio file changed while healing its metadata.');
+      throw new VaultConflictError('Ateliera file changed while healing its metadata.');
     }
     return file;
   }
@@ -1556,7 +1556,7 @@ async function opfsVaultExists(name: string): Promise<boolean> {
   if (storage.getDirectory === undefined) return false;
   try {
     const originRoot = await storage.getDirectory();
-    const studioRoot = await originRoot.getDirectoryHandle('the-studio');
+    const studioRoot = await originRoot.getDirectoryHandle('ateliera');
     await studioRoot.getDirectoryHandle(encodeURIComponent(name));
     return true;
   } catch (error) {

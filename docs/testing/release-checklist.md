@@ -1,6 +1,6 @@
-# The Studio MVP release checklist
+# Ateliera MVP release checklist
 
-This checklist is the release authority for The Studio MVP. It distinguishes reproducible automated evidence from checks that require Anna, physical Apple devices, assistive technology, or signing credentials. A green build is necessary but does not by itself authorize a public release.
+This checklist is the release authority for Ateliera MVP. It distinguishes reproducible automated evidence from checks that require Anna, physical Apple devices, assistive technology, or signing credentials. A green build is necessary but does not by itself authorize a public release.
 
 ## Candidate identity
 
@@ -76,7 +76,7 @@ Record every defect, workaround, and intentionally deferred issue beside the can
 - [ ] Restore into an empty Studio and compare all rooms, links, attachments, Trash, seasons, view state, and backups.
 - [ ] Exercise create, overwrite, conflict, skip, cancel, stale-preview, and interrupted-recovery paths.
 - [ ] Confirm the original vault and export remain usable after every rejected or interrupted restore.
-- [ ] Open representative Markdown and media outside The Studio to confirm data remains ordinary and user-owned.
+- [ ] Open representative Markdown and media outside Ateliera to confirm data remains ordinary and user-owned.
 
 ## Privacy and security gate
 
@@ -90,7 +90,7 @@ Record every defect, workaround, and intentionally deferred issue beside the can
 
 The reproducible workflow intentionally carries no Apple credentials. Its `.app`/DMG output is signing-ready evidence, but is **not signed or notarized**. Never describe it as signed, notarized, or ready for external distribution until the following credentialed gate succeeds.
 
-- [ ] Confirm bundle identifier `au.com.annamcphee.thestudio`, version, icon, display name, minimum window, privacy behavior, and included production assets.
+- [ ] Confirm bundle identifier `au.com.annamcphee.ateliera`, version, icon, display name, minimum window, privacy behavior, and included production assets.
 - [ ] Sign the app and nested code with the intended Developer ID Application certificate.
 - [ ] Verify with `codesign --verify --deep --strict --verbose=2` and record certificate/team identity.
 - [ ] Submit to Apple notary service, wait for acceptance, staple the ticket, and retain the notarization log.

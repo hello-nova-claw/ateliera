@@ -1,14 +1,14 @@
 [package]
-name = "studio-desktop"
+name = "ateliera-desktop"
 version = "0.1.0"
 edition = "2024"
 
 [lib]
-name = "studio_desktop"
+name = "ateliera_desktop"
 path = "src/lib.rs"
 
 [[bin]]
-name = "studio-desktop"
+name = "ateliera-desktop"
 path = "src/main.rs"
 
 [dependencies]

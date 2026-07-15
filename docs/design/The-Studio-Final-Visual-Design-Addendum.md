@@ -1,9 +1,9 @@
-# The Studio Final Visual Design Addendum
+# Ateliera Final Visual Design Addendum
 
 **Status:** Accepted implementation authority
 **Version:** 1.1
 **Date:** 13 July 2026
-**Design source:** Anna McPhee's final “The Studio design system” handoff
+**Design source:** Anna McPhee's final “The Studio design system” handoff, rebranded in-product as Ateliera
 
 > Create enough structure that your imagination has somewhere to surprise you.
 
@@ -23,7 +23,7 @@ The clone-local [`.dc.html` artifact](<reference/The Studio.dc.html>) is a refer
 
 ## 2. Experience target
 
-The Studio should feel like a quiet book, private library, and architect's studio: editorial, warm, spacious, tactile, and composed. It must not resemble a corporate dashboard, productivity cockpit, scrapbook, or saturated manifestation board.
+Ateliera should feel like a quiet book, private library, and architect's studio: editorial, warm, spacious, tactile, and composed. It must not resemble a corporate dashboard, productivity cockpit, scrapbook, or saturated manifestation board.
 
 The composition should preserve negative space, reveal secondary detail progressively, and avoid manufacturing urgency. Beauty is functional because it invites return; decoration is subordinate to clarity.
 
@@ -233,7 +233,7 @@ Do not use Caveat for paragraphs, navigation, field labels, or explanatory copy.
 ### 6.1 Desktop authoring shell
 
 - Fixed/sticky 248px left rail, full viewport height, 26px 16px 18px padding.
-- Brand block uses Newsreader “The Studio” and optional decorative Caveat “life by design.”
+- Brand block uses Newsreader “Ateliera” and optional supporting copy “inside out.”
 - Room rows are at least 44px high in production, with semantic outline mark plus visible label; active state uses sunken surface and `aria-current="page"`.
 - Utilities are separated visually: Search, Inbox, Settings. Design System, States Gallery, and Mobile Preview are development-only routes and never production navigation.
 - Sticky 60px top bar with 34px horizontal padding: search/command trigger, autosave state, theme picker, Inbox, and New.

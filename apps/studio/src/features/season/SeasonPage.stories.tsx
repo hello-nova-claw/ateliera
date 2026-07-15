@@ -42,7 +42,7 @@ const state = {
   supports: ['Two childcare mornings', 'A deliberately small scope'],
   constraints: ['Toddler sleep changes', 'Energy is not uniform'],
   enough:
-    'The house becomes easier in the places that most affect daily life; The Studio reaches a genuinely usable first version; family rhythms feel supported rather than optimised.',
+    'The house becomes easier in the places that most affect daily life; Ateliera reaches a genuinely usable first version; family rhythms feel supported rather than optimised.',
   notNow: [
     'Buying another personal-development course',
     'Building every future Inner Studio feature',

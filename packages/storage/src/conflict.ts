@@ -1,7 +1,7 @@
 export class VaultConflictError extends Error {
   override readonly name = 'VaultConflictError';
 
-  constructor(message = 'The Studio file changed before the operation could be completed.') {
+  constructor(message = 'Ateliera file changed before the operation could be completed.') {
     super(message);
   }
 }
@@ -9,7 +9,7 @@ export class VaultConflictError extends Error {
 export class PathEscapeError extends Error {
   override readonly name = 'PathEscapeError';
 
-  constructor(message = 'The Studio file location is not valid.') {
+  constructor(message = 'Ateliera file location is not valid.') {
     super(message);
   }
 }

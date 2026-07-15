@@ -151,7 +151,7 @@ async function seedInterruptedOpfsBatch(
   revisionCommitted: boolean,
   published: number,
 ): Promise<void> {
-  const root = `the-studio/${encodeURIComponent(name)}`;
+  const root = `ateliera/${encodeURIComponent(name)}`;
   const entries = await Promise.all(['a', 'b'].map(async (key, index) => {
     const before = `old-${key}`;
     const after = `new-${key}`;
@@ -545,7 +545,7 @@ describe('OPFS crash recovery', () => {
   it('removes an orphaned pre-manifest journal before exposing the vault', async () => {
     const opfs = new MemoryOpfs();
     const name = 'crash-orphan';
-    const root = `the-studio/${name}`;
+    const root = `ateliera/${name}`;
     opfs.put(`${root}/Inbox/a.md`, 'old-a');
     opfs.put(`${root}/.studio-revision`, '0');
     opfs.put(`${root}/.studio-opfs-batch/before/0`, 'old-a');
@@ -578,7 +578,7 @@ describe('OPFS crash recovery', () => {
     const opfs = new MemoryOpfs();
     const name = `crash-forged-${_case.replaceAll(' ', '-')}`;
     await seedInterruptedOpfsBatch(opfs, name, false, 1);
-    const path = `the-studio/${encodeURIComponent(name)}/.studio-opfs-batch/manifest.json`;
+    const path = `ateliera/${encodeURIComponent(name)}/.studio-opfs-batch/manifest.json`;
     const manifest = JSON.parse(opfs.text(path) ?? '{}') as Record<string, unknown>;
     forge(manifest);
     opfs.put(path, `${JSON.stringify(manifest)}\n`);
@@ -586,7 +586,7 @@ describe('OPFS crash recovery', () => {
     try {
       const reopened = createBrowserVault(name, { storage: 'opfs' });
       await expect(reopened.list()).rejects.toBeInstanceOf(VaultUnavailableError);
-      expect(opfs.text(`the-studio/${encodeURIComponent(name)}/Inbox/a.md`)).toBe('new-a');
+      expect(opfs.text(`ateliera/${encodeURIComponent(name)}/Inbox/a.md`)).toBe('new-a');
       expect([...opfs.files.keys()].some((file) => file.includes('.studio-opfs-batch'))).toBe(true);
     } finally {
       vi.unstubAllGlobals();
@@ -597,7 +597,7 @@ describe('OPFS crash recovery', () => {
     const opfs = new MemoryOpfs();
     const name = 'crash-corrupt';
     await seedInterruptedOpfsBatch(opfs, name, false, 1);
-    const root = `the-studio/${name}`;
+    const root = `ateliera/${name}`;
     opfs.put(`${root}/.studio-opfs-batch/progress`, '3');
     vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
     try {
@@ -618,7 +618,7 @@ describe('OPFS crash recovery', () => {
       const opfs = new MemoryOpfs();
       const name = `crash-later-${side}-payload-corrupt`;
       await seedInterruptedOpfsBatch(opfs, name, false, 1);
-      const root = `the-studio/${name}`;
+      const root = `ateliera/${name}`;
       opfs.put(`${root}/.studio-opfs-batch/${side}/1`, 'corrupt');
       vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
       try {
@@ -638,7 +638,7 @@ describe('OPFS crash recovery', () => {
     const opfs = new MemoryOpfs();
     const name = 'crash-external-edit';
     await seedInterruptedOpfsBatch(opfs, name, false, 1);
-    const root = `the-studio/${name}`;
+    const root = `ateliera/${name}`;
     opfs.put(`${root}/Inbox/b.md`, 'external-b');
     vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
     try {
@@ -656,7 +656,7 @@ describe('OPFS crash recovery', () => {
     const opfs = new MemoryOpfs();
     const name = 'crash-oversized-external-edit';
     await seedInterruptedOpfsBatch(opfs, name, false, 1);
-    const root = `the-studio/${name}`;
+    const root = `ateliera/${name}`;
     const oversizedPath = `${root}/Inbox/b.md`;
     opfs.putVirtual(oversizedPath, 64 * 1024 * 1024 + 1);
     vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
@@ -675,7 +675,7 @@ describe('OPFS crash recovery', () => {
   it('rejects an oversized atomic overwrite before opening any target body or mutating peers', async () => {
     const opfs = new MemoryOpfs();
     const name = 'oversized-atomic-overwrite';
-    const root = `the-studio/${name}`;
+    const root = `ateliera/${name}`;
     const hugePath = `${root}/Attachments/huge.bin`;
     opfs.putVirtual(hugePath, 5 * 1024 * 1024 * 1024);
     opfs.put(`${root}/.studio-revision`, '0');
@@ -709,7 +709,7 @@ describe('OPFS crash recovery', () => {
   it('rejects an external replacement between condition validation and journal capture', async () => {
     const opfs = new MemoryOpfs();
     const name = 'atomic-condition-replacement-race';
-    const root = `the-studio/${name}`;
+    const root = `ateliera/${name}`;
     const target = `${root}/Inbox/existing.md`;
     opfs.put(target, 'original');
     opfs.put(`${root}/.studio-revision`, '0');
@@ -739,7 +739,7 @@ describe('OPFS crash recovery', () => {
   it('rejects an external creation between expected-missing validation and journal capture', async () => {
     const opfs = new MemoryOpfs();
     const name = 'atomic-condition-creation-race';
-    const root = `the-studio/${name}`;
+    const root = `ateliera/${name}`;
     const target = `${root}/Inbox/new.md`;
     opfs.put(`${root}/Inbox/.keep`, 'directory sentinel');
     opfs.put(`${root}/.studio-revision`, '0');
@@ -769,7 +769,7 @@ describe('OPFS crash recovery', () => {
   it('removes its unpublished journal when a target changes immediately before publication', async () => {
     const opfs = new MemoryOpfs();
     const name = 'atomic-prepublication-race';
-    const root = `the-studio/${name}`;
+    const root = `ateliera/${name}`;
     const target = `${root}/Inbox/existing.md`;
     opfs.put(target, 'original');
     opfs.put(`${root}/.studio-revision`, '0');
@@ -866,7 +866,7 @@ describe('OPFS crash recovery', () => {
   it('lists and previews from OPFS metadata without opening unrelated asset bodies', async () => {
     const opfs = new MemoryOpfs();
     const name = 'metadata-only-list';
-    const root = `the-studio/${name}`;
+    const root = `ateliera/${name}`;
     const hugeCache = `${root}/.studio/cache/unrelated.bin`;
     vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
     try {
@@ -908,7 +908,7 @@ describe('OPFS crash recovery', () => {
   it('does not trust stale OPFS metadata after an external same-size replacement', async () => {
     const opfs = new MemoryOpfs();
     const name = 'stale-file-metadata';
-    const root = `the-studio/${name}`;
+    const root = `ateliera/${name}`;
     const path = 'Attachments/sample.bin';
     const physicalPath = `${root}/${path}`;
     vi.stubGlobal('navigator', { storage: { getDirectory: async () => opfs.directory() } });
@@ -949,7 +949,7 @@ describe('OPFS crash recovery', () => {
   it('bounded-reads and backfills metadata for a legacy OPFS asset', async () => {
     const opfs = new MemoryOpfs();
     const name = 'legacy-file-metadata';
-    const root = `the-studio/${name}`;
+    const root = `ateliera/${name}`;
     const path = 'Attachments/legacy.bin';
     const physicalPath = `${root}/${path}`;
     opfs.put(physicalPath, 'legacy');

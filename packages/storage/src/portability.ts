@@ -1,7 +1,7 @@
 import { VaultUnavailableError } from './conflict';
 
 export const PORTABLE_MANIFEST_PATH = '.studio/export-manifest.json';
-export const PORTABLE_FORMAT = 'the-studio-vault' as const;
+export const PORTABLE_FORMAT = 'ateliera-vault' as const;
 export const PORTABLE_EXPORT_VERSION = 1 as const;
 export const PORTABLE_NOTE_SCHEMA_VERSION = 1 as const;
 export const PORTABLE_SETTINGS_SCHEMA_VERSION = 1 as const;

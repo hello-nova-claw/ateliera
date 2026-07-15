@@ -20,7 +20,7 @@ async function openStory(page: Page, fixture: string): Promise<void> {
 
 async function chooseBackup(page: Page): Promise<void> {
   await page.getByLabel('Choose a Studio backup').setInputFiles({
-    name: 'the-studio-2026-07-14.zip',
+    name: 'ateliera-2026-07-14.zip',
     mimeType: 'application/zip',
     buffer: Buffer.from('storybook archive fixture'),
   });

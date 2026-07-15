@@ -173,7 +173,7 @@ export function Inspector({
           {viewState === 'error' && (
             <section className="inspector__state" role="alert">
               <h2>This note could not be opened.</h2>
-              <p>{errorMessage ?? 'The Studio could not read it just now. Your source file has not been changed.'}</p>
+              <p>{errorMessage ?? 'Ateliera could not read it just now. Your source file has not been changed.'}</p>
               {onRetry && actionButton('retry', 'Try again', onRetry)}
             </section>
           )}

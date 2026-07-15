@@ -42,40 +42,40 @@ function command(commandName, args) {
 
 const inventory = await entries(bundleRoot);
 const appExecutable = inventory.find(
-  ({ path, kind }) => kind === 'file' && /macos\/The Studio\.app\/Contents\/MacOS\/studio-desktop$/u.test(path),
+  ({ path, kind }) => kind === 'file' && /macos\/Ateliera\.app\/Contents\/MacOS\/ateliera-desktop$/u.test(path),
 );
 const appInfo = inventory.find(
-  ({ path, kind }) => kind === 'file' && /macos\/The Studio\.app\/Contents\/Info\.plist$/u.test(path),
+  ({ path, kind }) => kind === 'file' && /macos\/Ateliera\.app\/Contents\/Info\.plist$/u.test(path),
 );
 const dmg = inventory.find(
   ({ path, kind }) => kind === 'file' && path.endsWith('.dmg'),
 );
 const issues = [];
-if (!appExecutable) issues.push('The Studio.app executable is missing.');
-if (!appInfo) issues.push('The Studio.app Info.plist is missing.');
-if (!dmg) issues.push('The Studio DMG is missing.');
+if (!appExecutable) issues.push('Ateliera.app executable is missing.');
+if (!appInfo) issues.push('Ateliera.app Info.plist is missing.');
+if (!dmg) issues.push('Ateliera DMG is missing.');
 const dmgVerification = dmg
   ? verifyDiskImage(resolve(bundleRoot, dmg.path))
-  : { output: 'The Studio DMG is missing.', status: null, verified: false };
+  : { output: 'Ateliera DMG is missing.', status: null, verified: false };
 if (dmg && !dmgVerification.verified) {
-  issues.push(`The Studio DMG failed hdiutil verification: ${dmgVerification.output}`);
+  issues.push(`Ateliera DMG failed hdiutil verification: ${dmgVerification.output}`);
 }
-if (inventory.some(({ path }) => /(?:The Studio\.dc\.html|original-mockup|design\/reference)/iu.test(path))) {
+if (inventory.some(({ path }) => /(?:(?:The Studio|Ateliera)\.dc\.html|original-mockup|design\/reference)/iu.test(path))) {
   issues.push('The packaged app contains design prototype material.');
 }
 
-const appPath = resolve(bundleRoot, 'macos/The Studio.app');
+const appPath = resolve(bundleRoot, 'macos/Ateliera.app');
 let bundleMetadata = {};
 if (appInfo) {
   const plist = command('plutil', ['-convert', 'json', '-o', '-', resolve(bundleRoot, appInfo.path)]);
   if (plist.status !== 0) issues.push(`Info.plist could not be read: ${plist.output}`);
   else bundleMetadata = JSON.parse(plist.output);
 }
-if (bundleMetadata.CFBundleIdentifier !== 'au.com.annamcphee.thestudio') {
-  issues.push('The packaged bundle identifier is not au.com.annamcphee.thestudio.');
+if (bundleMetadata.CFBundleIdentifier !== 'au.com.annamcphee.ateliera') {
+  issues.push('The packaged bundle identifier is not au.com.annamcphee.ateliera.');
 }
-if (bundleMetadata.CFBundleDisplayName !== 'The Studio') {
-  issues.push('The packaged display name is not The Studio.');
+if (bundleMetadata.CFBundleDisplayName !== 'Ateliera') {
+  issues.push('The packaged display name is not Ateliera.');
 }
 
 const codesign = command('codesign', ['--display', '--verbose=4', appPath]);

@@ -25,7 +25,7 @@ it('creates a complete portable backup from the active vault', async () => {
 
   await waitFor(() => expect(saveBackup).toHaveBeenCalledTimes(1));
   const backup = savedBackup;
-  expect(backup?.fileName).toMatch(/^the-studio-backup-.*\.zip$/u);
+  expect(backup?.fileName).toMatch(/^ateliera-backup-.*\.zip$/u);
   const clean = createInMemoryVault();
   const plan = await prepareVaultImport(clean, backup!.bytes);
   expect(plan.items.map((item) => item.path)).toEqual([

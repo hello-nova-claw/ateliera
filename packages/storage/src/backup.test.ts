@@ -14,7 +14,7 @@ it('creates a named portable backup and restores it', async () => {
     generatedAt: '2026-07-14T12:34:56.000Z',
     reason: 'manual',
   });
-  expect(backup.fileName).toBe('the-studio-backup-2026-07-14T123456Z.zip');
+  expect(backup.fileName).toBe('ateliera-backup-2026-07-14T123456Z.zip');
 
   const target = createInMemoryVault();
   await restoreVaultBackup(target, backup.bytes, { confirm: true });

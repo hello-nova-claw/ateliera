@@ -76,7 +76,7 @@ async function activeVaultRecords(page: Page): Promise<ActiveVaultRecord[]> {
   return page.evaluate(async () => {
     const active = localStorage.getItem('studio:active-browser-studio');
     if (active === null) throw new Error('No active Studio');
-    const request = indexedDB.open('the-studio-browser-vaults', 3);
+    const request = indexedDB.open('ateliera-browser-vaults', 3);
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       request.addEventListener('success', () => resolve(request.result), { once: true });
       request.addEventListener('error', () => reject(request.error), { once: true });
@@ -111,7 +111,7 @@ async function putActiveVaultText(
   await page.evaluate(async ({ targetPath, targetText }) => {
     const active = localStorage.getItem('studio:active-browser-studio');
     if (active === null) throw new Error('No active Studio');
-    const request = indexedDB.open('the-studio-browser-vaults', 3);
+    const request = indexedDB.open('ateliera-browser-vaults', 3);
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       request.addEventListener('success', () => resolve(request.result), { once: true });
       request.addEventListener('error', () => reject(request.error), { once: true });
@@ -146,7 +146,7 @@ async function corruptActiveVaultTextWithoutUpdatingHash(
   await page.evaluate(async ({ targetPath, targetText }) => {
     const active = localStorage.getItem('studio:active-browser-studio');
     if (active === null) throw new Error('No active Studio');
-    const request = indexedDB.open('the-studio-browser-vaults', 3);
+    const request = indexedDB.open('ateliera-browser-vaults', 3);
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       request.addEventListener('success', () => resolve(request.result), { once: true });
       request.addEventListener('error', () => reject(request.error), { once: true });
@@ -198,7 +198,7 @@ test('exports, destroys the active selection, and cleanly restores a portable St
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download portable backup' }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toMatch(/^the-studio-backup-.*\.zip$/u);
+  expect(download.suggestedFilename()).toMatch(/^ateliera-backup-.*\.zip$/u);
   const backupPath = await download.path();
   expect(backupPath).not.toBeNull();
   await expect(page.getByText('Your portable backup is ready', { exact: false })).toBeVisible();

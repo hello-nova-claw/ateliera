@@ -21,7 +21,7 @@ export type PersistVaultBackup = (backup: VaultBackup) => Promise<void>;
 
 function backupFileName(generatedAt: string): string {
   const [date, time = '000000.000Z'] = generatedAt.split('T');
-  return `the-studio-backup-${date}T${time.replace(/:/g, '').replace('.000', '')}.zip`;
+  return `ateliera-backup-${date}T${time.replace(/:/g, '').replace('.000', '')}.zip`;
 }
 
 export async function createVaultBackup(

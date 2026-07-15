@@ -21,7 +21,7 @@ async function fixture(): Promise<string> {
         { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml' },
         { src: '/maskable.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
       ],
-      name: 'The Studio',
+      name: 'Ateliera',
       scope: '/',
       short_name: 'Studio',
       start_url: '/',
@@ -56,7 +56,7 @@ describe('PWA release artifact inspection', () => {
     const root = await fixture();
     await writeFile(
       join(root, 'assets/app.js'),
-      'fetch("https://example.com") /* The Studio.dc.html */',
+      'fetch("https://example.com") /* Ateliera.dc.html */',
     );
     const manifest = JSON.parse(
       await (await import('node:fs/promises')).readFile(
@@ -84,12 +84,12 @@ describe('PWA release artifact inspection', () => {
 
 describe('macOS release artifact inspection', () => {
   test('accepts only a disk image that hdiutil can verify', () => {
-    const valid = verifyDiskImage('/tmp/The Studio.dmg', () => ({
+    const valid = verifyDiskImage('/tmp/Ateliera.dmg', () => ({
       status: 0,
       stderr: '',
       stdout: 'verified CRC32 checksum $12345678 is VALID',
     }));
-    const corrupt = verifyDiskImage('/tmp/The Studio.dmg', () => ({
+    const corrupt = verifyDiskImage('/tmp/Ateliera.dmg', () => ({
       status: 1,
       stderr: 'hdiutil: verify failed - image data corrupted',
       stdout: '',

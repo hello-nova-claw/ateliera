@@ -1,14 +1,14 @@
-# The Studio Implementation Plan
+# Ateliera Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the first private, local-first release of The Studio: a calm, responsive personal life-design application whose durable content remains ordinary Markdown and media files.
+**Goal:** Build the first private, local-first release of Ateliera: a calm, responsive personal life-design application whose durable content remains ordinary Markdown and media files.
 
 **Architecture:** Use a TypeScript monorepo with a shared React application and domain packages. Ship the same UI in a Tauri 2 desktop shell for reliable macOS vault access and as an installable PWA for local mobile capture/review. All durable behavior depends on storage and index ports; Tauri filesystem/SQLite and browser OPFS/IndexedDB implementations remain replaceable adapters.
 
 **Tech Stack:** Node 22 LTS, pnpm 10, TypeScript 5.8+, React 19, Vite 7, React Router 7, TanStack Query 5, Zustand 5, Zod 4, unified/remark, CodeMirror 6, dnd-kit, Tauri 2/Rust stable, SQLite FTS5, Vitest, React Testing Library, Playwright, axe-core, Storybook 9.
 
-**Final visual authority:** [The Studio Final Visual Design Addendum](../../design/The-Studio-Final-Visual-Design-Addendum.md). It fixes the accepted tokens, seven themes, self-hosted typography, compositions, state matrices, responsive behavior, and visual test requirements without changing MVP scope.
+**Final visual authority:** [Ateliera Final Visual Design Addendum](../../design/The-Studio-Final-Visual-Design-Addendum.md). It fixes the accepted tokens, seven themes, self-hosted typography, compositions, state matrices, responsive behavior, and visual test requirements without changing MVP scope.
 
 ## Global Constraints
 
@@ -88,7 +88,7 @@ Identity Studio and Wisdom Garden are Phase 1.1. Their schemas are supported in 
 Create this repository structure. A file should have one clear responsibility; do not collapse packages into a single app folder.
 
 ```text
-the-studio/
+ateliera/
 ├── AGENTS.md
 ├── README.md
 ├── development-log.md
@@ -401,7 +401,7 @@ import { App } from './App';
 
 it('renders the Studio landmark', () => {
   render(<App />);
-  expect(screen.getByRole('main', { name: 'The Studio' })).toBeVisible();
+  expect(screen.getByRole('main', { name: 'Ateliera' })).toBeVisible();
 });
 ```
 
@@ -414,7 +414,7 @@ Expected: FAIL because `App` or its accessible main landmark does not exist.
 
 ```tsx
 export function App() {
-  return <main aria-label="The Studio">The Studio</main>;
+  return <main aria-label="Ateliera">Ateliera</main>;
 }
 ```
 
@@ -831,9 +831,9 @@ git commit -m "feat: add studio application services"
 test('creates a local Studio and enters the Foyer', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Create a Studio' }).click();
-  await page.getByLabel('Studio name').fill('The Studio');
+  await page.getByLabel('Studio name').fill('Ateliera');
   await page.getByRole('button', { name: 'Create' }).click();
-  await expect(page.getByRole('heading', { name: 'The Studio' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ateliera' })).toBeVisible();
 });
 ```
 
@@ -1392,7 +1392,7 @@ Create a separate plan and safety review for places, figures, dreams, symbols, s
 
 ## 7. Final design integration contract
 
-The final design is accepted and transcribed into [The Studio Final Visual Design Addendum](../../design/The-Studio-Final-Visual-Design-Addendum.md). Do not rewrite architecture around static mockup geometry. Implement it through this order:
+The final design is accepted and transcribed into [Ateliera Final Visual Design Addendum](../../design/The-Studio-Final-Visual-Design-Addendum.md). Do not rewrite architecture around static mockup geometry. Implement it through this order:
 
 1. Treat the addendum's screen, component, state, and breakpoint inventory as the visual acceptance contract.
 2. Implement its tokens through semantic CSS custom properties, not copied inline prototype values.
@@ -1493,4 +1493,4 @@ Do not parallelize tasks that touch the same package or depend on unfinished con
 
 ---
 
-*This plan is the implementation companion to “The Studio — Product Requirements & Design Bible,” version 1.0. Update both documents when a product or architecture decision changes.*
+*This plan is the implementation companion to “Ateliera — Product Requirements & Design Bible,” version 1.0. Update both documents when a product or architecture decision changes.*

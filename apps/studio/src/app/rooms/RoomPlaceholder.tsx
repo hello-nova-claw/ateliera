@@ -18,7 +18,7 @@ export function RoomPlaceholder({
       <p className="studio-room__eyebrow">
         {foyer ? 'Welcome home' : 'A room in your Studio'}
       </p>
-      <h1>{foyer ? 'The Studio' : title}</h1>
+      <h1>{foyer ? 'Ateliera' : title}</h1>
       <p className="studio-room__intro">
         {foyer
           ? 'A quiet place to design a life, notice who you are becoming, and keep what you learn.'

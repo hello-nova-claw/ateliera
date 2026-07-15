@@ -316,7 +316,7 @@ test('restores the exact menu action after a concurrent move conflict', async ({
   await page.evaluate(async () => {
     const active = localStorage.getItem('studio:active-browser-studio');
     if (active === null) throw new Error('No active Studio');
-    const request = indexedDB.open('the-studio-browser-vaults', 3);
+    const request = indexedDB.open('ateliera-browser-vaults', 3);
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       request.addEventListener('success', () => resolve(request.result), {
         once: true,

@@ -137,7 +137,7 @@ await writeFile(
   `${JSON.stringify(manifest, null, 2)}\n`,
 );
 const summary = [
-  '# The Studio release evidence',
+  '# Ateliera release evidence',
   '',
   `- Outcome: **${manifest.outcome}**`,
   `- Commit: \`${manifest.candidate.commit ?? 'unavailable'}\``,

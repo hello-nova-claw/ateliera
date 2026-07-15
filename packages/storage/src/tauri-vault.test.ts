@@ -65,12 +65,12 @@ describe('Tauri vault IPC adapter', () => {
     const archive = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
     await expect(saveTauriVaultBackup(
       archive,
-      'the-studio-backup-2026-07-14.zip',
+      'ateliera-backup-2026-07-14.zip',
       bridge(invoke),
     )).resolves.toBe('saved');
     expect(invoke).toHaveBeenCalledWith('backup_save_zip', archive, {
       headers: {
-        'x-studio-backup-name': 'the-studio-backup-2026-07-14.zip',
+        'x-studio-backup-name': 'ateliera-backup-2026-07-14.zip',
       },
     });
     expect(invoke.mock.calls[0]?.[1]).toBeInstanceOf(Uint8Array);

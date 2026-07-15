@@ -157,7 +157,7 @@ describe('portable vault export', () => {
     await expect(exportVault(vault)).rejects.toMatchObject({
       code: 'source-changed',
       message:
-        'The Studio changed while the backup was being created. Nothing was exported; try again.',
+        'Ateliera changed while the backup was being created. Nothing was exported; try again.',
     });
     expect(readBinaryBounded).toHaveBeenCalledWith(
       'Attachments/growing.bin',

@@ -6,7 +6,7 @@ it('provides an accessible status while a room boundary loads', async () => {
 
   expect(screen.getByRole('status', { name: 'Opening Foyer' })).toBeVisible();
   expect(
-    await screen.findByRole('heading', { level: 1, name: 'The Studio' }),
+    await screen.findByRole('heading', { level: 1, name: 'Ateliera' }),
   ).toBeVisible();
 });
 

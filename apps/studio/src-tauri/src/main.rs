@@ -1,3 +1,3 @@
 fn main() {
-    studio_desktop::run();
+    ateliera_desktop::run();
 }

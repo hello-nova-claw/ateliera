@@ -125,9 +125,9 @@ export function FoyerPage({
     <div className={`foyer-page${empty ? ' foyer-page--empty' : ''}`}>
       <header className="foyer-page__header">
         <p className="foyer-page__script">life by design</p>
-        <h1>The Studio</h1>
+        <h1>Ateliera</h1>
         <p className="foyer-page__motto">
-          A quiet place to notice what matters, and who you are becoming.
+          A private studio for designing a life from the inside out.
         </p>
       </header>
       {state === 'loading' && (

@@ -1,5 +1,5 @@
 {
-  "name": "the-studio",
+  "name": "ateliera",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.28.2",
@@ -18,7 +18,7 @@
     "test:security": "vitest run packages/content/src/render-markdown.test.ts packages/application/src/diagnostics.test.ts apps/studio/src/app/security-config.test.ts",
     "rust:clippy": "node scripts/run-rust.mjs clippy --all-targets -- -D warnings",
     "rust:fmt": "node scripts/run-rust.mjs fmt --check",
-    "tauri:build": "node scripts/run-rust.mjs build --bin studio-desktop",
+    "tauri:build": "node scripts/run-rust.mjs build --bin ateliera-desktop",
     "tauri:bundle": "node scripts/run-tauri.mjs",
     "tauri:test": "node scripts/run-rust.mjs test",
     "test:e2e": "env -u NO_COLOR playwright test",

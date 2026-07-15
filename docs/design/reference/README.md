@@ -6,7 +6,7 @@
 
 This directory records the provenance of the final design handoff. The original visual-direction image and exact `.dc.html` source are retained here so a fresh clone can inspect the design without depending on an external working directory. The prototype is documentation only and must never be bundled into a production artifact.
 
-The implementation-grade interpretation of the handoff is [The Studio Final Visual Design Addendum](../The-Studio-Final-Visual-Design-Addendum.md). That addendum is the durable source for tokens, themes, screen compositions, states, interactions, responsive behavior, accessibility requirements, and accepted interpretation rules.
+The implementation-grade interpretation of the handoff is [Ateliera Final Visual Design Addendum](../The-Studio-Final-Visual-Design-Addendum.md). That addendum is the durable source for tokens, themes, screen compositions, states, interactions, responsive behavior, accessibility requirements, and accepted interpretation rules.
 
 ## Supplied artifact manifest
 

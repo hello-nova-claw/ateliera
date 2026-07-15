@@ -940,7 +940,7 @@ export function LandscapePage({
             <h2>Life area settings are read-only</h2>
             <p>
               {configUnavailable === 'unsupported'
-                ? 'These life areas were saved by a newer version of The Studio. Update the app before managing them. The configuration file is untouched.'
+                ? 'These life areas were saved by a newer version of Ateliera. Update the app before managing them. The configuration file is untouched.'
                 : 'Life area settings are unavailable right now. Nothing can be changed, and the configuration file remains untouched.'}
             </p>
           </section>

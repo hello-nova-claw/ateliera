@@ -119,8 +119,8 @@ export function AppShell({
       </a>
       <aside className="studio-app-shell__rail">
         <div className="studio-app-shell__brand">
-          <span>The Studio</span>
-          <small aria-hidden="true">life by design</small>
+          <span>Ateliera</span>
+          <small aria-hidden="true">inside out</small>
         </div>
         <nav aria-label="Studio rooms" className="studio-app-shell__room-nav">
           {rooms.map(([path, label, mark]) => studioLink(path, label, mark))}

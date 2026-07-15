@@ -7,7 +7,7 @@ import {
 } from './PortabilitySettings';
 
 const preview: PortabilityPreview = {
-  archiveName: 'the-studio-2026-07-14.zip',
+  archiveName: 'ateliera-2026-07-14.zip',
   exportedAt: '2026-07-14T09:00:00.000Z',
   items: [
     { action: 'create', path: 'Reflection Garden/quiet.md', size: 812 },
@@ -49,7 +49,7 @@ it('validates a ZIP before presenting an exact restore preview', async () => {
   const onPrepareRestore = vi.fn(async () => preview);
   render(<PortabilitySettings onPrepareRestore={onPrepareRestore} />);
 
-  const file = new File(['safe archive'], 'the-studio.zip', {
+  const file = new File(['safe archive'], 'ateliera.zip', {
     type: 'application/zip',
   });
   fireEvent.change(screen.getByLabelText('Choose a Studio backup'), {
@@ -77,7 +77,7 @@ it('requires an explicit choice for every conflict before restore', async () => 
   );
   fireEvent.change(screen.getByLabelText('Choose a Studio backup'), {
     target: {
-      files: [new File(['safe archive'], 'the-studio.zip', { type: 'application/zip' })],
+      files: [new File(['safe archive'], 'ateliera.zip', { type: 'application/zip' })],
     },
   });
   await screen.findByRole('heading', { name: 'Review this restore' });
@@ -114,7 +114,7 @@ it('names the current file when a conflict would replace a different path', asyn
   );
   fireEvent.change(screen.getByLabelText('Choose a Studio backup'), {
     target: {
-      files: [new File(['safe archive'], 'the-studio.zip', { type: 'application/zip' })],
+      files: [new File(['safe archive'], 'ateliera.zip', { type: 'application/zip' })],
     },
   });
 
@@ -143,7 +143,7 @@ it('does not treat inherited object properties as conflict choices', async () =>
   );
   fireEvent.change(screen.getByLabelText('Choose a Studio backup'), {
     target: {
-      files: [new File(['safe archive'], 'the-studio.zip', { type: 'application/zip' })],
+      files: [new File(['safe archive'], 'ateliera.zip', { type: 'application/zip' })],
     },
   });
 
@@ -173,7 +173,7 @@ it('requires explicit confirmation, serializes restore, and restores exact focus
   );
   fireEvent.change(screen.getByLabelText('Choose a Studio backup'), {
     target: {
-      files: [new File(['safe archive'], 'the-studio.zip', { type: 'application/zip' })],
+      files: [new File(['safe archive'], 'ateliera.zip', { type: 'application/zip' })],
     },
   });
   const confirm = await screen.findByRole('checkbox', {
@@ -203,7 +203,7 @@ it('keeps a failed archive untouched and offers an exact retry', async () => {
   const input = screen.getByLabelText('Choose a Studio backup');
   fireEvent.change(input, {
     target: {
-      files: [new File(['unsafe archive'], 'the-studio.zip', { type: 'application/zip' })],
+      files: [new File(['unsafe archive'], 'ateliera.zip', { type: 'application/zip' })],
     },
   });
   expect(await screen.findByRole('alert')).toHaveTextContent('checksum validation');

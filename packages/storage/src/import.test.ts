@@ -385,7 +385,7 @@ describe('portable vault import', () => {
       size: content.byteLength,
     };
     const manifest = new TextEncoder().encode(`${JSON.stringify({
-      format: 'the-studio-vault',
+      format: 'ateliera-vault',
       exportVersion: 1,
       schemaVersions: { note: 1, settings: 1 },
       generatedAt: '2026-07-14T00:00:00.000Z',
@@ -413,7 +413,7 @@ describe('portable vault import', () => {
       const files = paths.map((path) => ({ path, sha256: hash, size: bytes.byteLength }))
         .sort((left, right) => left.path.localeCompare(right.path, 'en'));
       const manifest = new TextEncoder().encode(`${JSON.stringify({
-        format: 'the-studio-vault',
+        format: 'ateliera-vault',
         exportVersion: 1,
         schemaVersions: { note: 1, settings: 1 },
         generatedAt: '2026-07-14T00:00:00.000Z',
@@ -438,7 +438,7 @@ describe('portable vault import', () => {
   it('rejects non-canonical timestamps and unbounded cache exclusion lists', async () => {
     const manifestArchive = (generatedAt: string, excludedCaches: string[]) => {
       const manifest = new TextEncoder().encode(`${JSON.stringify({
-        format: 'the-studio-vault',
+        format: 'ateliera-vault',
         exportVersion: 1,
         schemaVersions: { note: 1, settings: 1 },
         generatedAt,

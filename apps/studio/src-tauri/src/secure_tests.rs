@@ -70,13 +70,13 @@ fn backup_ipc_accepts_a_bounded_raw_binary_body_without_json_expansion() {
     let mut headers = HeaderMap::new();
     headers.insert(
         "x-studio-backup-name",
-        "the-studio-backup-2026-07-14.zip".parse().unwrap(),
+        "ateliera-backup-2026-07-14.zip".parse().unwrap(),
     );
 
     let (name, bytes) =
         crate::commands::backup::decode_backup_request_for_test(&body, &headers).unwrap();
 
-    assert_eq!(name, "the-studio-backup-2026-07-14.zip");
+    assert_eq!(name, "ateliera-backup-2026-07-14.zip");
     assert_eq!(bytes, b"PK\x03\x04safe");
     assert!(
         crate::commands::backup::decode_backup_request_for_test(

@@ -9,6 +9,7 @@ const EXCLUDED_FROM_PRECACHE = new Set([
 ]);
 const PROTOTYPE_MARKERS = [
   'The Studio.dc.html',
+  'Ateliera.dc.html',
   'design/reference',
   'original-mockup.png',
   '<streaming-text',
@@ -82,7 +83,7 @@ export async function inspectPwaArtifact(rootPath) {
     issues.push(`Invalid precache manifest: ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  if (manifest.name !== 'The Studio') issues.push('PWA name must be “The Studio”.');
+  if (manifest.name !== 'Ateliera') issues.push('PWA name must be “Ateliera”.');
   if (manifest.start_url !== '/') issues.push('PWA start_url must be /.');
   if (manifest.scope !== '/') issues.push('PWA scope must be /.');
   if (manifest.display !== 'standalone') issues.push('PWA display must be standalone.');

@@ -40,7 +40,7 @@ describe('browser Studio registry', () => {
 
   it('registers and activates a named local Studio', () => {
     const storage = memoryStorage();
-    const record = createBrowserStudioRecord('The Studio');
+    const record = createBrowserStudioRecord('Ateliera');
 
     registerBrowserStudio(storage, record);
     activateBrowserStudio(storage, record.vaultId);
@@ -51,12 +51,12 @@ describe('browser Studio registry', () => {
 
   it('rejects duplicate names without replacing existing data', () => {
     const storage = memoryStorage();
-    const record = createBrowserStudioRecord('The Studio');
+    const record = createBrowserStudioRecord('Ateliera');
     registerBrowserStudio(storage, record);
 
     expect(() =>
-      registerBrowserStudio(storage, createBrowserStudioRecord('the studio')),
-    ).toThrow('A local Studio named “the studio” already exists.');
+      registerBrowserStudio(storage, createBrowserStudioRecord('ateliera')),
+    ).toThrow('A local Studio named “ateliera” already exists.');
     expect(readBrowserStudios(storage)).toEqual([record]);
   });
 });

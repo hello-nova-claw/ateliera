@@ -1,6 +1,6 @@
-# The Studio
+# Ateliera
 
-A private, calm, Markdown-native environment for identity architecture, life design, reflection, and imagination.
+A private studio for designing a life from the inside out.
 
 ## Development
 

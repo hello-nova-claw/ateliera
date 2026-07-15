@@ -4,7 +4,7 @@ test.describe.configure({ mode: 'serial' });
 
 async function createLocalStudio(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Create a Studio' }).click();
-  await page.getByLabel('Studio name').fill('The Studio');
+  await page.getByLabel('Studio name').fill('Ateliera');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
 }
@@ -56,7 +56,7 @@ test('captured note survives reload while offline', async ({
     await context.setOffline(true);
   }
   await page.reload();
-  await page.getByRole('button', { name: 'Open The Studio' }).click();
+  await page.getByRole('button', { name: 'Open Ateliera' }).click();
 
   await expect(page.getByText('The hill')).toBeVisible();
   await expect(page.getByText('Ready offline')).toBeVisible();
@@ -81,7 +81,7 @@ test('falls back to IndexedDB when OPFS is unavailable', async ({ page }) => {
   await page.getByRole('button', { name: 'Remember' }).click();
   await expect(page.getByText('The garden')).toBeVisible();
   await page.waitForFunction(async () => {
-    const request = indexedDB.open('the-studio-browser-vaults', 3);
+    const request = indexedDB.open('ateliera-browser-vaults', 3);
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       request.addEventListener('success', () => resolve(request.result), {
         once: true,
@@ -104,7 +104,7 @@ test('falls back to IndexedDB when OPFS is unavailable', async ({ page }) => {
     return result > 0;
   });
   await page.reload();
-  await page.getByRole('button', { name: 'Open The Studio' }).click();
+  await page.getByRole('button', { name: 'Open Ateliera' }).click();
 
   await expect(page.getByText('The garden')).toBeVisible();
 });

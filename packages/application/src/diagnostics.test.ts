@@ -233,7 +233,7 @@ describe('content-redacted diagnostics', () => {
       }],
     });
 
-    expect(prepared.filename).toBe('the-studio-diagnostics-2026-07-14T03-04-05-000Z.json');
+    expect(prepared.filename).toBe('ateliera-diagnostics-2026-07-14T03-04-05-000Z.json');
     expect(prepared.preview).toBe(prepared.text);
     expect(new TextDecoder().decode(prepared.bytes)).toBe(prepared.preview);
     expect(prepared.byteLength).toBe(prepared.bytes.byteLength);

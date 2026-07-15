@@ -108,7 +108,7 @@ fn write_backup_atomically(destination: &Path, bytes: &[u8]) -> Result<(), Vault
 pub fn backup_save_zip(request: tauri::ipc::Request<'_>) -> Result<String, VaultError> {
     let (suggested_file_name, bytes) = decode_backup_request(request.body(), request.headers())?;
     let Some(destination) = rfd::FileDialog::new()
-        .set_title("Save The Studio backup")
+        .set_title("Save Ateliera backup")
         .set_file_name(suggested_file_name)
         .add_filter("ZIP archive", &["zip"])
         .save_file()

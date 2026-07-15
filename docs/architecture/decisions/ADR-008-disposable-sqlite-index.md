@@ -5,7 +5,7 @@
 
 ## Context
 
-Markdown and ordinary media files are The Studio's source of truth. Search, filters, and the link graph need a fast local projection that can be destroyed without semantic loss. Desktop and browser runtimes expose different SQLite implementations.
+Markdown and ordinary media files are Ateliera's source of truth. Search, filters, and the link graph need a fast local projection that can be destroyed without semantic loss. Desktop and browser runtimes expose different SQLite implementations.
 
 ## Decision
 

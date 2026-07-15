@@ -118,11 +118,11 @@ it('composes populated editorial slots without turning cards into giant buttons'
     />,
   );
 
-  expect(screen.getByRole('heading', { name: 'The Studio' })).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Ateliera' })).toBeVisible();
   expect(screen.getAllByRole('article').length).toBeGreaterThanOrEqual(4);
   expect(screen.queryByText('This must not appear')).not.toBeInTheDocument();
   expect(
-    screen.getByRole('list', { name: 'The Studio meanings' }).children,
+    screen.getByRole('list', { name: 'Ateliera meanings' }).children,
   ).toHaveLength(6);
   fireEvent.click(screen.getByRole('button', { name: 'Edit becoming' }));
   expect(onOpen).toHaveBeenCalledWith(
@@ -194,5 +194,5 @@ it('announces loading and recoverable errors without replacing the fixed structu
   expect(screen.getByRole('alert')).toHaveTextContent(
     'The index needs a quiet rebuild.',
   );
-  expect(screen.getByRole('heading', { name: 'The Studio' })).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Ateliera' })).toBeVisible();
 });
