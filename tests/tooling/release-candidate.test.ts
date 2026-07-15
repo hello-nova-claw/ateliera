@@ -22,6 +22,7 @@ describe('release candidate contract', () => {
 
   test('runs the release gate on macOS and preserves its evidence', async () => {
     const workflow = await read('.github/workflows/release-candidate.yml');
+    const playwright = await read('playwright.config.ts');
     const verifier = await read('scripts/verify-release.mjs');
 
     expect(workflow).toContain('runs-on: macos-14');
@@ -32,6 +33,7 @@ describe('release candidate contract', () => {
     expect(workflow).toContain('if: always()');
     expect(verifier).toContain("resolve(root, 'artifacts/visual')");
     expect(verifier).toContain("resolve(evidence, 'visual')");
+    expect(playwright).toContain('retries: process.env.CI ? 1 : 0');
   });
 
   test('keeps credentialed signing separate from reproducible verification', async () => {
