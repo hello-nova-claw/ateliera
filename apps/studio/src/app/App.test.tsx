@@ -43,6 +43,7 @@ afterEach(() => {
   createTauriStudio.mockReset();
   createBrowserVault.mockReset();
   selectTauriVault.mockReset();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -626,6 +627,31 @@ it('requires native folder selection again after a persisted browser-style relau
   expect(screen.getByRole('heading', { name: 'Ateliera' })).toBeVisible();
 });
 
+it('stops failed opening progress and offers retry or a return to entry', async () => {
+  Object.defineProperty(window, '__TAURI_INTERNALS__', {
+    configurable: true,
+    value: {},
+  });
+  selectTauriVault.mockRejectedValue(new Error('folder unavailable'));
+
+  render(<App />);
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Open an existing Studio Space' }),
+  );
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'This Studio couldn’t be opened. Choose its folder and try again.',
+  );
+  expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Return to the beginning' }),
+  );
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: 'Open an existing Studio Space' }),
+  ).toBeEnabled();
+});
+
 it('creates a named native Studio separately from opening an existing one', async () => {
   Object.defineProperty(window, '__TAURI_INTERNALS__', {
     configurable: true,
@@ -659,6 +685,47 @@ it('creates a named native Studio separately from opening an existing one', asyn
   await waitFor(() =>
     expect(screen.getByRole('button', { name: /^Create$/ })).toBeEnabled(),
   );
+});
+
+it('keeps a cancelled Studio Space name and restores focus to its entry action', async () => {
+  render(<App />);
+  const create = screen.getByRole('button', {
+    name: 'Create a new Studio Space',
+  });
+  fireEvent.click(create);
+  fireEvent.change(screen.getByLabelText('Studio name'), {
+    target: { value: 'Quiet Work' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
+
+  await waitFor(() => expect(create).toHaveFocus());
+  fireEvent.click(create);
+  expect(screen.getByLabelText('Studio name')).toHaveValue('Quiet Work');
+});
+
+it('explains a long-running creation without fake progress or an endless spinner', async () => {
+  vi.useFakeTimers();
+  Object.defineProperty(window, '__TAURI_INTERNALS__', {
+    configurable: true,
+    value: {},
+  });
+  createTauriStudio.mockReturnValue(new Promise(() => undefined));
+
+  render(<App />);
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Create a new Studio Space' }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: /^Create$/ }));
+  await act(async () => vi.advanceTimersByTime(10_001));
+
+  expect(
+    screen.getByText(
+      'This is taking longer than usual. Your Studio Space is still being prepared.',
+    ),
+  ).toBeVisible();
+  expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+  expect(screen.queryByText(/%/)).not.toBeInTheDocument();
+  vi.useRealTimers();
 });
 
 it('serializes browser Studio selection and unlocks after completion', async () => {

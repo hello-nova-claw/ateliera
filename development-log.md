@@ -334,3 +334,10 @@
 - Replaced the browser select picker with calm, accessible return cards for one or several known Studio Spaces. The entry gate remains a focused place-selection surface rather than growing into a management dashboard.
 - Made the app-level theme picker available outside a Studio Space and added Storybook coverage for new, returning, multiple, native, error, long-name, mobile, and dark entry states.
 - Caught and corrected both a mobile handwritten-text contrast failure and an invalid desktop spacing-token reference through axe and direct screenshot inspection. Focused desktop/mobile onboarding journeys, all 178 app tests, typecheck, lint, and the Storybook production build pass.
+
+## 2026-07-15 — Recoverable Studio entry progress
+
+- Expanded the entry reducer into explicit entry, creating, opening, error, and active states with attempt ownership. Stale progress, failure, cancellation, or activation events from an abandoned attempt can no longer replace the current entry state.
+- Added honest creation/opening phases and a ten-second longer-than-usual explanation without percentages, progress rings, or indefinite spinners. Creation progress stays inside its active sheet so assistive technology does not announce duplicate status from the obscured entry gate.
+- Creation cancellation now preserves the typed Studio Space name and returns focus to the entry action. Failed opening stops progress and offers explicit **Try again** and **Return to the beginning** paths.
+- Verified the transition table, 185 app tests, typecheck, lint, all 14 desktop/mobile onboarding journeys, and all 55 native storage tests.

@@ -40,6 +40,10 @@ import { QuickCapture } from '../features/capture/QuickCapture';
 import type { QuickCaptureInput } from '../features/capture/QuickCapture';
 import type { FoyerSlot } from '../features/foyer/FoyerPage';
 import { StudioEntryGate } from '../features/onboarding/StudioEntryGate';
+import {
+  initialStudioEntryState,
+  studioEntryReducer,
+} from '../features/onboarding/onboarding-state';
 import './app.css';
 
 const NoteEditorSession = lazy(() =>
@@ -131,19 +135,6 @@ export interface AppProps {
   vault?: VaultPort;
 }
 
-type StudioEntryState = { kind: 'entry' } | { kind: 'active' };
-
-type StudioEntryAction = { type: 'activate' } | { type: 'deactivate' };
-
-function studioEntryReducer(
-  state: StudioEntryState,
-  action: StudioEntryAction,
-): StudioEntryState {
-  if (action.type === 'activate') return { kind: 'active' };
-  if (state.kind === 'entry') return state;
-  return { kind: 'entry' };
-}
-
 export function App(props: AppProps = {}) {
   return (
     <StudioProviders>
@@ -176,7 +167,7 @@ function StudioApplication({
     studioEntryReducer,
     captureService !== undefined || studioService !== undefined
       ? { kind: 'active' }
-      : { kind: 'entry' },
+      : initialStudioEntryState,
   );
   const opened = entryState.kind === 'active';
   const { navigate, path, title } = useStudioRouter(
@@ -212,7 +203,9 @@ function StudioApplication({
   const [studioAction, setStudioAction] = useState<'create' | 'open' | null>(
     null,
   );
+  const [entryTakingLonger, setEntryTakingLonger] = useState(false);
   const searchButton = useRef<HTMLButtonElement>(null);
+  const createStudioButton = useRef<HTMLButtonElement>(null);
   const captureButton = useRef<HTMLButtonElement>(null);
   const editorTrigger = useRef<HTMLButtonElement>(null);
   const themeButton = useRef<HTMLButtonElement>(null);
@@ -228,17 +221,34 @@ function StudioApplication({
   const pendingLandscapePlacement = useRef<
     { lifeArea: string; anchor: LandscapeAnchor } | undefined
   >(undefined);
-  const studioActionRef = useRef<'create' | 'open' | null>(null);
+  const lastOpenRecord = useRef<BrowserStudioRecord | undefined>(undefined);
+  const studioActionRef = useRef<{
+    action: 'create' | 'open';
+    attemptId: string;
+  } | null>(null);
 
-  function beginStudioAction(action: 'create' | 'open'): boolean {
-    if (studioActionRef.current !== null) return false;
-    studioActionRef.current = action;
+  function beginStudioAction(action: 'create' | 'open'): string | null {
+    if (studioActionRef.current !== null) return null;
+    const attemptId = crypto.randomUUID();
+    studioActionRef.current = { action, attemptId };
     setStudioAction(action);
-    return true;
+    dispatchEntry(
+      action === 'create'
+        ? { type: 'begin-create', attemptId, name: name.trim() }
+        : { type: 'begin-open', attemptId },
+    );
+    return attemptId;
   }
 
-  function finishStudioAction(action: 'create' | 'open'): void {
-    if (studioActionRef.current !== action) return;
+  function finishStudioAction(
+    action: 'create' | 'open',
+    attemptId: string,
+  ): void {
+    if (
+      studioActionRef.current?.action !== action ||
+      studioActionRef.current.attemptId !== attemptId
+    )
+      return;
     studioActionRef.current = null;
     setStudioAction(null);
   }
@@ -353,6 +363,15 @@ function StudioApplication({
   }, [toast]);
 
   useEffect(() => {
+    if (studioAction === null) {
+      setEntryTakingLonger(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setEntryTakingLonger(true), 10_000);
+    return () => clearTimeout(timer);
+  }, [studioAction]);
+
+  useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
       if (
@@ -375,8 +394,11 @@ function StudioApplication({
     );
   }
 
-  function finishOnboarding(): void {
-    dispatchEntry({ type: 'activate' });
+  function finishOnboarding(attemptId?: string): void {
+    dispatchEntry({
+      type: 'activate',
+      ...(attemptId === undefined ? {} : { attemptId }),
+    });
     requestAnimationFrame(() =>
       document.querySelector<HTMLElement>('#studio-main')?.focus(),
     );
@@ -396,15 +418,24 @@ function StudioApplication({
 
   async function openStudio(record?: BrowserStudioRecord): Promise<void> {
     if (!isNativeShell() && record === undefined) return;
-    if (!beginStudioAction('open')) return;
+    lastOpenRecord.current = record;
+    const attemptId = beginStudioAction('open');
+    if (attemptId === null) return;
     setError(undefined);
     try {
       if (isNativeShell()) {
         const { selectTauriVault } = await import('@studio/storage/tauri');
         const selected = await selectTauriVault();
         if (selected !== null) {
+          dispatchEntry({
+            type: 'progress',
+            attemptId,
+            phase: 'preparing-rooms',
+          });
           await activateNativeStudio(selected);
-          finishOnboarding();
+          finishOnboarding(attemptId);
+        } else {
+          dispatchEntry({ type: 'cancel', attemptId });
         }
         return;
       }
@@ -415,24 +446,30 @@ function StudioApplication({
       setEditor(undefined);
       setActiveVault(vault);
       setActiveStudioId(record.vaultId);
+      dispatchEntry({
+        type: 'progress',
+        attemptId,
+        phase: 'preparing-rooms',
+      });
       setService(await createAppStudioService(vault));
       setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
-      finishOnboarding();
+      finishOnboarding(attemptId);
     } catch (reason) {
-      setError(
-        isNativeShell()
-          ? 'This Studio couldn’t be opened. Choose its folder and try again.'
-          : reason instanceof Error
-            ? reason.message
-            : 'This Studio couldn’t be opened.',
-      );
+      const message = isNativeShell()
+        ? 'This Studio couldn’t be opened. Choose its folder and try again.'
+        : reason instanceof Error
+          ? reason.message
+          : 'This Studio couldn’t be opened.';
+      setError(message);
+      dispatchEntry({ type: 'fail', attemptId, message });
     } finally {
-      finishStudioAction('open');
+      finishStudioAction('open', attemptId);
     }
   }
 
   async function createStudio(): Promise<void> {
-    if (!beginStudioAction('create')) return;
+    const attemptId = beginStudioAction('create');
+    if (attemptId === null) return;
     setCreateError(undefined);
     setDuplicateStudio(undefined);
     try {
@@ -440,19 +477,36 @@ function StudioApplication({
         const studioName = name.trim();
         if (studioName === '') {
           setCreateError('Give your Studio a name before creating it.');
+          dispatchEntry({
+            type: 'fail',
+            attemptId,
+            message: 'Give your Studio Space a name before creating it.',
+          });
           return;
         }
         const { createTauriStudio } = await import('@studio/storage/tauri');
         const created = await createTauriStudio(studioName);
         if (created !== null) {
+          dispatchEntry({
+            type: 'progress',
+            attemptId,
+            phase: 'preparing-rooms',
+          });
           await activateNativeStudio(created);
           setCreateOpen(false);
-          finishOnboarding();
+          finishOnboarding(attemptId);
+        } else {
+          dispatchEntry({ type: 'cancel', attemptId });
         }
         return;
       }
 
       const record = createBrowserStudioRecord(name);
+      dispatchEntry({
+        type: 'progress',
+        attemptId,
+        phase: 'creating-space',
+      });
       const known = browserStudios.find(
         (studio) =>
           studio.name.localeCompare(record.name, undefined, {
@@ -462,6 +516,11 @@ function StudioApplication({
       if (known !== undefined) {
         setDuplicateStudio(known);
         setCreateError(`A local Studio named “${record.name}” already exists.`);
+        dispatchEntry({
+          type: 'fail',
+          attemptId,
+          message: `A Studio Space named “${record.name}” already exists.`,
+        });
         return;
       }
 
@@ -472,6 +531,11 @@ function StudioApplication({
         setBrowserStudios(readBrowserStudios(localStorage));
         setDuplicateStudio(record);
         setCreateError(`A local Studio named “${record.name}” already exists.`);
+        dispatchEntry({
+          type: 'fail',
+          attemptId,
+          message: `A Studio Space named “${record.name}” already exists.`,
+        });
         return;
       }
 
@@ -481,27 +545,32 @@ function StudioApplication({
       setEditor(undefined);
       setActiveVault(vault);
       setActiveStudioId(record.vaultId);
+      dispatchEntry({
+        type: 'progress',
+        attemptId,
+        phase: 'preparing-rooms',
+      });
       setService(await createAppStudioService(vault));
       setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
       localStorage.setItem('studio:name', record.name);
       setCreateOpen(false);
-      finishOnboarding();
+      finishOnboarding(attemptId);
     } catch (reason) {
       if (isNativeShell() && reason instanceof VaultConflictError) {
-        setCreateError(
-          `A Studio named “${name.trim()}” already exists there. Choose another location or name, or open the existing Studio.`,
-        );
+        const message = `A Studio named “${name.trim()}” already exists there. Choose another location or name, or open the existing Studio.`;
+        setCreateError(message);
+        dispatchEntry({ type: 'fail', attemptId, message });
         return;
       }
-      setCreateError(
-        isNativeShell()
-          ? 'Your Studio couldn’t be created. Choose another location or try again.'
-          : reason instanceof Error
-            ? reason.message
-            : 'Your Studio couldn’t be created. Try again.',
-      );
+      const message = isNativeShell()
+        ? 'Your Studio couldn’t be created. Choose another location or try again.'
+        : reason instanceof Error
+          ? reason.message
+          : 'Your Studio couldn’t be created. Try again.';
+      setCreateError(message);
+      dispatchEntry({ type: 'fail', attemptId, message });
     } finally {
-      finishStudioAction('create');
+      finishStudioAction('create', attemptId);
     }
   }
 
@@ -758,6 +827,13 @@ function StudioApplication({
       >
         <p className="studio-form__eyebrow">A place of your own</p>
         <h2>Create a Studio</h2>
+        {studioAction === 'create' && (
+          <p className="studio-form__progress" role="status">
+            {entryTakingLonger
+              ? 'This is taking longer than usual. Your Studio Space is still being prepared.'
+              : 'Creating your Studio Space…'}
+          </p>
+        )}
         <label htmlFor="studio-name">Studio name</label>
         <input
           disabled={studioAction !== null}
@@ -774,7 +850,10 @@ function StudioApplication({
           <button
             className="studio-form__button studio-form__button--secondary"
             disabled={studioAction !== null}
-            onClick={() => setCreateOpen(false)}
+            onClick={() => {
+              setCreateOpen(false);
+              requestAnimationFrame(() => createStudioButton.current?.focus());
+            }}
             type="button"
           >
             Not now
@@ -809,11 +888,22 @@ function StudioApplication({
       <>
         <StudioEntryGate
           browserStudios={browserStudios}
+          createButtonRef={createStudioButton}
           error={error}
           isNative={isNativeShell()}
           onCreate={() => setCreateOpen(true)}
+          onDismissError={() => {
+            setError(undefined);
+            dispatchEntry({ type: 'return-to-entry' });
+          }}
           onOpen={(record) => void openStudio(record)}
+          onRetry={() => void openStudio(lastOpenRecord.current)}
+          {...(entryState.kind === 'opening' ||
+          (entryState.kind === 'creating' && !createOpen)
+            ? { progress: entryState.phase }
+            : {})}
           studioAction={studioAction}
+          takingLonger={entryTakingLonger}
           themePicker={themePicker}
         />
         {createStudioDialog}

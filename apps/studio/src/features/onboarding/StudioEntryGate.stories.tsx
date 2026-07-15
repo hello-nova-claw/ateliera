@@ -45,6 +45,23 @@ export const Native: Story = {
   args: { isNative: true },
 };
 
+export const Opening: Story = {
+  args: {
+    isNative: true,
+    progress: 'preparing-rooms',
+    studioAction: 'open',
+  },
+};
+
+export const TakingLonger: Story = {
+  args: {
+    isNative: true,
+    progress: 'preparing-rooms',
+    studioAction: 'open',
+    takingLonger: true,
+  },
+};
+
 export const Error: Story = {
   args: {
     error:

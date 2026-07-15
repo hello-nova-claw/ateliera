@@ -372,6 +372,22 @@
   margin: var(--studio-space-6) 0 0;
 }
 
+.studio-entry__progress {
+  margin-block-start: var(--studio-space-5);
+  padding: var(--studio-space-3) var(--studio-space-4);
+  border-inline-start: 2px solid var(--studio-color-accent-line);
+  color: var(--studio-color-ink-muted);
+}
+
+.studio-entry__progress p {
+  margin: 0;
+}
+
+.studio-entry__progress p + p {
+  margin-block-start: var(--studio-space-2);
+  font-size: 0.875rem;
+}
+
 .studio-entry__welcome {
   margin: var(--studio-space-8) 0 var(--studio-space-3);
   color: var(--studio-color-ink-strong);
