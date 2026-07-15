@@ -35,7 +35,7 @@ After creation, a person is placed directly into a sophisticated but empty house
 
 - A first-time user can tell within five seconds that they must create or open a Studio Space before entering Ateliera.
 - A user always understands whether Ateliera is creating, opening, preparing, ready, or unable to enter a Studio Space.
-- A newly created Studio Space offers a gentle explanation of the house and a clear first action without demanding completion.
+- A newly created Studio Space offers a gentle explanation of the house, realistic examples that reveal each room's potential, and a clear first action without demanding completion.
 - A returning user reaches the Foyer without being forced through onboarding again.
 - An interrupted first visit can be resumed or dismissed without losing user-authored content.
 
@@ -53,7 +53,7 @@ After creation, a person is placed directly into a sophisticated but empty house
 - **A product-marketing carousel.** The walkthrough exists to orient the person inside their own Studio Space, not to advertise features.
 - **Compulsory personal disclosure.** Every reflective prompt can be skipped.
 - **A full Current Season ritual during onboarding.** The existing nine-step ritual deserves its own intentional moment.
-- **Sample notes presented as if they belong to the user.** Examples may appear in instructional copy but must never be persisted as user content.
+- **Persisted sample notes or examples presented as if they belong to the user.** The tour deliberately shows clearly labelled, temporary example content so the potential of each room feels visible. Those examples remain a presentation layer and never become Studio content unless the person explicitly chooses to use one as a starting point.
 - **A spotlight tour that disables the rest of the page.** It is brittle, difficult to make accessible, and visually noisy.
 - **Automatic opening of arbitrary native folders.** Tauri capabilities remain session-scoped; native users select the folder again after relaunch.
 - **Telemetry.** Success will initially be evaluated with local test evidence and Anna's qualitative review. No private behavior is transmitted.
@@ -261,6 +261,26 @@ Each step contains:
 - **Back**, **Next**, and **Leave tour**;
 - a visible **You can return to this later** reminder where a prompt is offered.
 
+#### Furnished preview layer
+
+During the tour, each visited room temporarily appears lightly furnished with a small amount of realistic example content. The purpose is emotional and explanatory: the person should be able to feel what it might be like to inhabit Ateliera, rather than being taught through an empty interface.
+
+The examples follow these rules:
+
+- Every item carries a visible **Example** label and an accessible name such as **“Example Vision card.”**
+- Examples use the room's real layout, typography, semantic hearts, note stock, and spacing, but have a subtle preview treatment that distinguishes them from authored cards.
+- Examples never enter the `StudioService`, Markdown storage, `.studio/settings.json`, search index, backlinks, Inbox, Reflection chronology, backups, diagnostics, or revision history.
+- Examples are defined as immutable application fixtures and injected only into the tour presentation layer. They are not synthetic `StudioNote` records and do not receive canonical note IDs.
+- They cannot be dragged, reordered, archived, inspected, linked, or edited in place.
+- Where an example makes a useful starting point, show **Use as a starting point**. This opens the normal composer with a copy of the example text. Nothing is saved until the person explicitly chooses **Remember**.
+- The copied draft immediately loses its **Example** status and follows all normal validation, cancellation, draft-recovery, and Markdown-save behavior.
+- Cancelling a copied draft leaves no note or relationship behind.
+- Leaving or completing the tour removes every example immediately. Replaying the tour shows the same examples without duplicating anything.
+- If the room already contains real content, examples remain visually secondary and never displace, reorder, or obscure it.
+- Example content must be grounded, specific, and emotionally spacious. Avoid luxury clichés, universal prescriptions, hustle language, or claims that one life is ideal for everyone.
+
+The preview layer should feel like walking through a sensitively furnished display home: alive enough to invite imagination, clearly not yet the visitor's own.
+
 #### Step 1 — Foyer: return to what matters
 
 **Purpose:** explain the Foyer as the calm return point rather than a dashboard.
@@ -270,6 +290,14 @@ Copy direction:
 > The Foyer holds a few things you want to meet again: who you are becoming, how you want life to feel, a guiding principle, and the season you are living now.
 
 Offer one optional real action: **Add a becoming sentence**. This reuses the existing canonical Foyer capture flow and saves ordinary Markdown. The tour proceeds whether the user contributes or not.
+
+Show these temporary examples in their natural Foyer positions:
+
+- **Currently becoming:** “Someone who creates from calm and trusts her own timing.”
+- **How I want life to feel:** “Spacious · playful · well supported.”
+- **Guiding principle:** “Create enough structure that your imagination has somewhere to surprise you.”
+
+The Becoming example may offer **Use as a starting point**.
 
 #### Step 2 — Life Landscape: see the whole life
 
@@ -281,6 +309,16 @@ Copy direction:
 
 Navigate to `/landscape`. On mobile, show the Focus view because the matrix is intentionally unavailable. Offer **Add a Vision card** only if the person chooses to try it; do not require choosing all life areas.
 
+Furnish one life area across all five anchors so the relationship between the rows becomes visible:
+
+- **Vision:** “On an ordinary Tuesday, meaningful work fits into a calm family rhythm.”
+- **Identity, values & feelings:** “I am a thoughtful creator who values depth, family, and spaciousness.”
+- **Decisions:** “Protect two focused mornings for the work that matters most.”
+- **Practices:** “Create before I consume.”
+- **Structure & strategy:** “Agree on protected time, prepare the workspace, and keep the current project small.”
+
+On desktop these examples trace a readable path down one matrix column. On mobile they appear in the same order in one Focus view. The Vision example may offer **Use as a starting point**, prefilled for the currently viewed life area rather than silently assuming the example's category.
+
 #### Step 3 — Current Season: choose what matters now
 
 **Purpose:** distinguish the whole-life map from a temporary focus.
@@ -290,6 +328,15 @@ Copy direction:
 > A season is a gentle boundary around what matters now. It can hold up to three priorities, experiments, practices, support, and what is deliberately Not Now.
 
 Do not launch the nine-step season ritual automatically. Offer **Visit Current Season** and explain that it can wait.
+
+Show a temporary example cover for **A season of gentle foundations**:
+
+- **Desired feelings:** “Grounded · spacious · hopeful.”
+- **Priorities:** “A calmer family rhythm”; “Protected creative work”; “Strength and energy.”
+- **Enough:** “If I protect what matters and leave room to breathe, this season is enough.”
+- **Not Now:** “Launching everything at once.”
+
+These items demonstrate the shape of a season but do not offer one-click creation. Beginning a real season must still enter the complete season ritual deliberately.
 
 #### Step 4 — Uncharted: leave room for what you cannot map yet
 
@@ -301,6 +348,13 @@ Copy direction:
 
 Offer an optional draft prompt. Persist only if the person chooses **Remember**.
 
+Show two temporary possibilities with different horizons:
+
+- **Near:** “What if my work could feel spacious, creative, and financially abundant?”
+- **Beyond the Gate:** “What if there is a way of living I cannot fully picture yet?”
+
+The Near example may offer **Use as a starting point** and open the normal Uncharted composer.
+
 #### Step 5 — Reflection Garden: notice what is changing
 
 **Purpose:** complete the Ateliera loop.
@@ -308,6 +362,13 @@ Offer an optional draft prompt. Persist only if the person chooses **Remember**.
 Copy direction:
 
 > Reflection Garden gathers what you are learning, celebrating, and seeing differently over time. It is where the Studio begins to remember with you.
+
+Show a temporary Then & Now pairing:
+
+- **Reflection:** “I noticed I feel most like myself when I leave space around the things that matter.”
+- **Celebration:** “Today I chose calm over urgency, and the important work still moved forward.”
+
+These examples demonstrate the relationship between noticing and evidence over time. They do not use real dates, enter the chronological stream, or offer one-click creation; the person's first reflection should arise in their own words.
 
 End with:
 
@@ -431,6 +492,31 @@ apps/studio/src/app/
 
 `packages/ui` should receive a new primitive only when it is genuinely generic. The entry gate and First Visit Guide are product-specific and should remain in the application feature package.
 
+The furnished preview uses a deliberately smaller view model than a real note:
+
+```ts
+interface TourExample {
+  id: string;
+  room: 'foyer' | 'landscape' | 'season' | 'uncharted' | 'reflection';
+  label: string;
+  title?: string;
+  body: string;
+  semanticType:
+    | 'foundation'
+    | 'vision'
+    | 'growth'
+    | 'reflection'
+    | 'celebration'
+    | 'uncharted';
+  startingPoint?:
+    | { kind: 'foyer'; placement: 'foyer-becoming'; body: string }
+    | { kind: 'landscape'; anchor: 'vision'; body: string }
+    | { kind: 'uncharted'; horizon: 'near'; body: string };
+}
+```
+
+`TourExample` must remain structurally incompatible with `StudioNote` and every index/storage input. A room receives examples through an explicit optional presentation prop such as `tourExamples`; normal room projections remain canonical and unchanged. The **Use as a starting point** adapter may copy approved fields into the existing composer only after a user action.
+
 ### 9.2 Session object
 
 Build the active session before rendering the shell:
@@ -495,6 +581,12 @@ Treat this as opening a door: a large Newsreader heading, a short Hanken Grotesk
 
 The guide looks like an editorial note placed beside the real room, not a software tooltip. Use the Chamomile surface, one semantic heart corresponding to the room's dominant meaning, a small step label, generous line height, and quiet Back/Next controls. The current target may receive a static 2px accent outline with an adjacent programmatic description. Do not animate or pulse it.
 
+### 11.4 Furnished preview mockup description
+
+Example cards should look native to the room while remaining unmistakably provisional. Use the correct semantic heart and note stock at reduced visual emphasis, a small **Example** eyebrow, and a subtle dashed or double-edge treatment defined by semantic design tokens. Do not reduce text opacity below accessible contrast, blur content, or cover it with a watermark.
+
+The examples should form meaningful compositions rather than a repeated card grid: three sparse Foyer fragments, one vertical line through the Landscape anchors, one coherent Season cover, two possibilities at different Uncharted horizons, and one Then & Now Reflection pairing. Real cards retain full emphasis whenever both are present. **Use as a starting point** is a quiet text action with a 44×44px activation area and an accessible description naming the example it will copy.
+
 ## 12. Error, interruption, and edge-case matrix
 
 | Scenario                                         | Required behavior                                                                                                                |
@@ -515,6 +607,11 @@ The guide looks like an editorial note placed beside the real room, not a softwa
 | Legacy empty Studio                              | Enter normally; prominent but non-blocking invitation                                                                            |
 | Tour step target missing after future UI change  | Guide still renders its explanation and Next/Back; no selector-driven crash                                                      |
 | 200% zoom or text spacing overrides              | Guide reflows, target remains visible, no obscured focus                                                                         |
+| Tour opens an otherwise empty room               | Clearly labelled examples furnish only the active tour view; canonical projections remain empty                                  |
+| Real content already exists in a toured room     | Real content keeps its order and emphasis; examples remain secondary and do not affect projection counts                         |
+| User copies an example then cancels              | The draft closes through normal recovery rules; no note, index row, relationship, or onboarding contribution is created          |
+| User copies an example and chooses Remember      | One normal canonical note is created from the editable draft; it contains no example-only metadata                               |
+| Tour ends or is replayed                         | Examples disappear or reappear from immutable fixtures without storage writes, duplicate notes, or chronology changes            |
 
 ## 13. Test-driven implementation sequence
 
@@ -628,6 +725,10 @@ pnpm test:e2e -- onboarding.spec.ts portability.spec.ts
 - Enter directly records dismissed and opens Foyer.
 - Tour visits the five rooms in order and can navigate Back/Next.
 - Leave and resume return to the correct step.
+- Every room shows its specified, clearly labelled example composition during the relevant tour step.
+- Example content is absent from canonical room projections, Search, Inbox, backlinks, backups, diagnostics, and storage before, during, and after the tour.
+- Real content retains its order and emphasis when examples are present.
+- **Use as a starting point** opens an editable normal composer; cancel writes nothing and Remember creates exactly one canonical note without example metadata.
 - Optional Foyer contribution creates one canonical note and is never duplicated on replay.
 - Current Season ritual does not auto-open.
 - Guide does not trap focus and remains usable with direct room navigation.
@@ -635,6 +736,8 @@ pnpm test:e2e -- onboarding.spec.ts portability.spec.ts
 **Implementation**
 
 - Add `FirstVisitWelcome` and `FirstVisitGuide`.
+- Add immutable `TourExample` fixtures and explicit room presentation props that cannot enter canonical projections.
+- Add the furnished-preview treatment and the guarded **Use as a starting point** adapter.
 - Connect optional contributions through existing capture APIs.
 - Persist progress after step transitions.
 - Add Settings replay action and legacy Foyer invitation.
@@ -643,7 +746,7 @@ pnpm test:e2e -- onboarding.spec.ts portability.spec.ts
 
 - Real Playwright tour at desktop, compact, mobile, keyboard-only, reduced motion, forced colors, and 200% zoom.
 - Axe at each guide step.
-- Visual inspection of guide placement beside Foyer, Landscape, Season, Uncharted, and Reflection.
+- Visual inspection of guide placement and example composition in Foyer, Landscape, Season, Uncharted, and Reflection, both empty and alongside real content.
 
 **Commit:** `feat: add gentle first-visit tour`
 
@@ -686,6 +789,11 @@ pnpm tauri:bundle
 - [ ] Given a new Studio Space is created, then the user sees a First Visit welcome before the normal Foyer.
 - [ ] Given the user chooses Enter my Studio, then the Foyer opens immediately and the tour remains replayable from Settings.
 - [ ] Given the user starts the tour, then all five room explanations are available without requiring personal input.
+- [ ] Given the user visits a room during the tour, then realistic, clearly labelled example content shows the potential of that room in its authentic layout.
+- [ ] Given examples are visible, then they never appear in Markdown, Studio settings, Search, Inbox, backlinks, chronology, backups, diagnostics, or revision history.
+- [ ] Given a room already has real content, then tour examples neither displace nor reorder it and remain visually secondary.
+- [ ] Given the user chooses Use as a starting point, then the normal composer opens with editable copied text and nothing is saved until Remember is chosen.
+- [ ] Given the user cancels a copied example, then no canonical or derived record is created.
 - [ ] Given the user adds content during the tour, then it is saved as ordinary canonical Markdown through existing services.
 - [ ] Given the app closes during the tour, then reopening offers to continue at the last recorded step.
 - [ ] Given an existing populated Studio lacks onboarding metadata, then it opens normally and is never blocked by the new walkthrough.
@@ -715,8 +823,9 @@ Because Ateliera currently has no telemetry, the first release should be evaluat
 2. Does the entry screen feel like Ateliera rather than a generic login/setup screen?
 3. After creation, is it clear that the Studio can remain sparse and unfinished?
 4. Can Anna leave and resume the tour without anxiety about losing work?
-5. Does the guide explain the relationship between the Foyer, Landscape, Season, Uncharted, and Reflection without becoming a lesson to complete?
-6. Does a returning Studio open as directly as it does today?
+5. Do the furnished examples make each room's potential immediately imaginable without feeling like content Ateliera has claimed on Anna's behalf?
+6. Does the guide explain the relationship between the Foyer, Landscape, Season, Uncharted, and Reflection without becoming a lesson to complete?
+7. Does a returning Studio open as directly as it does today?
 
 The feature is successful when the threshold feels clear, creation feels trustworthy, and the first empty Studio feels inviting rather than demanding.
 
@@ -727,6 +836,8 @@ The feature is successful when the threshold feels clear, creation feels trustwo
 - Offer an optional walkthrough after successful creation only.
 - Use a non-modal guide in the real rooms rather than spotlight overlays.
 - Include five conceptual stops: Foyer, Life Landscape, Current Season, Uncharted, and Reflection Garden.
+- Furnish every tour stop with sparse, realistic, clearly labelled examples that exist only in the presentation layer.
+- Allow selected examples to become editable drafts only through an explicit **Use as a starting point** action.
 - Invite but never require one real contribution.
 - Persist walkthrough state in `.studio/settings.json`.
 - Treat legacy Studio Spaces gently and never block them.
