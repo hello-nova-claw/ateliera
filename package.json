@@ -8,6 +8,7 @@
   },
   "scripts": {
     "benchmark:index": "pnpm --filter @studio/index benchmark --",
+    "audit:npm:production": "node scripts/audit-npm-production.mjs",
     "audit:rust:macos": "node scripts/audit-rust-macos.mjs",
     "build:pwa": "pnpm --filter @studio/app build && node scripts/inspect-pwa.mjs",
     "build": "pnpm -r build",
