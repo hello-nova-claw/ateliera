@@ -3,8 +3,8 @@
 ## Product Requirements & Design Bible
 
 **Status:** Living product specification  
-**Version:** 1.1
-**Date:** 13 July 2026  
+**Version:** 1.2
+**Date:** 15 July 2026
 **Product owner:** Anna McPhee  
 **Working definition:** A private studio for designing a life from the inside out.
 
@@ -363,6 +363,115 @@ Fast capture creates an Inbox note with minimal metadata. Inbox is a utility vie
 
 The Inbox must not display guilt-inducing counts on the main navigation.
 
+### 7.5 Entry boundary and First Visit
+
+Ateliera has two distinct thresholds: entering a Studio Space and learning how
+that space can be inhabited. Neither threshold may feel like a setup wizard or
+an obligation.
+
+#### Entry boundary
+
+Before a Studio Space is active, the application MUST show a dedicated,
+full-viewport entry experience. The room dashboard, room navigation, Search,
+Capture, room routes, and their loading announcements MUST remain unmounted.
+The entry experience offers separate **Create a new Studio Space** and **Open
+an existing Studio Space** paths, explains that files remain local, and allows
+the global visual theme to be changed without implying that a Studio is already
+open.
+
+Creating and opening are serialized operations with explicit ownership. The UI
+shows honest phases, disables duplicate activation, and offers recovery from
+failure or cancellation. A long-running operation may explain that it is taking
+longer than usual, but MUST NOT use fictional percentages, an endless decorative
+spinner, or language that suggests files have been lost. Activating a Studio
+MUST NOT wait for disposable search/index projections to finish rebuilding.
+
+#### First Visit invitation
+
+A newly created Studio Space opens into a quiet welcome threshold with two
+equal, explicit choices:
+
+- **Take a gentle tour** — begin a five-room guided wander.
+- **Enter the Studio** — dismiss the First Visit and use the app immediately.
+
+The tour unfolds spatially through **Foyer → Life Landscape → Current Season →
+Uncharted → Reflection Garden**. It does not use numbered steps, completion
+percentages, achievement language, confetti, or a competitive progress bar.
+Controls name the next room and allow the user to leave at any point. The next
+room SHOULD be prefetched so the transition feels continuous without eagerly
+loading the whole app.
+
+The guide and its examples are rendered only on those five tour routes.
+Navigating to Identity Studio, Wisdom Garden, Settings, or another utility view
+quietly pauses and hides the guide; returning to a tour room resumes from the
+durable step. No tutorial chrome may follow the user into unrelated work.
+
+Each room is furnished with a small amount of beautiful, authentic example
+content embedded in its real layout. Examples demonstrate potential rather than
+forming a separate tutorial gallery. They MUST be immutable presentation data:
+they are never written to Markdown, indexed by Search, included in Inbox,
+backups, diagnostics, or exports, and never counted as user activity. Choosing
+**Use as a starting point** opens the ordinary content composer; only an
+explicit save creates a normal user-owned note. Cancelling writes nothing. If
+durable user content already occupies the corresponding slot, the matching
+example is suppressed.
+
+#### Continuity and replay
+
+First Visit state is stored per Studio Space in `.studio/settings.json`, not in
+browser-global storage. It records named room steps and lifecycle timestamps so
+an interrupted tour can resume in the correct room. Navigation persistence is
+serialized using latest-intent semantics: a slower earlier write may never
+overwrite the room most recently chosen on screen.
+
+The current step MUST persist successfully before the corresponding navigation
+becomes visible. This applies to direct room visits, previous/next controls,
+completion, and dismissal. If persistence fails, the user remains in place,
+receives calm actionable guidance, and the named controls become available
+again rather than leaving the tour stranded.
+
+Completion and dismissal are durable, but the tour remains replayable from
+Settings. Replaying MUST use the same non-persistent examples and MUST NOT
+duplicate content. Studio Spaces created before First Visit metadata existed
+receive one gentle invitation to explore; dismissing that invitation prevents
+it from recurring automatically.
+
+For MVP, all legacy Studio Spaces with valid settings but no onboarding metadata
+receive the same invitation; content volume does not alter its prominence.
+Malformed onboarding metadata fails softly into this invitation while preserving
+unrelated valid settings. A dedicated repair explanation and differentiated
+empty/populated legacy invitations are post-MVP refinements.
+
+#### Accessibility and responsive behavior
+
+- Entry and First Visit headings receive stable programmatic focus when their
+  context changes.
+- All controls have meaningful names, including previous/next controls that
+  identify their destination room.
+- Every action is keyboard operable; focus restoration is deterministic after
+  sheets, cancellation, errors, and tour completion.
+- Reduced-motion mode removes spatial animation without removing orientation.
+- Forced-colors mode preserves boundaries and state without relying on the six
+  semantic colors.
+- Compact layouts use a small guide surface that preserves room context and
+  44 × 44 CSS-pixel targets without covering the room's primary content.
+- Examples, prompts, and navigation retain coherent heading hierarchy and
+  screen-reader reading order at desktop and mobile sizes.
+
+#### Acceptance criteria
+
+- No room UI or route mounts until a Studio Space is selected or created.
+- Create, open, cancellation, collision, retry, and longer-than-usual paths
+  cannot leave the entry experience permanently locked.
+- A new Studio receives the welcome once; enter-now, finish, interrupt/resume,
+  legacy invitation, and Settings replay all persist correctly per Studio.
+- All five rooms show context-appropriate examples without creating durable
+  files, search results, backups, diagnostics, or duplicate notes.
+- Saving a chosen starting point creates exactly one ordinary editable card;
+  cancellation creates none.
+- Desktop and compact journeys pass keyboard, focus, reduced-motion,
+  forced-colors, and axe checks at every step.
+
 ---
 
 ## 8. Room-by-room specifications
@@ -710,7 +819,7 @@ The palette supports navigation and safe, reversible commands: open room, create
 
 Errors use plain language and preserve work:
 
-- Vault unavailable: enter read-only cached mode and explain how to reconnect.
+- Studio Space unavailable: enter read-only cached mode and explain how to reconnect.
 - File conflict: show both versions, common ancestor if available, and a merge editor.
 - Invalid frontmatter: render the note body, mark metadata for repair, and never discard content.
 - Attachment missing: retain the reference and offer relink/remove.
@@ -1344,7 +1453,7 @@ Exit: selected architecture can safely round-trip a fixture vault; prototypes fe
 
 ### Phase 1 — MVP: a useful local Studio
 
-- Open/create local vault.
+- Open/create a local Studio Space.
 - Foyer.
 - Life Landscape matrix and focus view.
 - Current Season with start/close workflows.
@@ -1409,7 +1518,7 @@ Identity Studio and Wisdom Garden may be included if schedule permits, but shoul
 
 The MVP is ready only when:
 
-- A new user can create/open a vault and understand the house without instruction.
+- A new user can create/open a Studio Space and understand the house without instruction.
 - Every durable edit is represented in Markdown/frontmatter or ordinary assets.
 - Deleting the index and rebuilding reproduces primary views.
 - Autosave, crash recovery, Trash, export, and restore have end-to-end tests.

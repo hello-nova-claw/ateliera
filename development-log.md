@@ -359,3 +359,36 @@
 - Added stable heading focus, named spatial controls, next-room prefetching, compact guide controls, reduced-motion and forced-colors behavior, state-aware Settings copy, and a single legacy invitation for Studio Spaces created before onboarding metadata existed.
 - Directly inspected the welcome and all five furnished rooms at 1440×1000 and 390×844. Corrected a mobile focus race, Landscape heading hierarchy, and a wide-layout control overlap found through Playwright and screenshot review.
 - Verification passed TypeScript, ESLint/stylelint, all 1,283 workspace tests at the time of the initial gate, desktop and mobile five-room Playwright journeys with axe at every step, keyboard/reduced-motion/forced-colors/compact checks, and focused regression coverage for persistence races, replay, cleanup, and canonical example suppression.
+
+## 2026-07-15 — Onboarding release hardening
+
+- Replaced pnpm's retired production-audit endpoint with a deterministic audit
+  tool that derives the exact installed production dependency tree and queries
+  npm's supported bulk advisory endpoint. The current 202-version production
+  inventory reports no advisories.
+- Made the cold-offline existing-Studio journey wait for completed Studio
+  activation before navigating. This aligns the test with the deliberately
+  backgrounded index rebuild instead of racing the room shell.
+- Added one CI-only browser retry for transient Chromium/WebKit process
+  exhaustion and serialized the visual release project to one worker. Local
+  development remains fail-fast.
+- Scoped Storybook axe scans to `#storybook-root` so the release harness audits
+  the rendered Ateliera story rather than Storybook's outer document. No axe
+  rules were disabled; a dedicated regression proves defects inside the story
+  root are still detected.
+- Made native packaging remove the previous bundle directory before building
+  and made native inspection reject unexpected sibling `.app` bundles. The
+  resulting inventory contains only `Ateliera.app` and the matching Ateliera
+  DMG; `hdiutil verify`, metadata inspection, and the unsigned/unnotarized
+  policy checks pass.
+- Individual release gates pass: typecheck, lint, production build, 1,292
+  workspace tests under normal load, 29 security tests, 55 Rust tests,
+  formatting, clippy, production dependency audit, target-aware Rust audit,
+  restore drill, 165 production E2E journeys with 32 intentional skips, the
+  visual/axe matrix, PWA inspection, and native bundle inspection.
+- The retained all-in-one release manifest is not yet final. During the last
+  complete verifier run, unrelated Google Drive and macOS service CPU pressure
+  caused two asynchronous unit tests to exceed their timeouts; their exact two
+  files then passed 44/44 in 18 seconds. The complete verifier must be rerun on
+  a quieter reference host before this candidate is represented as a fully
+  green release manifest.

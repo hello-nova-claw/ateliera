@@ -22,18 +22,28 @@ pnpm verify:release
 
 The command must fail on any automated quality, security, accessibility, offline, performance-budget, PWA, restore, Rust, or packaging failure. Its machine-readable manifest and human summary belong in `artifacts/release-evidence/`; Playwright traces, screenshots, reports, build inventories, and package logs are referenced from there.
 
+A failed or interrupted all-in-one run remains a failed candidate even when its
+individual failures later pass in isolation. Record retries and environmental
+resource exhaustion explicitly, then rerun the complete gate on a suitable
+reference host before treating the manifest as release evidence.
+
 ## Automated release proof
 
 - [ ] Workspace typecheck, ESLint/stylelint, unit/integration tests, and production builds pass.
+- [ ] Onboarding proves the inactive entry boundary mounts no room shell; new,
+      returning, interrupted/resumed, dismissed, legacy-invitation, and
+      Settings-replay paths pass on desktop and compact layouts. Furnished
+      examples remain presentation-only, cancellation writes nothing, and an
+      explicitly saved starting point creates exactly one ordinary note.
 - [ ] Complete production E2E matrix passes in desktop Chromium, mobile Chromium, and desktop WebKit, with every skip named and justified.
 - [ ] Visual and axe matrix passes at 1440×1000, 1024×768, and 390×844 after self-hosted fonts load.
 - [ ] Keyboard flows, 200% zoom/text scaling, forced colors, reduced motion, missing images, long international strings, and 44px touch targets pass their automated checks.
 - [ ] The complete local-first journey survives disposable-index destruction and rebuild without losing canonical Markdown or media.
 - [ ] Warm shell, note-open, room-transition, search, save, and offline budgets meet the thresholds in the product bible on the recorded reference hardware or the release harness's conservative proxy budgets.
 - [ ] The production PWA manifest, icons, service worker, complete precache, response security headers, and fresh offline navigation pass.
-- [ ] No design prototype runtime, reference `.dc.html`, external font request, remote analytics, or private vault content appears in production routes, bundles, caches, or network evidence.
+- [ ] No design prototype runtime, reference `.dc.html`, external font request, remote analytics, or private Studio content appears in production routes, bundles, caches, or network evidence.
 - [ ] Security regression, npm production dependency audit, target-aware macOS Rust audit, Rust tests, formatting, and clippy pass.
-- [ ] The exact sample-vault backup → destructive restore → all-room rebuild drill passes.
+- [ ] The exact sample-Studio backup → destructive restore → all-room rebuild drill passes.
 - [ ] A macOS `.app` and distributable bundle are built from production assets, and their hashes and file inventories appear in the evidence bundle.
 
 ## Manual keyboard and VoiceOver gate
@@ -75,7 +85,7 @@ Record every defect, workaround, and intentionally deferred issue beside the can
 - [ ] Export a backup from a realistic Studio and inspect the portable manifest and checksums.
 - [ ] Restore into an empty Studio and compare all rooms, links, attachments, Trash, seasons, view state, and backups.
 - [ ] Exercise create, overwrite, conflict, skip, cancel, stale-preview, and interrupted-recovery paths.
-- [ ] Confirm the original vault and export remain usable after every rejected or interrupted restore.
+- [ ] Confirm the original Studio files and export remain usable after every rejected or interrupted restore.
 - [ ] Open representative Markdown and media outside Ateliera to confirm data remains ordinary and user-owned.
 
 ## Privacy and security gate
@@ -95,7 +105,7 @@ The reproducible workflow intentionally carries no Apple credentials. Its `.app`
 - [ ] Verify with `codesign --verify --deep --strict --verbose=2` and record certificate/team identity.
 - [ ] Submit to Apple notary service, wait for acceptance, staple the ticket, and retain the notarization log.
 - [ ] Verify with `spctl --assess --type execute --verbose=4` on a clean Mac user account.
-- [ ] Fresh-install the signed/notarized artifact, complete the core journey, upgrade over the previous candidate, and verify vault preservation.
+- [ ] Fresh-install the signed/notarized artifact, complete the core journey, upgrade over the previous candidate, and verify Studio preservation.
 
 Unavailable credentials are a documented manual blocker, never an automated pass. A private local development build may proceed; public distribution may not.
 
@@ -103,10 +113,10 @@ Unavailable credentials are a documented manual blocker, never an automated pass
 
 Required MVP limitations to communicate clearly:
 
-- Browser and native vault capabilities differ; iPhone Safari cannot promise desktop-equivalent filesystem behavior.
+- Browser and native Studio capabilities differ; iPhone Safari cannot promise desktop-equivalent filesystem behavior.
 - There is no encrypted sync, app lock, cloud account, collaborative sharing, AI dependency, or remote diagnostics upload in MVP.
 - Device compromise, unlocked shared accounts, unencrypted backups, and user-enabled cloud/Git folders can expose private content.
-- Browser ZIP32 portability is bounded and is not the later streaming 5 GB reference-vault exporter.
+- Browser ZIP32 portability is bounded and is not the later streaming 5 GB reference-Studio exporter.
 - VoiceOver, installed PWA, code signing, notarization, Gatekeeper, and clean-device installation remain manual gates.
 - Inner Studio is optional/post-MVP and must not be represented as an active therapeutic or guided-session feature.
 
@@ -118,4 +128,3 @@ Decision:
 - [ ] Backup retained and destructive restore witnessed.
 - [ ] Privacy limitations accepted.
 - [ ] Candidate approved by Anna for its stated distribution scope.
-
