@@ -5,6 +5,7 @@ import { useState } from 'react';
 export interface QuickCaptureProps {
   capture: (input: QuickCaptureInput) => Promise<SavedNote>;
   decisionHorizon?: boolean;
+  initialBody?: string;
   onCancel: () => void;
   onRemembered: (saved: SavedNote) => void | Promise<void>;
 }
@@ -16,10 +17,11 @@ export type QuickCaptureInput = CaptureNoteInput & {
 export function QuickCapture({
   capture,
   decisionHorizon = false,
+  initialBody = '',
   onCancel,
   onRemembered,
 }: QuickCaptureProps) {
-  const [body, setBody] = useState('');
+  const [body, setBody] = useState(initialBody);
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [semanticType, setSemanticType] = useState<'' | SemanticType>('');

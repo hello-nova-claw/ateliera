@@ -1,11 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { enterCreatedStudio, openExistingStudio } from './helpers/studio';
 
 async function createLocalStudio(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill('Reflection Studio');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await enterCreatedStudio(page);
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
 }
 
@@ -280,7 +282,7 @@ test('keeps reflection and celebration as distinct chronological entries', async
   await page.screenshot({ path: testInfo.outputPath('reflection-garden.png'), fullPage: true });
 
   await page.reload();
-  await page.getByRole('button', { name: 'Open Reflection Studio' }).click();
+  await openExistingStudio(page, 'Reflection Studio');
   await openReflection(page);
   await expect(page.getByRole('heading', { name: 'The small morning practice held.' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'I noticed that five quiet minutes changed the afternoon.' })).toBeVisible();
@@ -428,7 +430,7 @@ test('renders themes, then and now, real media, and calm repair states from cano
   await expect(page.getByRole('heading', { name: 'The small morning practice held.' })).toBeVisible();
   await enrichReflectionFixture(page);
   await page.reload();
-  await page.getByRole('button', { name: 'Open Reflection Studio' }).click();
+  await openExistingStudio(page, 'Reflection Studio');
   await openReflection(page);
 
   await expect(page.getByRole('alert')).toContainText('words remain untouched');

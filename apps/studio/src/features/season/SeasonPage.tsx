@@ -13,6 +13,8 @@ import { Dialog } from '@studio/ui';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 
 import './SeasonPage.css';
+import type { TourExample } from '../onboarding/tour-examples';
+import { TourExampleCard, TourGlimpseLabel } from '../onboarding/TourPreview';
 
 export interface SeasonPriorityCandidate {
   noteId: string;
@@ -46,6 +48,27 @@ export interface SeasonPageProps {
   priorityCandidates?: SeasonPriorityCandidate[];
   state: 'ready' | 'loading' | 'saving' | 'error';
   wizardStep?: SeasonWizardStep;
+  tourExamples?: readonly TourExample[];
+}
+
+function SeasonTourGlimpse({ examples }: { examples: readonly TourExample[] }) {
+  return (
+    <article
+      className="season-tour-glimpse"
+      aria-labelledby="season-tour-title"
+    >
+      <TourGlimpseLabel />
+      <header className="season-tour-glimpse__cover">
+        <p className="season-page__eyebrow">Current Season · Example</p>
+        <h2 id="season-tour-title">A season of gentle foundations</h2>
+      </header>
+      <div className="season-tour-glimpse__composition">
+        {examples.map((example) => (
+          <TourExampleCard example={example} key={example.previewKey} />
+        ))}
+      </div>
+    </article>
+  );
 }
 
 function lines(value: string): string[] {
@@ -538,6 +561,7 @@ export function SeasonPage({
   priorityCandidates = [],
   record,
   state,
+  tourExamples = [],
   wizardStep,
 }: SeasonPageProps) {
   const [closeOpen, setCloseOpen] = useState(false);
@@ -580,14 +604,19 @@ export function SeasonPage({
     );
   if (record === null)
     return (
-      <section className="season-empty">
-        <p className="season-page__eyebrow">A humane present focus</p>
-        <h1>Current Season</h1>
-        <p>A season is a named chapter—not a deadline, streak, or test.</p>
-        <button className="season-button" onClick={onBegin} type="button">
-          Begin a season
-        </button>
-      </section>
+      <div className="season-empty-room">
+        <section className="season-empty">
+          <p className="season-page__eyebrow">A humane present focus</p>
+          <h1>Current Season</h1>
+          <p>A season is a named chapter—not a deadline, streak, or test.</p>
+          <button className="season-button" onClick={onBegin} type="button">
+            Begin a season
+          </button>
+        </section>
+        {tourExamples.length > 0 && (
+          <SeasonTourGlimpse examples={tourExamples} />
+        )}
+      </div>
     );
   const season = record.state;
   const priorityTitle = (noteId: string) =>
@@ -731,6 +760,7 @@ export function SeasonPage({
           </button>
         </footer>
       </article>
+      {tourExamples.length > 0 && <SeasonTourGlimpse examples={tourExamples} />}
       <Dialog
         isOpen={closeOpen}
         label="Close this season"

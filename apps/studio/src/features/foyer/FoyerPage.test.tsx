@@ -5,6 +5,7 @@ import type {
 } from '@studio/application';
 import { vi } from 'vitest';
 import { FoyerPage } from './FoyerPage';
+import { tourExamples } from '../onboarding/tour-examples';
 
 function card(
   overrides: Partial<StudioCardProjection> = {},
@@ -32,6 +33,67 @@ const empty: FoyerProjection = {
   returning: null,
   image: null,
 };
+
+it('places temporary tour examples in the authentic Foyer spread', () => {
+  const onUseTourExample = vi.fn();
+  render(
+    <FoyerPage
+      model={empty}
+      onUseTourExample={onUseTourExample}
+      tourExamples={tourExamples.foyer}
+    />,
+  );
+
+  expect(screen.getAllByText('A glimpse of what could live here')).toHaveLength(
+    1,
+  );
+  expect(
+    screen.getByLabelText('Example Currently becoming card'),
+  ).toBeVisible();
+  expect(
+    screen.getByLabelText('Example How I want life to feel card'),
+  ).toBeVisible();
+  expect(screen.getByLabelText('Example Guiding principle card')).toBeVisible();
+  fireEvent.click(
+    screen.getByRole('button', {
+      name: /Use Currently becoming as a starting point/,
+    }),
+  );
+  expect(onUseTourExample).toHaveBeenCalledWith(
+    tourExamples.foyer[0],
+    expect.any(HTMLButtonElement),
+  );
+});
+
+it('does not restore a tour starting point when its canonical Foyer slot is occupied', () => {
+  const model: FoyerProjection = {
+    ...empty,
+    becoming: card({
+      noteId: 'authored-becoming',
+      cardType: 'identity',
+      title: 'I create from calm',
+    }),
+  };
+
+  const { unmount } = render(
+    <FoyerPage model={model} tourExamples={tourExamples.foyer} />,
+  );
+
+  expect(screen.getByText('I create from calm')).toBeVisible();
+  expect(
+    screen.queryByLabelText('Example Currently becoming card'),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByLabelText('Example How I want life to feel card'),
+  ).toBeVisible();
+
+  unmount();
+  render(<FoyerPage model={model} tourExamples={tourExamples.foyer} />);
+
+  expect(
+    screen.queryByLabelText('Example Currently becoming card'),
+  ).not.toBeInTheDocument();
+});
 
 it('invites only three starting choices in an empty Foyer', () => {
   const onCreate = vi.fn();

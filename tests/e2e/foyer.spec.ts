@@ -1,11 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { enterCreatedStudio, openExistingStudio } from './helpers/studio';
 
 async function createLocalStudio(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill('Foyer Studio');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await enterCreatedStudio(page);
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
 }
 
@@ -40,7 +42,7 @@ test('builds the three Foyer foundations atomically and remembers them after rel
     fullPage: true,
   });
   await page.reload();
-  await page.getByRole('button', { name: 'Open Foyer Studio' }).click();
+  await openExistingStudio(page, 'Foyer Studio');
   await expect(
     page.getByText('A woman who creates from calm', { exact: true }),
   ).toBeVisible();

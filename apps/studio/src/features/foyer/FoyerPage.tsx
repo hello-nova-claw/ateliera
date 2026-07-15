@@ -11,6 +11,12 @@ import { Principles } from './Principles';
 import { ReturnCard } from './ReturnCard';
 import { SeasonPreview } from './SeasonPreview';
 import type { FoyerCoverView } from './use-foyer-cover';
+import type { TourExample } from '../onboarding/tour-examples';
+import {
+  TourExampleCard,
+  TourGlimpseLabel,
+  type UseTourExample,
+} from '../onboarding/TourPreview';
 import './FoyerPage.css';
 
 export type FoyerSlot = 'becoming' | 'feeling' | 'principle';
@@ -26,6 +32,8 @@ export interface FoyerPageProps {
     trigger: HTMLButtonElement,
   ) => void;
   state?: 'ready' | 'loading' | 'offline' | 'stale' | 'error';
+  tourExamples?: readonly TourExample[];
+  onUseTourExample?: UseTourExample;
 }
 
 function FoyerImage({
@@ -108,7 +116,9 @@ export function FoyerPage({
   onCreate,
   onOpen,
   onRemoveImage,
+  onUseTourExample,
   state = 'ready',
+  tourExamples = [],
 }: FoyerPageProps) {
   const empty =
     model.becoming === null &&
@@ -156,6 +166,7 @@ export function FoyerPage({
       ) : (
         <div className="foyer-page__spread">
           <div className="foyer-page__wide">
+            {tourExamples.length > 0 && <TourGlimpseLabel />}
             <Becoming
               card={model.becoming}
               {...(onCreate
@@ -166,6 +177,19 @@ export function FoyerPage({
                 : {})}
               {...(onOpen ? { onOpen } : {})}
             />
+            {model.becoming === null &&
+              tourExamples
+                .filter((example) => example.previewKey === 'foyer-becoming')
+                .map((example) => (
+                  <TourExampleCard
+                    className="foyer-tour-glimpse foyer-tour-glimpse--becoming"
+                    example={example}
+                    key={example.previewKey}
+                    {...(onUseTourExample
+                      ? { onUse: onUseTourExample }
+                      : {})}
+                  />
+                ))}
             <SeasonPreview
               priorities={model.priorities}
               season={model.currentSeason}
@@ -181,6 +205,15 @@ export function FoyerPage({
                 : {})}
               {...(onOpen ? { onOpen } : {})}
             />
+            {tourExamples
+              .filter((example) => example.previewKey === 'foyer-principle')
+              .map((example) => (
+                <TourExampleCard
+                  className="foyer-tour-glimpse foyer-tour-glimpse--principle"
+                  example={example}
+                  key={example.previewKey}
+                />
+              ))}
           </div>
           <aside className="foyer-page__narrow" aria-label="Feeling and return">
             {model.image && (
@@ -204,6 +237,15 @@ export function FoyerPage({
                   }
                 : {})}
             />
+            {tourExamples
+              .filter((example) => example.previewKey === 'foyer-feeling')
+              .map((example) => (
+                <TourExampleCard
+                  className="foyer-tour-glimpse foyer-tour-glimpse--feeling"
+                  example={example}
+                  key={example.previewKey}
+                />
+              ))}
             <ReturnCard
               card={model.returning}
               {...(onOpen ? { onOpen } : {})}

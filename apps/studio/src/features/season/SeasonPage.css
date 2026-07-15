@@ -330,3 +330,36 @@
     border: 1px solid CanvasText;
   }
 }
+
+.season-empty-room {
+  display: grid;
+  gap: var(--studio-space-10);
+}
+
+.season-tour-glimpse {
+  display: grid;
+  gap: var(--studio-space-5);
+  max-inline-size: 64rem;
+}
+
+.season-tour-glimpse__cover {
+  border-block: 1px solid var(--studio-color-line);
+  padding-block: var(--studio-space-6);
+}
+
+.season-tour-glimpse__cover h2 {
+  font: 400 clamp(1.75rem, 4vw, 3rem) / 1.05 var(--studio-font-display);
+  margin: var(--studio-space-2) 0 0;
+}
+
+.season-tour-glimpse__composition {
+  display: grid;
+  gap: var(--studio-space-4);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (width < 40rem) {
+  .season-tour-glimpse__composition {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

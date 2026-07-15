@@ -19,6 +19,7 @@ import {
   type ComponentProps,
   lazy,
   Suspense,
+  useCallback,
   useEffect,
   useReducer,
   useRef,
@@ -40,9 +41,18 @@ import { QuickCapture } from '../features/capture/QuickCapture';
 import type { QuickCaptureInput } from '../features/capture/QuickCapture';
 import type { FoyerSlot } from '../features/foyer/FoyerPage';
 import { StudioEntryGate } from '../features/onboarding/StudioEntryGate';
+import { FirstVisitGuide } from '../features/onboarding/FirstVisitGuide';
+import { FirstVisitWelcome } from '../features/onboarding/FirstVisitWelcome';
+import { StudioTourInvitation } from '../features/onboarding/StudioTourInvitation';
+import {
+  tourExamples,
+  type TourExample,
+} from '../features/onboarding/tour-examples';
+import { preloadTourRoom } from '../features/onboarding/tour-prefetch';
 import {
   initialStudioEntryState,
   studioEntryReducer,
+  type TourStep,
 } from '../features/onboarding/onboarding-state';
 import './app.css';
 
@@ -51,6 +61,32 @@ const NoteEditorSession = lazy(() =>
     default: module.NoteEditorSession,
   })),
 );
+
+const tourOrder: readonly TourStep[] = [
+  'foyer',
+  'landscape',
+  'season',
+  'uncharted',
+  'reflection',
+];
+
+const tourHeading = {
+  foyer: 'Ateliera',
+  landscape: 'Life Landscape',
+  reflection: 'Reflection Garden',
+  season: 'Current Season',
+  uncharted: 'What if…?',
+} satisfies Record<TourStep, string>;
+
+function pathForTourStep(step: TourStep): StudioPath {
+  return `/${step}` as StudioPath;
+}
+
+function tourStepForPath(path: string): TourStep | undefined {
+  if (path.startsWith('/landscape')) return 'landscape';
+  const candidate = path.slice(1) as TourStep;
+  return tourOrder.includes(candidate) ? candidate : undefined;
+}
 
 async function requestBrowserPersistence(): Promise<BrowserPersistenceStatus> {
   const { ensureBrowserPersistence } = await import('@studio/storage/browser');
@@ -170,6 +206,8 @@ function StudioApplication({
       : initialStudioEntryState,
   );
   const opened = entryState.kind === 'active';
+  const tourStep =
+    entryState.kind === 'active' ? entryState.tourStep : undefined;
   const { navigate, path, title } = useStudioRouter(
     (next) => navigationGuard.current?.(next) ?? false,
     opened,
@@ -182,6 +220,11 @@ function StudioApplication({
     () => (isNativeShell() ? [] : readBrowserStudios(localStorage)),
   );
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [captureInitialBody, setCaptureInitialBody] = useState('');
+  const [onboardingBusy, setOnboardingBusy] = useState(false);
+  const [rememberedTourExamples, setRememberedTourExamples] = useState(
+    () => new Set<string>(),
+  );
   const [editor, setEditor] = useState<SavedNote>();
   const [editorCloseRequest, setEditorCloseRequest] = useState(0);
   const [commandOpen, setCommandOpen] = useState(false);
@@ -218,6 +261,10 @@ function StudioApplication({
   const pendingCapturePlacement = useRef<CapturePlacement | undefined>(
     undefined,
   );
+  const pendingTourExampleKey = useRef<string | undefined>(undefined);
+  const onboardingAction = useRef(false);
+  const tourNavigationRevision = useRef(0);
+  const tourNavigationQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingLandscapePlacement = useRef<
     { lifeArea: string; anchor: LandscapeAnchor } | undefined
   >(undefined);
@@ -371,6 +418,110 @@ function StudioApplication({
     return () => clearTimeout(timer);
   }, [studioAction]);
 
+  const queueTourVisit = useCallback(
+    async (step: TourStep): Promise<boolean> => {
+      if (!isStudioService(service)) return false;
+      const revision = tourNavigationRevision.current + 1;
+      tourNavigationRevision.current = revision;
+      let applied = false;
+      const visit = tourNavigationQueue.current
+        .catch(() => undefined)
+        .then(async () => {
+          if (revision !== tourNavigationRevision.current) return;
+          await service.onboarding.transition({
+            type: 'visit',
+            step,
+            at: new Date().toISOString(),
+          });
+          if (revision !== tourNavigationRevision.current) return;
+          setError(undefined);
+          dispatchEntry({ type: 'tour-step', step });
+          applied = true;
+        });
+      tourNavigationQueue.current = visit.catch(() => undefined);
+      try {
+        await visit;
+        return applied;
+      } catch (reason) {
+        if (revision === tourNavigationRevision.current) {
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : 'Ateliera could not remember your place in the tour.',
+          );
+        }
+        throw reason;
+      }
+    },
+    [service],
+  );
+
+  const queueTourEnd = useCallback(
+    async (type: 'complete' | 'dismiss'): Promise<boolean> => {
+      if (!isStudioService(service)) return false;
+      const revision = tourNavigationRevision.current + 1;
+      tourNavigationRevision.current = revision;
+      let applied = false;
+      const transition = tourNavigationQueue.current
+        .catch(() => undefined)
+        .then(async () => {
+          if (revision !== tourNavigationRevision.current) return;
+          await service.onboarding.transition({
+            type,
+            at: new Date().toISOString(),
+          });
+          if (revision === tourNavigationRevision.current) applied = true;
+        });
+      tourNavigationQueue.current = transition.catch(() => undefined);
+      await transition;
+      return applied;
+    },
+    [service],
+  );
+
+  useEffect(() => {
+    if (!isStudioService(service) || tourStep === undefined) return;
+    const selected = tourStepForPath(path);
+    if (selected === undefined || selected === tourStep) return;
+    void queueTourVisit(selected).catch(() => undefined);
+  }, [path, queueTourVisit, service, tourStep]);
+
+  const visibleTourStep =
+    tourStep === undefined ? undefined : tourStepForPath(path);
+
+  useEffect(() => {
+    if (visibleTourStep === undefined) return undefined;
+    let active = true;
+    const main = document.querySelector<HTMLElement>('#studio-main');
+    if (main === null) return undefined;
+    const focusHeading = () => {
+      const heading = [...main.querySelectorAll<HTMLElement>('h1')].find(
+        (candidate) =>
+          candidate.textContent?.trim() === tourHeading[visibleTourStep],
+      );
+      if (heading === undefined) return false;
+      if (!heading.hasAttribute('tabindex')) heading.tabIndex = -1;
+      heading.focus();
+      return true;
+    };
+    if (focusHeading()) return undefined;
+    const observer = new MutationObserver(() => {
+      if (active && focusHeading()) observer.disconnect();
+    });
+    observer.observe(main, { childList: true, subtree: true });
+    return () => {
+      active = false;
+      observer.disconnect();
+    };
+  }, [path, visibleTourStep]);
+
+  useEffect(() => {
+    if (tourStep === undefined) return;
+    const current = tourOrder.indexOf(tourStep);
+    const next = tourOrder[current + 1];
+    if (next !== undefined) void preloadTourRoom(next).catch(() => undefined);
+  }, [tourStep]);
+
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
@@ -387,32 +538,112 @@ function StudioApplication({
     return () => removeEventListener('keydown', handler);
   }, []);
 
-  function go(next: string, options?: { replace?: boolean }): void {
+  function go(
+    next: string,
+    options?: { replace?: boolean; focusMain?: boolean },
+  ): void {
     navigate(next, false, options?.replace ?? false);
+    if (
+      options?.focusMain === false ||
+      (tourStep !== undefined && tourStepForPath(next) !== undefined)
+    )
+      return;
     requestAnimationFrame(() =>
       document.querySelector<HTMLElement>('#studio-main')?.focus(),
     );
   }
 
-  function finishOnboarding(attemptId?: string): void {
+  function focusStudio(): void {
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>('#studio-main')?.focus(),
+    );
+  }
+
+  function focusRoomHeading(expectedText?: string): void {
+    requestAnimationFrame(() => {
+      const main = document.querySelector<HTMLElement>('#studio-main');
+      if (main === null) return;
+      const focus = () => {
+        const heading = [...main.querySelectorAll<HTMLElement>('h1')].find(
+          (candidate) =>
+            expectedText === undefined ||
+            candidate.textContent?.trim() === expectedText,
+        );
+        if (heading === undefined) return false;
+        if (!heading.hasAttribute('tabindex')) heading.tabIndex = -1;
+        heading.focus();
+        return true;
+      };
+      if (focus()) return;
+      const observer = new MutationObserver(() => {
+        if (focus()) observer.disconnect();
+      });
+      observer.observe(main, { childList: true, subtree: true });
+      setTimeout(() => observer.disconnect(), 5_000);
+    });
+  }
+
+  async function runOnboardingAction(
+    action: () => Promise<void>,
+    fallbackMessage: string,
+  ): Promise<void> {
+    if (onboardingAction.current) return;
+    onboardingAction.current = true;
+    setOnboardingBusy(true);
+    setError(undefined);
+    try {
+      await action();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : fallbackMessage);
+    } finally {
+      onboardingAction.current = false;
+      setOnboardingBusy(false);
+    }
+  }
+
+  async function finishStudioEntry(
+    lifecycle: StudioService,
+    attemptId: string,
+    origin: 'create' | 'open',
+  ): Promise<void> {
+    if (origin === 'create') {
+      dispatchEntry({ type: 'first-visit', attemptId, mode: 'new' });
+      return;
+    }
+    const settings = await lifecycle.onboarding.load();
+    const step = settings.onboarding.currentStep;
+    if (
+      settings.onboarding.status === 'in-progress' &&
+      step !== 'welcome' &&
+      step !== 'complete'
+    ) {
+      dispatchEntry({
+        type: 'first-visit',
+        attemptId,
+        mode: 'resume',
+        step,
+      });
+      return;
+    }
     dispatchEntry({
       type: 'activate',
-      ...(attemptId === undefined ? {} : { attemptId }),
+      attemptId,
+      tourInvitation:
+        settings.onboarding.status === 'not-started' &&
+        settings.onboarding.invitationDismissedAt === undefined,
     });
-    requestAnimationFrame(() =>
-      document.querySelector<HTMLElement>('#studio-main')?.focus(),
-    );
+    focusStudio();
   }
 
-  async function activateNativeStudio(
-    vault: {
-      recoveryIdentity: string;
-    } & VaultPort,
-  ): Promise<void> {
+  function commitStudioSession(
+    lifecycle: StudioService,
+    vault: VaultPort,
+    id: string,
+  ): void {
     setEditor(undefined);
     setActiveVault(vault);
-    setActiveStudioId(`native:${vault.recoveryIdentity}`);
-    setService(await createAppStudioService(vault));
+    setActiveStudioId(id);
+    setService(lifecycle);
     setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
   }
 
@@ -421,6 +652,7 @@ function StudioApplication({
     lastOpenRecord.current = record;
     const attemptId = beginStudioAction('open');
     if (attemptId === null) return;
+    let preparedLifecycle: StudioService | undefined;
     setError(undefined);
     try {
       if (isNativeShell()) {
@@ -432,8 +664,14 @@ function StudioApplication({
             attemptId,
             phase: 'preparing-rooms',
           });
-          await activateNativeStudio(selected);
-          finishOnboarding(attemptId);
+          preparedLifecycle = await createAppStudioService(selected);
+          await finishStudioEntry(preparedLifecycle, attemptId, 'open');
+          commitStudioSession(
+            preparedLifecycle,
+            selected,
+            `native:${selected.recoveryIdentity}`,
+          );
+          preparedLifecycle = undefined;
         } else {
           dispatchEntry({ type: 'cancel', attemptId });
         }
@@ -442,19 +680,21 @@ function StudioApplication({
       if (record === undefined) return;
       const { createBrowserVault } = await import('@studio/storage/browser');
       const vault = createBrowserVault(record.vaultId);
-      activateBrowserStudio(localStorage, record.vaultId);
-      setEditor(undefined);
-      setActiveVault(vault);
-      setActiveStudioId(record.vaultId);
       dispatchEntry({
         type: 'progress',
         attemptId,
         phase: 'preparing-rooms',
       });
-      setService(await createAppStudioService(vault));
-      setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
-      finishOnboarding(attemptId);
+      preparedLifecycle = await createAppStudioService(vault);
+      await finishStudioEntry(preparedLifecycle, attemptId, 'open');
+      activateBrowserStudio(localStorage, record.vaultId);
+      commitStudioSession(preparedLifecycle, vault, record.vaultId);
+      preparedLifecycle = undefined;
     } catch (reason) {
+      if (preparedLifecycle !== undefined) {
+        await preparedLifecycle.dispose().catch(() => undefined);
+        preparedLifecycle = undefined;
+      }
       const message = isNativeShell()
         ? 'This Studio couldn’t be opened. Choose its folder and try again.'
         : reason instanceof Error
@@ -492,9 +732,14 @@ function StudioApplication({
             attemptId,
             phase: 'preparing-rooms',
           });
-          await activateNativeStudio(created);
+          const lifecycle = await createAppStudioService(created);
           setCreateOpen(false);
-          finishOnboarding(attemptId);
+          await finishStudioEntry(lifecycle, attemptId, 'create');
+          commitStudioSession(
+            lifecycle,
+            created,
+            `native:${created.recoveryIdentity}`,
+          );
         } else {
           dispatchEntry({ type: 'cancel', attemptId });
         }
@@ -542,19 +787,16 @@ function StudioApplication({
       registerBrowserStudio(localStorage, record);
       activateBrowserStudio(localStorage, record.vaultId);
       setBrowserStudios(readBrowserStudios(localStorage));
-      setEditor(undefined);
-      setActiveVault(vault);
-      setActiveStudioId(record.vaultId);
       dispatchEntry({
         type: 'progress',
         attemptId,
         phase: 'preparing-rooms',
       });
-      setService(await createAppStudioService(vault));
-      setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
+      const lifecycle = await createAppStudioService(vault);
       localStorage.setItem('studio:name', record.name);
       setCreateOpen(false);
-      finishOnboarding(attemptId);
+      await finishStudioEntry(lifecycle, attemptId, 'create');
+      commitStudioSession(lifecycle, vault, record.vaultId);
     } catch (reason) {
       if (isNativeShell() && reason instanceof VaultConflictError) {
         const message = `A Studio named “${name.trim()}” already exists there. Choose another location or name, or open the existing Studio.`;
@@ -599,11 +841,139 @@ function StudioApplication({
     return legacySavedNote(captured);
   }
 
-  function closeCapture(): void {
+  function closeCapture(restoreFocus = true): void {
     setCaptureOpen(false);
+    setCaptureInitialBody('');
     pendingCapturePlacement.current = undefined;
     pendingLandscapePlacement.current = undefined;
-    queueMicrotask(() => captureButton.current?.focus());
+    pendingTourExampleKey.current = undefined;
+    if (restoreFocus) queueMicrotask(() => captureButton.current?.focus());
+  }
+
+  function useTourStartingPoint(
+    example: TourExample,
+    trigger: HTMLButtonElement,
+    context?: { lifeArea: string },
+  ): void {
+    const startingPoint = example.startingPoint;
+    if (startingPoint === undefined) return;
+    captureButton.current = trigger;
+    pendingTourExampleKey.current = example.previewKey;
+    setCaptureInitialBody(startingPoint.body);
+    if (startingPoint.kind === 'foyer') {
+      pendingCapturePlacement.current = startingPoint.placement;
+    } else if (startingPoint.kind === 'landscape') {
+      const selectedLifeArea =
+        context?.lifeArea ??
+        (path.startsWith('/landscape/')
+          ? path.slice('/landscape/'.length)
+          : 'family');
+      pendingLandscapePlacement.current = {
+        lifeArea: selectedLifeArea,
+        anchor: startingPoint.anchor,
+      };
+    } else {
+      pendingCapturePlacement.current = 'uncharted';
+    }
+    setCaptureOpen(true);
+  }
+
+  async function enterStudioFromWelcome(): Promise<void> {
+    if (!isStudioService(service)) return;
+    await runOnboardingAction(async () => {
+      await service.onboarding.transition({
+        type: 'dismiss',
+        at: new Date().toISOString(),
+      });
+      dispatchEntry({ type: 'activate' });
+      go('/foyer', { replace: true });
+    }, 'Ateliera could not remember this choice.');
+  }
+
+  async function startOrResumeTour(): Promise<void> {
+    if (!isStudioService(service) || entryState.kind !== 'first-visit') return;
+    const step = entryState.step ?? 'foyer';
+    await runOnboardingAction(async () => {
+      await preloadTourRoom(step).catch(() => undefined);
+      await service.onboarding.transition({
+        type: 'visit',
+        step,
+        at: new Date().toISOString(),
+      });
+      dispatchEntry({ type: 'start-tour', step });
+      go(pathForTourStep(step), { replace: true, focusMain: false });
+    }, 'Ateliera could not remember your place in the tour.');
+  }
+
+  async function moveTour(direction: -1 | 1): Promise<void> {
+    if (!isStudioService(service) || tourStep === undefined) return;
+    await runOnboardingAction(async () => {
+      const current = tourOrder.indexOf(visibleTourStep ?? tourStep);
+      const next = tourOrder[current + direction];
+      if (next === undefined && direction === 1) {
+        if (!(await queueTourEnd('complete'))) return;
+        dispatchEntry({ type: 'end-tour' });
+        setRememberedTourExamples(new Set());
+        go('/foyer', { replace: true });
+        focusRoomHeading('Ateliera');
+        setToast('The first visit has ended. The Studio is yours.');
+        return;
+      }
+      if (next === undefined) return;
+      if (!(await queueTourVisit(next))) return;
+      go(pathForTourStep(next), { focusMain: false });
+    }, 'Ateliera could not remember your place in the tour.');
+  }
+
+  async function leaveTour(): Promise<void> {
+    if (!isStudioService(service)) return;
+    await runOnboardingAction(async () => {
+      if (!(await queueTourEnd('dismiss'))) return;
+      dispatchEntry({ type: 'end-tour' });
+      setRememberedTourExamples(new Set());
+      setToast('The tour has ended. You can take it again from Settings.');
+      focusRoomHeading(
+        visibleTourStep === undefined ? undefined : tourHeading[visibleTourStep],
+      );
+    }, 'Ateliera could not end the tour.');
+  }
+
+  async function replayTour(): Promise<void> {
+    if (!isStudioService(service)) return;
+    await runOnboardingAction(async () => {
+      await preloadTourRoom('foyer').catch(() => undefined);
+      await service.onboarding.transition({
+        type: 'replay',
+        at: new Date().toISOString(),
+      });
+      await service.onboarding.transition({
+        type: 'visit',
+        step: 'foyer',
+        at: new Date().toISOString(),
+      });
+      dispatchEntry({ type: 'replay-tour' });
+      go('/foyer', { focusMain: false });
+    }, 'Ateliera could not begin the tour.');
+  }
+
+  async function openTourFromSettings(): Promise<void> {
+    if (tourStep === undefined) {
+      await replayTour();
+      return;
+    }
+    await preloadTourRoom(tourStep).catch(() => undefined);
+    go(pathForTourStep(tourStep), { focusMain: false });
+  }
+
+  async function dismissTourInvitation(): Promise<void> {
+    if (!isStudioService(service)) return;
+    await runOnboardingAction(async () => {
+      await service.onboarding.transition({
+        type: 'dismiss-invitation',
+        at: new Date().toISOString(),
+      });
+      dispatchEntry({ type: 'dismiss-tour-invitation' });
+    }, 'Ateliera could not remember this choice.');
   }
 
   function beginFoyerCapture(
@@ -883,6 +1253,18 @@ function StudioApplication({
     </Dialog>
   );
 
+  if (entryState.kind === 'first-visit') {
+    return (
+      <FirstVisitWelcome
+        busy={onboardingBusy}
+        {...(error === undefined ? {} : { error })}
+        mode={entryState.mode}
+        onEnter={() => void enterStudioFromWelcome()}
+        onTour={() => void startOrResumeTour()}
+      />
+    );
+  }
+
   if (!opened) {
     return (
       <>
@@ -929,40 +1311,85 @@ function StudioApplication({
         {title} opened. {themeAnnouncement}
       </span>
       <section className="studio-room">
-        <RoomRoute
-          captures={captures}
-          online={online}
-          onCreateFoyer={beginFoyerCapture}
-          onCreateLandscape={beginLandscapeCapture}
-          onNavigate={go}
-          onOpenCard={openProjectedCard}
-          onRemoveFoyerImage={removeFoyerImage}
-          onOpenCapture={(id, trigger) => {
-            if (!isStudioService(service)) return;
-            const notePath = capturePaths.current.get(id);
-            if (notePath === undefined) return;
-            editorTrigger.current = trigger;
-            setToast('');
-            void service
-              .load(notePath)
-              .then((saved) => {
-                setEditorCloseRequest(0);
-                setEditor(saved);
-              })
-              .catch((reason: unknown) => {
-                setError(
-                  reason instanceof Error
-                    ? reason.message
-                    : 'This note could not be opened.',
-                );
-              });
-          }}
-          path={path}
-          projectionRevision={projectionRevision}
-          {...(isStudioService(service) ? { service } : {})}
-          title={title}
-          {...(activeVault === null ? {} : { vault: activeVault })}
-        />
+        <div
+            className={
+              visibleTourStep === undefined ? undefined : 'studio-tour-layout'
+            }
+        >
+          <div
+            className={
+              visibleTourStep === undefined
+                ? undefined
+                : 'studio-tour-layout__room'
+            }
+          >
+            {entryState.kind === 'active' &&
+              entryState.tourInvitation &&
+              path === '/foyer' && (
+                <StudioTourInvitation
+                  busy={onboardingBusy}
+                  onDismiss={() => void dismissTourInvitation()}
+                  onStart={() => void replayTour()}
+                />
+              )}
+            <RoomRoute
+              captures={captures}
+              online={online}
+              onCreateFoyer={beginFoyerCapture}
+              onCreateLandscape={beginLandscapeCapture}
+              onNavigate={go}
+              onStartTour={() => void openTourFromSettings()}
+              onOpenCard={openProjectedCard}
+              onRemoveFoyerImage={removeFoyerImage}
+              onOpenCapture={(id, trigger) => {
+                if (!isStudioService(service)) return;
+                const notePath = capturePaths.current.get(id);
+                if (notePath === undefined) return;
+                editorTrigger.current = trigger;
+                setToast('');
+                void service
+                  .load(notePath)
+                  .then((saved) => {
+                    setEditorCloseRequest(0);
+                    setEditor(saved);
+                  })
+                  .catch((reason: unknown) => {
+                    setError(
+                      reason instanceof Error
+                        ? reason.message
+                        : 'This note could not be opened.',
+                    );
+                  });
+              }}
+              path={path}
+              projectionRevision={projectionRevision}
+              tourAction={tourStep === undefined ? 'restart' : 'continue'}
+              {...(visibleTourStep === undefined
+                ? {}
+                : {
+                    onUseTourExample: useTourStartingPoint,
+                    tourExamples: tourExamples[visibleTourStep].filter(
+                      (example) =>
+                        !rememberedTourExamples.has(example.previewKey),
+                    ),
+                  })}
+              {...(isStudioService(service) ? { service } : {})}
+              title={title}
+              {...(activeVault === null ? {} : { vault: activeVault })}
+            />
+          </div>
+          {visibleTourStep !== undefined && (
+            <FirstVisitGuide
+              busy={onboardingBusy}
+              onLeave={() => void leaveTour()}
+              onNext={() => void moveTour(1)}
+              {...(visibleTourStep === 'foyer'
+                ? {}
+                : { onPrevious: () => void moveTour(-1) })}
+              step={visibleTourStep}
+            />
+          )}
+        </div>
       </section>
       {error && (
         <p className="studio-room__error" role="alert">
@@ -983,8 +1410,10 @@ function StudioApplication({
           decisionHorizon={
             pendingLandscapePlacement.current?.anchor === 'decisions'
           }
+          initialBody={captureInitialBody}
           onCancel={closeCapture}
           onRemembered={(saved) => {
+            const tourExampleKey = pendingTourExampleKey.current;
             capturePaths.current.set(saved.note.id, saved.path);
             if (!isStudioService(service)) {
               setCaptures((current) => [
@@ -992,7 +1421,21 @@ function StudioApplication({
                 { id: saved.note.id, text: saved.note.body },
               ]);
             }
-            closeCapture();
+            if (tourExampleKey !== undefined) {
+              setRememberedTourExamples((current) => {
+                const next = new Set(current);
+                next.add(tourExampleKey);
+                return next;
+              });
+            }
+            closeCapture(tourExampleKey === undefined);
+            if (tourExampleKey !== undefined) {
+              focusRoomHeading(
+                visibleTourStep === undefined
+                  ? undefined
+                  : tourHeading[visibleTourStep],
+              );
+            }
             setToast('Remembered.');
             void requestPersistence()
               .then((persistence) => {

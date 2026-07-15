@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { enterCreatedStudio, openExistingStudio } from './helpers/studio';
 
 interface VaultRecord {
   key: string;
@@ -20,6 +21,7 @@ async function createLocalStudio(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill('Repair Studio');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await enterCreatedStudio(page);
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
 }
 
@@ -151,7 +153,7 @@ async function seedRepairFixture(page: Page): Promise<void> {
     },
   ]);
   await page.reload();
-  await page.getByRole('button', { name: 'Open Repair Studio' }).click();
+  await openExistingStudio(page, 'Repair Studio');
   await openSearch(page);
   await page.getByRole('button', { name: /Review \d+ repair items?/u }).click();
   await expect(page.getByRole('heading', { level: 2, name: 'Repair' })).toBeVisible();

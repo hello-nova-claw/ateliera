@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { readFile, writeFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
+import { enterCreatedStudio, openExistingStudio } from './helpers/studio';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -18,6 +19,7 @@ async function createStudio(page: Page, name: string): Promise<void> {
   await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill(name);
   await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await enterCreatedStudio(page);
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
 }
 
@@ -207,6 +209,7 @@ test('exports, destroys the active selection, and cleanly restores a portable St
   await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill('Portable Restore');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await enterCreatedStudio(page);
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
   await openSettings(page);
   await page.getByLabel('Choose a Studio backup').setInputFiles(backupPath!);
@@ -215,13 +218,13 @@ test('exports, destroys the active selection, and cleanly restores a portable St
   await expect(page.getByRole('list', { name: 'Restore summary' })).toContainText('2 to create');
   await expect(page.getByRole('button', { name: 'Restore this backup' })).toBeDisabled();
   await page.getByRole('checkbox', {
-    name: 'I understand that 0 existing files will be overwritten',
+    name: 'I understand that 1 existing file will be overwritten',
   }).check();
   await page.getByRole('button', { name: 'Restore this backup' }).click();
   await expect(page.getByText('Restore complete', { exact: false })).toBeVisible();
 
   await page.reload();
-  await page.getByRole('button', { name: 'Open Portable Restore' }).click();
+  await openExistingStudio(page, 'Portable Restore');
   await openSearch(page);
   await page.getByRole('searchbox', { name: 'Search your Studio' }).fill('childhood hill');
   await expect(page.getByRole('article', { name: 'Untitled note' }).filter({
@@ -262,6 +265,7 @@ test('rejects a damaged backup before changing a single target file', async ({
   await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill('Checksum Target');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await enterCreatedStudio(page);
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
   await capture(page, 'This target note must survive the damaged archive');
   await openSettings(page);
@@ -326,6 +330,7 @@ test('previews a collision, cancels without mutation, and restores only after ex
   await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill('Conflict Target');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await enterCreatedStudio(page);
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
   const conflictingText = sourceNote!.text.replace(
     /^id:\s*[^\n]+$/mu,

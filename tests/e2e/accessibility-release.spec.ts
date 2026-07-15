@@ -10,7 +10,9 @@ async function tabTo(
 ): Promise<void> {
   const steps = options.steps ?? 100;
   for (let index = 0; index < steps; index += 1) {
-    if (await target.evaluate((element) => element === document.activeElement)) {
+    if (
+      await target.evaluate((element) => element === document.activeElement)
+    ) {
       return;
     }
     const key = options.key ?? 'Tab';
@@ -23,7 +25,7 @@ async function tabTo(
     );
   }
   throw new Error(
-    `Keyboard focus did not reach ${await target.getAttribute('aria-label') ?? (await target.textContent()) ?? 'the requested control'}.`,
+    `Keyboard focus did not reach ${(await target.getAttribute('aria-label')) ?? (await target.textContent()) ?? 'the requested control'}.`,
   );
 }
 
@@ -53,7 +55,9 @@ test('completes create, capture, edit, search, and backup without a pointer', as
   const key = browserName === 'webkit' ? 'Alt+Tab' : 'Tab';
   await page.goto('/');
 
-  const createStudio = page.getByRole('button', { name: 'Create a new Studio Space' });
+  const createStudio = page.getByRole('button', {
+    name: 'Create a new Studio Space',
+  });
   await tabTo(page, createStudio, { key });
   await expectVisibleFocus(createStudio);
   await page.keyboard.press('Enter');
@@ -64,6 +68,11 @@ test('completes create, capture, edit, search, and backup without a pointer', as
   await page.keyboard.type('Keyboard Studio');
   const create = page.getByRole('button', { name: 'Create', exact: true });
   await tabTo(page, create, { key });
+  await page.keyboard.press('Enter');
+  const enterStudio = page.getByRole('button', { name: 'Enter my Studio' });
+  await expect(enterStudio).toBeVisible();
+  await tabTo(page, enterStudio, { key });
+  await expectVisibleFocus(enterStudio);
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/foyer$/u);
 
@@ -103,7 +112,9 @@ test('completes create, capture, edit, search, and backup without a pointer', as
   const query = page.getByRole('searchbox', { name: 'Search your Studio' });
   await tabTo(page, query, { key });
   await page.keyboard.type('quiet keyboard');
-  await expect(page.getByRole('button', { name: 'Untitled note' })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Untitled note' }),
+  ).toBeVisible();
 
   const settings = page.getByRole('link', { name: 'Settings' });
   await tabTo(page, settings, { key });
@@ -126,7 +137,9 @@ test('mobile navigation and More menu remain keyboard operable and focus-visible
   const key = browserName === 'webkit' ? 'Alt+Tab' : 'Tab';
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  const createStudio = page.getByRole('button', { name: 'Create a new Studio Space' });
+  const createStudio = page.getByRole('button', {
+    name: 'Create a new Studio Space',
+  });
   await tabTo(page, createStudio, { key });
   await page.keyboard.press('Enter');
   await page.getByLabel('Studio name').fill('Mobile Keyboard Studio');
@@ -134,6 +147,12 @@ test('mobile navigation and More menu remain keyboard operable and focus-visible
     key,
   });
   await page.keyboard.press('Enter');
+  const enterStudio = page.getByRole('button', { name: 'Enter my Studio' });
+  await expect(enterStudio).toBeVisible();
+  await tabTo(page, enterStudio, { key });
+  await expectVisibleFocus(enterStudio);
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/foyer$/u);
 
   const more = page.getByRole('button', { name: 'More' });
   await tabTo(page, more, { key });

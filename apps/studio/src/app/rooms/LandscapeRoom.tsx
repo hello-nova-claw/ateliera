@@ -3,6 +3,8 @@ import type { LandscapeAnchor } from '@studio/domain';
 import { useEffect, useRef } from 'react';
 import { LandscapePage } from '../../features/landscape/LandscapePage';
 import { useLandscape } from '../../features/landscape/use-landscape';
+import type { TourExample } from '../../features/onboarding/tour-examples';
+import type { UseTourExample } from '../../features/onboarding/TourPreview';
 
 export default function LandscapeRoom({
   onCreateLandscape,
@@ -11,6 +13,8 @@ export default function LandscapeRoom({
   path = '/landscape',
   projectionRevision = 0,
   service,
+  tourExamples,
+  onUseTourExample,
 }: {
   onCreateLandscape?: (
     lifeArea: string,
@@ -22,6 +26,8 @@ export default function LandscapeRoom({
   path?: string;
   projectionRevision?: number;
   service?: StudioService;
+  tourExamples?: readonly TourExample[];
+  onUseTourExample?: UseTourExample;
 }) {
   const landscape = useLandscape(service, projectionRevision);
   const restoreFocus = useRef<string | undefined>(undefined);
@@ -46,7 +52,7 @@ export default function LandscapeRoom({
     if (
       path === '/landscape' &&
       landscape.areas[0] !== undefined &&
-      matchMedia('(width < 768px)').matches
+      (window.matchMedia?.('(width < 768px)').matches ?? false)
     ) {
       onNavigate?.(`/landscape/${landscape.areas[0].id}`, { replace: true });
     }
@@ -78,6 +84,8 @@ export default function LandscapeRoom({
       path={path}
       repairRequired={landscape.repairRequired}
       state={landscape.state}
+      {...(tourExamples ? { tourExamples } : {})}
+      {...(onUseTourExample ? { onUseTourExample } : {})}
     />
   );
 }

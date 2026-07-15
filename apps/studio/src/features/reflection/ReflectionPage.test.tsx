@@ -1,8 +1,15 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import type { ReflectionGardenProjection } from '@studio/application';
 import { vi } from 'vitest';
 
 import { ReflectionPage } from './ReflectionPage';
+import { tourExamples } from '../onboarding/tour-examples';
 
 const model: ReflectionGardenProjection = {
   cards: [
@@ -22,8 +29,18 @@ const model: ReflectionGardenProjection = {
       tags: ['calm'],
       linkedNoteIds: ['identity-1'],
       evidenceConnections: [
-        { kind: 'life-area', id: 'family', label: 'Family', targetState: 'available' },
-        { kind: 'season', id: '2026-winter', label: 'Winter 2026', targetState: 'available' },
+        {
+          kind: 'life-area',
+          id: 'family',
+          label: 'Family',
+          targetState: 'available',
+        },
+        {
+          kind: 'season',
+          id: '2026-winter',
+          label: 'Winter 2026',
+          targetState: 'available',
+        },
         { kind: 'note', id: 'identity-1', targetState: 'available' },
       ],
       thenNoteId: 'then',
@@ -49,17 +66,39 @@ const model: ReflectionGardenProjection = {
   themes: [{ name: 'calm', count: 2 }],
 };
 
+it('shows the temporary reflection and celebration as a Then and Now pairing', () => {
+  render(
+    <ReflectionPage
+      model={{ cards: [], themes: [] }}
+      tourExamples={tourExamples.reflection}
+    />,
+  );
+  expect(screen.getByText('A glimpse of what could live here')).toBeVisible();
+  const preview = screen.getByRole('region', { name: 'Example Then and now' });
+  expect(
+    within(preview).getByLabelText('Example Reflection card'),
+  ).toBeVisible();
+  expect(
+    within(preview).getByLabelText('Example Celebration card'),
+  ).toBeVisible();
+  expect(within(preview).queryByRole('time')).not.toBeInTheDocument();
+});
+
 it('offers Garden, Reflection, Celebration and Themes without a heatmap', () => {
   render(<ReflectionPage model={model} />);
-  expect(screen.getByRole('tablist', { name: 'Reflection Garden view' })).toBeVisible();
+  expect(
+    screen.getByRole('tablist', { name: 'Reflection Garden view' }),
+  ).toBeVisible();
   expect(screen.getAllByRole('tab')).toHaveLength(4);
   const stream = screen.getByRole('region', { name: 'Garden entries' });
-  expect(within(stream).getByText('I returned without making it a failure').closest('article')).toHaveClass(
-    'reflection-entry--reflection',
-  );
-  expect(within(stream).getByText('A morning that held').closest('article')).toHaveClass(
-    'reflection-entry--celebration',
-  );
+  expect(
+    within(stream)
+      .getByText('I returned without making it a failure')
+      .closest('article'),
+  ).toHaveClass('reflection-entry--reflection');
+  expect(
+    within(stream).getByText('A morning that held').closest('article'),
+  ).toHaveClass('reflection-entry--celebration');
   expect(screen.queryByText(/heatmap|streak/i)).not.toBeInTheDocument();
 });
 
@@ -67,10 +106,14 @@ it('filters the stream and reveals a deterministic theme reading view', () => {
   render(<ReflectionPage model={model} />);
   fireEvent.click(screen.getByRole('tab', { name: 'Celebration' }));
   expect(screen.getByText('A morning that held')).toBeVisible();
-  expect(screen.queryByText('I returned without making it a failure')).not.toBeInTheDocument();
+  expect(
+    screen.queryByText('I returned without making it a failure'),
+  ).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('tab', { name: 'Themes' }));
   fireEvent.click(screen.getByRole('button', { name: 'calm, 2 entries' }));
-  expect(screen.getByText('I returned without making it a failure')).toBeVisible();
+  expect(
+    screen.getByText('I returned without making it a failure'),
+  ).toBeVisible();
   expect(screen.getByText('A morning that held')).toBeVisible();
 });
 
@@ -78,27 +121,35 @@ it('captures a one-sentence reflection and supports opening the full editor', as
   const onCapture = vi.fn(async () => undefined);
   render(<ReflectionPage model={model} onCapture={onCapture} />);
   fireEvent.change(screen.getByLabelText('A sentence to keep'), {
-    target: { value: 'I noticed that five quiet minutes changed the afternoon.' },
+    target: {
+      value: 'I noticed that five quiet minutes changed the afternoon.',
+    },
   });
   fireEvent.click(screen.getByRole('button', { name: 'Keep reflection' }));
-  await waitFor(() => expect(onCapture).toHaveBeenCalledWith(
-    'reflection',
-    'I noticed that five quiet minutes changed the afternoon.',
-    false,
-    expect.any(HTMLButtonElement),
-  ));
+  await waitFor(() =>
+    expect(onCapture).toHaveBeenCalledWith(
+      'reflection',
+      'I noticed that five quiet minutes changed the afternoon.',
+      false,
+      expect.any(HTMLButtonElement),
+    ),
+  );
   expect(await screen.findByRole('status')).toHaveTextContent('Remembered');
 
   fireEvent.change(screen.getByLabelText('A sentence to keep'), {
     target: { value: 'There is more I want to explore.' },
   });
-  fireEvent.click(screen.getByRole('button', { name: 'Continue in the editor' }));
-  await waitFor(() => expect(onCapture).toHaveBeenLastCalledWith(
-    'reflection',
-    'There is more I want to explore.',
-    true,
-    expect.any(HTMLButtonElement),
-  ));
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Continue in the editor' }),
+  );
+  await waitFor(() =>
+    expect(onCapture).toHaveBeenLastCalledWith(
+      'reflection',
+      'There is more I want to explore.',
+      true,
+      expect.any(HTMLButtonElement),
+    ),
+  );
 });
 
 it('shows linked evidence and an optional Then & now pair', () => {
@@ -112,12 +163,14 @@ it('shows linked evidence and an optional Then & now pair', () => {
       model={model}
     />,
   );
-  expect(screen.getByRole('region', { name: 'Then and now' })).toHaveTextContent(
-    'A morning that held',
-  );
-  expect(screen.getByLabelText('Connections for I returned without making it a failure')).toHaveTextContent(
-    'Family',
-  );
+  expect(
+    screen.getByRole('region', { name: 'Then and now' }),
+  ).toHaveTextContent('A morning that held');
+  expect(
+    screen.getByLabelText(
+      'Connections for I returned without making it a failure',
+    ),
+  ).toHaveTextContent('Family');
 });
 
 it('keeps same-label canonical evidence distinct and opens the exact target', async () => {
@@ -126,8 +179,16 @@ it('keeps same-label canonical evidence distinct and opens the exact target', as
     ...model.cards[0]!,
     linkedNoteIds: ['identity-1', 'identity-2'],
     evidenceConnections: [
-      { kind: 'note' as const, id: 'identity-1', targetState: 'available' as const },
-      { kind: 'note' as const, id: 'identity-2', targetState: 'available' as const },
+      {
+        kind: 'note' as const,
+        id: 'identity-1',
+        targetState: 'available' as const,
+      },
+      {
+        kind: 'note' as const,
+        id: 'identity-2',
+        targetState: 'available' as const,
+      },
     ],
   };
   render(
@@ -147,10 +208,12 @@ it('keeps same-label canonical evidence distinct and opens the exact target', as
     name: 'Open Creates from calm, identity-2',
   });
   fireEvent.click(second);
-  await waitFor(() => expect(onOpenConnection).toHaveBeenCalledWith(
-    expect.objectContaining({ kind: 'note', id: 'identity-2' }),
-    second,
-  ));
+  await waitFor(() =>
+    expect(onOpenConnection).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'note', id: 'identity-2' }),
+      second,
+    ),
+  );
   expect(first).toBeVisible();
 });
 
@@ -173,10 +236,14 @@ it('serializes evidence opening and preserves exact focus when click-time valida
   fireEvent.click(evidence);
   expect(onOpenConnection).toHaveBeenCalledTimes(1);
   expect(evidence).toBeDisabled();
-  rejectOpen(new Error('The connected life area Family is no longer available.'));
-  expect(await screen.findByText(
-    'The connected life area Family is no longer available.',
-  )).toBeVisible();
+  rejectOpen(
+    new Error('The connected life area Family is no longer available.'),
+  );
+  expect(
+    await screen.findByText(
+      'The connected life area Family is no longer available.',
+    ),
+  ).toBeVisible();
   await waitFor(() => expect(evidence).not.toBeDisabled());
   expect(evidence).toHaveFocus();
 });
@@ -185,31 +252,59 @@ it('leaves missing and archived evidence visible as calm repair states', () => {
   render(
     <ReflectionPage
       model={{
-        cards: [{
-          ...model.cards[0]!,
-          evidenceConnections: [
-            { kind: 'note', id: 'gone', targetState: 'missing' },
-            { kind: 'note', id: 'resting', targetState: 'archived' },
-            { kind: 'life-area', id: 'old-home', label: 'Old Home', targetState: 'archived' },
-            { kind: 'life-area', id: 'lost-area', targetState: 'missing' },
-            { kind: 'season', id: 'past-season', label: 'A Past Season', targetState: 'archived' },
-            { kind: 'season', id: 'lost-season', targetState: 'missing' },
-          ],
-          linkedNoteIds: ['gone', 'resting'],
-        }],
+        cards: [
+          {
+            ...model.cards[0]!,
+            evidenceConnections: [
+              { kind: 'note', id: 'gone', targetState: 'missing' },
+              { kind: 'note', id: 'resting', targetState: 'archived' },
+              {
+                kind: 'life-area',
+                id: 'old-home',
+                label: 'Old Home',
+                targetState: 'archived',
+              },
+              { kind: 'life-area', id: 'lost-area', targetState: 'missing' },
+              {
+                kind: 'season',
+                id: 'past-season',
+                label: 'A Past Season',
+                targetState: 'archived',
+              },
+              { kind: 'season', id: 'lost-season', targetState: 'missing' },
+            ],
+            linkedNoteIds: ['gone', 'resting'],
+          },
+        ],
         themes: [],
       }}
     />,
   );
-  expect(screen.getByText('The connected note gone is not available here.')).toBeVisible();
-  expect(screen.getByText('The connected note resting is archived.')).toBeVisible();
-  expect(screen.getByText('The connected life area Old Home is archived.')).toBeVisible();
-  expect(screen.getByText('The connected life area lost-area is not available here.')).toBeVisible();
-  expect(screen.getByText('The connected season A Past Season is historical.')).toBeVisible();
-  expect(screen.getByText('The connected season lost-season is not available here.')).toBeVisible();
-  expect(screen.queryByRole('button', {
-    name: /Open.*(?:gone|resting|old-home|lost-area|past-season|lost-season)/,
-  })).not.toBeInTheDocument();
+  expect(
+    screen.getByText('The connected note gone is not available here.'),
+  ).toBeVisible();
+  expect(
+    screen.getByText('The connected note resting is archived.'),
+  ).toBeVisible();
+  expect(
+    screen.getByText('The connected life area Old Home is archived.'),
+  ).toBeVisible();
+  expect(
+    screen.getByText(
+      'The connected life area lost-area is not available here.',
+    ),
+  ).toBeVisible();
+  expect(
+    screen.getByText('The connected season A Past Season is historical.'),
+  ).toBeVisible();
+  expect(
+    screen.getByText('The connected season lost-season is not available here.'),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole('button', {
+      name: /Open.*(?:gone|resting|old-home|lost-area|past-season|lost-season)/,
+    }),
+  ).not.toBeInTheDocument();
 });
 
 it('guards rapid evidence writes and preserves selection and exact focus on failure', async () => {
@@ -220,7 +315,9 @@ it('guards rapid evidence writes and preserves selection and exact focus on fail
   const onConnect = vi.fn(() => pending);
   render(
     <ReflectionPage
-      connections={[{ id: 'identity-2', kind: 'note', label: 'Creates from calm' }]}
+      connections={[
+        { id: 'identity-2', kind: 'note', label: 'Creates from calm' },
+      ]}
       model={{ cards: [model.cards[0]!], themes: [] }}
       onConnect={onConnect}
     />,
@@ -241,7 +338,9 @@ it('guards rapid evidence writes and preserves selection and exact focus on fail
 });
 
 it('keeps recoverable loading, offline, stale and malformed states calm', () => {
-  const view = render(<ReflectionPage model={{ cards: [], themes: [] }} state="loading" />);
+  const view = render(
+    <ReflectionPage model={{ cards: [], themes: [] }} state="loading" />,
+  );
   expect(screen.getByRole('status')).toHaveTextContent('Gathering the garden');
   view.rerender(<ReflectionPage model={model} state="offline" />);
   expect(screen.getByRole('status')).toHaveTextContent('Stored locally');
@@ -263,11 +362,20 @@ it('shows a quiet image repair state without rendering a raw vault reference', (
       imageUnavailableIds={new Set(['now'])}
       model={{
         ...model,
-        cards: [{ ...model.cards[0]!, coverReference: '../../Attachments/private.png' }],
+        cards: [
+          {
+            ...model.cards[0]!,
+            coverReference: '../../Attachments/private.png',
+          },
+        ],
       }}
     />,
   );
-  expect(screen.getByText('This image is not available here. The entry remains intact.')).toBeVisible();
+  expect(
+    screen.getByText(
+      'This image is not available here. The entry remains intact.',
+    ),
+  ).toBeVisible();
   expect(screen.queryByRole('img')).not.toBeInTheDocument();
   expect(document.body).not.toHaveTextContent('../../Attachments/private.png');
 });

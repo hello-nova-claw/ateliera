@@ -14,9 +14,9 @@ import {
 } from '../../features/settings/PortabilitySettings';
 
 export interface SettingsRoomProps {
-  saveBackup?: (
-    backup: VaultBackup,
-  ) => Promise<void | 'cancelled' | 'saved'>;
+  onStartTour?: () => void;
+  saveBackup?: (backup: VaultBackup) => Promise<void | 'cancelled' | 'saved'>;
+  tourAction?: 'continue' | 'restart';
   vault?: VaultPort;
 }
 
@@ -46,7 +46,9 @@ function previewFor(file: File, plan: VaultImportPlan): PortabilityPreview {
     exportedAt: plan.manifest.generatedAt,
     items: plan.items.map((item) => ({
       action: item.action,
-      ...(item.existingPath === undefined ? {} : { existingPath: item.existingPath }),
+      ...(item.existingPath === undefined
+        ? {}
+        : { existingPath: item.existingPath }),
       path: item.path,
       size: item.size,
       ...(item.action !== 'conflict'
@@ -63,7 +65,9 @@ function previewFor(file: File, plan: VaultImportPlan): PortabilityPreview {
 }
 
 export default function SettingsRoom({
+  onStartTour,
   saveBackup = saveBackupToChosenDestination,
+  tourAction = 'restart',
   vault,
 }: SettingsRoomProps) {
   const pendingPlan = useRef<VaultImportPlan | undefined>(undefined);
@@ -102,6 +106,26 @@ export default function SettingsRoom({
               },
             })}
       />
+      {onStartTour && (
+        <section
+          aria-labelledby="settings-first-visit"
+          className="portability-settings__section"
+        >
+          <div>
+            <p className="portability-settings__kicker">Return gently</p>
+            <h2 id="settings-first-visit">First visit</h2>
+            <p className="portability-settings__description">
+              Wander through the five rooms again. The examples remain temporary
+              and none of your own writing is changed.
+            </p>
+          </div>
+          <button onClick={onStartTour} type="button">
+            {tourAction === 'continue'
+              ? 'Continue the tour'
+              : 'Start the tour again'}
+          </button>
+        </section>
+      )}
       {vault === undefined && (
         <p className="portability-settings__notice" role="status">
           Open a Studio to create or restore a portable backup.

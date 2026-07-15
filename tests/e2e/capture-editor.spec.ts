@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { enterCreatedStudio, openExistingStudio } from './helpers/studio';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -8,6 +9,7 @@ async function createLocalStudio(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill('Ateliera');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await enterCreatedStudio(page);
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
 }
 
@@ -93,7 +95,7 @@ test('offers an interrupted draft after reload and saves only after restore', as
     .getByRole('textbox', { name: 'Markdown body' })
     .fill('Words interrupted before autosave');
   await page.reload();
-  await page.getByRole('button', { name: 'Open Ateliera' }).click();
+  await openExistingStudio(page, 'Ateliera');
   await openEditor(page, 'Durable beginning');
 
   await expect(page.getByText('Unsaved words are waiting.')).toBeVisible();

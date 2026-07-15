@@ -7,6 +7,8 @@ import type {
 import { FoyerPage, type FoyerSlot } from '../../features/foyer/FoyerPage';
 import { useFoyer } from '../../features/foyer/use-foyer';
 import { useFoyerCover } from '../../features/foyer/use-foyer-cover';
+import type { TourExample } from '../../features/onboarding/tour-examples';
+import type { UseTourExample } from '../../features/onboarding/TourPreview';
 
 export default function FoyerRoom({
   onCreateFoyer,
@@ -16,6 +18,8 @@ export default function FoyerRoom({
   onOpenCard,
   projectionRevision = 0,
   service,
+  tourExamples,
+  onUseTourExample,
 }: {
   captures?: CaptureEntry[];
   onCreateFoyer?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
@@ -27,6 +31,8 @@ export default function FoyerRoom({
   onOpenCard?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
   projectionRevision?: number;
   service?: StudioService;
+  tourExamples?: readonly TourExample[];
+  onUseTourExample?: UseTourExample;
 }) {
   const view = useFoyer(service, projectionRevision);
   const cover = useFoyerCover(service, view.model.image);
@@ -42,6 +48,8 @@ export default function FoyerRoom({
           ? {}
           : { onRemoveImage: onRemoveFoyerImage })}
         state={view.state}
+        {...(tourExamples ? { tourExamples } : {})}
+        {...(onUseTourExample ? { onUseTourExample } : {})}
       />
       {captures.length > 0 && onOpenCapture && (
         <section className="foyer-drafts" aria-labelledby="foyer-drafts-title">

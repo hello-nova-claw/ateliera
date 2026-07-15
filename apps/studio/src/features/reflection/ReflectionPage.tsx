@@ -7,6 +7,8 @@ import { SemanticMark } from '@studio/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import './ReflectionPage.css';
+import type { TourExample } from '../onboarding/tour-examples';
+import { TourExampleCard, TourGlimpseLabel } from '../onboarding/TourPreview';
 
 type ReflectionView = 'garden' | 'reflection' | 'celebration' | 'themes';
 export type ReflectionConnection = {
@@ -38,6 +40,25 @@ export interface ReflectionPageProps {
   ) => Promise<void> | void;
   onOpen?: (card: ReflectionCardProjection, trigger: HTMLButtonElement) => void;
   state?: 'ready' | 'loading' | 'offline' | 'stale' | 'error';
+  tourExamples?: readonly TourExample[];
+}
+
+function TourThenAndNow({ examples }: { examples: readonly TourExample[] }) {
+  return (
+    <section
+      aria-label="Example Then and now"
+      className="reflection-tour-pair"
+      role="region"
+    >
+      <TourGlimpseLabel />
+      <h2 className="reflection-page__eyebrow">Then &amp; now</h2>
+      <div className="reflection-tour-pair__composition">
+        {examples.map((example) => (
+          <TourExampleCard example={example} key={example.previewKey} />
+        ))}
+      </div>
+    </section>
+  );
 }
 
 const views: Array<{ id: ReflectionView; label: string }> = [
@@ -80,25 +101,31 @@ function EntryCard({
     });
   }, [card.hash, connecting]);
   const available = connections.filter((candidate) => {
-    if (candidate.kind === 'life-area') return !card.lifeAreas.includes(candidate.id);
-    if (candidate.kind === 'season') return !card.seasons.includes(candidate.id);
-    return !card.linkedNoteIds.includes(candidate.id) && candidate.id !== card.noteId;
+    if (candidate.kind === 'life-area')
+      return !card.lifeAreas.includes(candidate.id);
+    if (candidate.kind === 'season')
+      return !card.seasons.includes(candidate.id);
+    return (
+      !card.linkedNoteIds.includes(candidate.id) && candidate.id !== card.noteId
+    );
   });
   const evidence = card.evidenceConnections.map((item) => {
     const resolved = connections.find(
       (candidate) => candidate.kind === item.kind && candidate.id === item.id,
     );
-    const label = ('label' in item ? item.label : undefined) ?? resolved?.label ?? item.id;
+    const label =
+      ('label' in item ? item.label : undefined) ?? resolved?.label ?? item.id;
     if (item.targetState !== 'available') {
       const subject = item.kind === 'life-area' ? 'life area' : item.kind;
       return {
         ...item,
         label,
-        repair: item.targetState === 'archived'
-          ? item.kind === 'season'
-            ? `The connected season ${label} is historical.`
-            : `The connected ${subject} ${label} is archived.`
-          : `The connected ${subject} ${item.id} is not available here.`,
+        repair:
+          item.targetState === 'archived'
+            ? item.kind === 'season'
+              ? `The connected season ${label} is historical.`
+              : `The connected ${subject} ${label} is archived.`
+            : `The connected ${subject} ${item.id} is not available here.`,
       };
     }
     if (!resolved) {
@@ -161,21 +188,23 @@ function EntryCard({
                     openingPending.current = true;
                     setOpeningConnection(`${item.kind}:${item.id}`);
                     setMessage(undefined);
-                    void Promise.resolve(onOpenConnection(item.connection, trigger)).catch(
-                      (reason: unknown) => {
+                    void Promise.resolve(
+                      onOpenConnection(item.connection, trigger),
+                    )
+                      .catch((reason: unknown) => {
                         setMessage(
                           reason instanceof Error
                             ? reason.message
                             : 'This connection is no longer available.',
                         );
-                      },
-                    ).finally(() => {
-                      openingPending.current = false;
-                      setOpeningConnection(undefined);
-                      requestAnimationFrame(() => {
-                        requestAnimationFrame(() => trigger.focus());
+                      })
+                      .finally(() => {
+                        openingPending.current = false;
+                        setOpeningConnection(undefined);
+                        requestAnimationFrame(() => {
+                          requestAnimationFrame(() => trigger.focus());
+                        });
                       });
-                    });
                   }}
                   type="button"
                 >
@@ -184,14 +213,19 @@ function EntryCard({
                     <span> · {item.id}</span>
                   )}
                 </button>
-              ) : item.label}
+              ) : (
+                item.label
+              )}
             </li>
           ))}
         </ul>
       )}
       <div className="reflection-entry__actions">
         {onOpen && (
-          <button onClick={(event) => onOpen(card, event.currentTarget)} type="button">
+          <button
+            onClick={(event) => onOpen(card, event.currentTarget)}
+            type="button"
+          >
             Open entry
           </button>
         )}
@@ -202,29 +236,32 @@ function EntryCard({
               event.preventDefault();
               if (connectionPending.current) return;
               const connection = available.find(
-                (candidate) => `${candidate.kind}:${candidate.id}` === connectionId,
+                (candidate) =>
+                  `${candidate.kind}:${candidate.id}` === connectionId,
               );
               if (!connection) return;
               connectionPending.current = true;
               setConnecting(true);
               setMessage(undefined);
-              void Promise.resolve(onConnect(card, connection)).then(
-                () => {
-                  setMessage(`Connected with ${connection.label}.`);
-                  setConnectionId('');
-                },
-                (reason: unknown) => {
-                  setMessage(
-                    reason instanceof Error
-                      ? reason.message
-                      : 'This connection could not be kept.',
-                  );
-                },
-              ).finally(() => {
-                connectionPending.current = false;
-                restoreConnectionFocus.current = true;
-                setConnecting(false);
-              });
+              void Promise.resolve(onConnect(card, connection))
+                .then(
+                  () => {
+                    setMessage(`Connected with ${connection.label}.`);
+                    setConnectionId('');
+                  },
+                  (reason: unknown) => {
+                    setMessage(
+                      reason instanceof Error
+                        ? reason.message
+                        : 'This connection could not be kept.',
+                    );
+                  },
+                )
+                .finally(() => {
+                  connectionPending.current = false;
+                  restoreConnectionFocus.current = true;
+                  setConnecting(false);
+                });
             }}
           >
             <label htmlFor={`connect-${card.noteId}`}>Connect evidence</label>
@@ -236,7 +273,10 @@ function EntryCard({
             >
               <option value="">Choose a connection</option>
               {available.map((connection) => (
-                <option key={`${connection.kind}:${connection.id}`} value={`${connection.kind}:${connection.id}`}>
+                <option
+                  key={`${connection.kind}:${connection.id}`}
+                  value={`${connection.kind}:${connection.id}`}
+                >
                   {connection.label}
                 </option>
               ))}
@@ -251,7 +291,11 @@ function EntryCard({
           </form>
         )}
       </div>
-      {message && <p className="reflection-entry__message" role="status">{message}</p>}
+      {message && (
+        <p className="reflection-entry__message" role="status">
+          {message}
+        </p>
+      )}
     </article>
   );
 }
@@ -259,7 +303,10 @@ function EntryCard({
 function ThenAndNow({ cards }: { cards: ReflectionCardProjection[] }) {
   const byId = new Map(cards.map((card) => [card.noteId, card]));
   const pair = cards
-    .map((now) => ({ now, then: now.thenNoteId ? byId.get(now.thenNoteId) : undefined }))
+    .map((now) => ({
+      now,
+      then: now.thenNoteId ? byId.get(now.thenNoteId) : undefined,
+    }))
     .find((item) => item.then !== undefined);
   if (!pair?.then) return null;
   return (
@@ -293,6 +340,7 @@ export function ReflectionPage({
   onOpenConnection,
   onOpen,
   state = 'ready',
+  tourExamples = [],
 }: ReflectionPageProps) {
   const [view, setView] = useState<ReflectionView>('garden');
   const [theme, setTheme] = useState<string>();
@@ -311,7 +359,10 @@ export function ReflectionPage({
     return model.cards;
   }, [model.cards, theme, view]);
 
-  async function capture(openAfter: boolean, trigger: HTMLButtonElement): Promise<void> {
+  async function capture(
+    openAfter: boolean,
+    trigger: HTMLButtonElement,
+  ): Promise<void> {
     if (!onCapture || body.trim() === '') return;
     setSaving(true);
     setMessage(undefined);
@@ -321,7 +372,9 @@ export function ReflectionPage({
       setMessage('Remembered.');
     } catch (reason) {
       setMessage(
-        reason instanceof Error ? reason.message : 'This entry could not be kept.',
+        reason instanceof Error
+          ? reason.message
+          : 'This entry could not be kept.',
       );
     } finally {
       setSaving(false);
@@ -333,15 +386,42 @@ export function ReflectionPage({
       <header className="reflection-page__header">
         <p className="reflection-page__script">notice what is changing</p>
         <h1>Reflection Garden</h1>
-        <p>A quiet path through what you learned, what worked, and what surprised you.</p>
+        <p>
+          A quiet path through what you learned, what worked, and what surprised
+          you.
+        </p>
       </header>
 
-      {state === 'loading' && <p className="reflection-page__state" role="status">Gathering the garden…</p>}
-      {state === 'offline' && <p className="reflection-page__state" role="status">Stored locally. The garden remains available offline.</p>}
-      {state === 'stale' && <p className="reflection-page__state" role="status">Showing what is here while the Studio catches up.</p>}
-      {state === 'error' && <p className="reflection-page__state reflection-page__state--error" role="alert">{error ?? 'The garden could not be gathered. Your entries remain in the Studio.'}</p>}
+      {state === 'loading' && (
+        <p className="reflection-page__state" role="status">
+          Gathering the garden…
+        </p>
+      )}
+      {state === 'offline' && (
+        <p className="reflection-page__state" role="status">
+          Stored locally. The garden remains available offline.
+        </p>
+      )}
+      {state === 'stale' && (
+        <p className="reflection-page__state" role="status">
+          Showing what is here while the Studio catches up.
+        </p>
+      )}
+      {state === 'error' && (
+        <p
+          className="reflection-page__state reflection-page__state--error"
+          role="alert"
+        >
+          {error ??
+            'The garden could not be gathered. Your entries remain in the Studio.'}
+        </p>
+      )}
 
-      <div aria-label="Reflection Garden view" className="reflection-switch" role="tablist">
+      <div
+        aria-label="Reflection Garden view"
+        className="reflection-switch"
+        role="tablist"
+      >
         {views.map((item, index) => (
           <button
             aria-selected={view === item.id}
@@ -354,7 +434,8 @@ export function ReflectionPage({
             onKeyDown={(event) => {
               let next = index;
               if (event.key === 'ArrowRight') next = (index + 1) % views.length;
-              else if (event.key === 'ArrowLeft') next = (index - 1 + views.length) % views.length;
+              else if (event.key === 'ArrowLeft')
+                next = (index - 1 + views.length) % views.length;
               else if (event.key === 'Home') next = 0;
               else if (event.key === 'End') next = views.length - 1;
               else return;
@@ -362,7 +443,9 @@ export function ReflectionPage({
               setView(views[next]!.id);
               tabRefs.current[next]?.focus();
             }}
-            ref={(element) => { tabRefs.current[index] = element; }}
+            ref={(element) => {
+              tabRefs.current[index] = element;
+            }}
             role="tab"
             tabIndex={view === item.id ? 0 : -1}
             type="button"
@@ -398,7 +481,10 @@ export function ReflectionPage({
           value={body}
         />
         <div className="reflection-capture__actions">
-          <button disabled={saving || body.trim() === '' || !onCapture} type="submit">
+          <button
+            disabled={saving || body.trim() === '' || !onCapture}
+            type="submit"
+          >
             {saving ? 'Keeping…' : `Keep ${type}`}
           </button>
           <button
@@ -409,51 +495,76 @@ export function ReflectionPage({
             Continue in the editor
           </button>
         </div>
-        {message && <p className="reflection-capture__message" role="status">{message}</p>}
+        {message && (
+          <p className="reflection-capture__message" role="status">
+            {message}
+          </p>
+        )}
       </form>
+
+      {view === 'garden' && tourExamples.length > 0 && (
+        <TourThenAndNow examples={tourExamples} />
+      )}
 
       {view === 'themes' && (
         <section className="reflection-themes" aria-label="Themes">
           {model.themes.length === 0 ? (
             <p>Recurring ideas will gather here gently.</p>
-          ) : model.themes.map((item) => (
-            <button
-              aria-pressed={theme === item.name}
-              key={item.name}
-              onClick={() => setTheme(item.name)}
-              type="button"
-              aria-label={`${item.name}, ${item.count} ${item.count === 1 ? 'entry' : 'entries'}`}
-            >
-              {item.name} <span>{item.count}</span>
-            </button>
-          ))}
+          ) : (
+            model.themes.map((item) => (
+              <button
+                aria-pressed={theme === item.name}
+                key={item.name}
+                onClick={() => setTheme(item.name)}
+                type="button"
+                aria-label={`${item.name}, ${item.count} ${item.count === 1 ? 'entry' : 'entries'}`}
+              >
+                {item.name} <span>{item.count}</span>
+              </button>
+            ))
+          )}
         </section>
       )}
 
       {view === 'garden' && <ThenAndNow cards={model.cards} />}
 
-      <section aria-labelledby="reflection-stream-title" className="reflection-stream">
-        <h2 className="visually-hidden" id="reflection-stream-title">Garden entries</h2>
+      <section
+        aria-labelledby="reflection-stream-title"
+        className="reflection-stream"
+      >
+        <h2 className="visually-hidden" id="reflection-stream-title">
+          Garden entries
+        </h2>
         {filtered.length === 0 ? (
-          <p className="reflection-stream__empty">There is room to notice something small.</p>
-        ) : filtered.map((card) => (
-          <div className="reflection-stream__row" key={card.noteId}>
-            <time dateTime={card.created}>
-              {new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(card.created))}
-            </time>
-            <EntryCard
-              card={card}
-              connections={connections}
-              {...(imageUrls[card.noteId] === undefined
-                ? {}
-                : { imageUrl: imageUrls[card.noteId] })}
-              imageUnavailable={imageUnavailableIds.has(card.noteId)}
-              {...(onConnect === undefined ? {} : { onConnect })}
-              {...(onOpenConnection === undefined ? {} : { onOpenConnection })}
-              {...(onOpen === undefined ? {} : { onOpen })}
-            />
-          </div>
-        ))}
+          <p className="reflection-stream__empty">
+            There is room to notice something small.
+          </p>
+        ) : (
+          filtered.map((card) => (
+            <div className="reflection-stream__row" key={card.noteId}>
+              <time dateTime={card.created}>
+                {new Intl.DateTimeFormat('en-AU', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                }).format(new Date(card.created))}
+              </time>
+              <EntryCard
+                card={card}
+                connections={connections}
+                {...(imageUrls[card.noteId] === undefined
+                  ? {}
+                  : { imageUrl: imageUrls[card.noteId] })}
+                imageUnavailable={imageUnavailableIds.has(card.noteId)}
+                {...(onConnect === undefined ? {} : { onConnect })}
+                {...(onOpenConnection === undefined
+                  ? {}
+                  : { onOpenConnection })}
+                {...(onOpen === undefined ? {} : { onOpen })}
+              />
+            </div>
+          ))
+        )}
       </section>
     </div>
   );

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { enterCreatedStudio, openExistingStudio } from './helpers/studio';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -13,6 +14,7 @@ async function createStudio(page: Page, name: string): Promise<void> {
   await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill(name);
   await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await enterCreatedStudio(page);
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
 }
 
@@ -180,7 +182,7 @@ test('canonical rooms survive destruction of the disposable in-memory index', as
   // The SQLite-WASM index lives only in this document's worker. Reloading
   // destroys it; reopening must rebuild every view from canonical vault files.
   await page.reload();
-  await page.getByRole('button', { name: 'Open Release Story Studio' }).click();
+  await openExistingStudio(page, 'Release Story Studio');
 
   await openRoom(page, 'Life Landscape');
   await page.getByRole('button', { name: 'Open Home' }).click();

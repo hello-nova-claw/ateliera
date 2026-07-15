@@ -32,10 +32,31 @@ it('captures a body-only thought and returns a quiet completion message', async 
   );
 });
 
+it('copies a tour starting point into an ordinary editable draft', () => {
+  render(
+    <QuickCapture
+      capture={vi.fn()}
+      initialBody="Someone who creates from calm."
+      onCancel={vi.fn()}
+      onRemembered={vi.fn()}
+    />,
+  );
+
+  const body = screen.getByRole('textbox', {
+    name: 'What would you like remembered?',
+  });
+  expect(body).toHaveValue('Someone who creates from calm.');
+  fireEvent.change(body, { target: { value: 'My own words.' } });
+  expect(body).toHaveValue('My own words.');
+  expect(screen.queryByText('Example')).not.toBeInTheDocument();
+});
+
 it('keeps the thought visible and explains when local storage is unavailable', async () => {
   render(
     <QuickCapture
-      capture={vi.fn().mockRejectedValue(new Error('local storage unavailable'))}
+      capture={vi
+        .fn()
+        .mockRejectedValue(new Error('local storage unavailable'))}
       onCancel={vi.fn()}
       onRemembered={vi.fn()}
     />,
@@ -59,7 +80,11 @@ it('keeps Place later as the default and optionally captures semantic meaning', 
     hash: 'hash',
   });
   render(
-    <QuickCapture capture={capture} onCancel={vi.fn()} onRemembered={vi.fn()} />,
+    <QuickCapture
+      capture={capture}
+      onCancel={vi.fn()}
+      onRemembered={vi.fn()}
+    />,
   );
   expect(screen.getByLabelText('Meaning (optional)')).toHaveValue('');
   expect(screen.getByRole('option', { name: 'Place later' })).toBeVisible();
@@ -94,14 +119,21 @@ it('authors a decision horizon when capturing into a Landscape decision', async 
       onRemembered={vi.fn()}
     />,
   );
-  fireEvent.change(screen.getByLabelText('Decision horizon'), { target: { value: '60d' } });
-  fireEvent.change(screen.getByRole('textbox', { name: 'What would you like remembered?' }), {
-    target: { value: 'Choose childcare support' },
+  fireEvent.change(screen.getByLabelText('Decision horizon'), {
+    target: { value: '60d' },
   });
+  fireEvent.change(
+    screen.getByRole('textbox', { name: 'What would you like remembered?' }),
+    {
+      target: { value: 'Choose childcare support' },
+    },
+  );
   fireEvent.click(screen.getByRole('button', { name: 'Remember' }));
 
-  await waitFor(() => expect(capture).toHaveBeenCalledWith({
-    body: 'Choose childcare support',
-    decisionHorizon: '60d',
-  }));
+  await waitFor(() =>
+    expect(capture).toHaveBeenCalledWith({
+      body: 'Choose childcare support',
+      decisionHorizon: '60d',
+    }),
+  );
 });

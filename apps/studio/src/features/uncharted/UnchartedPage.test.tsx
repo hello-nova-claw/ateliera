@@ -3,6 +3,7 @@ import type { UnchartedProjection } from '@studio/application';
 import { vi } from 'vitest';
 
 import { UnchartedPage } from './UnchartedPage';
+import { tourExamples } from '../onboarding/tour-examples';
 
 const model: UnchartedProjection = {
   cards: [
@@ -35,14 +36,37 @@ const model: UnchartedProjection = {
   ],
 };
 
+it('places temporary possibilities at their authentic horizons', () => {
+  const onUseTourExample = vi.fn();
+  render(
+    <UnchartedPage
+      model={{ cards: [] }}
+      onUseTourExample={onUseTourExample}
+      tourExamples={tourExamples.uncharted}
+    />,
+  );
+  expect(screen.getAllByText('A glimpse of what could live here')).toHaveLength(
+    1,
+  );
+  expect(screen.getByLabelText('Example Near card')).toBeVisible();
+  expect(screen.getByLabelText('Example Beyond the Gate card')).toBeVisible();
+  fireEvent.click(
+    screen.getByRole('button', { name: /Use Near as a starting point/ }),
+  );
+  expect(onUseTourExample).toHaveBeenCalledWith(
+    tourExamples.uncharted[0],
+    expect.any(HTMLButtonElement),
+  );
+});
+
 it('keeps Uncharted spacious and free of execution pressure', () => {
   render(<UnchartedPage model={model} />);
   expect(screen.getByRole('heading', { name: 'What if…?' })).toBeVisible();
   expect(screen.getByText('Near possibilities')).toBeVisible();
   expect(screen.getByText('Beyond the gate')).toBeVisible();
-  expect(screen.getByText('A place I cannot name yet').closest('article')).toHaveClass(
-    'uncharted-card--beyond',
-  );
+  expect(
+    screen.getByText('A place I cannot name yet').closest('article'),
+  ).toHaveClass('uncharted-card--beyond');
   expect(document.body).not.toHaveTextContent(
     /\b(?:due|overdue|progress|streak|deadline|status)\b/i,
   );
@@ -55,7 +79,9 @@ it('captures a possibility and can leave it beyond the gate', async () => {
     target: { value: 'I made a place for a recurring childhood hill.' },
   });
   fireEvent.click(screen.getByLabelText('Leave this beyond the gate'));
-  fireEvent.click(screen.getByRole('button', { name: 'Keep this possibility' }));
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Keep this possibility' }),
+  );
   expect(onCapture).toHaveBeenCalledWith(
     'I made a place for a recurring childhood hill.',
     'beyond',
@@ -73,14 +99,18 @@ it('invites by link while retaining the visible Uncharted meaning', async () => 
     />,
   );
   fireEvent.click(
-    screen.getByRole('button', { name: 'Invite A week beside the sea into Making room' }),
+    screen.getByRole('button', {
+      name: 'Invite A week beside the sea into Making room',
+    }),
   );
   await waitFor(() => expect(onInvite).toHaveBeenCalledWith(model.cards[0]));
   expect(screen.getAllByText('Uncharted').length).toBeGreaterThan(0);
 });
 
 it('keeps a failed invitation visible and focused for retry', async () => {
-  const onInvite = vi.fn(async () => { throw new Error('Another version exists.'); });
+  const onInvite = vi.fn(async () => {
+    throw new Error('Another version exists.');
+  });
   render(
     <UnchartedPage
       activeSeason={{ id: '2026-winter', title: 'Making room' }}

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { enterCreatedStudio, openExistingStudio } from './helpers/studio';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -6,6 +7,7 @@ async function createLocalStudio(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill('Ateliera');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await enterCreatedStudio(page);
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
 }
 
@@ -56,7 +58,7 @@ test('captured note survives reload while offline', async ({
     await context.setOffline(true);
   }
   await page.reload();
-  await page.getByRole('button', { name: 'Open Ateliera' }).click();
+  await openExistingStudio(page, 'Ateliera');
 
   await expect(page.getByText('The hill')).toBeVisible();
   await expect(page.getByText('Ready offline')).toBeVisible();
@@ -104,7 +106,7 @@ test('falls back to IndexedDB when OPFS is unavailable', async ({ page }) => {
     return result > 0;
   });
   await page.reload();
-  await page.getByRole('button', { name: 'Open Ateliera' }).click();
+  await openExistingStudio(page, 'Ateliera');
 
   await expect(page.getByText('The garden')).toBeVisible();
 });

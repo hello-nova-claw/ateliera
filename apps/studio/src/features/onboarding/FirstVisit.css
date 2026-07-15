@@ -1,0 +1,363 @@
+.first-visit-welcome {
+  align-items: center;
+  background: var(--studio-color-canvas);
+  color: var(--studio-color-ink);
+  display: flex;
+  min-block-size: 100dvh;
+  padding: var(--studio-space-8) var(--studio-space-6);
+}
+
+.first-visit-welcome__content {
+  margin-inline: auto;
+  max-inline-size: 42rem;
+}
+
+.first-visit-welcome__wordmark,
+.first-visit-welcome__script {
+  margin: 0;
+}
+
+.first-visit-welcome__wordmark {
+  font: 400 2rem/1.1 var(--studio-font-display);
+}
+
+.first-visit-welcome__script {
+  color: var(--studio-color-script-ink);
+  font: 500 1.1rem/1.2 var(--studio-font-handwritten);
+}
+
+.first-visit-welcome h1 {
+  margin: var(--studio-space-7) 0 var(--studio-space-4);
+}
+
+.first-visit-welcome__intro {
+  color: var(--studio-color-ink-1);
+  font: var(--studio-type-page-subtitle);
+  max-inline-size: 55ch;
+}
+
+.first-visit-welcome__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--studio-space-3);
+  margin-block-start: var(--studio-space-7);
+}
+
+.first-visit-welcome__actions button,
+.first-visit-guide__actions button,
+.tour-preview__card button {
+  min-block-size: 44px;
+}
+
+.first-visit-welcome__primary {
+  background: var(--studio-color-ink);
+  border: 1px solid var(--studio-color-ink);
+  border-radius: var(--studio-radius-control);
+  color: var(--studio-color-surface);
+  padding: var(--studio-space-3) var(--studio-space-5);
+}
+
+.first-visit-welcome__secondary {
+  background: transparent;
+  border: 1px solid var(--studio-color-line);
+  border-radius: var(--studio-radius-control);
+  color: inherit;
+  padding: var(--studio-space-3) var(--studio-space-5);
+}
+
+.first-visit-welcome__aside {
+  color: var(--studio-color-ink-1);
+  margin-block-start: var(--studio-space-4);
+}
+
+.first-visit-welcome__error {
+  color: var(--studio-color-ink-strong);
+  font-weight: 600;
+  margin-block-start: var(--studio-space-4);
+}
+
+.studio-tour-layout {
+  display: grid;
+  gap: clamp(2rem, 5vw, 5rem);
+  grid-template-columns: minmax(0, 1fr) minmax(19rem, 23rem);
+}
+
+.studio-tour-layout__room {
+  min-inline-size: 0;
+}
+
+.studio-tour-layout__room .life-landscape__header {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: var(--studio-space-4);
+}
+
+.first-visit-guide {
+  align-self: start;
+  border-block-start: 1px solid var(--studio-color-line);
+  padding-block-start: var(--studio-space-5);
+  position: sticky;
+  top: var(--studio-space-6);
+  color: var(--studio-color-ink);
+}
+
+.first-visit-guide__eyebrow,
+.tour-preview__eyebrow {
+  color: var(--studio-color-ink-1);
+  font: var(--studio-type-eyebrow);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.first-visit-guide h2 {
+  font: 400 2rem/1.15 var(--studio-font-display);
+  margin-block: var(--studio-space-3);
+}
+
+.first-visit-guide__heading {
+  align-items: baseline;
+  display: flex;
+  gap: var(--studio-space-4);
+  justify-content: space-between;
+}
+
+.first-visit-guide__compact-toggle {
+  display: none;
+}
+
+.first-visit-guide__copy {
+  color: var(--studio-color-ink-1);
+  line-height: 1.65;
+}
+
+.first-visit-guide__reminder {
+  color: var(--studio-color-ink-1);
+  font-size: 0.875rem;
+}
+
+.first-visit-guide__actions {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: var(--studio-space-2);
+  margin-block-start: var(--studio-space-5);
+}
+
+.first-visit-guide__actions button,
+.tour-preview__card button {
+  background: transparent;
+  border: 0;
+  color: var(--studio-color-ink-strong);
+  padding-inline: 0;
+  text-align: start;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.first-visit-guide__next {
+  font-weight: 650;
+}
+
+.first-visit-guide__leave {
+  color: var(--studio-color-ink-1);
+}
+
+.tour-preview {
+  border-block-start: 1px solid var(--studio-color-line);
+  margin-block-start: var(--studio-space-8);
+  padding-block-start: var(--studio-space-5);
+}
+
+.tour-preview__composition {
+  display: grid;
+  gap: var(--studio-space-4);
+}
+
+.tour-example-card {
+  --tour-preview-stock: var(--studio-stock-foundation);
+  --tour-preview-edge: var(--studio-stock-foundation-edge);
+  --tour-preview-heart: var(--studio-color-foundation);
+
+  background: color-mix(
+    in srgb,
+    var(--tour-preview-stock) 42%,
+    var(--studio-color-surface)
+  );
+  border: 1px dashed var(--tour-preview-edge);
+  border-radius: var(--studio-radius-card);
+  padding: var(--studio-space-4);
+}
+
+.tour-example-card__meta {
+  color: var(--studio-color-ink-1);
+  display: flex;
+  font: var(--studio-type-eyebrow);
+  justify-content: space-between;
+  text-transform: uppercase;
+}
+
+.tour-example-card__meta span:last-child {
+  color: var(--tour-preview-heart);
+}
+
+.tour-example-card--vision {
+  --tour-preview-stock: var(--studio-stock-vision);
+  --tour-preview-edge: var(--studio-stock-vision-edge);
+  --tour-preview-heart: var(--studio-color-vision);
+}
+
+.tour-example-card--growth {
+  --tour-preview-stock: var(--studio-stock-growth);
+  --tour-preview-edge: var(--studio-stock-growth-edge);
+  --tour-preview-heart: var(--studio-color-growth);
+}
+
+.tour-example-card--reflection {
+  --tour-preview-stock: var(--studio-stock-reflection);
+  --tour-preview-edge: var(--studio-stock-reflection-edge);
+  --tour-preview-heart: var(--studio-color-reflection);
+}
+
+.tour-example-card--celebration {
+  --tour-preview-stock: var(--studio-stock-celebration);
+  --tour-preview-edge: var(--studio-stock-celebration-edge);
+  --tour-preview-heart: var(--studio-color-celebration);
+}
+
+.tour-example-card--uncharted {
+  --tour-preview-stock: var(--studio-stock-uncharted);
+  --tour-preview-edge: var(--studio-stock-uncharted-edge);
+  --tour-preview-heart: var(--studio-color-uncharted);
+}
+
+.tour-example-card h3 {
+  font-family: var(--studio-font-display);
+  margin-block: var(--studio-space-3) var(--studio-space-2);
+}
+
+.tour-example-card p {
+  line-height: 1.55;
+  margin: 0;
+}
+
+.tour-example-card button {
+  background: transparent;
+  border: 0;
+  color: var(--studio-color-ink-strong);
+  margin-block-start: var(--studio-space-3);
+  min-block-size: var(--studio-touch-target);
+  padding-inline: 0;
+  text-align: start;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.tour-glimpse__label {
+  color: var(--studio-color-ink-strong);
+  font: var(--studio-type-eyebrow);
+  letter-spacing: 0.08em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.tour-preview--landscape .tour-preview__composition {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.tour-preview--uncharted .tour-preview__composition,
+.tour-preview--reflection .tour-preview__composition {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tour-preview__season-title {
+  font-family: var(--studio-font-display);
+}
+
+.studio-tour-invitation {
+  border-block: 1px solid var(--studio-color-line);
+  margin-block-end: var(--studio-space-8);
+  max-inline-size: 42rem;
+  padding-block: var(--studio-space-5);
+}
+
+.studio-tour-invitation__eyebrow {
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-eyebrow);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.studio-tour-invitation h2 {
+  font: 400 1.75rem/1.15 var(--studio-font-display);
+  margin-block: var(--studio-space-2);
+}
+
+.studio-tour-invitation__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--studio-space-3);
+}
+
+.studio-tour-invitation__actions button {
+  background: transparent;
+  border: 0;
+  min-block-size: var(--studio-touch-target);
+  padding-inline: 0;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+@media (width < 1180px) {
+  .studio-tour-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .first-visit-guide {
+    order: -1;
+    position: static;
+  }
+
+  .first-visit-guide__compact-toggle {
+    background: transparent;
+    border: 0;
+    color: var(--studio-color-ink-strong);
+    display: inline-flex;
+    min-block-size: var(--studio-touch-target);
+    padding-inline: 0;
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+
+  .first-visit-guide[data-collapsed='true'] .first-visit-guide__content {
+    display: none;
+  }
+}
+
+@media (width < 560px) {
+  .first-visit-welcome {
+    padding-inline: var(--studio-space-4);
+  }
+
+  .first-visit-welcome__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tour-preview--uncharted .tour-preview__composition,
+  .tour-preview--reflection .tour-preview__composition {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .first-visit-welcome__content,
+  .studio-tour-layout {
+    animation: first-visit-enter var(--studio-motion-room) ease-out both;
+  }
+
+  @keyframes first-visit-enter {
+    from {
+      transform: translateY(8px);
+    }
+  }
+}

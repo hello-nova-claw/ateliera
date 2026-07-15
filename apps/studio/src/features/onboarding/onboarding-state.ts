@@ -5,6 +5,9 @@ export type EntryProgressPhase =
   | 'preparing-rooms'
   | 'ready';
 
+export type TourStep =
+  'foyer' | 'landscape' | 'season' | 'uncharted' | 'reflection';
+
 export type StudioEntryState =
   | { kind: 'entry'; draftName?: string }
   | {
@@ -24,7 +27,12 @@ export type StudioEntryState =
       message: string;
       draftName?: string;
     }
-  | { kind: 'active' };
+  | {
+      kind: 'first-visit';
+      mode: 'new' | 'resume';
+      step?: TourStep;
+    }
+  | { kind: 'active'; tourStep?: TourStep; tourInvitation?: boolean };
 
 export type StudioEntryAction =
   | { type: 'begin-create'; attemptId: string; name: string }
@@ -35,7 +43,17 @@ export type StudioEntryAction =
       phase: EntryProgressPhase;
     }
   | { type: 'fail'; attemptId: string; message: string }
-  | { type: 'activate'; attemptId?: string }
+  | { type: 'activate'; attemptId?: string; tourInvitation?: boolean }
+  | {
+      type: 'first-visit';
+      attemptId: string;
+      mode: 'new' | 'resume';
+      step?: TourStep;
+    }
+  | { type: 'start-tour' | 'tour-step'; step: TourStep }
+  | { type: 'replay-tour' }
+  | { type: 'dismiss-tour-invitation' }
+  | { type: 'end-tour' }
   | { type: 'cancel'; attemptId: string }
   | { type: 'return-to-entry' };
 
@@ -91,7 +109,39 @@ export function studioEntryReducer(
         !ownsAttempt(state, action.attemptId)
       )
         return state;
-      return { kind: 'active' };
+      return {
+        kind: 'active',
+        ...(action.tourInvitation === undefined
+          ? {}
+          : { tourInvitation: action.tourInvitation }),
+      };
+    case 'first-visit':
+      if (!ownsAttempt(state, action.attemptId)) return state;
+      return {
+        kind: 'first-visit',
+        mode: action.mode,
+        ...(action.step === undefined ? {} : { step: action.step }),
+      };
+    case 'start-tour':
+      return state.kind === 'first-visit'
+        ? { kind: 'active', tourStep: action.step }
+        : state;
+    case 'tour-step':
+      return state.kind === 'active' && state.tourStep !== undefined
+        ? { kind: 'active', tourStep: action.step }
+        : state;
+    case 'replay-tour':
+      return state.kind === 'active'
+        ? { kind: 'active', tourStep: 'foyer' }
+        : state;
+    case 'dismiss-tour-invitation':
+      return state.kind === 'active' && state.tourInvitation
+        ? { kind: 'active' }
+        : state;
+    case 'end-tour':
+      return state.kind === 'active' && state.tourStep !== undefined
+        ? { kind: 'active' }
+        : state;
     case 'cancel':
       if (!ownsAttempt(state, action.attemptId)) return state;
       return state.kind === 'creating'

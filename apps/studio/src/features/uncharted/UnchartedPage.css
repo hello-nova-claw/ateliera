@@ -120,14 +120,22 @@
   padding: var(--studio-space-8);
   border: 1px solid var(--studio-stock-uncharted-edge);
   border-radius: var(--studio-radius-card);
-  background: color-mix(in srgb, var(--studio-stock-uncharted) 58%, var(--studio-color-surface));
+  background: color-mix(
+    in srgb,
+    var(--studio-stock-uncharted) 58%,
+    var(--studio-color-surface)
+  );
   box-shadow: var(--studio-shadow-note);
   overflow-wrap: anywhere;
 }
 
 .uncharted-card--beyond {
   border-style: dashed;
-  background: color-mix(in srgb, var(--studio-stock-uncharted) 28%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--studio-stock-uncharted) 28%,
+    transparent
+  );
 }
 
 .uncharted-card h3 {
@@ -209,4 +217,12 @@
   .uncharted-page__empty {
     border-color: CanvasText;
   }
+}
+
+.uncharted-page > .tour-glimpse__label {
+  margin-block: var(--studio-space-8) var(--studio-space-3);
+}
+
+.uncharted-page__tour-example {
+  min-block-size: 12rem;
 }

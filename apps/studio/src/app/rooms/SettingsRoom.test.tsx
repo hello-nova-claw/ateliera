@@ -106,3 +106,17 @@ it('keeps portability unavailable until a Studio is open', () => {
   expect(screen.getByRole('button', { name: 'Download portable backup' })).toBeDisabled();
   expect(screen.getByLabelText('Choose a Studio backup')).toBeDisabled();
 });
+
+it.each([
+  ['continue', 'Continue the tour'],
+  ['restart', 'Start the tour again'],
+] as const)('offers a %s first-visit action', (tourAction, label) => {
+  const onStartTour = vi.fn();
+  render(
+    <SettingsRoom onStartTour={onStartTour} tourAction={tourAction} />,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: label }));
+
+  expect(onStartTour).toHaveBeenCalledOnce();
+});

@@ -19,11 +19,15 @@ import type { VaultPort } from '@studio/storage/portable';
 import { VaultConflictError } from '@studio/storage/portable';
 import { StrictMode } from 'react';
 import { afterEach, vi } from 'vitest';
+import type { TourStep } from '../features/onboarding/onboarding-state';
 import { App } from './App';
 
 const selectTauriVault = vi.fn();
 const createTauriStudio = vi.fn();
 const createBrowserVault = vi.fn();
+const createAppStudioService = vi.fn();
+
+vi.mock('./studio-service-factory', () => ({ createAppStudioService }));
 
 vi.mock('@studio/storage/tauri', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@studio/storage/tauri')>()),
@@ -42,6 +46,7 @@ afterEach(() => {
   Reflect.deleteProperty(window, '__TAURI_INTERNALS__');
   createTauriStudio.mockReset();
   createBrowserVault.mockReset();
+  createAppStudioService.mockReset();
   selectTauriVault.mockReset();
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -61,6 +66,16 @@ function browserStorage(records: unknown[]): Storage {
     removeItem: (key) => values.delete(key),
     setItem: (key, value) => values.set(key, value),
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, reject, resolve };
 }
 
 const note: StudioNote = {
@@ -349,6 +364,609 @@ it('presents several known Studio Spaces as a short list of cards', () => {
     within(spaces).getByRole('button', { name: 'Open Quiet Work' }),
   ).toBeEnabled();
   expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+});
+
+it('welcomes a newly created Studio before mounting its rooms', async () => {
+  vi.stubGlobal('localStorage', browserStorage([]));
+  const fixture = studioService();
+  createBrowserVault.mockReturnValue({ list: vi.fn(async () => []) });
+  createAppStudioService.mockResolvedValue(fixture.service);
+
+  render(<App />);
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Create a new Studio Space' }),
+  );
+  fireEvent.change(screen.getByLabelText('Studio name'), {
+    target: { value: 'Anna’s Studio' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /^Create$/ }));
+
+  expect(
+    await screen.findByRole('heading', {
+      name: 'Your Studio Space is ready.',
+    }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole('navigation', { name: 'Studio rooms' }),
+  ).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Enter my Studio' }));
+  await waitFor(() =>
+    expect(fixture.service.onboarding.transition).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'dismiss' }),
+    ),
+  );
+  expect(
+    await screen.findByRole('navigation', { name: 'Studio rooms' }),
+  ).toBeVisible();
+});
+
+it('serializes competing choices at the First Visit threshold', async () => {
+  vi.stubGlobal('localStorage', browserStorage([]));
+  const pending =
+    deferred<
+      Awaited<ReturnType<StudioService['onboarding']['transition']>>
+    >();
+  const fixture = studioService({
+    onboarding: {
+      ...studioService().service.onboarding,
+      transition: vi.fn(() => pending.promise),
+    },
+  });
+  createBrowserVault.mockReturnValue({ list: vi.fn(async () => []) });
+  createAppStudioService.mockResolvedValue(fixture.service);
+
+  render(<App />);
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Create a new Studio Space' }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: /^Create$/u }));
+  const tour = await screen.findByRole('button', {
+    name: 'Take a gentle tour',
+  });
+  const enter = screen.getByRole('button', { name: 'Enter my Studio' });
+  fireEvent.click(tour);
+  fireEvent.click(enter);
+
+  await waitFor(() => expect(tour).toBeDisabled());
+  expect(enter).toBeDisabled();
+  await waitFor(() =>
+    expect(fixture.service.onboarding.transition).toHaveBeenCalledTimes(1),
+  );
+  expect(fixture.service.onboarding.transition).toHaveBeenCalledWith(
+    expect.objectContaining({ type: 'visit' }),
+  );
+
+  pending.resolve({
+    onboarding: {
+      version: 1,
+      status: 'in-progress',
+      currentStep: 'foyer',
+      updatedAt: '2026-07-15T00:00:00.000Z',
+    },
+    extra: {},
+    revision: 'settings-hash',
+    repairRequired: false,
+  });
+  expect(
+    await screen.findByRole('heading', { name: 'Ateliera' }),
+  ).toBeVisible();
+});
+
+it('opens a returning Studio directly unless its tour was interrupted', async () => {
+  vi.stubGlobal(
+    'localStorage',
+    browserStorage([
+      {
+        name: 'Anna’s Studio',
+        vaultId: 'studio:anna',
+        createdAt: '2026-07-15T00:00:00.000Z',
+      },
+    ]),
+  );
+  const fixture = studioService();
+  createBrowserVault.mockReturnValue({});
+  createAppStudioService.mockResolvedValue(fixture.service);
+
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: 'Open Anna’s Studio' }));
+
+  expect(
+    await screen.findByRole('navigation', { name: 'Studio rooms' }),
+  ).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'New here?' })).toBeVisible();
+  expect(
+    screen.queryByRole('heading', { name: 'Your Studio Space is ready.' }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
+  await waitFor(() =>
+    expect(fixture.service.onboarding.transition).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'dismiss-invitation' }),
+    ),
+  );
+  expect(screen.queryByRole('heading', { name: 'New here?' })).not.toBeInTheDocument();
+});
+
+it('disposes a prepared service when onboarding settings cannot be read', async () => {
+  vi.stubGlobal(
+    'localStorage',
+    browserStorage([
+      {
+        name: 'Anna’s Studio',
+        vaultId: 'studio:anna',
+        createdAt: '2026-07-15T00:00:00.000Z',
+      },
+    ]),
+  );
+  const fixture = studioService({
+    onboarding: {
+      ...studioService().service.onboarding,
+      load: vi.fn(async () => {
+        throw new Error('Settings could not be read.');
+      }),
+    },
+  });
+  createBrowserVault.mockReturnValue({});
+  createAppStudioService.mockResolvedValue(fixture.service);
+
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: 'Open Anna’s Studio' }));
+
+  expect(await screen.findByRole('alert')).toHaveTextContent(
+    'Settings could not be read.',
+  );
+  expect(fixture.service.dispose).toHaveBeenCalledOnce();
+  expect(
+    screen.queryByRole('navigation', { name: 'Studio rooms' }),
+  ).not.toBeInTheDocument();
+});
+
+it('offers to continue an explicitly interrupted first visit', async () => {
+  vi.stubGlobal(
+    'localStorage',
+    browserStorage([
+      {
+        name: 'Anna’s Studio',
+        vaultId: 'studio:anna',
+        createdAt: '2026-07-15T00:00:00.000Z',
+      },
+    ]),
+  );
+  const fixture = studioService({
+    onboarding: {
+      ...studioService().service.onboarding,
+      load: async () => ({
+        onboarding: {
+          version: 1,
+          status: 'in-progress',
+          currentStep: 'uncharted',
+          startedAt: '2026-07-15T00:00:00.000Z',
+          updatedAt: '2026-07-15T01:00:00.000Z',
+        },
+        extra: {},
+        revision: 'settings-hash',
+        repairRequired: false,
+      }),
+    },
+  });
+  createBrowserVault.mockReturnValue({});
+  createAppStudioService.mockResolvedValue(fixture.service);
+
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: 'Open Anna’s Studio' }));
+
+  expect(
+    await screen.findByRole('heading', { name: 'Welcome back.' }),
+  ).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Continue the tour' }));
+  expect(
+    await screen.findByRole('heading', { name: 'What if…?' }),
+  ).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Uncharted' })).toBeVisible();
+});
+
+it('hides the active tour outside its rooms and resumes it on return', async () => {
+  vi.stubGlobal(
+    'localStorage',
+    browserStorage([
+      {
+        name: 'Anna’s Studio',
+        vaultId: 'studio:anna',
+        createdAt: '2026-07-15T00:00:00.000Z',
+      },
+    ]),
+  );
+  const fixture = studioService({
+    onboarding: {
+      ...studioService().service.onboarding,
+      load: async () => ({
+        onboarding: {
+          version: 1,
+          status: 'in-progress',
+          currentStep: 'foyer',
+          startedAt: '2026-07-15T00:00:00.000Z',
+          updatedAt: '2026-07-15T01:00:00.000Z',
+        },
+        extra: {},
+        revision: 'settings-hash',
+        repairRequired: false,
+      }),
+    },
+  });
+  createBrowserVault.mockReturnValue({});
+  createAppStudioService.mockResolvedValue(fixture.service);
+
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: 'Open Anna’s Studio' }));
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Continue the tour' }),
+  );
+
+  expect(
+    await screen.findByRole('heading', { level: 2, name: 'Foyer' }),
+  ).toBeVisible();
+  expect(
+    await screen.findAllByRole('article', {
+      name: /^Example .+ card$/u,
+    }),
+  ).not.toHaveLength(0);
+
+  fireEvent.click(screen.getByRole('link', { name: 'Settings' }));
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('heading', { level: 2, name: 'Foyer' }),
+    ).not.toBeInTheDocument(),
+  );
+  expect(
+    screen.queryByRole('article', { name: /^Example .+ card$/u }),
+  ).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('link', { name: 'Foyer' }));
+
+  expect(
+    await screen.findByRole('heading', { level: 2, name: 'Foyer' }),
+  ).toBeVisible();
+  expect(
+    await screen.findAllByRole('article', {
+      name: /^Example .+ card$/u,
+    }),
+  ).not.toHaveLength(0);
+});
+
+it('persists the newest tour room after competing direct navigations', async () => {
+  vi.stubGlobal(
+    'localStorage',
+    browserStorage([
+      {
+        name: 'Anna’s Studio',
+        vaultId: 'studio:anna',
+        createdAt: '2026-07-15T00:00:00.000Z',
+      },
+    ]),
+  );
+  const landscapeVisit = deferred<void>();
+  const persistedSteps: string[] = [];
+  const transition = vi.fn(
+    async (
+      action: Parameters<StudioService['onboarding']['transition']>[0],
+    ) => {
+      const step = action.type === 'visit' ? action.step : 'foyer';
+      if (step === 'landscape') await landscapeVisit.promise;
+      persistedSteps.push(step);
+      return {
+        onboarding: {
+          version: 1 as const,
+          status: 'in-progress' as const,
+          currentStep: step,
+          updatedAt: '2026-07-15T01:00:00.000Z',
+        },
+        extra: {},
+        revision: `settings-${step}`,
+        repairRequired: false,
+      };
+    },
+  );
+  const fixture = studioService({
+    onboarding: {
+      ...studioService().service.onboarding,
+      load: async () => ({
+        onboarding: {
+          version: 1,
+          status: 'in-progress',
+          currentStep: 'foyer',
+          startedAt: '2026-07-15T00:00:00.000Z',
+          updatedAt: '2026-07-15T01:00:00.000Z',
+        },
+        extra: {},
+        revision: 'settings-hash',
+        repairRequired: false,
+      }),
+      transition,
+    },
+  });
+  createBrowserVault.mockReturnValue({});
+  createAppStudioService.mockResolvedValue(fixture.service);
+
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: 'Open Anna’s Studio' }));
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Continue the tour' }),
+  );
+  await screen.findByRole('heading', { level: 2, name: 'Foyer' });
+
+  fireEvent.click(screen.getByRole('link', { name: 'Life Landscape' }));
+  await waitFor(() =>
+    expect(transition).toHaveBeenCalledWith(
+      expect.objectContaining({ step: 'landscape', type: 'visit' }),
+    ),
+  );
+  fireEvent.click(screen.getByRole('link', { name: 'Current Season' }));
+
+  expect(persistedSteps).toEqual(['foyer']);
+  landscapeVisit.resolve();
+
+  await waitFor(() => expect(persistedSteps.at(-1)).toBe('season'));
+  expect(persistedSteps).toEqual(['foyer', 'landscape', 'season']);
+});
+
+it('serializes a guide advance behind an in-flight direct tour visit', async () => {
+  vi.stubGlobal(
+    'localStorage',
+    browserStorage([
+      {
+        name: 'Anna’s Studio',
+        vaultId: 'studio:anna',
+        createdAt: '2026-07-15T00:00:00.000Z',
+      },
+    ]),
+  );
+  const landscapeVisit = deferred<void>();
+  const persistedSteps: string[] = [];
+  const transition = vi.fn(
+    async (
+      action: Parameters<StudioService['onboarding']['transition']>[0],
+    ) => {
+      const step = action.type === 'visit' ? action.step : 'foyer';
+      if (step === 'landscape') await landscapeVisit.promise;
+      persistedSteps.push(step);
+      return {
+        onboarding: {
+          version: 1 as const,
+          status: 'in-progress' as const,
+          currentStep: step,
+          updatedAt: '2026-07-15T01:00:00.000Z',
+        },
+        extra: {},
+        revision: `settings-${step}`,
+        repairRequired: false,
+      };
+    },
+  );
+  const fixture = studioService({
+    onboarding: {
+      ...studioService().service.onboarding,
+      load: async () => ({
+        onboarding: {
+          version: 1,
+          status: 'in-progress',
+          currentStep: 'foyer',
+          updatedAt: '2026-07-15T01:00:00.000Z',
+        },
+        extra: {},
+        revision: 'settings-hash',
+        repairRequired: false,
+      }),
+      transition,
+    },
+  });
+  createBrowserVault.mockReturnValue({});
+  createAppStudioService.mockResolvedValue(fixture.service);
+
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: 'Open Anna’s Studio' }));
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Continue the tour' }),
+  );
+  await screen.findByRole('heading', { level: 2, name: 'Foyer' });
+  fireEvent.click(screen.getByRole('link', { name: 'Life Landscape' }));
+  await waitFor(() =>
+    expect(transition).toHaveBeenCalledWith(
+      expect.objectContaining({ step: 'landscape', type: 'visit' }),
+    ),
+  );
+
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Visit Current Season' }),
+  );
+  expect(persistedSteps).toEqual(['foyer']);
+  landscapeVisit.resolve();
+
+  await waitFor(() => expect(persistedSteps.at(-1)).toBe('season'));
+  expect(persistedSteps).toEqual(['foyer', 'landscape', 'season']);
+});
+
+it.each([
+  {
+    destination: 'Life Landscape',
+    destinationStep: 'landscape',
+    terminalAction: 'Leave tour',
+    terminalType: 'dismiss',
+  },
+  {
+    destination: 'Reflection Garden',
+    destinationStep: 'reflection',
+    terminalAction: 'Return to the Foyer',
+    terminalType: 'complete',
+  },
+] as const)(
+  'serializes $terminalType behind an in-flight direct tour visit',
+  async ({ destination, destinationStep, terminalAction, terminalType }) => {
+    vi.stubGlobal(
+      'localStorage',
+      browserStorage([
+        {
+          name: 'Anna’s Studio',
+          vaultId: 'studio:anna',
+          createdAt: '2026-07-15T00:00:00.000Z',
+        },
+      ]),
+    );
+    const directVisit = deferred<void>();
+    const persisted: string[] = [];
+    const transition = vi.fn(
+      async (
+        action: Parameters<StudioService['onboarding']['transition']>[0],
+      ) => {
+        if (action.type === 'visit' && action.step === destinationStep)
+          await directVisit.promise;
+        const label = action.type === 'visit' ? action.step : action.type;
+        const durableStep: TourStep | 'complete' | 'welcome' =
+          action.type === 'visit'
+            ? action.step
+            : action.type === 'complete'
+              ? 'complete'
+              : destinationStep;
+        persisted.push(label);
+        return {
+          onboarding: {
+            version: 1 as const,
+            status:
+              action.type === 'complete'
+                ? ('completed' as const)
+                : action.type === 'dismiss'
+                  ? ('dismissed' as const)
+                  : ('in-progress' as const),
+            currentStep: durableStep,
+            updatedAt: '2026-07-15T01:00:00.000Z',
+          },
+          extra: {},
+          revision: `settings-${label}`,
+          repairRequired: false,
+        };
+      },
+    );
+    const fixture = studioService({
+      onboarding: {
+        ...studioService().service.onboarding,
+        load: async () => ({
+          onboarding: {
+            version: 1,
+            status: 'in-progress',
+            currentStep: 'foyer',
+            updatedAt: '2026-07-15T01:00:00.000Z',
+          },
+          extra: {},
+          revision: 'settings-hash',
+          repairRequired: false,
+        }),
+        transition,
+      },
+    });
+    createBrowserVault.mockReturnValue({});
+    createAppStudioService.mockResolvedValue(fixture.service);
+
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open Anna’s Studio' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Continue the tour' }),
+    );
+    await screen.findByRole('heading', { level: 2, name: 'Foyer' });
+    fireEvent.click(screen.getByRole('link', { name: destination }));
+    await waitFor(() =>
+      expect(transition).toHaveBeenCalledWith(
+        expect.objectContaining({ step: destinationStep, type: 'visit' }),
+      ),
+    );
+
+    fireEvent.click(
+      await screen.findByRole('button', { name: terminalAction }),
+    );
+    directVisit.resolve();
+
+    await waitFor(() => expect(persisted.at(-1)).toBe(terminalType));
+    expect(persisted.slice(-2)).toEqual([destinationStep, terminalType]);
+  },
+);
+
+it('resumes at the Foyer after a replay is interrupted', async () => {
+  vi.stubGlobal(
+    'localStorage',
+    browserStorage([
+      {
+        name: 'Anna’s Studio',
+        vaultId: 'studio:anna',
+        createdAt: '2026-07-15T00:00:00.000Z',
+      },
+    ]),
+  );
+  let status: 'completed' | 'in-progress' = 'completed';
+  let currentStep:
+    | 'complete'
+    | 'welcome'
+    | 'foyer'
+    | 'landscape'
+    | 'season'
+    | 'uncharted'
+    | 'reflection' = 'complete';
+  const transition = vi.fn(
+    async (
+      action: Parameters<StudioService['onboarding']['transition']>[0],
+    ) => {
+      status = 'in-progress';
+      currentStep = action.type === 'visit' ? action.step : 'welcome';
+      return {
+        onboarding: {
+          version: 1 as const,
+          status,
+          currentStep,
+          updatedAt: '2026-07-15T01:00:00.000Z',
+        },
+        extra: {},
+        revision: `settings-${currentStep}`,
+        repairRequired: false,
+      };
+    },
+  );
+  const fixture = studioService({
+    onboarding: {
+      ...studioService().service.onboarding,
+      load: async () => ({
+        onboarding: {
+          version: 1,
+          status,
+          currentStep,
+          updatedAt: '2026-07-15T01:00:00.000Z',
+        },
+        extra: {},
+        revision: 'settings-hash',
+        repairRequired: false,
+      }),
+      transition,
+    },
+  });
+  createBrowserVault.mockReturnValue({});
+  createAppStudioService.mockResolvedValue(fixture.service);
+
+  const first = render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: 'Open Anna’s Studio' }));
+  fireEvent.click(await screen.findByRole('link', { name: 'Settings' }));
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Start the tour again' }),
+  );
+  await screen.findByRole('heading', { level: 2, name: 'Foyer' });
+  expect(transition.mock.calls.map(([action]) => action.type)).toEqual([
+    'replay',
+    'visit',
+  ]);
+  first.unmount();
+
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: 'Open Anna’s Studio' }));
+  expect(
+    await screen.findByRole('heading', { name: 'Welcome back.' }),
+  ).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Continue the tour' })).toBeVisible();
 });
 
 it('makes the active vault available to portable settings', async () => {

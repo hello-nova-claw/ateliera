@@ -1,11 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { enterCreatedStudio, openExistingStudio } from './helpers/studio';
 
 async function createLocalStudio(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill('Landscape Studio');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await enterCreatedStudio(page);
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
 }
 
@@ -123,7 +125,7 @@ test('persists custom and renamed life areas across reload', async ({
   ).toBeVisible();
 
   await page.reload();
-  await page.getByRole('button', { name: 'Open Landscape Studio' }).click();
+  await openExistingStudio(page, 'Landscape Studio');
   await expect(
     page.getByRole('button', { name: 'Open Play & Wonder' }),
   ).toBeVisible();
@@ -398,7 +400,7 @@ test('mobile routes directly to one area and never renders the matrix', async ({
   await page.setViewportSize({ width: 390, height: 844 });
   await createLocalStudio(page);
   await page.goto('/landscape/home');
-  await page.getByRole('button', { name: 'Open Landscape Studio' }).click();
+  await openExistingStudio(page, 'Landscape Studio');
   await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
   await expect(page.locator('.life-landscape__matrix')).toHaveCount(0);
   expect(
@@ -420,7 +422,7 @@ test('touch long-press shows a destination preview, cancels safely, then moves',
   );
   await createLocalStudio(page);
   await page.goto('/landscape/home');
-  await page.getByRole('button', { name: 'Open Landscape Studio' }).click();
+  await openExistingStudio(page, 'Landscape Studio');
   await page
     .getByRole('region', { name: 'Vision' })
     .getByRole('button', { name: '+ Add' })

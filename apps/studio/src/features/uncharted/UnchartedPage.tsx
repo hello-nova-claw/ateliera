@@ -6,15 +6,26 @@ import { SemanticMark } from '@studio/ui';
 import { useEffect, useRef, useState } from 'react';
 
 import './UnchartedPage.css';
+import type { TourExample } from '../onboarding/tour-examples';
+import {
+  TourExampleCard,
+  TourGlimpseLabel,
+  type UseTourExample,
+} from '../onboarding/TourPreview';
 
 export interface UnchartedPageProps {
   activeSeason?: { id: string; title: string };
   error?: string;
   model: UnchartedProjection;
-  onCapture?: (body: string, horizon: 'near' | 'beyond') => Promise<void> | void;
+  onCapture?: (
+    body: string,
+    horizon: 'near' | 'beyond',
+  ) => Promise<void> | void;
   onInvite?: (card: UnchartedCardProjection) => Promise<void> | void;
   onOpen?: (card: UnchartedCardProjection, trigger: HTMLButtonElement) => void;
   state?: 'ready' | 'loading' | 'offline' | 'stale' | 'error';
+  tourExamples?: readonly TourExample[];
+  onUseTourExample?: UseTourExample;
 }
 
 function PossibilityCard({
@@ -70,22 +81,24 @@ function PossibilityCard({
               invitePending.current = true;
               setInviting(true);
               setMessage(undefined);
-              void Promise.resolve(onInvite(card)).then(
-                () => {
-                  setMessage(`Linked with ${activeSeason.title}.`);
-                },
-                (reason: unknown) => {
-                  setMessage(
-                    reason instanceof Error
-                      ? reason.message
-                      : 'This invitation could not be kept.',
-                  );
-                },
-              ).finally(() => {
-                invitePending.current = false;
-                restoreInviteFocus.current = true;
-                setInviting(false);
-              });
+              void Promise.resolve(onInvite(card))
+                .then(
+                  () => {
+                    setMessage(`Linked with ${activeSeason.title}.`);
+                  },
+                  (reason: unknown) => {
+                    setMessage(
+                      reason instanceof Error
+                        ? reason.message
+                        : 'This invitation could not be kept.',
+                    );
+                  },
+                )
+                .finally(() => {
+                  invitePending.current = false;
+                  restoreInviteFocus.current = true;
+                  setInviting(false);
+                });
             }}
             ref={inviteButton}
             type="button"
@@ -100,7 +113,11 @@ function PossibilityCard({
           </span>
         )}
       </div>
-      {message && <p className="uncharted-card__message" role="status">{message}</p>}
+      {message && (
+        <p className="uncharted-card__message" role="status">
+          {message}
+        </p>
+      )}
     </article>
   );
 }
@@ -112,7 +129,9 @@ export function UnchartedPage({
   onCapture,
   onInvite,
   onOpen,
+  onUseTourExample,
   state = 'ready',
+  tourExamples = [],
 }: UnchartedPageProps) {
   const [body, setBody] = useState('');
   const [beyond, setBeyond] = useState(false);
@@ -120,6 +139,12 @@ export function UnchartedPage({
   const [saving, setSaving] = useState(false);
   const near = model.cards.filter((card) => card.horizon === 'near');
   const beyondCards = model.cards.filter((card) => card.horizon === 'beyond');
+  const nearExample = tourExamples.find(
+    (example) => example.previewKey === 'uncharted-near',
+  );
+  const beyondExample = tourExamples.find(
+    (example) => example.previewKey === 'uncharted-beyond',
+  );
 
   async function capture(): Promise<void> {
     if (!onCapture || body.trim() === '') return;
@@ -149,14 +174,35 @@ export function UnchartedPage({
         </p>
         <h1>What if…?</h1>
         <p>
-          A place for possibilities that do not need a route, an answer, or a reason yet.
+          A place for possibilities that do not need a route, an answer, or a
+          reason yet.
         </p>
       </header>
 
-      {state === 'loading' && <p className="uncharted-page__state" role="status">Gathering Uncharted…</p>}
-      {state === 'offline' && <p className="uncharted-page__state" role="status">Stored locally. This room remains available offline.</p>}
-      {state === 'stale' && <p className="uncharted-page__state" role="status">Showing what is here while the Studio catches up.</p>}
-      {state === 'error' && <p className="uncharted-page__state uncharted-page__state--error" role="alert">{error ?? 'Uncharted could not be gathered. Your words remain in the Studio.'}</p>}
+      {state === 'loading' && (
+        <p className="uncharted-page__state" role="status">
+          Gathering Uncharted…
+        </p>
+      )}
+      {state === 'offline' && (
+        <p className="uncharted-page__state" role="status">
+          Stored locally. This room remains available offline.
+        </p>
+      )}
+      {state === 'stale' && (
+        <p className="uncharted-page__state" role="status">
+          Showing what is here while the Studio catches up.
+        </p>
+      )}
+      {state === 'error' && (
+        <p
+          className="uncharted-page__state uncharted-page__state--error"
+          role="alert"
+        >
+          {error ??
+            'Uncharted could not be gathered. Your words remain in the Studio.'}
+        </p>
+      )}
 
       <form
         className="uncharted-composer"
@@ -182,20 +228,34 @@ export function UnchartedPage({
             />
             Leave this beyond the gate
           </label>
-          <button disabled={saving || body.trim() === '' || !onCapture} type="submit">
+          <button
+            disabled={saving || body.trim() === '' || !onCapture}
+            type="submit"
+          >
             {saving ? 'Keeping…' : 'Keep this possibility'}
           </button>
         </div>
-        {captureMessage && <p className="uncharted-composer__message" role="status">{captureMessage}</p>}
+        {captureMessage && (
+          <p className="uncharted-composer__message" role="status">
+            {captureMessage}
+          </p>
+        )}
       </form>
 
-      <section className="uncharted-page__near" aria-labelledby="near-possibilities">
+      {tourExamples.length > 0 && <TourGlimpseLabel />}
+
+      <section
+        className="uncharted-page__near"
+        aria-labelledby="near-possibilities"
+      >
         <div className="uncharted-page__section-heading">
           <h2 id="near-possibilities">Near possibilities</h2>
           <p>Ideas close enough to glimpse, without asking anything of them.</p>
         </div>
-        {near.length === 0 ? (
-          <p className="uncharted-page__empty">There is room for whatever arrives.</p>
+        {near.length === 0 && !nearExample ? (
+          <p className="uncharted-page__empty">
+            There is room for whatever arrives.
+          </p>
         ) : (
           <div className="uncharted-page__grid">
             {near.map((card) => (
@@ -207,6 +267,13 @@ export function UnchartedPage({
                 onOpen={onOpen}
               />
             ))}
+            {nearExample && (
+              <TourExampleCard
+                className="uncharted-page__tour-example"
+                example={nearExample}
+                {...(onUseTourExample ? { onUse: onUseTourExample } : {})}
+              />
+            )}
           </div>
         )}
       </section>
@@ -214,10 +281,12 @@ export function UnchartedPage({
       <section className="uncharted-page__beyond" aria-labelledby="beyond-gate">
         <div className="uncharted-page__gate-line" aria-hidden="true" />
         <div className="uncharted-page__section-heading uncharted-page__section-heading--beyond">
-          <p className="uncharted-page__script">You do not have to know how yet.</p>
+          <p className="uncharted-page__script">
+            You do not have to know how yet.
+          </p>
           <h2 id="beyond-gate">Beyond the gate</h2>
         </div>
-        {beyondCards.length === 0 ? (
+        {beyondCards.length === 0 && !beyondExample ? (
           <p className="uncharted-page__empty">The gate can remain unopened.</p>
         ) : (
           <div className="uncharted-page__grid">
@@ -230,6 +299,12 @@ export function UnchartedPage({
                 onOpen={onOpen}
               />
             ))}
+            {beyondExample && (
+              <TourExampleCard
+                className="uncharted-page__tour-example"
+                example={beyondExample}
+              />
+            )}
           </div>
         )}
       </section>

@@ -9,14 +9,21 @@ import type { FoyerSlot } from '../features/foyer/FoyerPage';
 import { lazy, Suspense, type LazyExoticComponent } from 'react';
 import type { StudioPath } from './router';
 import type { VaultPort } from '@studio/storage/portable';
+import type { TourExample } from '../features/onboarding/tour-examples';
+import type { UseTourExample } from '../features/onboarding/TourPreview';
 
 interface RoomProps {
   captures: CaptureEntry[];
   online?: boolean;
   onOpenCapture?: (id: string, trigger: HTMLButtonElement) => void;
   onCreateFoyer?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
-  onCreateLandscape?: (lifeArea: string, anchor: LandscapeAnchor, trigger: HTMLButtonElement) => void;
+  onCreateLandscape?: (
+    lifeArea: string,
+    anchor: LandscapeAnchor,
+    trigger: HTMLButtonElement,
+  ) => void;
   onNavigate?: (path: string, options?: { replace?: boolean }) => void;
+  onStartTour?: () => void;
   onOpenCard?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
   onRemoveFoyerImage?: (
     image: FoyerImageProjection,
@@ -26,6 +33,9 @@ interface RoomProps {
   service?: StudioService;
   path?: StudioPath;
   vault?: VaultPort;
+  tourExamples?: readonly TourExample[];
+  tourAction?: 'continue' | 'restart';
+  onUseTourExample?: UseTourExample;
 }
 
 type LazyRoom = LazyExoticComponent<(props: RoomProps) => React.JSX.Element>;
@@ -52,6 +62,7 @@ export function RoomRoute({
   onCreateFoyer,
   onCreateLandscape,
   onNavigate,
+  onStartTour,
   online,
   onOpenCard,
   onRemoveFoyerImage,
@@ -60,12 +71,20 @@ export function RoomRoute({
   service,
   title,
   vault,
+  tourExamples,
+  tourAction,
+  onUseTourExample,
 }: {
   captures: CaptureEntry[];
   onOpenCapture?: (id: string, trigger: HTMLButtonElement) => void;
   onCreateFoyer?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
-  onCreateLandscape?: (lifeArea: string, anchor: LandscapeAnchor, trigger: HTMLButtonElement) => void;
+  onCreateLandscape?: (
+    lifeArea: string,
+    anchor: LandscapeAnchor,
+    trigger: HTMLButtonElement,
+  ) => void;
   onNavigate?: (path: string, options?: { replace?: boolean }) => void;
+  onStartTour?: () => void;
   online?: boolean;
   onOpenCard?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
   onRemoveFoyerImage?: (
@@ -77,6 +96,9 @@ export function RoomRoute({
   service?: StudioService;
   title: string;
   vault?: VaultPort;
+  tourExamples?: readonly TourExample[];
+  tourAction?: 'continue' | 'restart';
+  onUseTourExample?: UseTourExample;
 }) {
   const Room = roomRoutes[routeKey(path)] as LazyRoom;
   return (
@@ -97,12 +119,16 @@ export function RoomRoute({
         {...(onCreateFoyer === undefined ? {} : { onCreateFoyer })}
         {...(onCreateLandscape === undefined ? {} : { onCreateLandscape })}
         {...(onNavigate === undefined ? {} : { onNavigate })}
+        {...(onStartTour === undefined ? {} : { onStartTour })}
         {...(onOpenCard === undefined ? {} : { onOpenCard })}
         {...(onRemoveFoyerImage === undefined ? {} : { onRemoveFoyerImage })}
         {...(onOpenCapture === undefined ? {} : { onOpenCapture })}
         {...(projectionRevision === undefined ? {} : { projectionRevision })}
         {...(service === undefined ? {} : { service })}
         {...(vault === undefined ? {} : { vault })}
+        {...(tourExamples === undefined ? {} : { tourExamples })}
+        {...(tourAction === undefined ? {} : { tourAction })}
+        {...(onUseTourExample === undefined ? {} : { onUseTourExample })}
         path={path}
       />
     </Suspense>

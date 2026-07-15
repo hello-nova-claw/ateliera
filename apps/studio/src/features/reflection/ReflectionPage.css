@@ -71,7 +71,11 @@
   padding: var(--studio-space-8);
   border: 1px solid var(--studio-stock-reflection-edge);
   border-radius: var(--studio-radius-card);
-  background: color-mix(in srgb, var(--studio-stock-reflection) 48%, var(--studio-color-surface));
+  background: color-mix(
+    in srgb,
+    var(--studio-stock-reflection) 48%,
+    var(--studio-color-surface)
+  );
 }
 
 .reflection-capture__heading,
@@ -204,7 +208,11 @@
 
 .reflection-entry--celebration {
   border-inline-start-color: var(--studio-color-celebration);
-  background: color-mix(in srgb, var(--studio-stock-celebration) 38%, var(--studio-color-surface));
+  background: color-mix(
+    in srgb,
+    var(--studio-stock-celebration) 38%,
+    var(--studio-color-surface)
+  );
 }
 
 .reflection-entry h3 {
@@ -332,5 +340,33 @@
   .reflection-capture,
   .reflection-stream__empty {
     border-color: CanvasText;
+  }
+}
+
+.reflection-tour-pair {
+  display: grid;
+  gap: var(--studio-space-4);
+  margin-block: var(--studio-space-10);
+  max-inline-size: 58rem;
+}
+
+.reflection-tour-pair__composition {
+  align-items: start;
+  display: grid;
+  gap: var(--studio-space-6);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.reflection-tour-pair__composition .tour-example-card:last-child {
+  margin-block-start: var(--studio-space-8);
+}
+
+@media (width < 40rem) {
+  .reflection-tour-pair__composition {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reflection-tour-pair__composition .tour-example-card:last-child {
+    margin-block-start: 0;
   }
 }

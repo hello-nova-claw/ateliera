@@ -1,11 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { enterCreatedStudio, openExistingStudio } from './helpers/studio';
 
 async function createLocalStudio(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill('Season Studio');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await enterCreatedStudio(page);
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
 }
 
@@ -68,7 +70,7 @@ test('recovers an interrupted wizard after reload', async ({ page }) => {
   await page.getByRole('button', { name: 'Continue' }).click();
   await expect(page.getByText('Step 2 of 9')).toBeVisible();
   await page.reload();
-  await page.getByRole('button', { name: 'Open Season Studio' }).click();
+  await openExistingStudio(page, 'Season Studio');
   await openSeasonRoom(page);
   await expect(page.getByText('Step 2 of 9')).toBeVisible();
 });
@@ -95,7 +97,7 @@ test('builds, reads, reloads, and closes a season without automatic carry-forwar
   });
 
   await page.reload();
-  await page.getByRole('button', { name: 'Open Season Studio' }).click();
+  await openExistingStudio(page, 'Season Studio');
   await openSeasonRoom(page);
   await expect(
     page.getByRole('heading', { name: 'A spacious winter' }),

@@ -3,6 +3,7 @@ import { markdownToPlainText } from '@studio/content';
 import { ReflectionPage } from '../../features/reflection/ReflectionPage';
 import { useReflection } from '../../features/reflection/use-reflection';
 import { canonicalReflectionConnection } from './reflection-connection';
+import type { TourExample } from '../../features/onboarding/tour-examples';
 
 export default function ReflectionRoom({
   onNavigate,
@@ -10,12 +11,14 @@ export default function ReflectionRoom({
   online = true,
   projectionRevision = 0,
   service,
+  tourExamples,
 }: {
   onNavigate?: (path: string, options?: { replace?: boolean }) => void;
   onOpenCard?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
   online?: boolean;
   projectionRevision?: number;
   service?: StudioService;
+  tourExamples?: readonly TourExample[];
 }) {
   const view = useReflection(service, projectionRevision);
   return (
@@ -29,16 +32,20 @@ export default function ReflectionRoom({
         const saved = await view.capture(type, body, openAfter);
         if (saved && onOpenCard) {
           const plain = markdownToPlainText(saved.note.body);
-          onOpenCard({
-            noteId: saved.note.id,
-            path: saved.path,
-            title: saved.note.title?.trim() || plain.slice(0, 80) || 'Untitled',
-            excerpt: plain.slice(0, 240),
-            semanticType: saved.note.semanticType,
-            cardType: saved.note.cardType,
-            status: saved.note.status,
-            updated: saved.note.updated,
-          }, trigger);
+          onOpenCard(
+            {
+              noteId: saved.note.id,
+              path: saved.path,
+              title:
+                saved.note.title?.trim() || plain.slice(0, 80) || 'Untitled',
+              excerpt: plain.slice(0, 240),
+              semanticType: saved.note.semanticType,
+              cardType: saved.note.cardType,
+              status: saved.note.status,
+              updated: saved.note.updated,
+            },
+            trigger,
+          );
         }
       }}
       onConnect={view.connect}
@@ -49,16 +56,21 @@ export default function ReflectionRoom({
             kind: connection.kind,
           });
           if (target.targetState !== 'available') {
-            const subject = connection.kind === 'life-area' ? 'life area' : connection.kind;
+            const subject =
+              connection.kind === 'life-area' ? 'life area' : connection.kind;
             const label = 'label' in target ? target.label : connection.label;
             throw new Error(
               `The connected ${subject} ${label} is no longer available.`,
             );
           }
         }
-        const canonical = canonicalReflectionConnection(connection, view.connections);
+        const canonical = canonicalReflectionConnection(
+          connection,
+          view.connections,
+        );
         if (!canonical) {
-          const subject = connection.kind === 'life-area' ? 'life area' : connection.kind;
+          const subject =
+            connection.kind === 'life-area' ? 'life area' : connection.kind;
           throw new Error(
             `The connected ${subject} ${connection.label} is no longer available.`,
           );
@@ -74,9 +86,12 @@ export default function ReflectionRoom({
         if (canonical.kind === 'season') onNavigate?.('/season');
       }}
       {...(onOpenCard ? { onOpen: onOpenCard } : {})}
-      state={!online && view.state !== 'loading' && view.state !== 'error'
-        ? 'offline'
-        : view.state}
+      state={
+        !online && view.state !== 'loading' && view.state !== 'error'
+          ? 'offline'
+          : view.state
+      }
+      {...(tourExamples ? { tourExamples } : {})}
     />
   );
 }

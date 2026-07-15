@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import { SeasonPage } from './SeasonPage';
+import { tourExamples } from '../onboarding/tour-examples';
 
 function record(overrides = {}): SeasonRecord {
   const state = {
@@ -74,6 +75,41 @@ it('starts gently from the empty state', () => {
   render(<SeasonPage record={null} state="ready" onBegin={onBegin} />);
   fireEvent.click(screen.getByRole('button', { name: 'Begin a season' }));
   expect(onBegin).toHaveBeenCalledOnce();
+});
+
+it('furnishes the empty room with a coherent temporary season cover', () => {
+  render(
+    <SeasonPage
+      record={null}
+      state="ready"
+      tourExamples={tourExamples.season}
+    />,
+  );
+  expect(screen.getByText('A glimpse of what could live here')).toBeVisible();
+  expect(
+    screen.getByRole('heading', { name: 'A season of gentle foundations' }),
+  ).toBeVisible();
+  expect(screen.getAllByText('Example')).toHaveLength(4);
+  expect(screen.getByText('Launching everything at once.')).toBeVisible();
+});
+
+it('keeps a temporary season cover secondary to an existing season', () => {
+  render(
+    <SeasonPage
+      record={record()}
+      state="ready"
+      tourExamples={tourExamples.season}
+    />,
+  );
+  expect(
+    screen.getByRole('heading', { level: 1, name: 'A spacious winter' }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole('heading', {
+      level: 2,
+      name: 'A season of gentle foundations',
+    }),
+  ).toBeVisible();
 });
 
 it('persists explicit date clearing when revising the name and dates step', () => {

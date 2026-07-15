@@ -1,11 +1,16 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { enterCreatedStudio, openExistingStudio } from './helpers/studio';
 
-async function createLocalStudio(page: Page, name = 'Ateliera'): Promise<void> {
+async function createLocalStudio(
+  page: Page,
+  name = 'Ateliera',
+  enter = true,
+): Promise<void> {
   await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill(name);
   await page.getByRole('button', { name: 'Create', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
+  if (enter) await enterCreatedStudio(page);
 }
 
 test('creates a local Studio and enters the Foyer', async ({ page }) => {
@@ -28,7 +33,22 @@ test('creates a local Studio and enters the Foyer', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Search' })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Capture' })).toHaveCount(0);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
-  await createLocalStudio(page, 'Anna’s Studio');
+  await createLocalStudio(page, 'Anna’s Studio', false);
+
+  await expect(
+    page.getByRole('heading', { name: 'Your Studio Space is ready.' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Take a gentle tour' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Enter my Studio' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('navigation', { name: 'Studio rooms' }),
+  ).toHaveCount(0);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await enterCreatedStudio(page);
 
   await expect(page).toHaveURL(/\/foyer$/);
   await expect(page.getByRole('heading', { name: 'Ateliera' })).toBeVisible();
@@ -45,11 +65,155 @@ test('creates a local Studio and enters the Foyer', async ({ page }) => {
   ).toBeVisible();
 });
 
+test('wanders through five furnished rooms without persisting examples', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await createLocalStudio(page, 'Tour Studio', false);
+  await expect(
+    page.getByRole('heading', { name: 'Your Studio Space is ready.' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Take a gentle tour' }).click();
+
+  await expect(page).toHaveURL(/\/foyer$/u);
+  await expect(page.getByRole('heading', { name: 'Foyer' })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Ateliera' }),
+  ).toBeFocused();
+  await expect(
+    page.getByText('A glimpse of what could live here'),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('article', { name: /^Example .+ card$/u }),
+  ).toHaveCount(3);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+  await page
+    .getByRole('button', {
+      name: 'Use Currently becoming as a starting point',
+    })
+    .click();
+  await expect(
+    page.getByRole('textbox', { name: 'What would you like remembered?' }),
+  ).toHaveValue('Someone who creates from calm and trusts her own timing.');
+  await page.getByRole('button', { name: 'Not now' }).click();
+  await expect(
+    page.getByRole('article', { name: /^Example .+ card$/u }),
+  ).toHaveCount(3);
+
+  await page
+    .getByRole('button', {
+      name: 'Use Currently becoming as a starting point',
+    })
+    .click();
+  await page.getByRole('button', { name: 'Remember', exact: true }).click();
+  await expect(
+    page.getByRole('article', { name: /^Example .+ card$/u }),
+  ).toHaveCount(2);
+  await expect(page.getByText('Currently becoming')).toHaveCount(1);
+
+  await page.getByRole('button', { name: 'Wander into the Landscape' }).click();
+  await expect(page).toHaveURL(/\/landscape(?:\/[^/]+)?$/u);
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Life Landscape' }),
+  ).toBeFocused();
+  await expect(
+    page.getByRole('article', { name: /^Example .+ card$/u }),
+  ).toHaveCount(5);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+  await page.getByRole('button', { name: 'Visit Current Season' }).click();
+  await expect(page).toHaveURL(/\/season$/u);
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Current Season' }),
+  ).toBeFocused();
+  await expect(page.getByText('A season of gentle foundations')).toBeVisible();
+  await expect(
+    page.getByRole('article', { name: /^Example .+ card$/u }),
+  ).toHaveCount(4);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+  await page.getByRole('button', { name: 'Step into Uncharted' }).click();
+  await expect(page).toHaveURL(/\/uncharted$/u);
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'What if…?' }),
+  ).toBeFocused();
+  await expect(
+    page.getByRole('article', { name: /^Example .+ card$/u }),
+  ).toHaveCount(2);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+  await page
+    .getByRole('button', { name: 'Walk into Reflection Garden' })
+    .click();
+  await expect(page).toHaveURL(/\/reflection$/u);
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Reflection Garden' }),
+  ).toBeFocused();
+  await expect(
+    page.getByRole('article', { name: /^Example .+ card$/u }),
+  ).toHaveCount(2);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+
+  await page.getByRole('button', { name: 'Return to the Foyer' }).click();
+  await expect(page).toHaveURL(/\/foyer$/u);
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Ateliera' }),
+  ).toBeFocused();
+  await expect(
+    page.getByRole('article', { name: /^Example .+ card$/u }),
+  ).toHaveCount(0);
+  await expect(page.locator('.studio-toast')).toHaveText(
+    'The first visit has ended. The Studio is yours.',
+  );
+});
+
+test('keeps the first visit clear with keyboard, reduced motion, forced colors, and a compact viewport', async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'desktop-chromium',
+    'One Chromium presentation-preferences pass covers this cross-platform CSS contract.',
+  );
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 720, height: 500 });
+  await page.goto('/');
+  await createLocalStudio(page, 'Accessible Tour Studio', false);
+
+  const begin = page.getByRole('button', { name: 'Take a gentle tour' });
+  await begin.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Foyer' })).toBeVisible();
+  await expect(page.locator('.studio-tour-layout')).toHaveCSS(
+    'animation-name',
+    'none',
+  );
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+
+  const next = page.getByRole('button', {
+    name: 'Wander into the Landscape',
+  });
+  await next.focus();
+  await page.keyboard.press('Enter');
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Life Landscape' }),
+  ).toBeFocused();
+
+  await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
+  await expect(page.getByRole('button', { name: 'Close guide' })).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
+
 test('opens an existing browser Studio', async ({ page }) => {
   await page.goto('/');
   await createLocalStudio(page);
   await page.reload();
-  await page.getByRole('button', { name: 'Open Ateliera' }).click();
+  await openExistingStudio(page, 'Ateliera');
   await expect(page).toHaveURL(/\/foyer$/);
 });
 

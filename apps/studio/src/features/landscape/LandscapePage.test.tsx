@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
 
 import { LandscapePage, type LandscapePageProps } from './LandscapePage';
+import { tourExamples } from '../onboarding/tour-examples';
 
 const emptyBoard: LandscapeBoardProjection = {
   cells: defaultLifeAreas.slice(0, 5).flatMap((area) =>
@@ -24,6 +25,34 @@ const emptyBoard: LandscapeBoardProjection = {
 };
 
 describe('LandscapePage', () => {
+  it('traces tour examples through one authentic Landscape column', () => {
+    const onUseTourExample = vi.fn();
+    render(
+      <LandscapePage
+        areas={[...defaultLifeAreas.slice(0, 5)]}
+        board={emptyBoard}
+        onNavigate={vi.fn()}
+        onUseTourExample={onUseTourExample}
+        path="/landscape"
+        tourExamples={tourExamples.landscape}
+      />,
+    );
+
+    const matrix = screen.getByRole('region', {
+      name: 'Life Landscape matrix',
+    });
+    expect(within(matrix).getAllByText('Example')).toHaveLength(5);
+    fireEvent.click(
+      within(matrix).getByRole('button', {
+        name: /Use Vision as a starting point/,
+      }),
+    );
+    expect(onUseTourExample).toHaveBeenCalledWith(
+      tourExamples.landscape[0],
+      expect.any(HTMLButtonElement),
+      { lifeArea: 'family' },
+    );
+  });
   it('renders a named desktop matrix with fixed anchors and calm empty cells', () => {
     const onCreate = vi.fn();
     render(
@@ -286,7 +315,9 @@ describe('LandscapePage', () => {
     failedItem.focus();
     fireEvent.click(failedItem);
     screen.getByRole('button', { name: '← Back to map' }).focus();
-    await act(async () => rejectReorder(new Error('The order changed elsewhere.')));
+    await act(async () =>
+      rejectReorder(new Error('The order changed elsewhere.')),
+    );
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'The order changed elsewhere.',
@@ -670,11 +701,7 @@ describe('LandscapePage', () => {
     );
     const title = await within(
       screen.getByRole('region', { name: 'Practices' }),
-    ).findByRole(
-      'button',
-      { name: 'A reparented note' },
-      { timeout: 2_000 },
-    );
+    ).findByRole('button', { name: 'A reparented note' }, { timeout: 2_000 });
     await vi.waitFor(() => expect(title).toHaveFocus());
   });
 });

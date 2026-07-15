@@ -1,11 +1,13 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { enterCreatedStudio, openExistingStudio } from './helpers/studio';
 
 async function createLocalStudio(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill('Uncharted Studio');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await enterCreatedStudio(page);
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
 }
 
@@ -111,7 +113,7 @@ test('keeps near and beyond possibilities atomically across reload', async ({ pa
   await page.screenshot({ path: testInfo.outputPath('uncharted.png'), fullPage: true });
 
   await page.reload();
-  await page.getByRole('button', { name: 'Open Uncharted Studio' }).click();
+  await openExistingStudio(page, 'Uncharted Studio');
   await openUncharted(page);
   await expect(page.getByRole('heading', { name: 'I returned to the childhood hill.' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'There is a gate I cannot name yet.' })).toBeVisible();

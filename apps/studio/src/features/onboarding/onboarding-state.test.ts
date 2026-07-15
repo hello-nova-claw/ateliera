@@ -100,4 +100,78 @@ describe('studioEntryReducer', () => {
       initialStudioEntryState,
     );
   });
+
+  it('moves a newly created Studio through welcome, tour rooms, and completion', () => {
+    const creating: StudioEntryState = {
+      kind: 'creating',
+      attemptId: 'create-1',
+      name: 'Anna’s Studio',
+      phase: 'preparing-rooms',
+    };
+    const welcome = studioEntryReducer(creating, {
+      type: 'first-visit',
+      attemptId: 'create-1',
+      mode: 'new',
+    });
+    expect(welcome).toEqual({ kind: 'first-visit', mode: 'new' });
+    const touring = studioEntryReducer(welcome, {
+      type: 'start-tour',
+      step: 'foyer',
+    });
+    expect(touring).toEqual({ kind: 'active', tourStep: 'foyer' });
+    expect(
+      studioEntryReducer(touring, {
+        type: 'tour-step',
+        step: 'landscape',
+      }),
+    ).toEqual({ kind: 'active', tourStep: 'landscape' });
+    expect(studioEntryReducer(touring, { type: 'end-tour' })).toEqual({
+      kind: 'active',
+    });
+  });
+
+  it('offers an explicitly interrupted tour without replaying it for everyone', () => {
+    const opening: StudioEntryState = {
+      kind: 'opening',
+      attemptId: 'open-1',
+      phase: 'preparing-rooms',
+    };
+    expect(
+      studioEntryReducer(opening, {
+        type: 'first-visit',
+        attemptId: 'open-1',
+        mode: 'resume',
+        step: 'uncharted',
+      }),
+    ).toEqual({
+      kind: 'first-visit',
+      mode: 'resume',
+      step: 'uncharted',
+    });
+    expect(
+      studioEntryReducer(opening, {
+        type: 'activate',
+        attemptId: 'open-1',
+      }),
+    ).toEqual({ kind: 'active' });
+  });
+
+  it('keeps a legacy tour invitation optional and dismissible', () => {
+    const active = studioEntryReducer(
+      {
+        kind: 'opening',
+        attemptId: 'open-1',
+        phase: 'preparing-rooms',
+      },
+      {
+        type: 'activate',
+        attemptId: 'open-1',
+        tourInvitation: true,
+      },
+    );
+    expect(active).toEqual({ kind: 'active', tourInvitation: true });
+    expect(
+      studioEntryReducer(active, { type: 'dismiss-tour-invitation' }),
+    ).toEqual({ kind: 'active' });
+  });
 });

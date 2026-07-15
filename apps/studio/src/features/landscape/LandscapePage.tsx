@@ -34,6 +34,12 @@ import {
 } from 'react';
 
 import './LandscapePage.css';
+import type { TourExample } from '../onboarding/tour-examples';
+import {
+  TourExampleCard,
+  TourGlimpseLabel,
+  type UseTourExample,
+} from '../onboarding/TourPreview';
 
 export interface LandscapeMove {
   card: LandscapeCardProjection;
@@ -67,6 +73,18 @@ export interface LandscapePageProps {
   path: string;
   repairRequired?: boolean;
   state?: 'ready' | 'loading' | 'stale' | 'error';
+  tourExamples?: readonly TourExample[];
+  onUseTourExample?: UseTourExample;
+}
+
+function exampleForAnchor(
+  examples: readonly TourExample[],
+  anchor: LandscapeAnchor,
+): TourExample | undefined {
+  const index = landscapeAnchorDefinitions.findIndex(
+    (definition) => definition.id === anchor,
+  );
+  return index < 0 ? undefined : examples[index];
 }
 
 type UndoAction =
@@ -615,6 +633,7 @@ export function LandscapePage({
   onMove,
   onNavigate,
   onOpen,
+  onUseTourExample,
   onRemoveArea,
   onRepairAreas,
   onRenameArea,
@@ -623,6 +642,7 @@ export function LandscapePage({
   path,
   repairRequired = false,
   state = 'ready',
+  tourExamples = [],
 }: LandscapePageProps) {
   const view = viewFromPath(path);
   const [undo, setUndo] = useState<UndoAction>();
@@ -951,6 +971,7 @@ export function LandscapePage({
           </p>
         )}
 
+        {tourExamples.length > 0 && <TourGlimpseLabel />}
         {view.kind === 'matrix' && (
           <div
             aria-label="Life Landscape matrix"
@@ -988,6 +1009,10 @@ export function LandscapePage({
                   </div>
                   {areas.map((area) => {
                     const projected = cell(board, area.id, anchor.id);
+                    const example =
+                      area.id === areas[0]?.id
+                        ? exampleForAnchor(tourExamples, anchor.id)
+                        : undefined;
                     return (
                       <DropZone
                         anchor={anchor.id}
@@ -1018,6 +1043,24 @@ export function LandscapePage({
                           >
                             +{projected!.additionalCount} more
                           </button>
+                        )}
+                        {example && (
+                          <TourExampleCard
+                            className="life-landscape__tour-example"
+                            example={example}
+                            headingLevel={2}
+                            {...(example.startingPoint && onUseTourExample
+                              ? {
+                                  onUse: (
+                                    item: TourExample,
+                                    trigger: HTMLButtonElement,
+                                  ) =>
+                                    onUseTourExample(item, trigger, {
+                                      lifeArea: area.id,
+                                    }),
+                                }
+                              : {})}
+                          />
                         )}
                         {onCreate && (
                           <button
@@ -1059,6 +1102,7 @@ export function LandscapePage({
             </h2>
             {landscapeAnchorDefinitions.map((anchor) => {
               const cards = cardsFor(board, view.area, anchor.id);
+              const example = exampleForAnchor(tourExamples, anchor.id);
               return (
                 <section
                   className="life-landscape__section"
@@ -1088,7 +1132,7 @@ export function LandscapePage({
                     className="life-landscape__section-drop"
                     lifeArea={view.area}
                   >
-                    {cards.length === 0 ? (
+                    {cards.length === 0 && !example ? (
                       <p className="life-landscape__empty">
                         There is room here.
                       </p>
@@ -1110,6 +1154,23 @@ export function LandscapePage({
                           />
                         ))}
                       </div>
+                    )}
+                    {example && (
+                      <TourExampleCard
+                        className="life-landscape__tour-example"
+                        example={example}
+                        {...(example.startingPoint && onUseTourExample
+                          ? {
+                              onUse: (
+                                item: TourExample,
+                                trigger: HTMLButtonElement,
+                              ) =>
+                                onUseTourExample(item, trigger, {
+                                  lifeArea: view.area,
+                                }),
+                            }
+                          : {})}
+                      />
                     )}
                   </DropZone>
                 </section>

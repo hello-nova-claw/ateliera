@@ -618,6 +618,28 @@
   flex-basis: 100%;
 }
 
+.life-landscape > .tour-glimpse__label {
+  margin-block-end: var(--studio-space-4);
+}
+
+.life-landscape__tour-example {
+  box-sizing: border-box;
+  inline-size: 100%;
+  margin-block-start: var(--studio-space-3);
+}
+
+.life-landscape__cell .life-landscape__tour-example {
+  padding: var(--studio-space-3);
+}
+
+.life-landscape__cell .life-landscape__tour-example h3 {
+  font-size: 0.875rem;
+}
+
+.life-landscape__cell .life-landscape__tour-example p {
+  font-size: 0.75rem;
+}
+
 @media (width < 768px) {
   .life-landscape {
     padding: var(--studio-space-6) var(--studio-space-4) var(--studio-space-20);
