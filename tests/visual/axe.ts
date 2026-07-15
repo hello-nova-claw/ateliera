@@ -6,7 +6,7 @@ export async function analyzeStory(
 ): ReturnType<AxeBuilder['analyze']> {
   for (let attempt = 0; attempt < 10; attempt += 1) {
     try {
-      return await new AxeBuilder({ page }).analyze();
+      return await new AxeBuilder({ page }).include('#storybook-root').analyze();
     } catch (reason) {
       if (
         !(reason instanceof Error) ||

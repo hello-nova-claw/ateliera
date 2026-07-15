@@ -65,6 +65,21 @@ test('Card has no transition or animation duration with reduced motion', async (
   expect(timing).toEqual({ animationDuration: '0s', transitionDuration: '0s' });
 });
 
+test('scoped story audits still report defects inside the story', async ({
+  page,
+}) => {
+  await page.goto('/iframe.html?id=primitives-card--reflection&viewMode=story');
+  await page.locator('#storybook-root').evaluate((root) => {
+    const defect = document.createElement('button');
+    defect.className = 'studio-injected-defect';
+    root.append(defect);
+  });
+  await expect(page.locator('.studio-injected-defect')).toHaveCount(1);
+
+  const accessibility = await analyzeStory(page);
+  expect(accessibility.violations.map(({ id }) => id)).toContain('button-name');
+});
+
 test('Semantic mark remains visible and text-accessible in forced colors', async ({ page }) => {
   await page.emulateMedia({ forcedColors: 'active' });
   await page.goto('/iframe.html?id=primitives-semanticmark--all-meanings&viewMode=story');

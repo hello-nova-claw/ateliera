@@ -4,6 +4,8 @@ export default defineConfig({
   testDir: './tests/visual',
   outputDir: './artifacts/playwright/visual-results',
   reporter: [['list']],
+  retries: process.env.CI ? 1 : 0,
+  workers: 1,
   use: {
     baseURL: 'http://127.0.0.1:6006',
     browserName: 'chromium',
