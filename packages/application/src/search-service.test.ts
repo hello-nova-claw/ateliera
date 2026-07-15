@@ -209,7 +209,7 @@ describe('StudioSearchService retrieval', () => {
     await expect(service.inspect('../unsafe')).rejects.toThrow('safe note ID');
     await expect(service.repairMetadata({
       path: '../outside.md', expectedHash: 'hash', sourceText: '', metadata: note(),
-    })).rejects.toThrow('safe vault path');
+    })).rejects.toThrow('safe Studio file location');
     await expect(service.repairLink({
       path: 'Note.md', expectedHash: 'hash', sourceText: '', occurrence: -1, edit: { kind: 'remove' },
     })).rejects.toThrow('occurrence');
@@ -236,7 +236,7 @@ describe('StudioSearchService retrieval', () => {
     });
     await expect(service.repairLink({
       path, expectedHash: 'hash', sourceText: '', occurrence: 0, edit: { kind: 'remove' },
-    })).rejects.toThrow('safe vault path');
+    })).rejects.toThrow('safe Studio file location');
   });
 
   it('inspects canonical typed backlinks and forward links even after the index is cleared', async () => {
