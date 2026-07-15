@@ -377,6 +377,7 @@ test('opens an existing Studio and starts its search worker entirely from the of
   if (browserName !== 'webkit') await context.setOffline(true);
 
   await page.getByRole('button', { name: 'Open Cold Search Studio' }).click();
+  await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
   await openSearch(page);
   const search = page.getByRole('searchbox', { name: 'Search your Studio' });
   await search.fill('lantern');
