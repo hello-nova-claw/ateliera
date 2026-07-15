@@ -3,7 +3,10 @@ import { spawnSync } from 'node:child_process';
 import { mkdir, readFile, readdir, readlink, writeFile } from 'node:fs/promises';
 import { relative, resolve, sep } from 'node:path';
 
-import { verifyDiskImage } from './lib/macos-artifact.mjs';
+import {
+  unexpectedMacAppBundles,
+  verifyDiskImage,
+} from './lib/macos-artifact.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const bundleRoot = resolve(
@@ -54,6 +57,14 @@ const issues = [];
 if (!appExecutable) issues.push('Ateliera.app executable is missing.');
 if (!appInfo) issues.push('Ateliera.app Info.plist is missing.');
 if (!dmg) issues.push('Ateliera DMG is missing.');
+const unexpectedApps = unexpectedMacAppBundles(
+  inventory.map(({ path }) => path),
+);
+if (unexpectedApps.length > 0) {
+  issues.push(
+    `The bundle output contains unexpected app bundles: ${unexpectedApps.join(', ')}.`,
+  );
+}
 const dmgVerification = dmg
   ? verifyDiskImage(resolve(bundleRoot, dmg.path))
   : { output: 'Ateliera DMG is missing.', status: null, verified: false };

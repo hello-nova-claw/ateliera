@@ -14,6 +14,11 @@ export type DiskImageRunner = (
   stdout?: string;
 };
 
+export function unexpectedMacAppBundles(
+  paths: string[],
+  expected?: string,
+): string[];
+
 export function verifyDiskImage(
   path: string,
   runner?: DiskImageRunner,

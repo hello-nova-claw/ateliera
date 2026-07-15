@@ -5,7 +5,10 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 
 import { inspectPwaArtifact } from '../../scripts/lib/release-artifacts.mjs';
-import { verifyDiskImage } from '../../scripts/lib/macos-artifact.mjs';
+import {
+  unexpectedMacAppBundles,
+  verifyDiskImage,
+} from '../../scripts/lib/macos-artifact.mjs';
 
 async function fixture(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'studio-release-'));
@@ -83,6 +86,16 @@ describe('PWA release artifact inspection', () => {
 });
 
 describe('macOS release artifact inspection', () => {
+  test('rejects stale or foreign app bundles beside Ateliera', () => {
+    expect(
+      unexpectedMacAppBundles([
+        'macos/Ateliera.app/Contents/Info.plist',
+        'macos/The Studio.app/Contents/Info.plist',
+        'dmg/Ateliera_0.1.0_aarch64.dmg',
+      ]),
+    ).toEqual(['The Studio.app']);
+  });
+
   test('accepts only a disk image that hdiutil can verify', () => {
     const valid = verifyDiskImage('/tmp/Ateliera.dmg', () => ({
       status: 0,
