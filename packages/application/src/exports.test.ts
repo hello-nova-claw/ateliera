@@ -8,6 +8,9 @@ describe('application package exports', () => {
     expect(application.projectRoom).toBeTypeOf('function');
     expect(application.createViewStateRepository).toBeTypeOf('function');
     expect(application.createLifeAreaRepository).toBeTypeOf('function');
+    expect(application.createOnboardingSettingsRepository).toBeTypeOf(
+      'function',
+    );
     expect(application.createDiagnosticsRecorder).toBeTypeOf('function');
     expect(application.prepareDiagnosticsExport).toBeTypeOf('function');
   });

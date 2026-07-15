@@ -3,6 +3,7 @@ export * from './draft-recovery';
 export * from './diagnostics';
 export * from './life-area-repository';
 export * from './note-lifecycle';
+export * from './onboarding-settings';
 export * from './projections';
 export * from './search-service';
 export * from './season-service';

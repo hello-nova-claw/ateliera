@@ -17,6 +17,7 @@ describe('portable vault export', () => {
     const source = createInMemoryVault();
     await source.writeTextAtomic('Foyer/vision.md', '---\nschema_version: 1\nid: note-1\n---\n# Vision\n');
     await source.writeBinaryAtomic('Attachments/hill.jpg', new Uint8Array([0xff, 0xd8, 0xff]));
+    await source.writeTextAtomic('.studio/settings.json', '{"version":1,"onboarding":{"version":1,"status":"completed","currentStep":"complete","updatedAt":"2026-07-15T00:00:00.000Z","completedAt":"2026-07-15T00:00:00.000Z"}}');
     await source.writeTextAtomic('.studio/settings/theme.json', '{"theme":"chamomile"}');
     await source.writeTextAtomic('.studio/config/landscape-areas.json', '{"areas":["home"]}');
     await source.writeTextAtomic(
@@ -41,6 +42,7 @@ describe('portable vault export', () => {
         '.studio/seasons/winter-draft.json',
         new TextEncoder().encode('{"version":1,"step":"priorities"}'),
       ],
+      ['.studio/settings.json', new TextEncoder().encode('{"version":1,"onboarding":{"version":1,"status":"completed","currentStep":"complete","updatedAt":"2026-07-15T00:00:00.000Z","completedAt":"2026-07-15T00:00:00.000Z"}}')],
       ['.studio/settings/theme.json', new TextEncoder().encode('{"theme":"chamomile"}')],
       ['.studio/Trash/note-2/old.md', new TextEncoder().encode('# Recoverable words\n')],
       [

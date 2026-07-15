@@ -45,7 +45,8 @@ function isAllowedControlPath(path: string): boolean {
     folded === '.studio/backups' ||
     folded.startsWith('.studio/backups/') ||
     folded === '.studio/season/active.json' ||
-    folded === '.studio/season/close-journal.json'
+    folded === '.studio/season/close-journal.json' ||
+    folded === '.studio/settings.json'
   );
 }
 

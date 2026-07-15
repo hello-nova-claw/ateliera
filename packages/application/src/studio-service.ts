@@ -70,6 +70,10 @@ import {
   type SeasonCloseRequest,
   type SeasonCloseResult,
 } from './season-close-transaction';
+import {
+  createOnboardingSettingsRepository,
+  type OnboardingSettingsRepository,
+} from './onboarding-settings';
 
 export {
   MAX_COVER_MEDIA_BYTES,
@@ -223,6 +227,7 @@ export interface StudioServiceDependencies {
 export interface StudioService {
   readonly views: ViewStateRepository;
   readonly lifeAreas: LifeAreaRepository;
+  readonly onboarding: OnboardingSettingsRepository;
   readonly seasonTransactions: SeasonTransactionStore;
   start(): Promise<void>;
   dispose(): Promise<void>;
@@ -367,6 +372,7 @@ export function createStudioService(
   const views = createViewStateRepository(dependencies.vault);
   const lifeAreas =
     dependencies.lifeAreas ?? createLifeAreaRepository(dependencies.vault);
+  const onboarding = createOnboardingSettingsRepository(dependencies.vault);
   const revisions =
     dependencies.revisions ??
     createRevisionStore(dependencies.vault, { clock });
@@ -797,6 +803,7 @@ export function createStudioService(
   const service: StudioService = {
     views,
     lifeAreas,
+    onboarding,
     seasonTransactions,
 
     start() {

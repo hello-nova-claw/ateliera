@@ -10,6 +10,10 @@ import {
 it('creates a named portable backup and restores it', async () => {
   const source = createInMemoryVault();
   await source.writeTextAtomic('Inbox/hill.md', '# Hill\n');
+  await source.writeTextAtomic(
+    '.studio/settings.json',
+    '{"version":1,"onboarding":{"version":1,"status":"in-progress","currentStep":"foyer","updatedAt":"2026-07-14T12:00:00.000Z"}}',
+  );
   const backup = await createVaultBackup(source, {
     generatedAt: '2026-07-14T12:34:56.000Z',
     reason: 'manual',
@@ -19,6 +23,9 @@ it('creates a named portable backup and restores it', async () => {
   const target = createInMemoryVault();
   await restoreVaultBackup(target, backup.bytes, { confirm: true });
   await expect(target.readText('Inbox/hill.md')).resolves.toMatchObject({ text: '# Hill\n' });
+  await expect(target.readText('.studio/settings.json')).resolves.toMatchObject({
+    text: expect.stringContaining('"currentStep":"foyer"'),
+  });
 });
 
 it('persists a complete backup before allowing a migration to mutate the vault', async () => {

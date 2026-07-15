@@ -117,6 +117,21 @@ function studioService(overrides: Partial<StudioService> = {}) {
         revision: revision ?? 'hash-1',
       }),
     },
+    onboarding: {
+      load: async () => ({
+        onboarding: {
+          version: 1,
+          status: 'not-started',
+          currentStep: 'welcome',
+          updatedAt: '2026-07-15T00:00:00.000Z',
+        },
+        extra: {},
+        revision: null,
+        repairRequired: false,
+      }),
+      save: vi.fn(),
+      transition: vi.fn(),
+    },
     seasonTransactions: {
       readActive: vi.fn(async () => ({
         value: {

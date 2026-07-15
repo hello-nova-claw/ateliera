@@ -341,3 +341,11 @@
 - Added honest creation/opening phases and a ten-second longer-than-usual explanation without percentages, progress rings, or indefinite spinners. Creation progress stays inside its active sheet so assistive technology does not announce duplicate status from the obscured entry gate.
 - Creation cancellation now preserves the typed Studio Space name and returns focus to the entry action. Failed opening stops progress and offers explicit **Try again** and **Return to the beginning** paths.
 - Verified the transition table, 185 app tests, typecheck, lint, all 14 desktop/mobile onboarding journeys, and all 55 native storage tests.
+
+## 2026-07-15 — Portable per-Studio onboarding state
+
+- Added a typed `.studio/settings.json` repository as the authority for each Studio Space's First Visit state. The schema records named tour steps, start/update/complete/dismiss timestamps, and the optional legacy-tour invitation dismissal without using browser `localStorage`.
+- Preserved unknown top-level settings across structural rewrites and treated a valid settings file with no onboarding metadata as a legacy-compatible not-started state rather than corruption. Malformed onboarding fails soft, retains its exact durable revision for repair, and preserves unrelated valid settings.
+- Made every write atomic and exact-hash guarded. High-level tour transitions reload and retry boundedly after a concurrent writer wins, while direct stale saves still surface their conflict; an interrupted write leaves the last valid settings readable.
+- Exposed the repository through the active `StudioService`, allowed only the exact settings control path, and kept arbitrary `.studio/settings/*` access outside the control boundary.
+- Proved `.studio/settings.json` survives both portable export/import and named backup/restore. Focused application and storage tests, typecheck, and ESLint/stylelint pass; the broader 1,255-test workspace run passed 1,240 tests, with 15 pre-existing Search assertion failures caused only by the committed `safe vault path` / `safe Studio file location` wording mismatch.

@@ -5,7 +5,7 @@ import { createInMemoryVault } from './in-memory-vault';
 import { createStudioControlVault } from './studio-control-vault';
 
 describe('Studio control vault', () => {
-  it('permits only Trash and backup control paths', async () => {
+  it('permits only the explicit settings, Trash, and backup control paths', async () => {
     const vault = createInMemoryVault();
     const control = createStudioControlVault(vault);
     await expect(
@@ -16,6 +16,9 @@ describe('Studio control vault', () => {
     ).resolves.toBeDefined();
     await expect(
       control.writeTextAtomic('.studio/settings.json', '{}'),
+    ).resolves.toBeDefined();
+    await expect(
+      control.writeTextAtomic('.studio/settings/private.json', '{}'),
     ).rejects.toBeInstanceOf(PathEscapeError);
     await expect(control.readText('Notes/private.md')).rejects.toBeInstanceOf(
       PathEscapeError,
