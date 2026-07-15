@@ -320,3 +320,10 @@
 - Renamed user-owned export and technical namespaces where they represented product identity, including portable archive format labels, browser storage roots, OPFS channels, backup filenames, diagnostic exports, and default local Studio naming.
 - Deliberately retained historical source filenames and reference artifacts under `docs/design/reference/`, existing PRD/plan filenames, the `.studio/` control-folder convention, `@studio/*` package namespace, `StudioService`, and `studio-*` CSS/token naming because those are implementation contracts or domain metaphors rather than user-facing product branding.
 - Verification covered focused app/storage/tooling unit tests, typecheck, ESLint/stylelint, Rust tests/format/clippy, PWA build inspection, desktop Chromium onboarding/shell journeys, and Foyer visual/a11y states across responsive, forced-colors, and reduced-motion variants.
+
+## 2026-07-15 — Onboarding entry boundary
+
+- Replaced the inactive Foyer shell with a dedicated full-viewport Ateliera entry boundary. Before a Studio Space is active, room navigation, mobile navigation, Search, Capture, room routes, and loading announcements are no longer mounted.
+- Added a reducer-backed entry/active contract and an explicit active-application component boundary. The router remains dormant before entry, preserves the launch URL, and only canonicalizes it when a Studio Space becomes active.
+- Kept existing browser and native create/open behavior intact, including duplicate protection, progress locking, injected test services, and the transition into the Foyer after activation.
+- Verified all 175 app tests, TypeScript, ESLint/stylelint, 20 desktop/mobile onboarding and shell journeys, axe on both sides of the threshold, and inspected fresh-entry screenshots at 1440×1000 and 390×844.

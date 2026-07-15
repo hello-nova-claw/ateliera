@@ -15,7 +15,15 @@ import {
 } from '@studio/ui';
 import type { BrowserPersistenceStatus } from '@studio/storage/browser';
 import { VaultConflictError, type VaultPort } from '@studio/storage/portable';
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import {
+  type ComponentProps,
+  lazy,
+  Suspense,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+} from 'react';
 import { StudioProviders } from './providers';
 import {
   activateBrowserStudio,
@@ -122,6 +130,19 @@ export interface AppProps {
   vault?: VaultPort;
 }
 
+type StudioEntryState = { kind: 'entry' } | { kind: 'active' };
+
+type StudioEntryAction = { type: 'activate' } | { type: 'deactivate' };
+
+function studioEntryReducer(
+  state: StudioEntryState,
+  action: StudioEntryAction,
+): StudioEntryState {
+  if (action.type === 'activate') return { kind: 'active' };
+  if (state.kind === 'entry') return state;
+  return { kind: 'entry' };
+}
+
 export function App(props: AppProps = {}) {
   return (
     <StudioProviders>
@@ -150,14 +171,19 @@ function StudioApplication({
   const [activeVault, setActiveVault] = useState<VaultPort | null>(
     () => vault ?? null,
   );
+  const [entryState, dispatchEntry] = useReducer(
+    studioEntryReducer,
+    captureService !== undefined || studioService !== undefined
+      ? { kind: 'active' }
+      : { kind: 'entry' },
+  );
+  const opened = entryState.kind === 'active';
   const { navigate, path, title } = useStudioRouter(
     (next) => navigationGuard.current?.(next) ?? false,
+    opened,
   );
   const { announce: themeAnnouncement, setTheme, theme } = useTheme();
   const [captures, setCaptures] = useState<CaptureEntry[]>([]);
-  const [opened, setOpened] = useState(
-    () => captureService !== undefined || studioService !== undefined,
-  );
   const [projectionRevision, setProjectionRevision] = useState(0);
   const [online, setOnline] = useState(() => navigator.onLine);
   const [browserStudios, setBrowserStudios] = useState<BrowserStudioRecord[]>(
@@ -239,13 +265,13 @@ function StudioApplication({
       setService(studioService);
       setActiveVault(vault ?? null);
       setActiveStudioId(studioId ?? injectedStudioId.current);
-      setOpened(true);
+      dispatchEntry({ type: 'activate' });
     } else if (captureService !== undefined) {
       setEditor(undefined);
       setService(captureService);
       setActiveVault(vault ?? null);
       setActiveStudioId(studioId ?? injectedStudioId.current);
-      setOpened(true);
+      dispatchEntry({ type: 'activate' });
     }
   }, [captureService, studioId, studioService, vault]);
 
@@ -316,8 +342,8 @@ function StudioApplication({
   }, [projectionRevision, service]);
 
   useEffect(() => {
-    document.title = `${title} — Ateliera`;
-  }, [title]);
+    document.title = opened ? `${title} — Ateliera` : 'Welcome — Ateliera';
+  }, [opened, title]);
 
   useEffect(() => {
     if (toast === '') return undefined;
@@ -349,15 +375,17 @@ function StudioApplication({
   }
 
   function finishOnboarding(): void {
-    setOpened(true);
+    dispatchEntry({ type: 'activate' });
     requestAnimationFrame(() =>
       document.querySelector<HTMLElement>('#studio-main')?.focus(),
     );
   }
 
-  async function activateNativeStudio(vault: {
-    recoveryIdentity: string;
-  } & VaultPort): Promise<void> {
+  async function activateNativeStudio(
+    vault: {
+      recoveryIdentity: string;
+    } & VaultPort,
+  ): Promise<void> {
     setEditor(undefined);
     setActiveVault(vault);
     setActiveStudioId(`native:${vault.recoveryIdentity}`);
@@ -386,9 +414,7 @@ function StudioApplication({
       setEditor(undefined);
       setActiveVault(vault);
       setActiveStudioId(record.vaultId);
-      setService(
-        await createAppStudioService(vault),
-      );
+      setService(await createAppStudioService(vault));
       setStatus(offlineReady.current ? 'Ready offline' : 'Stored locally');
       finishOnboarding();
     } catch (reason) {
@@ -710,8 +736,87 @@ function StudioApplication({
     </div>
   );
 
+  const createStudioDialog = (
+    <Dialog
+      isOpen={createOpen}
+      label="Create a Studio"
+      onClose={() => {
+        if (studioAction === null) setCreateOpen(false);
+      }}
+    >
+      <form
+        className="studio-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void createStudio();
+        }}
+      >
+        <p className="studio-form__eyebrow">A place of your own</p>
+        <h2>Create a Studio</h2>
+        <label htmlFor="studio-name">Studio name</label>
+        <input
+          disabled={studioAction !== null}
+          id="studio-name"
+          onChange={(event) => setName(event.target.value)}
+          value={name}
+        />
+        {createError && (
+          <p className="studio-form__error" role="alert">
+            {createError}
+          </p>
+        )}
+        <div className="studio-form__actions">
+          <button
+            className="studio-form__button studio-form__button--secondary"
+            disabled={studioAction !== null}
+            onClick={() => setCreateOpen(false)}
+            type="button"
+          >
+            Not now
+          </button>
+          <button
+            className="studio-form__button"
+            disabled={studioAction !== null}
+            type="submit"
+          >
+            {studioAction === 'create' ? 'Creating your Studio…' : 'Create'}
+          </button>
+          {duplicateStudio && (
+            <button
+              className="studio-form__button studio-form__button--secondary"
+              disabled={studioAction !== null}
+              onClick={() => {
+                setCreateOpen(false);
+                void openStudio(duplicateStudio);
+              }}
+              type="button"
+            >
+              Open {duplicateStudio.name}
+            </button>
+          )}
+        </div>
+      </form>
+    </Dialog>
+  );
+
+  if (!opened) {
+    return (
+      <>
+        <Onboarding
+          browserStudios={browserStudios}
+          error={error}
+          isNative={isNativeShell()}
+          onCreate={() => setCreateOpen(true)}
+          onOpen={(record) => void openStudio(record)}
+          studioAction={studioAction}
+        />
+        {createStudioDialog}
+      </>
+    );
+  }
+
   return (
-    <AppShell
+    <ActiveStudioApplication
       activePath={path}
       captureEnabled={opened && service !== null}
       localStatus={opened ? 'Stored locally' : 'No Studio open'}
@@ -762,15 +867,6 @@ function StudioApplication({
           title={title}
           {...(activeVault === null ? {} : { vault: activeVault })}
         />
-        {!opened && (
-          <Onboarding
-            browserStudios={browserStudios}
-            isNative={isNativeShell()}
-            onCreate={() => setCreateOpen(true)}
-            onOpen={(record) => void openStudio(record)}
-            studioAction={studioAction}
-          />
-        )}
       </section>
       {error && (
         <p className="studio-room__error" role="alert">
@@ -780,66 +876,7 @@ function StudioApplication({
       <span aria-live="polite" className="studio-toast" role="status">
         {toast}
       </span>
-      <Dialog
-        isOpen={createOpen}
-        label="Create a Studio"
-        onClose={() => {
-          if (studioAction === null) setCreateOpen(false);
-        }}
-      >
-        <form
-          className="studio-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void createStudio();
-          }}
-        >
-          <p className="studio-form__eyebrow">A place of your own</p>
-          <h2>Create a Studio</h2>
-          <label htmlFor="studio-name">Studio name</label>
-          <input
-            disabled={studioAction !== null}
-            id="studio-name"
-            onChange={(event) => setName(event.target.value)}
-            value={name}
-          />
-          {createError && (
-            <p className="studio-form__error" role="alert">
-              {createError}
-            </p>
-          )}
-          <div className="studio-form__actions">
-            <button
-              className="studio-form__button studio-form__button--secondary"
-              disabled={studioAction !== null}
-              onClick={() => setCreateOpen(false)}
-              type="button"
-            >
-              Not now
-            </button>
-            <button
-              className="studio-form__button"
-              disabled={studioAction !== null}
-              type="submit"
-            >
-              {studioAction === 'create' ? 'Creating your Studio…' : 'Create'}
-            </button>
-            {duplicateStudio && (
-              <button
-                className="studio-form__button studio-form__button--secondary"
-                disabled={studioAction !== null}
-                onClick={() => {
-                  setCreateOpen(false);
-                  void openStudio(duplicateStudio);
-                }}
-                type="button"
-              >
-                Open {duplicateStudio.name}
-              </button>
-            )}
-          </div>
-        </form>
-      </Dialog>
+      {createStudioDialog}
       <Dialog
         isOpen={captureOpen}
         label="Hold this thought"
@@ -901,8 +938,12 @@ function StudioApplication({
           requestAnimationFrame(() => searchButton.current?.focus());
         }}
       />
-    </AppShell>
+    </ActiveStudioApplication>
   );
+}
+
+function ActiveStudioApplication(props: ComponentProps<typeof AppShell>) {
+  return <AppShell {...props} />;
 }
 
 function isStudioService(
@@ -936,12 +977,14 @@ function legacySavedNote(captured: CaptureEntry): SavedNote {
 
 function Onboarding({
   browserStudios,
+  error,
   isNative,
   onCreate,
   onOpen,
   studioAction,
 }: {
   browserStudios: BrowserStudioRecord[];
+  error: string | undefined;
   isNative: boolean;
   onCreate: () => void;
   onOpen: (record?: BrowserStudioRecord) => void;
@@ -955,57 +998,71 @@ function Onboarding({
   );
 
   return (
-    <section className="studio-onboarding" aria-labelledby="onboarding-title">
-      <p className="studio-onboarding__script" aria-hidden="true">
-        begin where you are
-      </p>
-      <h2 id="onboarding-title">Make this space yours.</h2>
-      <p>
-        {isNative
-          ? 'Create a new Studio, or open one you already have.'
-          : 'Your Studio stays on this device. Begin a new one, or return to the local Studio already waiting here.'}
-      </p>
-      <div className="studio-onboarding__actions">
-        <button
-          className="studio-onboarding__button"
-          disabled={studioAction !== null}
-          onClick={onCreate}
-          type="button"
-        >
-          Create a Studio
-        </button>
-        {!isNative && browserStudios.length > 1 && (
-          <label className="studio-onboarding__picker">
-            Choose a Studio
-            <select
-              disabled={studioAction !== null}
-              onChange={(event) => setSelectedVault(event.target.value)}
-              value={selectedVault}
-            >
-              {browserStudios.map((studio) => (
-                <option key={studio.vaultId} value={studio.vaultId}>
-                  {studio.name}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <button
-          className="studio-onboarding__button studio-onboarding__button--secondary"
-          disabled={studioAction !== null || (!isNative && selected === undefined)}
-          onClick={() => onOpen(selected)}
-          type="button"
-        >
+    <main
+      aria-label="Ateliera welcome"
+      className="studio-entry"
+      id="studio-entry"
+      tabIndex={-1}
+    >
+      <section className="studio-onboarding" aria-labelledby="onboarding-title">
+        <p className="studio-onboarding__script" aria-hidden="true">
+          begin where you are
+        </p>
+        <h1 id="onboarding-title">Make this space yours.</h1>
+        <p>
           {isNative
-            ? studioAction === 'open'
-              ? 'Opening your Studio…'
-              : 'Open an existing Studio'
-            : selected
-              ? `Open ${selected.name}`
-              : 'No existing Studio found'}
-        </button>
-      </div>
-    </section>
+            ? 'Create a new Studio, or open one you already have.'
+            : 'Your Studio stays on this device. Begin a new one, or return to the local Studio already waiting here.'}
+        </p>
+        {error && (
+          <p className="studio-room__error" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="studio-onboarding__actions">
+          <button
+            className="studio-onboarding__button"
+            disabled={studioAction !== null}
+            onClick={onCreate}
+            type="button"
+          >
+            Create a Studio
+          </button>
+          {!isNative && browserStudios.length > 1 && (
+            <label className="studio-onboarding__picker">
+              Choose a Studio
+              <select
+                disabled={studioAction !== null}
+                onChange={(event) => setSelectedVault(event.target.value)}
+                value={selectedVault}
+              >
+                {browserStudios.map((studio) => (
+                  <option key={studio.vaultId} value={studio.vaultId}>
+                    {studio.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <button
+            className="studio-onboarding__button studio-onboarding__button--secondary"
+            disabled={
+              studioAction !== null || (!isNative && selected === undefined)
+            }
+            onClick={() => onOpen(selected)}
+            type="button"
+          >
+            {isNative
+              ? studioAction === 'open'
+                ? 'Opening your Studio…'
+                : 'Open an existing Studio'
+              : selected
+                ? `Open ${selected.name}`
+                : 'No existing Studio found'}
+          </button>
+        </div>
+      </section>
+    </main>
   );
 }
 

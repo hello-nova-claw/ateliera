@@ -312,9 +312,16 @@
   color: var(--studio-color-ink-strong);
 }
 
+.studio-entry {
+  display: grid;
+  min-block-size: 100dvh;
+  padding: clamp(var(--studio-space-6), 6vw, var(--studio-space-16));
+  place-items: center;
+}
+
 .studio-onboarding {
+  inline-size: min(100%, 36rem);
   max-inline-size: 36rem;
-  margin-block-start: var(--studio-space-16);
   padding: var(--studio-space-8);
   border: 1px solid var(--studio-color-line);
   border-radius: var(--studio-radius-card);
@@ -330,7 +337,7 @@
   transform-origin: left;
 }
 
-.studio-onboarding h2,
+.studio-onboarding h1,
 .studio-form h2 {
   margin: var(--studio-space-3) 0;
   color: var(--studio-color-ink-strong);
@@ -454,7 +461,6 @@
   }
 
   .studio-onboarding {
-    margin-block-start: var(--studio-space-10);
     padding: var(--studio-space-6);
   }
 

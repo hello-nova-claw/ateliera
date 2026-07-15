@@ -219,6 +219,39 @@ it('renders the Studio landmark', async () => {
   expect(screen.queryByText('Ready offline')).not.toBeInTheDocument();
 });
 
+it('renders only the entry boundary before a Studio Space is active', () => {
+  history.replaceState(null, '', '/not-a-room');
+  const replaceState = vi.spyOn(history, 'replaceState');
+
+  render(<App />);
+
+  expect(screen.getByRole('main', { name: 'Ateliera welcome' })).toBeVisible();
+  expect(
+    screen.getByRole('heading', {
+      level: 1,
+      name: 'Make this space yours.',
+    }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole('navigation', { name: 'Studio rooms' }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('navigation', { name: 'Mobile navigation' }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('button', { name: 'Search' }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('button', { name: 'Capture' }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('heading', { name: 'Ateliera' }),
+  ).not.toBeInTheDocument();
+  expect(replaceState).not.toHaveBeenCalledWith(null, '', '/foyer');
+  expect(location.pathname).toBe('/not-a-room');
+  expect(document.title).toBe('Welcome — Ateliera');
+});
+
 it('makes the active vault available to portable settings', async () => {
   history.replaceState(null, '', '/settings');
   const fixture = studioService();
@@ -242,17 +275,21 @@ it('makes the active vault available to portable settings', async () => {
 it('makes live shell connectivity available to local-first rooms', async () => {
   history.replaceState(null, '', '/uncharted');
   let online = true;
-  const onlineSpy = vi.spyOn(navigator, 'onLine', 'get').mockImplementation(
-    () => online,
-  );
+  const onlineSpy = vi
+    .spyOn(navigator, 'onLine', 'get')
+    .mockImplementation(() => online);
   const fixture = studioService();
   render(<App studioId="studio:first" studioService={fixture.service} />);
-  expect(await screen.findByRole('heading', { name: 'What if…?' })).toBeVisible();
+  expect(
+    await screen.findByRole('heading', { name: 'What if…?' }),
+  ).toBeVisible();
 
   online = false;
   fireEvent(window, new Event('offline'));
   expect(
-    await screen.findByText('Stored locally. This room remains available offline.'),
+    await screen.findByText(
+      'Stored locally. This room remains available offline.',
+    ),
   ).toBeVisible();
   onlineSpy.mockRestore();
 });
@@ -541,14 +578,14 @@ it('creates a named native Studio separately from opening an existing one', asyn
   ).toBeDisabled();
   finishCreate?.(null);
   await waitFor(() =>
-    expect(
-      screen.getByRole('button', { name: /^Create$/ }),
-    ).toBeEnabled(),
+    expect(screen.getByRole('button', { name: /^Create$/ })).toBeEnabled(),
   );
 });
 
 it('serializes browser Studio selection and unlocks after completion', async () => {
-  let finishList: ((entries: [{ kind: 'file'; path: string; size: number }]) => void) | undefined;
+  let finishList:
+    | ((entries: [{ kind: 'file'; path: string; size: number }]) => void)
+    | undefined;
   createBrowserVault.mockReturnValue({
     list: () =>
       new Promise((resolve) => {
@@ -566,8 +603,12 @@ it('serializes browser Studio selection and unlocks after completion', async () 
   fireEvent.click(submit);
 
   await waitFor(() => expect(createBrowserVault).toHaveBeenCalledOnce());
-  expect(screen.getByRole('button', { name: 'Create a Studio' })).toBeDisabled();
-  expect(screen.getByRole('button', { name: 'No existing Studio found' })).toBeDisabled();
+  expect(
+    screen.getByRole('button', { name: 'Create a Studio' }),
+  ).toBeDisabled();
+  expect(
+    screen.getByRole('button', { name: 'No existing Studio found' }),
+  ).toBeDisabled();
 
   finishList?.([{ kind: 'file', path: 'Inbox/existing.md', size: 1 }]);
   await waitFor(() =>

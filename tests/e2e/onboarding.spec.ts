@@ -1,10 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
-async function createLocalStudio(
-  page: Page,
-  name = 'Ateliera',
-): Promise<void> {
+async function createLocalStudio(page: Page, name = 'Ateliera'): Promise<void> {
   await page.getByRole('button', { name: 'Create a Studio' }).click();
   await page.getByLabel('Studio name').fill(name);
   await page.getByRole('button', { name: 'Create', exact: true }).click();
@@ -13,7 +10,24 @@ async function createLocalStudio(
 
 test('creates a local Studio and enters the Foyer', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Capture' })).toBeDisabled();
+  await expect(
+    page.getByRole('main', { name: 'Ateliera welcome' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', {
+      level: 1,
+      name: 'Make this space yours.',
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('navigation', { name: 'Studio rooms' }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole('navigation', { name: 'Mobile navigation' }),
+  ).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Search' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Capture' })).toHaveCount(0);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await createLocalStudio(page, 'Anna’s Studio');
 
   await expect(page).toHaveURL(/\/foyer$/);
@@ -75,9 +89,7 @@ test('native relaunch requires a fresh session-scoped folder selection', async (
   await expect(
     page.getByRole('heading', { name: 'Make this space yours.' }),
   ).toBeVisible();
-  await page
-    .getByRole('button', { name: 'Open an existing Studio' })
-    .click();
+  await page.getByRole('button', { name: 'Open an existing Studio' }).click();
   await expect(
     page.getByRole('heading', { name: 'Make this space yours.' }),
   ).toBeVisible();

@@ -26,13 +26,22 @@ function canonicalLocationPath(): StudioPath {
   return normalized;
 }
 
-export function useStudioRouter(guard?: (next: StudioPath) => boolean) {
-  const [path, setPath] = useState<StudioPath>(canonicalLocationPath);
+export function useStudioRouter(
+  guard?: (next: StudioPath) => boolean,
+  enabled = true,
+) {
+  const [path, setPath] = useState<StudioPath>(() =>
+    normalizePath(location.pathname),
+  );
   const pathRef = useRef(path);
   const guardRef = useRef(guard);
   pathRef.current = path;
   guardRef.current = guard;
   useEffect(() => {
+    if (!enabled) return undefined;
+    const current = canonicalLocationPath();
+    pathRef.current = current;
+    setPath(current);
     const onPop = () => {
       const next = canonicalLocationPath();
       if (guardRef.current?.(next) === true) {
@@ -43,14 +52,18 @@ export function useStudioRouter(guard?: (next: StudioPath) => boolean) {
     };
     addEventListener('popstate', onPop);
     return () => removeEventListener('popstate', onPop);
-  }, []);
-  const navigate = useCallback((next: string, force = false, replace = false) => {
-    const normalized = normalizePath(next);
-    if (!force && guardRef.current?.(normalized) === true) return;
-    if (replace || normalized !== next) history.replaceState(null, '', normalized);
-    else history.pushState(null, '', normalized);
-    setPath(normalized);
-  }, []);
+  }, [enabled]);
+  const navigate = useCallback(
+    (next: string, force = false, replace = false) => {
+      const normalized = normalizePath(next);
+      if (!force && guardRef.current?.(normalized) === true) return;
+      if (replace || normalized !== next)
+        history.replaceState(null, '', normalized);
+      else history.pushState(null, '', normalized);
+      setPath(normalized);
+    },
+    [],
+  );
   const title = path.startsWith('/landscape/')
     ? 'Life Landscape'
     : studioRoutes[path as keyof typeof studioRoutes];
