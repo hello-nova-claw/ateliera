@@ -6,6 +6,7 @@
 - Defined a dedicated pre-Studio Entry Gate, an explicit create/open/preparing state machine, and a fully initialized active-session boundary so rooms, Search, Capture, and Studio services do not mount prematurely.
 - Planned an optional, resumable five-room First Visit walkthrough for newly created Studio Spaces, with one optional real contribution, no spotlight overlay, no compulsory disclosure, and replay from Settings.
 - Added a furnished-preview layer to every tour stop: sparse, realistic example content appears in the authentic room layout, remains clearly labelled and structurally unable to enter storage or derived indexes, and becomes an editable draft only through an explicit **Use as a starting point** action.
+- Refined the aesthetic contract around **Ateliera should unfold, not announce itself**: the first visit is a spatial, unnumbered wandering with a continuous threshold, stable guide, prefetched room transitions, asymmetrical negative space, strict visual-restraint rules, authored-card replacement, a quiet ending, and direct everyday returns.
 - Specified per-Studio onboarding state in portable `.studio/settings.json`, calm long-running and failure states, legacy-Studio behavior, accessibility requirements, visual review states, and a six-task TDD implementation sequence.
 - Current phase: onboarding plan ready for implementation in `docs/superpowers/plans/2026-07-15-ateliera-onboarding.md`.
 

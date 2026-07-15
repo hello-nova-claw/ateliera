@@ -23,6 +23,12 @@ The room rail, Foyer, Search, Inbox, Capture, and dashboard content must not ren
 
 After a new Studio Space is successfully created, Ateliera should offer a calm, optional first-visit walkthrough. The walkthrough should teach the structure through the real interface, invite one meaningful first contribution, remain skippable and resumable, and never behave like a compulsory setup checklist.
 
+The governing experience principle is:
+
+> **Ateliera should unfold, not announce itself.**
+
+The first entrance may be spacious, atmospheric, and orienting. Everyday returns should be calm, immediate, and familiar.
+
 ## 2. Problem statement
 
 A person launching Ateliera without an active Studio Space currently sees the full application architecture before they have created or selected the place that architecture belongs to. Navigation, Search, Inbox, and Capture therefore appear prematurely, while the actual entry decision is visually secondary.
@@ -47,6 +53,14 @@ After creation, a person is placed directly into a sophisticated but empty house
 - No create/open action can leave the interface on an unexplained indefinite spinner.
 - The entire flow is keyboard accessible, screen-reader understandable, responsive, offline-capable, and verified visually in Playwright.
 
+### 3.3 Aesthetic and emotional outcomes
+
+- Entering feels like crossing a quiet threshold rather than completing software setup.
+- The walkthrough feels like moving through connected rooms, not advancing through a product tour or checklist.
+- Space, proportion, typography, and continuity carry the beauty; decoration remains subordinate.
+- The interface contains one clear focal point at a time and never manufactures urgency, achievement, or spectacle.
+- Example content makes potential tangible while leaving the resulting Studio unmistakably the person's own.
+
 ## 4. Non-goals
 
 - **Account creation, sign-in, or cloud sync.** This remains a local-first entry flow.
@@ -67,6 +81,7 @@ After creation, a person is placed directly into a sophisticated but empty house
 - Use **Create a new Studio Space** for creation.
 - Use **Open an existing Studio Space** for folder or local-space selection.
 - Use **Continue the tour**, **Start the tour again**, and **Leave the tour** for walkthrough state.
+- Use spatial actions inside the walkthrough: **Begin in the Foyer**, **Wander into the Landscape**, **Visit Current Season**, **Step into Uncharted**, **Pause in the Reflection Garden**, and **Return to the Foyer**.
 - Never show **vault**, **repository**, **database**, **index**, **mount**, or **hydrate** in user-facing copy.
 
 Internal interfaces may retain `VaultPort` until a separate engineering-language refactor is justified. Internal names must not leak into labels, errors, progress messages, accessibility names, or diagnostics previews.
@@ -77,6 +92,7 @@ Internal interfaces may retain `VaultPort` until a separate engineering-language
 - Explain what remains safe when something fails.
 - Avoid commands such as “Complete your setup.”
 - Prefer “Begin wherever feels useful” and “You can return to this later.”
+- Prefer room names and directional language over numbered steps, completion language, or setup terminology.
 - Do not use progress percentages unless they represent measured work.
 
 ## 6. Experience model
@@ -208,7 +224,9 @@ Use honest, event-backed messages:
 2. **Preparing your rooms…** while the service starts and the empty index becomes ready.
 3. **Your Studio Space is ready.** when the session can safely mount.
 
-Show a progress indicator only while work is active. After 2 seconds, add a calm detail line. After 10 seconds, show **“This is taking longer than usual. Your Studio Space is still being prepared.”** If a recoverable failure occurs, stop the progress animation and show **Try again** and **Return to the beginning**. Never leave an animation running after the underlying operation has settled.
+The words are the primary progress experience. If animation is used, limit it to one subtle breathing dot or a fine determinate line backed by real progress. Do not use a conventional spinner, percentage, progress ring, illustrated construction sequence, or rotating collection of tips.
+
+After 2 seconds, add a calm detail line. After 10 seconds, show **“This is taking longer than usual. Your Studio Space is still being prepared.”** If a recoverable failure occurs, stop the progress animation and show **Try again** and **Return to the beginning**. Never leave an animation running after the underlying operation has settled.
 
 ### 7.5 Open existing Studio Space flow
 
@@ -226,6 +244,8 @@ Opening must:
 If opening fails, return to the entry gate with a focused error summary. Copy must state that no Studio content was changed. For example:
 
 > This Studio Space couldn't be opened. Nothing inside it was changed. Choose the folder and try again.
+
+For a returning user, successful opening proceeds directly to the Foyer without replaying threshold copy, introductory animation, furnished previews, or tour prompts. A resumed, explicitly unfinished first visit is the only exception.
 
 ### 7.6 First Visit welcome
 
@@ -247,19 +267,42 @@ Supporting line: **“The tour is optional, and you can leave it at any time.”
 
 `Enter my Studio` records the walkthrough as dismissed, enters the Foyer, and leaves a quiet **Take the Studio tour** action in Settings. It must not be labelled Skip on the welcome screen; entering directly is a valid choice, not a failure.
 
+#### Threshold transition
+
+Starting the first visit should feel like the welcome surface opens into the Studio rather than being replaced by an unrelated dashboard:
+
+- Keep the canvas, theme, and Ateliera wordmark spatially continuous.
+- Fade the welcome copy while the Foyer title resolves near the same visual anchor.
+- Reveal the room navigation and first glimpse only after the active session is ready.
+- Use opacity and no more than 8–12px of translation over the existing `--studio-motion-room` maximum; do not use zooming, parallax, large slides, spring physics, or staggered card entrances.
+- Under `prefers-reduced-motion`, switch states immediately while preserving focus movement and announcements.
+- If continuity cannot be maintained at a particular responsive width, prefer a clean crossfade to an elaborate transition.
+
 ### 7.7 The first-visit walkthrough
 
 The tour uses the real active Studio shell plus a non-modal **First Visit Guide**. It must not use opaque backdrops, holes cut into overlays, pulsing hotspots, or disabled navigation.
 
-On desktop the guide is a 320–360px editorial side card that does not cover the focused content. On compact and mobile layouts it is a collapsible bottom sheet with a persistent **First visit** button. Its DOM position follows the main content so reading and focus order remain logical.
+On desktop the guide occupies a stable editorial column beside the room using a proportional grid such as `minmax(0, 1fr) minmax(19rem, 23rem)` and a responsive 32–80px gap. It must not cover the focused content. On compact and mobile layouts it becomes a collapsible inline or bottom surface with a persistent **First visit** button. Its DOM position follows the main content so reading and focus order remain logical.
 
 Each step contains:
 
-- step name and optional `1 of 5` text;
+- the destination room name, without numeric progress, a progress bar, or completion percentage;
 - one short explanation;
-- one **Show me** or **Visit this room** action;
-- **Back**, **Next**, and **Leave tour**;
+- one spatial destination action such as **Wander into the Landscape** or **Step into Uncharted**;
+- **Previous room**, the named next-room action, and **Leave tour**;
 - a visible **You can return to this later** reminder where a prompt is offered.
+
+The internal state may remain ordered for persistence and testing, but the visible experience is a guided wandering rather than a numbered sequence.
+
+#### Spatial continuity and flow
+
+- The guide occupies a stable region throughout the walkthrough. The room content changes around it; the guide must not jump between unrelated corners.
+- On desktop, use a proportional content-and-guide grid with a generous gap rather than fixing every room to an identical card width. On mobile, the guide becomes an inline or bottom surface that respects the navigation and safe area.
+- Prefetch the next room's lazy bundle and minimum projection while the current room is being read. A normal next-room transition must not display a spinner or blank shell.
+- Preserve one visual anchor—room heading, guide heading, or primary example—at approximately the same vertical position between rooms.
+- Use a single room-level crossfade or slight translation. Do not stagger every example card independently.
+- Focus moves to the destination room heading after navigation; the persistent guide remains next in logical reading order.
+- Direct room navigation remains available. Returning to the guide resumes from the last selected room rather than forcing the previous sequence.
 
 #### Furnished preview layer
 
@@ -267,17 +310,20 @@ During the tour, each visited room temporarily appears lightly furnished with a 
 
 The examples follow these rules:
 
+- Introduce the room-level composition with **A glimpse of what could live here**. This phrase appears once per room and frames the examples as possibility rather than prescribed content.
 - Every item carries a visible **Example** label and an accessible name such as **“Example Vision card.”**
 - Examples use the room's real layout, typography, semantic hearts, note stock, and spacing, but have a subtle preview treatment that distinguishes them from authored cards.
 - Examples never enter the `StudioService`, Markdown storage, `.studio/settings.json`, search index, backlinks, Inbox, Reflection chronology, backups, diagnostics, or revision history.
 - Examples are defined as immutable application fixtures and injected only into the tour presentation layer. They are not synthetic `StudioNote` records and do not receive canonical note IDs.
 - They cannot be dragged, reordered, archived, inspected, linked, or edited in place.
-- Where an example makes a useful starting point, show **Use as a starting point**. This opens the normal composer with a copy of the example text. Nothing is saved until the person explicitly chooses **Remember**.
+- Offer no more than one **Use as a starting point** action in any room. This opens the normal composer with a copy of the example text. Nothing is saved until the person explicitly chooses **Remember**.
 - The copied draft immediately loses its **Example** status and follows all normal validation, cancellation, draft-recovery, and Markdown-save behavior.
 - Cancelling a copied draft leaves no note or relationship behind.
 - Leaving or completing the tour removes every example immediately. Replaying the tour shows the same examples without duplicating anything.
 - If the room already contains real content, examples remain visually secondary and never displace, reorder, or obscure it.
 - Example content must be grounded, specific, and emotionally spacious. Avoid luxury clichés, universal prescriptions, hustle language, or claims that one life is ideal for everyone.
+
+When a starting point is remembered successfully, preserve spatial continuity: the preview card gives way to the real authored card in the same conceptual location, the **Example** label disappears, and the user's edited words become the visual focus. This is a state replacement, not an animation that delays saving. Under reduced motion it happens immediately. All other glimpses remain secondary until the person leaves that room or ends the walkthrough.
 
 The preview layer should feel like walking through a sensitively furnished display home: alive enough to invite imagination, clearly not yet the visitor's own.
 
@@ -373,13 +419,15 @@ These examples demonstrate the relationship between noticing and evidence over t
 End with:
 
 ```text
-This Studio does not need to be completed.
-Begin wherever feels useful, and let it become yours over time.
+The Studio is yours now.
+
+Nothing here needs to be finished.
+Begin wherever feels useful.
 
 [ Return to the Foyer ]
 ```
 
-Completing the tour records `completed`, returns to the Foyer, focuses the main heading, and announces **“First visit complete. Welcome to your Studio.”**
+Do not show a badge, checklist, completion percentage, confetti, or congratulatory product message. Choosing **Return to the Foyer** records `completed`, removes the remaining glimpses in one calm room-level transition, returns to the Foyer, focuses the main heading, and announces **“The first visit has ended. The Studio is yours.”**
 
 ### 7.8 Resuming and replaying
 
@@ -481,6 +529,8 @@ apps/studio/src/features/onboarding/
 ├── FirstVisitWelcome.tsx
 ├── FirstVisitGuide.tsx
 ├── FirstVisitGuide.css
+├── tour-examples.ts
+├── tour-prefetch.ts
 └── *.test.ts(x)
 
 apps/studio/src/app/
@@ -541,6 +591,10 @@ Creation/opening should return this object from one orchestration function. That
 - Disable only conflicting actions while an operation is active; preserve Back/Cancel where it is safe.
 - Closing or switching a Studio waits for the current service's terminal dispose promise before opening another session.
 - `prepareOfflineShell()` remains app-level and must not control whether the entry UI can render.
+- Expose an explicit preload function for each lazy room bundle. While a walkthrough room is stable, preload only the next likely room and the minimal canonical projection required to paint it.
+- Prefetch is a performance hint, never a navigation or persistence event. Failure is silent and the normal lazy boundary remains the fallback.
+- Cancel or ignore obsolete projection preloads when the tour is left, a Studio closes, or direct navigation chooses another room.
+- Do not manufacture a minimum-duration transition. If the next room is ready, navigation should feel immediate.
 
 ### 9.4 Routing
 
@@ -569,7 +623,7 @@ Creation/opening should return this object from one orchestration function. That
 
 ### 11.1 Entry Gate mockup description
 
-At wide desktop size, use a quiet two-part composition without resembling a login screen. The left or central reading column contains the Ateliera wordmark, tagline, and two actions. A restrained right-hand field may contain a soft architectural/natural image, the six-heart legend, or the foundational sentence. Leave at least 96px of visual breathing room around the primary composition. The frame uses the current theme; the central content should not float in a generic white authentication card.
+At wide desktop size, use a quiet asymmetrical composition without resembling a login screen. The reading column contains the Ateliera wordmark, tagline, and two actions and sits deliberately off-centre within a wider field of negative space. A restrained secondary field may contain the six-heart legend, the foundational sentence, one quiet architectural/natural image, or nothing at all. Leave at least 96px of visual breathing room around the primary composition. The frame uses the current theme; the central content should not float in a generic white authentication card.
 
 At mobile size, collapse to one editorial column. Place actions near the lower half but above the safe area. The tagline remains visible without scrolling at 390×844.
 
@@ -587,31 +641,49 @@ Example cards should look native to the room while remaining unmistakably provis
 
 The examples should form meaningful compositions rather than a repeated card grid: three sparse Foyer fragments, one vertical line through the Landscape anchors, one coherent Season cover, two possibilities at different Uncharted horizons, and one Then & Now Reflection pairing. Real cards retain full emphasis whenever both are present. **Use as a starting point** is a quiet text action with a 44×44px activation area and an accessible description naming the example it will copy.
 
+### 11.5 Timeless composition and restraint
+
+- Each screen has one obvious focal point and no more than one primary and one secondary action within that focal area.
+- Prefer asymmetrical editorial balance, varied but deliberate widths, and unoccupied areas over mechanically centred panels or evenly filled grids.
+- Do not nest decorative cards inside larger decorative cards. Surfaces exist only when they establish a meaningful boundary.
+- Use 52–65ch for explanatory reading copy and keep individual onboarding paragraphs to two short sentences wherever possible.
+- Use the handwritten face for no more than one brief accent per screen. It must never carry instructions, status, or essential meaning.
+- Avoid animated gradients, glassmorphism as the main aesthetic, bouncing or springy controls, floating decorative icons, confetti, progress rings, badges, and ornamental productivity graphics.
+- Do not introduce visual texture merely to make a blank area feel filled. If paper grain is explored, it must be extremely subtle, theme-safe, performant, removable, and never reduce contrast.
+- Photography is optional. Prefer negative space, typography, the heart language, and room composition; avoid generic lifestyle stock imagery.
+- Hover and press states use color, edge, and at most 1–2px of movement. Nothing should bounce or scale conspicuously.
+- Room transitions use one coordinated opacity/translation change within `--studio-motion-room`; reduced motion is immediate.
+- When content is sparse, preserve the space. Do not enlarge controls or add explanatory panels simply to occupy the canvas.
+
 ## 12. Error, interruption, and edge-case matrix
 
-| Scenario                                         | Required behavior                                                                                                                |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| Native location chooser cancelled                | Return to name/entry with typed name intact; no error alert                                                                      |
-| Create clicked twice                             | One transaction only; controls remain serialized                                                                                 |
-| Existing name/folder conflict                    | Explain the conflict; offer Open existing or choose another name/location                                                        |
-| Storage created but service initialization fails | Close the partial session; explain that the folder may exist and no personal notes were lost; offer Open it or retry preparation |
-| Index rebuild is slow                            | The Studio may open with explicit rebuilding state if projections are safe; do not block indefinitely on a disposable index      |
-| Settings missing                                 | Use defaults and write settings only after explicit onboarding action                                                            |
-| Settings malformed                               | Preserve/backup malformed control state, enter safely, and offer tour without blocking access to notes                           |
-| App closes during tour                           | Resume at the last durably recorded step                                                                                         |
-| App closes during an unsaved prompt              | Existing draft-recovery behavior applies; walkthrough state does not claim the step was completed                                |
-| Offline browser launch                           | Known local Studio Spaces remain openable; entry copy says Stored locally                                                        |
-| No persistent browser storage                    | Entry still works; calm persistence guidance appears after creation without implying immediate loss                              |
-| Imported/restored completed Studio               | Respect restored onboarding status                                                                                               |
-| Legacy populated Studio                          | Enter normally; one optional tour invitation                                                                                     |
-| Legacy empty Studio                              | Enter normally; prominent but non-blocking invitation                                                                            |
-| Tour step target missing after future UI change  | Guide still renders its explanation and Next/Back; no selector-driven crash                                                      |
-| 200% zoom or text spacing overrides              | Guide reflows, target remains visible, no obscured focus                                                                         |
-| Tour opens an otherwise empty room               | Clearly labelled examples furnish only the active tour view; canonical projections remain empty                                  |
-| Real content already exists in a toured room     | Real content keeps its order and emphasis; examples remain secondary and do not affect projection counts                         |
-| User copies an example then cancels              | The draft closes through normal recovery rules; no note, index row, relationship, or onboarding contribution is created          |
-| User copies an example and chooses Remember      | One normal canonical note is created from the editable draft; it contains no example-only metadata                               |
-| Tour ends or is replayed                         | Examples disappear or reappear from immutable fixtures without storage writes, duplicate notes, or chronology changes            |
+| Scenario                                          | Required behavior                                                                                                                |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Native location chooser cancelled                 | Return to name/entry with typed name intact; no error alert                                                                      |
+| Create clicked twice                              | One transaction only; controls remain serialized                                                                                 |
+| Existing name/folder conflict                     | Explain the conflict; offer Open existing or choose another name/location                                                        |
+| Storage created but service initialization fails  | Close the partial session; explain that the folder may exist and no personal notes were lost; offer Open it or retry preparation |
+| Index rebuild is slow                             | The Studio may open with explicit rebuilding state if projections are safe; do not block indefinitely on a disposable index      |
+| Settings missing                                  | Use defaults and write settings only after explicit onboarding action                                                            |
+| Settings malformed                                | Preserve/backup malformed control state, enter safely, and offer tour without blocking access to notes                           |
+| App closes during tour                            | Resume at the last durably recorded step                                                                                         |
+| App closes during an unsaved prompt               | Existing draft-recovery behavior applies; walkthrough state does not claim the step was completed                                |
+| Offline browser launch                            | Known local Studio Spaces remain openable; entry copy says Stored locally                                                        |
+| No persistent browser storage                     | Entry still works; calm persistence guidance appears after creation without implying immediate loss                              |
+| Imported/restored completed Studio                | Respect restored onboarding status                                                                                               |
+| Legacy populated Studio                           | Enter normally; one optional tour invitation                                                                                     |
+| Legacy empty Studio                               | Enter normally; prominent but non-blocking invitation                                                                            |
+| Tour step target missing after future UI change   | Guide still renders its explanation and Next/Back; no selector-driven crash                                                      |
+| 200% zoom or text spacing overrides               | Guide reflows, target remains visible, no obscured focus                                                                         |
+| Tour opens an otherwise empty room                | Clearly labelled examples furnish only the active tour view; canonical projections remain empty                                  |
+| Real content already exists in a toured room      | Real content keeps its order and emphasis; examples remain secondary and do not affect projection counts                         |
+| User copies an example then cancels               | The draft closes through normal recovery rules; no note, index row, relationship, or onboarding contribution is created          |
+| User copies an example and chooses Remember       | One normal canonical note is created from the editable draft; it contains no example-only metadata                               |
+| Tour ends or is replayed                          | Examples disappear or reappear from immutable fixtures without storage writes, duplicate notes, or chronology changes            |
+| Next-room prefetch succeeds                       | The named destination opens without a visible spinner or blank shell                                                             |
+| Next-room prefetch fails or becomes obsolete      | No error interrupts reading; normal lazy loading remains available and stale results cannot replace the chosen room              |
+| Reduced motion is enabled                         | Threshold, room, example-replacement, and ending state changes are immediate while focus and announcements remain correct        |
+| Returning user opens a completed/dismissed Studio | The Foyer opens directly without threshold copy, furnished previews, tour prompts, or a manufactured transition delay            |
 
 ## 13. Test-driven implementation sequence
 
@@ -675,6 +747,7 @@ pnpm test:e2e -- onboarding.spec.ts
 - Partial session initialization disposes resources.
 - Long-running progress changes copy at defined thresholds using fake timers.
 - Failure stops progress and exposes retry/back.
+- Preparing uses the specified textual states and never renders a conventional indefinite spinner, percentage, or fake progress ring.
 
 **Implementation**
 
@@ -724,11 +797,15 @@ pnpm test:e2e -- onboarding.spec.ts portability.spec.ts
 - Newly created Studio shows First Visit welcome; opened existing Studio does not.
 - Enter directly records dismissed and opens Foyer.
 - Tour visits the five rooms in order and can navigate Back/Next.
+- Visible navigation uses named spatial destinations and contains no numeric step indicator, progress bar, or completion percentage.
 - Leave and resume return to the correct step.
 - Every room shows its specified, clearly labelled example composition during the relevant tour step.
 - Example content is absent from canonical room projections, Search, Inbox, backlinks, backups, diagnostics, and storage before, during, and after the tour.
 - Real content retains its order and emphasis when examples are present.
 - **Use as a starting point** opens an editable normal composer; cancel writes nothing and Remember creates exactly one canonical note without example metadata.
+- Remembering a starting point replaces the relevant preview emphasis with the authored card; leaving the room removes the remaining examples.
+- The next room is prefetched; successful prefetch avoids a visible loading state, while failed or obsolete prefetch cannot interrupt or redirect the walkthrough.
+- The guide remains in one stable layout region and focus moves to each destination room heading.
 - Optional Foyer contribution creates one canonical note and is never duplicated on replay.
 - Current Season ritual does not auto-open.
 - Guide does not trap focus and remains usable with direct room navigation.
@@ -738,6 +815,8 @@ pnpm test:e2e -- onboarding.spec.ts portability.spec.ts
 - Add `FirstVisitWelcome` and `FirstVisitGuide`.
 - Add immutable `TourExample` fixtures and explicit room presentation props that cannot enter canonical projections.
 - Add the furnished-preview treatment and the guarded **Use as a starting point** adapter.
+- Add the threshold and room-level transition states using existing motion tokens and an immediate reduced-motion path.
+- Add an explicit room preload map with cancellation/stale-result guards.
 - Connect optional contributions through existing capture APIs.
 - Persist progress after step transitions.
 - Add Settings replay action and legacy Foyer invitation.
@@ -747,6 +826,7 @@ pnpm test:e2e -- onboarding.spec.ts portability.spec.ts
 - Real Playwright tour at desktop, compact, mobile, keyboard-only, reduced motion, forced colors, and 200% zoom.
 - Axe at each guide step.
 - Visual inspection of guide placement and example composition in Foyer, Landscape, Season, Uncharted, and Reflection, both empty and alongside real content.
+- Visual inspection confirms asymmetrical balance, meaningful negative space, one focal point, no nested decorative cards, and no motion-dependent comprehension.
 
 **Commit:** `feat: add gentle first-visit tour`
 
@@ -789,16 +869,23 @@ pnpm tauri:bundle
 - [ ] Given a new Studio Space is created, then the user sees a First Visit welcome before the normal Foyer.
 - [ ] Given the user chooses Enter my Studio, then the Foyer opens immediately and the tour remains replayable from Settings.
 - [ ] Given the user starts the tour, then all five room explanations are available without requiring personal input.
+- [ ] Given the first visit begins, then the welcome and Foyer retain visual continuity through one restrained threshold transition; reduced motion switches immediately.
+- [ ] Given the walkthrough is visible, then it uses named room destinations rather than numeric steps, progress bars, or completion percentages.
 - [ ] Given the user visits a room during the tour, then realistic, clearly labelled example content shows the potential of that room in its authentic layout.
 - [ ] Given examples are visible, then they never appear in Markdown, Studio settings, Search, Inbox, backlinks, chronology, backups, diagnostics, or revision history.
 - [ ] Given a room already has real content, then tour examples neither displace nor reorder it and remain visually secondary.
 - [ ] Given the user chooses Use as a starting point, then the normal composer opens with editable copied text and nothing is saved until Remember is chosen.
 - [ ] Given the user cancels a copied example, then no canonical or derived record is created.
+- [ ] Given a copied example is remembered, then the real authored card becomes the focus in the corresponding location and the preview-only label is gone.
+- [ ] Given the person moves to the next room and its preload succeeded, then no spinner or blank shell appears between rooms.
+- [ ] Given prefetch fails or the person navigates elsewhere, then reading and navigation continue correctly without an intrusive error or stale room replacement.
 - [ ] Given the user adds content during the tour, then it is saved as ordinary canonical Markdown through existing services.
 - [ ] Given the app closes during the tour, then reopening offers to continue at the last recorded step.
 - [ ] Given an existing populated Studio lacks onboarding metadata, then it opens normally and is never blocked by the new walkthrough.
+- [ ] Given a completed or dismissed returning Studio opens, then the Foyer appears directly without introductory threshold animation or tour content.
 - [ ] Given create/open work takes longer than expected, then the UI explains the current phase and offers recovery after failure; no indefinite unexplained spinner remains.
 - [ ] All entry and guide screens meet WCAG 2.2 AA, keyboard, focus, touch-target, reduced-motion, forced-color, and 200% zoom requirements.
+- [ ] At canonical desktop and mobile viewports, every onboarding screen has one clear focal point, no more than one primary and one secondary focal action, and no layout added merely to fill negative space.
 - [ ] No user-visible surface uses the word `vault`.
 
 ### P1 — fast follow
@@ -824,8 +911,9 @@ Because Ateliera currently has no telemetry, the first release should be evaluat
 3. After creation, is it clear that the Studio can remain sparse and unfinished?
 4. Can Anna leave and resume the tour without anxiety about losing work?
 5. Do the furnished examples make each room's potential immediately imaginable without feeling like content Ateliera has claimed on Anna's behalf?
-6. Does the guide explain the relationship between the Foyer, Landscape, Season, Uncharted, and Reflection without becoming a lesson to complete?
-7. Does a returning Studio open as directly as it does today?
+6. Does moving between rooms feel like one continuous place rather than five pages or software steps?
+7. Does the guide explain the relationship between the Foyer, Landscape, Season, Uncharted, and Reflection without becoming a lesson to complete?
+8. Does a returning Studio open as directly as it does today?
 
 The feature is successful when the threshold feels clear, creation feels trustworthy, and the first empty Studio feels inviting rather than demanding.
 
@@ -833,12 +921,17 @@ The feature is successful when the threshold feels clear, creation feels trustwo
 
 - Use a dedicated entry gate outside `AppShell`.
 - Use one top-level discriminated state machine rather than independent booleans.
+- Apply the principle **Ateliera should unfold, not announce itself** to threshold, motion, copy, and composition.
 - Offer an optional walkthrough after successful creation only.
 - Use a non-modal guide in the real rooms rather than spotlight overlays.
 - Include five conceptual stops: Foyer, Life Landscape, Current Season, Uncharted, and Reflection Garden.
+- Present those stops as named rooms in a guided wandering, without numeric progress or completion mechanics.
+- Keep the guide spatially stable, prefetch the next likely room, and use one restrained room-level transition.
 - Furnish every tour stop with sparse, realistic, clearly labelled examples that exist only in the presentation layer.
 - Allow selected examples to become editable drafts only through an explicit **Use as a starting point** action.
+- Let a remembered starting point take the preview's conceptual place, then remove remaining examples quietly when the person leaves.
 - Invite but never require one real contribution.
+- End with **The Studio is yours now**, without celebration mechanics, and make subsequent launches radically direct.
 - Persist walkthrough state in `.studio/settings.json`.
 - Treat legacy Studio Spaces gently and never block them.
 - Keep the walkthrough replayable from Settings.
@@ -849,6 +942,5 @@ The feature is successful when the threshold feels clear, creation feels trustwo
 - Whether the Entry Gate's visual counterweight is an image, the semantic-heart legend, or pure negative space.
 - Whether the desktop First Visit Guide sits on the right or follows each room's natural secondary column.
 - The final handwritten accent phrase on the Entry Gate.
-- Whether the guide's progress label reads `1 of 5` or uses named chapters only. Accessibility supports either; named chapters are emotionally preferable if the layout remains clear.
 
 These choices should be resolved through the first Playwright screenshots, not by expanding the data or interaction model.
