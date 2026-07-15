@@ -1,5 +1,13 @@
 # Development log
 
+## 2026-07-15 — Studio entry and first-visit onboarding plan
+
+- Reviewed the current launch flow and confirmed that the complete room shell and Foyer mount before a Studio Space is selected, leaving the actual entry decision visually subordinate to inactive navigation.
+- Defined a dedicated pre-Studio Entry Gate, an explicit create/open/preparing state machine, and a fully initialized active-session boundary so rooms, Search, Capture, and Studio services do not mount prematurely.
+- Planned an optional, resumable five-room First Visit walkthrough for newly created Studio Spaces, with one optional real contribution, no spotlight overlay, no compulsory disclosure, and replay from Settings.
+- Specified per-Studio onboarding state in portable `.studio/settings.json`, calm long-running and failure states, legacy-Studio behavior, accessibility requirements, visual review states, and a six-task TDD implementation sequence.
+- Current phase: onboarding plan ready for implementation in `docs/superpowers/plans/2026-07-15-ateliera-onboarding.md`.
+
 ## 2026-07-13 — Planning baseline
 
 - Product requirements and design bible completed.
