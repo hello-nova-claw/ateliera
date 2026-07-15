@@ -15,7 +15,7 @@ async function useIndexedDbVault(page: Page): Promise<void> {
 
 async function createStudio(page: Page, name: string): Promise<void> {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Create a Studio' }).click();
+  await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill(name);
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
@@ -63,7 +63,7 @@ async function openSearch(page: Page): Promise<void> {
 async function resetStudioSelection(page: Page): Promise<void> {
   await page.evaluate(() => localStorage.clear());
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Create a Studio' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create a new Studio Space' })).toBeVisible();
 }
 
 interface ActiveVaultRecord {
@@ -204,7 +204,7 @@ test('exports, destroys the active selection, and cleanly restores a portable St
   await expect(page.getByText('Your portable backup is ready', { exact: false })).toBeVisible();
 
   await resetStudioSelection(page);
-  await page.getByRole('button', { name: 'Create a Studio' }).click();
+  await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill('Portable Restore');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
@@ -259,7 +259,7 @@ test('rejects a damaged backup before changing a single target file', async ({
   await writeFile(damagedPath, damaged);
 
   await resetStudioSelection(page);
-  await page.getByRole('button', { name: 'Create a Studio' }).click();
+  await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill('Checksum Target');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
@@ -323,7 +323,7 @@ test('previews a collision, cancels without mutation, and restores only after ex
   expect(backupPath).not.toBeNull();
 
   await resetStudioSelection(page);
-  await page.getByRole('button', { name: 'Create a Studio' }).click();
+  await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill('Conflict Target');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();

@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 
 async function createLocalStudio(page: Page): Promise<void> {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Create a Studio' }).click();
+  await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill('Offline Studio');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(page.getByText('Ready offline')).toBeVisible();

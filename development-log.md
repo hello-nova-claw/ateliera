@@ -327,3 +327,10 @@
 - Added a reducer-backed entry/active contract and an explicit active-application component boundary. The router remains dormant before entry, preserves the launch URL, and only canonicalizes it when a Studio Space becomes active.
 - Kept existing browser and native create/open behavior intact, including duplicate protection, progress locking, injected test services, and the transition into the Foyer after activation.
 - Verified all 175 app tests, TypeScript, ESLint/stylelint, 20 desktop/mobile onboarding and shell journeys, axe on both sides of the threshold, and inspected fresh-entry screenshots at 1440×1000 and 390×844.
+
+## 2026-07-15 — Dedicated Studio Space entry gate
+
+- Introduced Ateliera and its “inside out” positioning at the threshold, with platform-specific local-storage reassurance and clearer **Create a new Studio Space** / **Open an existing Studio Space** language.
+- Replaced the browser select picker with calm, accessible return cards for one or several known Studio Spaces. The entry gate remains a focused place-selection surface rather than growing into a management dashboard.
+- Made the app-level theme picker available outside a Studio Space and added Storybook coverage for new, returning, multiple, native, error, long-name, mobile, and dark entry states.
+- Caught and corrected both a mobile handwritten-text contrast failure and an invalid desktop spacing-token reference through axe and direct screenshot inspection. Focused desktop/mobile onboarding journeys, all 178 app tests, typecheck, lint, and the Storybook production build pass.

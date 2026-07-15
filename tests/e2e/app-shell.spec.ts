@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 test('renders the accessible Studio shell', async ({ page }, testInfo) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Create a Studio' }).click();
+  await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByRole('button', { name: 'Create', exact: true }).click();
 
   await expect(page.getByRole('main', { name: 'Ateliera' })).toBeVisible();

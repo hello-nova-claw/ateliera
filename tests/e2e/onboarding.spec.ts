@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
 async function createLocalStudio(page: Page, name = 'Ateliera'): Promise<void> {
-  await page.getByRole('button', { name: 'Create a Studio' }).click();
+  await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill(name);
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
@@ -16,7 +16,7 @@ test('creates a local Studio and enters the Foyer', async ({ page }) => {
   await expect(
     page.getByRole('heading', {
       level: 1,
-      name: 'Make this space yours.',
+      name: 'Ateliera',
     }),
   ).toBeVisible();
   await expect(
@@ -59,7 +59,7 @@ test('offers to open an existing Studio instead of overwriting it', async ({
   await page.goto('/');
   await createLocalStudio(page);
   await page.reload();
-  await page.getByRole('button', { name: 'Create a Studio' }).click();
+  await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill('ateliera');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
 
@@ -86,13 +86,11 @@ test('native relaunch requires a fresh session-scoped folder selection', async (
   });
 
   await page.goto('/');
-  await expect(
-    page.getByRole('heading', { name: 'Make this space yours.' }),
-  ).toBeVisible();
-  await page.getByRole('button', { name: 'Open an existing Studio' }).click();
-  await expect(
-    page.getByRole('heading', { name: 'Make this space yours.' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ateliera' })).toBeVisible();
+  await page
+    .getByRole('button', { name: 'Open an existing Studio Space' })
+    .click();
+  await expect(page.getByRole('heading', { name: 'Ateliera' })).toBeVisible();
 });
 
 test('changes theme with a keyboard radio menu and remembers it', async ({

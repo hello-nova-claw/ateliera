@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  within,
   waitFor,
 } from '@testing-library/react';
 import {
@@ -44,6 +45,22 @@ afterEach(() => {
   selectTauriVault.mockReset();
   vi.unstubAllGlobals();
 });
+
+function browserStorage(records: unknown[]): Storage {
+  const values = new Map<string, string>([
+    ['studio:browser-studios', JSON.stringify(records)],
+  ]);
+  return {
+    get length() {
+      return values.size;
+    },
+    clear: () => values.clear(),
+    getItem: (key) => values.get(key) ?? null,
+    key: (index) => [...values.keys()][index] ?? null,
+    removeItem: (key) => values.delete(key),
+    setItem: (key, value) => values.set(key, value),
+  };
+}
 
 const note: StudioNote = {
   schemaVersion: 1,
@@ -229,7 +246,7 @@ it('renders only the entry boundary before a Studio Space is active', () => {
   expect(
     screen.getByRole('heading', {
       level: 1,
-      name: 'Make this space yours.',
+      name: 'Ateliera',
     }),
   ).toBeVisible();
   expect(
@@ -244,12 +261,78 @@ it('renders only the entry boundary before a Studio Space is active', () => {
   expect(
     screen.queryByRole('button', { name: 'Capture' }),
   ).not.toBeInTheDocument();
-  expect(
-    screen.queryByRole('heading', { name: 'Ateliera' }),
-  ).not.toBeInTheDocument();
   expect(replaceState).not.toHaveBeenCalledWith(null, '', '/foyer');
   expect(location.pathname).toBe('/not-a-room');
   expect(document.title).toBe('Welcome — Ateliera');
+});
+
+it('introduces Ateliera before asking for a new Studio Space', () => {
+  render(<App />);
+
+  expect(
+    screen.getByRole('heading', { level: 1, name: 'Ateliera' }),
+  ).toBeVisible();
+  expect(
+    screen.getByText(
+      'A private studio for designing a life from the inside out.',
+    ),
+  ).toBeVisible();
+  expect(
+    screen.getByRole('button', { name: 'Create a new Studio Space' }),
+  ).toBeEnabled();
+  expect(screen.getByRole('button', { name: 'Theme' })).toBeEnabled();
+  expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+});
+
+it('offers one known browser Studio Space as a direct return', () => {
+  vi.stubGlobal(
+    'localStorage',
+    browserStorage([
+      {
+        name: 'Anna’s Studio',
+        vaultId: 'studio:anna',
+        createdAt: '2026-07-15T00:00:00.000Z',
+      },
+    ]),
+  );
+
+  render(<App />);
+
+  expect(screen.getByText('Welcome back.')).toBeVisible();
+  expect(
+    screen.getByRole('button', { name: 'Open Anna’s Studio' }),
+  ).toBeEnabled();
+  expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+});
+
+it('presents several known Studio Spaces as a short list of cards', () => {
+  vi.stubGlobal(
+    'localStorage',
+    browserStorage([
+      {
+        name: 'Anna’s Studio',
+        vaultId: 'studio:anna',
+        createdAt: '2026-07-15T00:00:00.000Z',
+      },
+      {
+        name: 'Quiet Work',
+        vaultId: 'studio:quiet-work',
+        createdAt: '2026-07-15T01:00:00.000Z',
+      },
+    ]),
+  );
+
+  render(<App />);
+
+  const spaces = screen.getByRole('list', { name: 'Your Studio Spaces' });
+  expect(spaces).toBeVisible();
+  expect(
+    within(spaces).getByRole('button', { name: 'Open Anna’s Studio' }),
+  ).toBeEnabled();
+  expect(
+    within(spaces).getByRole('button', { name: 'Open Quiet Work' }),
+  ).toBeEnabled();
+  expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
 });
 
 it('makes the active vault available to portable settings', async () => {
@@ -515,13 +598,11 @@ it('asks the native shell to select a Studio folder before opening an existing S
 
   render(<App />);
   fireEvent.click(
-    screen.getByRole('button', { name: 'Open an existing Studio' }),
+    screen.getByRole('button', { name: 'Open an existing Studio Space' }),
   );
 
   await waitFor(() => expect(selectTauriVault).toHaveBeenCalledOnce());
-  expect(
-    screen.getByRole('heading', { name: 'Make this space yours.' }),
-  ).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Ateliera' })).toBeVisible();
 });
 
 it('requires native folder selection again after a persisted browser-style relaunch', async () => {
@@ -537,16 +618,12 @@ it('requires native folder selection again after a persisted browser-style relau
 
   render(<App />);
 
-  expect(
-    screen.getByRole('heading', { name: 'Make this space yours.' }),
-  ).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Ateliera' })).toBeVisible();
   fireEvent.click(
-    screen.getByRole('button', { name: 'Open an existing Studio' }),
+    screen.getByRole('button', { name: 'Open an existing Studio Space' }),
   );
   await waitFor(() => expect(selectTauriVault).toHaveBeenCalledOnce());
-  expect(
-    screen.getByRole('heading', { name: 'Make this space yours.' }),
-  ).toBeVisible();
+  expect(screen.getByRole('heading', { name: 'Ateliera' })).toBeVisible();
 });
 
 it('creates a named native Studio separately from opening an existing one', async () => {
@@ -563,7 +640,9 @@ it('creates a named native Studio separately from opening an existing one', asyn
   );
 
   render(<App />);
-  fireEvent.click(screen.getByRole('button', { name: 'Create a Studio' }));
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Create a new Studio Space' }),
+  );
   fireEvent.change(screen.getByLabelText('Studio name'), {
     target: { value: '  Anna’s Studio  ' },
   });
@@ -594,7 +673,9 @@ it('serializes browser Studio selection and unlocks after completion', async () 
   });
 
   render(<App />);
-  fireEvent.click(screen.getByRole('button', { name: 'Create a Studio' }));
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Create a new Studio Space' }),
+  );
   fireEvent.change(screen.getByLabelText('Studio name'), {
     target: { value: 'Anna’s Studio' },
   });
@@ -604,10 +685,7 @@ it('serializes browser Studio selection and unlocks after completion', async () 
 
   await waitFor(() => expect(createBrowserVault).toHaveBeenCalledOnce());
   expect(
-    screen.getByRole('button', { name: 'Create a Studio' }),
-  ).toBeDisabled();
-  expect(
-    screen.getByRole('button', { name: 'No existing Studio found' }),
+    screen.getByRole('button', { name: 'Create a new Studio Space' }),
   ).toBeDisabled();
 
   finishList?.([{ kind: 'file', path: 'Inbox/existing.md', size: 1 }]);
@@ -624,7 +702,9 @@ it('uses calm Studio language when native creation cannot finish', async () => {
   createTauriStudio.mockRejectedValue(new Error('vault_unavailable'));
 
   render(<App />);
-  fireEvent.click(screen.getByRole('button', { name: 'Create a Studio' }));
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Create a new Studio Space' }),
+  );
   fireEvent.click(screen.getByRole('button', { name: /^Create$/ }));
 
   const alert = await screen.findByRole('alert');
@@ -642,7 +722,9 @@ it('explains when a named native Studio already exists', async () => {
   createTauriStudio.mockRejectedValue(new VaultConflictError());
 
   render(<App />);
-  fireEvent.click(screen.getByRole('button', { name: 'Create a Studio' }));
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Create a new Studio Space' }),
+  );
   fireEvent.change(screen.getByLabelText('Studio name'), {
     target: { value: 'Anna’s Studio' },
   });

@@ -53,7 +53,7 @@ test('completes create, capture, edit, search, and backup without a pointer', as
   const key = browserName === 'webkit' ? 'Alt+Tab' : 'Tab';
   await page.goto('/');
 
-  const createStudio = page.getByRole('button', { name: 'Create a Studio' });
+  const createStudio = page.getByRole('button', { name: 'Create a new Studio Space' });
   await tabTo(page, createStudio, { key });
   await expectVisibleFocus(createStudio);
   await page.keyboard.press('Enter');
@@ -126,7 +126,7 @@ test('mobile navigation and More menu remain keyboard operable and focus-visible
   const key = browserName === 'webkit' ? 'Alt+Tab' : 'Tab';
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  const createStudio = page.getByRole('button', { name: 'Create a Studio' });
+  const createStudio = page.getByRole('button', { name: 'Create a new Studio Space' });
   await tabTo(page, createStudio, { key });
   await page.keyboard.press('Enter');
   await page.getByLabel('Studio name').fill('Mobile Keyboard Studio');

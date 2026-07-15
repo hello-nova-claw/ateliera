@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 test.describe.configure({ mode: 'serial' });
 
 async function createLocalStudio(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Create a Studio' }).click();
+  await page.getByRole('button', { name: 'Create a new Studio Space' }).click();
   await page.getByLabel('Studio name').fill('Ateliera');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();

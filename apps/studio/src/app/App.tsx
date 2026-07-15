@@ -39,6 +39,7 @@ import { themes, type ThemeId } from './themes';
 import { QuickCapture } from '../features/capture/QuickCapture';
 import type { QuickCaptureInput } from '../features/capture/QuickCapture';
 import type { FoyerSlot } from '../features/foyer/FoyerPage';
+import { StudioEntryGate } from '../features/onboarding/StudioEntryGate';
 import './app.css';
 
 const NoteEditorSession = lazy(() =>
@@ -657,6 +658,47 @@ function StudioApplication({
     { id: 'settings', label: 'Open Settings', onSelect: () => go('/settings') },
   ];
 
+  const themePicker = (
+    <div className="studio-theme-picker">
+      <button
+        aria-expanded={themeOpen}
+        aria-haspopup="menu"
+        className="studio-topbar__button"
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && themeOpen) {
+            event.preventDefault();
+            setThemeOpen(false);
+            requestAnimationFrame(() => themeButton.current?.focus());
+          }
+        }}
+        onClick={() => setThemeOpen((open) => !open)}
+        ref={themeButton}
+        type="button"
+      >
+        <span
+          aria-hidden="true"
+          className={`studio-theme-picker__chip studio-theme-picker__chip--${theme}`}
+        />{' '}
+        Theme
+      </button>
+      {themeOpen && (
+        <ThemeMenu
+          current={theme}
+          onChange={setTheme}
+          onClose={() => {
+            setThemeOpen(false);
+            requestAnimationFrame(() => themeButton.current?.focus());
+          }}
+          onCommit={(next) => {
+            setTheme(next);
+            setThemeOpen(false);
+            requestAnimationFrame(() => themeButton.current?.focus());
+          }}
+        />
+      )}
+    </div>
+  );
+
   const topbar = (
     <div className="studio-topbar">
       <button
@@ -675,44 +717,7 @@ function StudioApplication({
           <span aria-hidden="true">●</span>
           {status}
         </span>
-        <div className="studio-theme-picker">
-          <button
-            aria-expanded={themeOpen}
-            aria-haspopup="menu"
-            className="studio-topbar__button"
-            onKeyDown={(event) => {
-              if (event.key === 'Escape' && themeOpen) {
-                event.preventDefault();
-                setThemeOpen(false);
-                requestAnimationFrame(() => themeButton.current?.focus());
-              }
-            }}
-            onClick={() => setThemeOpen((open) => !open)}
-            ref={themeButton}
-            type="button"
-          >
-            <span
-              aria-hidden="true"
-              className={`studio-theme-picker__chip studio-theme-picker__chip--${theme}`}
-            />{' '}
-            Theme
-          </button>
-          {themeOpen && (
-            <ThemeMenu
-              current={theme}
-              onChange={setTheme}
-              onClose={() => {
-                setThemeOpen(false);
-                requestAnimationFrame(() => themeButton.current?.focus());
-              }}
-              onCommit={(next) => {
-                setTheme(next);
-                setThemeOpen(false);
-                requestAnimationFrame(() => themeButton.current?.focus());
-              }}
-            />
-          )}
-        </div>
+        {themePicker}
         <button
           className="studio-topbar__button studio-topbar__button--quiet"
           onClick={() => go('/inbox')}
@@ -802,13 +807,14 @@ function StudioApplication({
   if (!opened) {
     return (
       <>
-        <Onboarding
+        <StudioEntryGate
           browserStudios={browserStudios}
           error={error}
           isNative={isNativeShell()}
           onCreate={() => setCreateOpen(true)}
           onOpen={(record) => void openStudio(record)}
           studioAction={studioAction}
+          themePicker={themePicker}
         />
         {createStudioDialog}
       </>
@@ -973,97 +979,6 @@ function legacySavedNote(captured: CaptureEntry): SavedNote {
     extraFrontmatter: {},
   };
   return { note, path: `Inbox/${captured.id}.md`, hash: '' };
-}
-
-function Onboarding({
-  browserStudios,
-  error,
-  isNative,
-  onCreate,
-  onOpen,
-  studioAction,
-}: {
-  browserStudios: BrowserStudioRecord[];
-  error: string | undefined;
-  isNative: boolean;
-  onCreate: () => void;
-  onOpen: (record?: BrowserStudioRecord) => void;
-  studioAction: 'create' | 'open' | null;
-}) {
-  const [selectedVault, setSelectedVault] = useState(
-    browserStudios[0]?.vaultId ?? '',
-  );
-  const selected = browserStudios.find(
-    (studio) => studio.vaultId === selectedVault,
-  );
-
-  return (
-    <main
-      aria-label="Ateliera welcome"
-      className="studio-entry"
-      id="studio-entry"
-      tabIndex={-1}
-    >
-      <section className="studio-onboarding" aria-labelledby="onboarding-title">
-        <p className="studio-onboarding__script" aria-hidden="true">
-          begin where you are
-        </p>
-        <h1 id="onboarding-title">Make this space yours.</h1>
-        <p>
-          {isNative
-            ? 'Create a new Studio, or open one you already have.'
-            : 'Your Studio stays on this device. Begin a new one, or return to the local Studio already waiting here.'}
-        </p>
-        {error && (
-          <p className="studio-room__error" role="alert">
-            {error}
-          </p>
-        )}
-        <div className="studio-onboarding__actions">
-          <button
-            className="studio-onboarding__button"
-            disabled={studioAction !== null}
-            onClick={onCreate}
-            type="button"
-          >
-            Create a Studio
-          </button>
-          {!isNative && browserStudios.length > 1 && (
-            <label className="studio-onboarding__picker">
-              Choose a Studio
-              <select
-                disabled={studioAction !== null}
-                onChange={(event) => setSelectedVault(event.target.value)}
-                value={selectedVault}
-              >
-                {browserStudios.map((studio) => (
-                  <option key={studio.vaultId} value={studio.vaultId}>
-                    {studio.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <button
-            className="studio-onboarding__button studio-onboarding__button--secondary"
-            disabled={
-              studioAction !== null || (!isNative && selected === undefined)
-            }
-            onClick={() => onOpen(selected)}
-            type="button"
-          >
-            {isNative
-              ? studioAction === 'open'
-                ? 'Opening your Studio…'
-                : 'Open an existing Studio'
-              : selected
-                ? `Open ${selected.name}`
-                : 'No existing Studio found'}
-          </button>
-        </div>
-      </section>
-    </main>
-  );
 }
 
 function ThemeMenu({
