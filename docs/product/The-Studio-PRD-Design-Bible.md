@@ -401,10 +401,19 @@ Controls name the next room and allow the user to leave at any point. The next
 room SHOULD be prefetched so the transition feels continuous without eagerly
 loading the whole app.
 
-The guide and its examples are rendered only on those five tour routes.
-Navigating to Identity Studio, Wisdom Garden, Settings, or another utility view
-quietly pauses and hides the guide; returning to a tour room resumes from the
-durable step. No tutorial chrome may follow the user into unrelated work.
+The guide and its examples are rendered only on those five tour routes. While
+the guide is visible, unrelated shell chrome—room navigation, utilities,
+top-bar actions, global command shortcuts, and mobile navigation—is inert and
+visually subdued. The current room remains fully visible and interactive inside
+an elevated spotlight stage, so examples and starting-point actions still work.
+Previous, next, and leave controls form the complete temporary navigation set.
+Leaving or completing restores the ordinary shell immediately.
+
+The guide is non-modal and precedes the room in visual and DOM order. It uses a
+distinct surface, stronger elevation, and one unmistakable primary action that
+names the next destination. The room and guide use the full available content
+width rather than competing in a fixed sidebar grid; their boxes MUST NOT
+overlap at any supported width, zoom level, or text-spacing setting.
 
 Each room is furnished with a small amount of beautiful, authentic example
 content embedded in its real layout. Examples demonstrate potential rather than
@@ -425,7 +434,7 @@ serialized using latest-intent semantics: a slower earlier write may never
 overwrite the room most recently chosen on screen.
 
 The current step MUST persist successfully before the corresponding navigation
-becomes visible. This applies to direct room visits, previous/next controls,
+becomes visible. This applies to route reconciliation, previous/next controls,
 completion, and dismissal. If persistence fails, the user remains in place,
 receives calm actionable guidance, and the named controls become available
 again rather than leaving the tour stranded.
@@ -450,6 +459,9 @@ empty/populated legacy invitations are post-MVP refinements.
   identify their destination room.
 - Every action is keyboard operable; focus restoration is deterministic after
   sheets, cancellation, errors, and tour completion.
+- Unrelated shell regions use native `inert`; dimming or blur is not the sole
+  interaction barrier. The guide does not set `aria-modal` or trap focus because
+  the active room remains operable.
 - Reduced-motion mode removes spatial animation without removing orientation.
 - Forced-colors mode preserves boundaries and state without relying on the six
   semantic colors.
@@ -471,6 +483,8 @@ empty/populated legacy invitations are post-MVP refinements.
   cancellation creates none.
 - Desktop and compact journeys pass keyboard, focus, reduced-motion,
   forced-colors, and axe checks at every step.
+- Guide and room boxes never intersect; global shortcuts and inert shell chrome
+  cannot be activated during the tour and are restored when it ends.
 
 ---
 

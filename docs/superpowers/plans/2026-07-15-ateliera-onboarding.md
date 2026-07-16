@@ -280,15 +280,15 @@ Starting the first visit should feel like the welcome surface opens into the Stu
 
 ### 7.7 The first-visit walkthrough
 
-The tour uses the real active Studio shell plus a non-modal **First Visit Guide**. It must not use opaque backdrops, holes cut into overlays, pulsing hotspots, or disabled navigation.
+The tour uses the real active Studio shell plus a non-modal **First Visit Guide** and a focused room stage. The room remains fully visible and interactive, while unrelated shell chrome—room navigation, utilities, top-bar actions, and mobile navigation—becomes inert and visually recedes. Do not use an opaque backdrop, cut a hole around individual controls, pulse a hotspot, or blur the active room.
 
-On desktop the guide occupies a stable editorial column beside the room using a proportional grid such as `minmax(0, 1fr) minmax(19rem, 23rem)` and a responsive 32–80px gap. It must not cover the focused content. On compact and mobile layouts it becomes a collapsible inline or bottom surface with a persistent **First visit** button. Its DOM position follows the main content so reading and focus order remain logical.
+The guide appears before the focused room in both DOM and visual order. It is an elevated editorial coach card with one unmistakable primary next-room action; the active room sits in a separate outlined/elevated stage below it. This full-width composition replaces the earlier fixed guide column, which compressed Foyer and Landscape layouts and caused collisions. On compact and mobile layouts the guide remains inline and respects safe-area content. It does not collapse during an active tour; **Leave tour** is the clear way to return to ordinary navigation.
 
 Each step contains:
 
 - the destination room name, without numeric progress, a progress bar, or completion percentage;
 - one short explanation;
-- one spatial destination action such as **Wander into the Landscape** or **Step into Uncharted**;
+- one explicit spatial destination action such as **Next room · Life Landscape** or **Next room · Uncharted**;
 - **Previous room**, the named next-room action, and **Leave tour**;
 - a visible **You can return to this later** reminder where a prompt is offered.
 
@@ -296,13 +296,13 @@ The internal state may remain ordered for persistence and testing, but the visib
 
 #### Spatial continuity and flow
 
-- The guide occupies a stable region throughout the walkthrough. The room content changes around it; the guide must not jump between unrelated corners.
-- On desktop, use a proportional content-and-guide grid with a generous gap rather than fixing every room to an identical card width. On mobile, the guide becomes an inline or bottom surface that respects the navigation and safe area.
+- The guide occupies a stable region throughout the walkthrough. The room content changes below it; the guide must not jump between unrelated corners.
+- The guide and room use the available content width without subtracting a fixed side column. Their bounding boxes must never overlap, including at 200% zoom and with text-spacing overrides.
 - Prefetch the next room's lazy bundle and minimum projection while the current room is being read. A normal next-room transition must not display a spinner or blank shell.
 - Preserve one visual anchor—room heading, guide heading, or primary example—at approximately the same vertical position between rooms.
 - Use a single room-level crossfade or slight translation. Do not stagger every example card independently.
-- Focus moves to the destination room heading after navigation; the persistent guide remains next in logical reading order.
-- Direct room navigation remains available. Returning to the guide resumes from the last selected room rather than forcing the previous sequence.
+- Focus moves to the guide heading after navigation, making the changed room and next action explicit before the person explores the active room below. The guide precedes the room in logical reading order and its primary action names the exact next destination.
+- Unrelated shell navigation and global shortcuts are unavailable while the guide is active. **Previous room**, the named next-room action, and **Leave tour** provide the complete tour navigation set. Leaving or completing immediately restores ordinary shell navigation.
 
 #### Furnished preview layer
 
@@ -608,15 +608,16 @@ Creation/opening should return this object from one orchestration function. That
 
 - One visible `h1` per entry/first-visit screen.
 - Entry gate has a `main` landmark labelled **Ateliera welcome**; the active shell retains its existing room-labelled `main`.
-- On transition, focus the new `h1` or main landmark. Do not leave focus on an unmounted button.
+- On entry transition, focus the new `h1` or main landmark. During the tour, focus the guide's named room heading before the active room. Do not leave focus on an unmounted button.
 - Progress text uses `role="status"` and is deduplicated. Blocking failure uses `role="alert"` once.
 - The guide is non-modal. It must not set `aria-modal`, trap focus, or hide the room from assistive technology.
+- Unrelated shell regions use native `inert` while the tour is visible; visual opacity or blur is never the only interaction barrier. The active room, its examples, the guide, and **Leave tour** remain operable.
 - Guide controls appear in logical order and have 44×44px minimum targets.
 - `Leave tour` opens a small confirmation only if there is an unsaved composer draft; otherwise it exits immediately.
 - The selected room and guide step are both expressed in text, never by color alone.
 - Reduced motion removes entry transitions and progress flourishes, but retains clear state changes.
 - At 200% zoom the entry actions and guide form one column without horizontal page scrolling.
-- On mobile, the collapsed guide control must not cover bottom navigation or safe-area content.
+- On mobile, the guide must not cover safe-area content; bottom navigation remains inert and visually absent until the tour ends.
 - VoiceOver journey: launch → create/open → first visit → optional contribution → leave/complete → Foyer.
 
 ## 11. Visual direction
@@ -805,10 +806,10 @@ pnpm test:e2e -- onboarding.spec.ts portability.spec.ts
 - **Use as a starting point** opens an editable normal composer; cancel writes nothing and Remember creates exactly one canonical note without example metadata.
 - Remembering a starting point replaces the relevant preview emphasis with the authored card; leaving the room removes the remaining examples.
 - The next room is prefetched; successful prefetch avoids a visible loading state, while failed or obsolete prefetch cannot interrupt or redirect the walkthrough.
-- The guide remains in one stable layout region and focus moves to each destination room heading.
+- The guide remains in one stable layout region, never overlaps the room, and focus moves to each destination guide heading.
 - Optional Foyer contribution creates one canonical note and is never duplicated on replay.
 - Current Season ritual does not auto-open.
-- Guide does not trap focus and remains usable with direct room navigation.
+- Guide does not trap focus; unrelated shell controls and command shortcuts remain inert until the tour ends.
 
 **Implementation**
 
@@ -891,7 +892,7 @@ pnpm tauri:bundle
 ### P1 — fast follow
 
 - [ ] Studio cards show a reliable last-opened label in the browser.
-- [ ] The guide can collapse and be reopened without leaving the current room.
+- [ ] The guide remains explicit and visible throughout the active tour; leaving restores ordinary navigation without losing durable progress.
 - [ ] A user can choose which optional first contribution to make rather than defaulting to Becoming.
 - [ ] Settings shows when the tour was completed or dismissed without performance language.
 
@@ -923,7 +924,7 @@ The feature is successful when the threshold feels clear, creation feels trustwo
 - Use one top-level discriminated state machine rather than independent booleans.
 - Apply the principle **Ateliera should unfold, not announce itself** to threshold, motion, copy, and composition.
 - Offer an optional walkthrough after successful creation only.
-- Use a non-modal guide in the real rooms rather than spotlight overlays.
+- Use a non-modal guide and full-room spotlight stage; dim and inert unrelated shell chrome without obscuring the real room.
 - Include five conceptual stops: Foyer, Life Landscape, Current Season, Uncharted, and Reflection Garden.
 - Present those stops as named rooms in a guided wandering, without numeric progress or completion mechanics.
 - Keep the guide spatially stable, prefetch the next likely room, and use one restrained room-level transition.

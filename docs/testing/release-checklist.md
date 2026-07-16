@@ -34,7 +34,9 @@ reference host before treating the manifest as release evidence.
       returning, interrupted/resumed, dismissed, legacy-invitation, and
       Settings-replay paths pass on desktop and compact layouts. Furnished
       examples remain presentation-only, cancellation writes nothing, and an
-      explicitly saved starting point creates exactly one ordinary note.
+      explicitly saved starting point creates exactly one ordinary note. The
+      guide and room never overlap; unrelated shell chrome and command shortcuts
+      remain inert until Leave/Finish restores them.
 - [ ] Complete production E2E matrix passes in desktop Chromium, mobile Chromium, and desktop WebKit, with every skip named and justified.
 - [ ] Visual and axe matrix passes at 1440×1000, 1024×768, and 390×844 after self-hosted fonts load.
 - [ ] Keyboard flows, 200% zoom/text scaling, forced colors, reduced motion, missing images, long international strings, and 44px touch targets pass their automated checks.

@@ -392,3 +392,30 @@
   files then passed 44/44 in 18 seconds. The complete verifier must be rerun on
   a quieter reference host before this candidate is represented as a fully
   green release manifest.
+
+## 2026-07-16 — Focused First Visit tour
+
+- Replaced the fixed guide sidebar with a full-width focused-tour composition.
+  The elevated guide now precedes an independently framed active room, so
+  Foyer, Landscape, and other intrinsically wide room layouts retain their
+  usable width and cannot collide with tour copy.
+- Made the next destination the guide's single strong primary action, with
+  explicit **Next room · …** labels and a distinct **Finish tour · Return to
+  Foyer** action. Focus moves to each guide heading before the active room, and
+  the guide remains visible until the person deliberately leaves or completes
+  the tour.
+- Added an AppShell focus mode that applies native `inert` to the desktop rail,
+  top bar, and mobile navigation while visually fading and lightly blurring
+  those unrelated regions. The active room, authentic examples,
+  starting-point actions, Previous/Next, and Leave remain interactive. Global
+  command-palette shortcuts and any open shell menus are suppressed while the
+  tour is active and restored immediately afterward.
+- Added forced-colors treatment, reduced-motion continuity, full-width mobile
+  behavior, and an invisible inert mobile navigation state so fixed shell chrome
+  cannot cover the active room.
+- Direct Playwright inspection at 1440×1000 and 390×844 confirmed the guide/room
+  boxes do not intersect and the reported Foyer overlap is gone. Focused unit
+  verification passed 30 UI and 216 app tests; typecheck and lint pass; the
+  onboarding browser matrix passed 17/17 applicable Chromium journeys plus 8/8
+  applicable WebKit journeys, with the two project-specific preference tests
+  intentionally skipped outside desktop Chromium.
