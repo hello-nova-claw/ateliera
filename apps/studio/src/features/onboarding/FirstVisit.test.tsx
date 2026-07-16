@@ -30,12 +30,7 @@ describe('First Visit', () => {
 
   it('prevents competing welcome choices while one is being remembered', () => {
     render(
-      <FirstVisitWelcome
-        busy
-        mode="new"
-        onEnter={vi.fn()}
-        onTour={vi.fn()}
-      />,
+      <FirstVisitWelcome busy mode="new" onEnter={vi.fn()} onTour={vi.fn()} />,
     );
     expect(
       screen.getByRole('button', { name: 'Take a gentle tour' }),
@@ -48,10 +43,32 @@ describe('First Visit', () => {
   it('uses named destinations without visible product-tour progress', () => {
     render(<FirstVisitGuide onLeave={vi.fn()} onNext={vi.fn()} step="foyer" />);
     expect(
-      screen.getByRole('button', { name: 'Wander into the Landscape' }),
+      screen.getByRole('complementary', { name: 'Guided tour · Foyer' }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: 'Next room · Life Landscape' }),
     ).toBeVisible();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     expect(screen.queryByText(/step\s+1|20%|1 of 5/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps the primary next action first in visual and keyboard order', () => {
+    render(
+      <FirstVisitGuide
+        onLeave={vi.fn()}
+        onNext={vi.fn()}
+        onPrevious={vi.fn()}
+        step="landscape"
+      />,
+    );
+    const guide = screen.getByRole('complementary', {
+      name: 'Guided tour · Life Landscape',
+    });
+    expect(
+      Array.from(guide.querySelectorAll('button'), (button) =>
+        button.textContent?.trim(),
+      ),
+    ).toEqual(['Next room · Current Season→', 'Previous room', 'Leave tour']);
   });
 
   it('keeps examples presentation-only and clearly labelled', () => {

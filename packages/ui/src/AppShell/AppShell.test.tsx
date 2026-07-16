@@ -83,3 +83,53 @@ it('restores the More trigger after an outside pointer closes the menu', async (
   expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   await waitFor(() => expect(more).toHaveFocus());
 });
+
+it('makes unrelated shell chrome inert while a focused experience is active', () => {
+  const { rerender } = render(
+    <AppShell
+      activePath="/foyer"
+      focusMode="tour"
+      onCapture={() => undefined}
+      onNavigate={() => undefined}
+      roomTitle="Foyer"
+    >
+      <button type="button">Active room action</button>
+    </AppShell>,
+  );
+
+  const shell = screen.getByRole('main').closest('.studio-app-shell');
+  if (shell === null) throw new Error('Expected the app shell');
+  expect(shell).toHaveAttribute('data-focus-mode', 'tour');
+  expect(
+    screen.getByRole('navigation', { name: 'Studio rooms', hidden: true })
+      .parentElement,
+  ).toHaveAttribute('inert');
+  expect(shell.querySelector('.studio-app-shell__topbar')).toHaveAttribute(
+    'inert',
+  );
+  expect(
+    screen.getByRole('navigation', { name: 'Mobile navigation', hidden: true }),
+  ).toHaveAttribute('inert');
+  expect(screen.getByRole('main')).not.toHaveAttribute('inert');
+  expect(
+    screen.getByRole('button', { name: 'Active room action' }),
+  ).toBeEnabled();
+
+  rerender(
+    <AppShell
+      activePath="/foyer"
+      onCapture={() => undefined}
+      onNavigate={() => undefined}
+      roomTitle="Foyer"
+    >
+      <button type="button">Active room action</button>
+    </AppShell>,
+  );
+  expect(shell).not.toHaveAttribute('data-focus-mode');
+  expect(shell.querySelector('.studio-app-shell__rail')).not.toHaveAttribute(
+    'inert',
+  );
+  expect(shell.querySelector('.studio-app-shell__topbar')).not.toHaveAttribute(
+    'inert',
+  );
+});

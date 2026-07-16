@@ -5,6 +5,7 @@ export interface AppShellProps {
   activePath: string;
   captureEnabled?: boolean;
   children: ReactNode;
+  focusMode?: 'tour';
   localStatus?: string;
   onCapture: (trigger: HTMLButtonElement) => void;
   onNavigate: (path: string) => void;
@@ -29,6 +30,7 @@ export function AppShell({
   activePath,
   captureEnabled = true,
   children,
+  focusMode,
   localStatus = 'Stored locally',
   onCapture,
   onNavigate,
@@ -38,6 +40,11 @@ export function AppShell({
   const [moreOpen, setMoreOpen] = useState(false);
   const moreButton = useRef<HTMLButtonElement>(null);
   const moreMenu = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (focusMode === undefined) return;
+    setMoreOpen(false);
+  }, [focusMode]);
 
   useEffect(() => {
     if (!moreOpen) return undefined;
@@ -113,11 +120,11 @@ export function AppShell({
   }
 
   return (
-    <div className="studio-app-shell">
+    <div className="studio-app-shell" data-focus-mode={focusMode}>
       <a className="studio-app-shell__skip-link" href="#studio-main">
         Skip to content
       </a>
-      <aside className="studio-app-shell__rail">
+      <aside className="studio-app-shell__rail" inert={focusMode !== undefined}>
         <div className="studio-app-shell__brand">
           <span>Ateliera</span>
           <small aria-hidden="true">inside out</small>
@@ -138,7 +145,12 @@ export function AppShell({
         </p>
       </aside>
       <div className="studio-app-shell__workspace">
-        <header className="studio-app-shell__topbar">{topbar}</header>
+        <header
+          className="studio-app-shell__topbar"
+          inert={focusMode !== undefined}
+        >
+          {topbar}
+        </header>
         <main
           aria-label={roomTitle}
           className="studio-app-shell__main"
@@ -151,6 +163,7 @@ export function AppShell({
       <nav
         aria-label="Mobile navigation"
         className="studio-app-shell__mobile-nav"
+        inert={focusMode !== undefined}
       >
         {studioLink('/foyer', 'Home', '⌂')}
         <button
@@ -177,7 +190,7 @@ export function AppShell({
           <span>More</span>
         </button>
       </nav>
-      {moreOpen && (
+      {moreOpen && focusMode === undefined && (
         <div
           aria-label="More Studio rooms"
           className="studio-app-shell__more-menu"

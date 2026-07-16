@@ -404,9 +404,7 @@ it('welcomes a newly created Studio before mounting its rooms', async () => {
 it('serializes competing choices at the First Visit threshold', async () => {
   vi.stubGlobal('localStorage', browserStorage([]));
   const pending =
-    deferred<
-      Awaited<ReturnType<StudioService['onboarding']['transition']>>
-    >();
+    deferred<Awaited<ReturnType<StudioService['onboarding']['transition']>>>();
   const fixture = studioService({
     onboarding: {
       ...studioService().service.onboarding,
@@ -484,7 +482,9 @@ it('opens a returning Studio directly unless its tour was interrupted', async ()
       expect.objectContaining({ type: 'dismiss-invitation' }),
     ),
   );
-  expect(screen.queryByRole('heading', { name: 'New here?' })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('heading', { name: 'New here?' }),
+  ).not.toBeInTheDocument();
 });
 
 it('disposes a prepared service when onboarding settings cannot be read', async () => {
@@ -777,7 +777,7 @@ it('serializes a guide advance behind an in-flight direct tour visit', async () 
   );
 
   fireEvent.click(
-    await screen.findByRole('button', { name: 'Visit Current Season' }),
+    await screen.findByRole('button', { name: 'Next room · Current Season' }),
   );
   expect(persistedSteps).toEqual(['foyer']);
   landscapeVisit.resolve();
@@ -796,7 +796,7 @@ it.each([
   {
     destination: 'Reflection Garden',
     destinationStep: 'reflection',
-    terminalAction: 'Return to the Foyer',
+    terminalAction: 'Finish tour · Return to Foyer',
     terminalType: 'complete',
   },
 ] as const)(
@@ -966,7 +966,9 @@ it('resumes at the Foyer after a replay is interrupted', async () => {
   expect(
     await screen.findByRole('heading', { name: 'Welcome back.' }),
   ).toBeVisible();
-  expect(screen.getByRole('button', { name: 'Continue the tour' })).toBeVisible();
+  expect(
+    screen.getByRole('button', { name: 'Continue the tour' }),
+  ).toBeVisible();
 });
 
 it('makes the active vault available to portable settings', async () => {

@@ -78,12 +78,26 @@
 
 .studio-tour-layout {
   display: grid;
-  gap: clamp(2rem, 5vw, 5rem);
-  grid-template-columns: minmax(0, 1fr) minmax(19rem, 23rem);
+  gap: clamp(2rem, 4vw, 4rem);
+  inline-size: 100%;
 }
 
 .studio-tour-layout__room {
+  background: color-mix(
+    in srgb,
+    var(--studio-color-surface) 94%,
+    var(--studio-stock-uncharted)
+  );
+  border: 1px solid var(--studio-color-line-strong);
+  border-radius: calc(var(--studio-radius-card) * 1.35);
+  box-shadow:
+    0 1.75rem 4.5rem
+      color-mix(in srgb, var(--studio-color-ink) 11%, transparent),
+    0 0 0 0.35rem
+      color-mix(in srgb, var(--studio-color-uncharted) 10%, transparent);
   min-inline-size: 0;
+  padding: clamp(var(--studio-space-5), 4vw, var(--studio-space-10));
+  position: relative;
 }
 
 .studio-tour-layout__room .life-landscape__header {
@@ -94,11 +108,21 @@
 
 .first-visit-guide {
   align-self: start;
-  border-block-start: 1px solid var(--studio-color-line);
-  padding-block-start: var(--studio-space-5);
-  position: sticky;
-  top: var(--studio-space-6);
+  background: color-mix(
+    in srgb,
+    var(--studio-color-surface) 96%,
+    var(--studio-stock-vision)
+  );
+  border: 1px solid var(--studio-color-line-strong);
+  border-inline-start: 0.3rem solid var(--studio-color-uncharted);
+  border-radius: var(--studio-radius-card);
+  box-shadow: 0 1.25rem 3.5rem
+    color-mix(in srgb, var(--studio-color-ink) 16%, transparent);
   color: var(--studio-color-ink);
+  inline-size: min(100%, 50rem);
+  padding: clamp(var(--studio-space-5), 3vw, var(--studio-space-8));
+  position: relative;
+  z-index: 2;
 }
 
 .first-visit-guide__eyebrow,
@@ -107,6 +131,11 @@
   font: var(--studio-type-eyebrow);
   letter-spacing: 0.09em;
   text-transform: uppercase;
+}
+
+.first-visit-guide__mark {
+  color: var(--studio-color-uncharted);
+  font-size: 1rem;
 }
 
 .first-visit-guide h2 {
@@ -121,10 +150,6 @@
   justify-content: space-between;
 }
 
-.first-visit-guide__compact-toggle {
-  display: none;
-}
-
 .first-visit-guide__copy {
   color: var(--studio-color-ink-1);
   line-height: 1.65;
@@ -136,30 +161,39 @@
 }
 
 .first-visit-guide__actions {
-  align-items: flex-start;
+  align-items: center;
   display: flex;
-  flex-direction: column;
-  gap: var(--studio-space-2);
+  flex-wrap: wrap;
+  gap: var(--studio-space-3);
   margin-block-start: var(--studio-space-5);
 }
 
 .first-visit-guide__actions button,
 .tour-preview__card button {
   background: transparent;
-  border: 0;
+  border: 1px solid transparent;
+  border-radius: var(--studio-radius-control);
   color: var(--studio-color-ink-strong);
-  padding-inline: 0;
+  padding: var(--studio-space-3) var(--studio-space-4);
   text-align: start;
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
 }
 
-.first-visit-guide__next {
+.first-visit-guide__actions .first-visit-guide__next {
+  align-items: center;
+  background: var(--studio-color-ink-strong);
+  border-color: var(--studio-color-ink-strong);
+  color: var(--studio-color-surface);
+  display: inline-flex;
   font-weight: 650;
+  gap: var(--studio-space-4);
+  justify-content: space-between;
+  min-inline-size: min(100%, 19rem);
 }
 
 .first-visit-guide__leave {
   color: var(--studio-color-ink-1);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
 }
 
 .tour-preview {
@@ -307,29 +341,9 @@
   text-underline-offset: 0.2em;
 }
 
-@media (width < 1180px) {
-  .studio-tour-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
+@media (width < 48rem) {
   .first-visit-guide {
-    order: -1;
     position: static;
-  }
-
-  .first-visit-guide__compact-toggle {
-    background: transparent;
-    border: 0;
-    color: var(--studio-color-ink-strong);
-    display: inline-flex;
-    min-block-size: var(--studio-touch-target);
-    padding-inline: 0;
-    text-decoration: underline;
-    text-underline-offset: 0.2em;
-  }
-
-  .first-visit-guide[data-collapsed='true'] .first-visit-guide__content {
-    display: none;
   }
 }
 
@@ -347,6 +361,21 @@
   .tour-preview--reflection .tour-preview__composition {
     grid-template-columns: minmax(0, 1fr);
   }
+
+  .studio-tour-layout__room {
+    border-radius: var(--studio-radius-card);
+    padding: var(--studio-space-4);
+  }
+
+  .first-visit-guide__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .first-visit-guide__actions button,
+  .first-visit-guide__actions .first-visit-guide__next {
+    inline-size: 100%;
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -359,5 +388,19 @@
     from {
       transform: translateY(8px);
     }
+  }
+}
+
+@media (forced-colors: active) {
+  .first-visit-guide,
+  .studio-tour-layout__room {
+    border: 3px solid Highlight;
+    box-shadow: none;
+  }
+
+  .first-visit-guide__actions .first-visit-guide__next {
+    background: Highlight;
+    border-color: Highlight;
+    color: HighlightText;
   }
 }

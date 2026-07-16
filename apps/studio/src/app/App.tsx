@@ -495,11 +495,10 @@ function StudioApplication({
     const main = document.querySelector<HTMLElement>('#studio-main');
     if (main === null) return undefined;
     const focusHeading = () => {
-      const heading = [...main.querySelectorAll<HTMLElement>('h1')].find(
-        (candidate) =>
-          candidate.textContent?.trim() === tourHeading[visibleTourStep],
+      const heading = main.querySelector<HTMLElement>(
+        '#first-visit-guide-title',
       );
-      if (heading === undefined) return false;
+      if (heading === null) return false;
       if (!heading.hasAttribute('tabindex')) heading.tabIndex = -1;
       heading.focus();
       return true;
@@ -526,6 +525,7 @@ function StudioApplication({
     const handler = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
       if (
+        visibleTourStep === undefined &&
         (event.metaKey || event.ctrlKey) &&
         event.key.toLowerCase() === 'k' &&
         !target.matches('input, textarea, [contenteditable="true"]')
@@ -536,7 +536,13 @@ function StudioApplication({
     };
     addEventListener('keydown', handler);
     return () => removeEventListener('keydown', handler);
-  }, []);
+  }, [visibleTourStep]);
+
+  useEffect(() => {
+    if (visibleTourStep === undefined) return;
+    setCommandOpen(false);
+    setThemeOpen(false);
+  }, [visibleTourStep]);
 
   function go(
     next: string,
@@ -933,7 +939,9 @@ function StudioApplication({
       setRememberedTourExamples(new Set());
       setToast('The tour has ended. You can take it again from Settings.');
       focusRoomHeading(
-        visibleTourStep === undefined ? undefined : tourHeading[visibleTourStep],
+        visibleTourStep === undefined
+          ? undefined
+          : tourHeading[visibleTourStep],
       );
     }, 'Ateliera could not end the tour.');
   }
@@ -1297,6 +1305,7 @@ function StudioApplication({
     <ActiveStudioApplication
       activePath={path}
       captureEnabled={opened && service !== null}
+      {...(visibleTourStep === undefined ? {} : { focusMode: 'tour' })}
       localStatus={opened ? 'Stored locally' : 'No Studio open'}
       onCapture={(trigger) => {
         if (!opened || service === null) return;
@@ -1312,10 +1321,21 @@ function StudioApplication({
       </span>
       <section className="studio-room">
         <div
-            className={
-              visibleTourStep === undefined ? undefined : 'studio-tour-layout'
-            }
+          className={
+            visibleTourStep === undefined ? undefined : 'studio-tour-layout'
+          }
         >
+          {visibleTourStep !== undefined && (
+            <FirstVisitGuide
+              busy={onboardingBusy}
+              onLeave={() => void leaveTour()}
+              onNext={() => void moveTour(1)}
+              {...(visibleTourStep === 'foyer'
+                ? {}
+                : { onPrevious: () => void moveTour(-1) })}
+              step={visibleTourStep}
+            />
+          )}
           <div
             className={
               visibleTourStep === undefined
@@ -1378,17 +1398,6 @@ function StudioApplication({
               {...(activeVault === null ? {} : { vault: activeVault })}
             />
           </div>
-          {visibleTourStep !== undefined && (
-            <FirstVisitGuide
-              busy={onboardingBusy}
-              onLeave={() => void leaveTour()}
-              onNext={() => void moveTour(1)}
-              {...(visibleTourStep === 'foyer'
-                ? {}
-                : { onPrevious: () => void moveTour(-1) })}
-              step={visibleTourStep}
-            />
-          )}
         </div>
       </section>
       {error && (

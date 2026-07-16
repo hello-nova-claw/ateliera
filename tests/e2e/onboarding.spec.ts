@@ -13,6 +13,19 @@ async function createLocalStudio(
   if (enter) await enterCreatedStudio(page);
 }
 
+async function expectSeparatedTourStage(page: Page): Promise<void> {
+  const roomBox = await page.locator('.studio-tour-layout__room').boundingBox();
+  const guideBox = await page.locator('.first-visit-guide').boundingBox();
+  expect(roomBox).not.toBeNull();
+  expect(guideBox).not.toBeNull();
+  expect(
+    guideBox!.y + guideBox!.height <= roomBox!.y ||
+      roomBox!.y + roomBox!.height <= guideBox!.y ||
+      guideBox!.x + guideBox!.width <= roomBox!.x ||
+      roomBox!.x + roomBox!.width <= guideBox!.x,
+  ).toBe(true);
+}
+
 test('creates a local Studio and enters the Foyer', async ({ page }) => {
   await page.goto('/');
   await expect(
@@ -67,7 +80,7 @@ test('creates a local Studio and enters the Foyer', async ({ page }) => {
 
 test('wanders through five furnished rooms without persisting examples', async ({
   page,
-}) => {
+}, testInfo) => {
   await page.goto('/');
   await createLocalStudio(page, 'Tour Studio', false);
   await expect(
@@ -78,11 +91,46 @@ test('wanders through five furnished rooms without persisting examples', async (
   await expect(page).toHaveURL(/\/foyer$/u);
   await expect(page.getByRole('heading', { name: 'Foyer' })).toBeVisible();
   await expect(
-    page.getByRole('heading', { level: 1, name: 'Ateliera' }),
+    page.getByRole('heading', { level: 2, name: 'Foyer' }),
   ).toBeFocused();
   await expect(
     page.getByText('A glimpse of what could live here'),
   ).toBeVisible();
+  await expect(page.locator('.studio-app-shell')).toHaveAttribute(
+    'data-focus-mode',
+    'tour',
+  );
+  await expect(page.locator('.studio-app-shell__rail')).toHaveAttribute(
+    'inert',
+    '',
+  );
+  await expect(page.locator('.studio-app-shell__topbar')).toHaveAttribute(
+    'inert',
+    '',
+  );
+  await expect(
+    page.getByRole('button', { name: 'Next room · Life Landscape' }),
+  ).toBeVisible();
+  if (testInfo.project.name === 'desktop-chromium') {
+    await page.keyboard.press('Tab');
+    await expect(
+      page.getByRole('button', { name: 'Next room · Life Landscape' }),
+    ).toBeFocused();
+  }
+  await page.keyboard.press('Meta+K');
+  await expect(
+    page.getByRole('dialog', { name: 'Command palette' }),
+  ).toHaveCount(0);
+  const searchBox = await page.locator('.studio-topbar__search').boundingBox();
+  expect(searchBox).not.toBeNull();
+  await page.mouse.click(
+    searchBox!.x + searchBox!.width / 2,
+    searchBox!.y + searchBox!.height / 2,
+  );
+  await expect(
+    page.getByRole('dialog', { name: 'Command palette' }),
+  ).toHaveCount(0);
+  await expectSeparatedTourStage(page);
   await expect(
     page.getByRole('article', { name: /^Example .+ card$/u }),
   ).toHaveCount(3);
@@ -112,20 +160,25 @@ test('wanders through five furnished rooms without persisting examples', async (
   ).toHaveCount(2);
   await expect(page.getByText('Currently becoming')).toHaveCount(1);
 
-  await page.getByRole('button', { name: 'Wander into the Landscape' }).click();
+  await page
+    .getByRole('button', { name: 'Next room · Life Landscape' })
+    .click();
   await expect(page).toHaveURL(/\/landscape(?:\/[^/]+)?$/u);
   await expect(
-    page.getByRole('heading', { level: 1, name: 'Life Landscape' }),
+    page.getByRole('heading', { level: 2, name: 'Life Landscape' }),
   ).toBeFocused();
   await expect(
     page.getByRole('article', { name: /^Example .+ card$/u }),
   ).toHaveCount(5);
+  await expectSeparatedTourStage(page);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
-  await page.getByRole('button', { name: 'Visit Current Season' }).click();
+  await page
+    .getByRole('button', { name: 'Next room · Current Season' })
+    .click();
   await expect(page).toHaveURL(/\/season$/u);
   await expect(
-    page.getByRole('heading', { level: 1, name: 'Current Season' }),
+    page.getByRole('heading', { level: 2, name: 'Current Season' }),
   ).toBeFocused();
   await expect(page.getByText('A season of gentle foundations')).toBeVisible();
   await expect(
@@ -134,10 +187,10 @@ test('wanders through five furnished rooms without persisting examples', async (
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
-  await page.getByRole('button', { name: 'Step into Uncharted' }).click();
+  await page.getByRole('button', { name: 'Next room · Uncharted' }).click();
   await expect(page).toHaveURL(/\/uncharted$/u);
   await expect(
-    page.getByRole('heading', { level: 1, name: 'What if…?' }),
+    page.getByRole('heading', { level: 2, name: 'Uncharted' }),
   ).toBeFocused();
   await expect(
     page.getByRole('article', { name: /^Example .+ card$/u }),
@@ -145,18 +198,20 @@ test('wanders through five furnished rooms without persisting examples', async (
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
   await page
-    .getByRole('button', { name: 'Walk into Reflection Garden' })
+    .getByRole('button', { name: 'Next room · Reflection Garden' })
     .click();
   await expect(page).toHaveURL(/\/reflection$/u);
   await expect(
-    page.getByRole('heading', { level: 1, name: 'Reflection Garden' }),
+    page.getByRole('heading', { level: 2, name: 'Reflection Garden' }),
   ).toBeFocused();
   await expect(
     page.getByRole('article', { name: /^Example .+ card$/u }),
   ).toHaveCount(2);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 
-  await page.getByRole('button', { name: 'Return to the Foyer' }).click();
+  await page
+    .getByRole('button', { name: 'Finish tour · Return to Foyer' })
+    .click();
   await expect(page).toHaveURL(/\/foyer$/u);
   await expect(
     page.getByRole('heading', { level: 1, name: 'Ateliera' }),
@@ -166,6 +221,13 @@ test('wanders through five furnished rooms without persisting examples', async (
   ).toHaveCount(0);
   await expect(page.locator('.studio-toast')).toHaveText(
     'The first visit has ended. The Studio is yours.',
+  );
+  await expect(page.locator('.studio-app-shell')).not.toHaveAttribute(
+    'data-focus-mode',
+    'tour',
+  );
+  await expect(page.locator('.studio-app-shell__rail')).not.toHaveAttribute(
+    'inert',
   );
 });
 
@@ -196,16 +258,22 @@ test('keeps the first visit clear with keyboard, reduced motion, forced colors, 
   ).toBe(true);
 
   const next = page.getByRole('button', {
-    name: 'Wander into the Landscape',
+    name: 'Next room · Life Landscape',
   });
   await next.focus();
   await page.keyboard.press('Enter');
   await expect(
-    page.getByRole('heading', { level: 1, name: 'Life Landscape' }),
+    page.getByRole('heading', { level: 2, name: 'Life Landscape' }),
   ).toBeFocused();
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Life Landscape' }),
+  ).toBeVisible();
+  await expectSeparatedTourStage(page);
 
   await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
-  await expect(page.getByRole('button', { name: 'Close guide' })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Next room · Current Season' }),
+  ).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 

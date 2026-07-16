@@ -202,6 +202,10 @@
   max-inline-size: 56rem;
 }
 
+.studio-room:has(.studio-tour-layout) {
+  max-inline-size: none;
+}
+
 .studio-room__eyebrow,
 .studio-form__eyebrow {
   margin: 0 0 var(--studio-space-3);
