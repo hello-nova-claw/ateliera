@@ -69,6 +69,7 @@ test('scoped story audits still report defects inside the story', async ({
   page,
 }) => {
   await page.goto('/iframe.html?id=primitives-card--reflection&viewMode=story');
+  await expect(page.getByRole('article', { name: 'What I learned' })).toBeVisible();
   await page.locator('#storybook-root').evaluate((root) => {
     const defect = document.createElement('button');
     defect.className = 'studio-injected-defect';
