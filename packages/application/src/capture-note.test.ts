@@ -18,7 +18,9 @@ describe('capture', () => {
       publish: (event) => events.push(event.kind),
     });
 
-    const captured = await service.capture({ body: '  A thought worth keeping  ' });
+    const captured = await service.capture({
+      body: '  A thought worth keeping  ',
+    });
 
     expect(captured.note).toMatchObject({
       body: 'A thought worth keeping',
@@ -36,7 +38,9 @@ describe('capture', () => {
   it('rejects empty capture without writing', async () => {
     const vault = createInMemoryVault();
     const service = createStudioService({ vault, index: new RecordingIndex() });
-    await expect(service.capture({ body: ' \n ' })).rejects.toThrow('Write something');
+    await expect(service.capture({ body: ' \n ' })).rejects.toThrow(
+      'Write something',
+    );
     expect(await vault.list()).toEqual([]);
   });
 
@@ -52,7 +56,9 @@ describe('capture', () => {
 
     expect(captured.note.semanticType).toBe('uncharted');
     expect(write).toHaveBeenCalledOnce();
-    expect((await vault.list()).filter((entry) => entry.kind === 'file')).toHaveLength(1);
+    expect(
+      (await vault.list()).filter((entry) => entry.kind === 'file'),
+    ).toHaveLength(1);
   });
 
   it('leaves no partial note when classified capture fails and retry creates only one', async () => {
@@ -62,23 +68,32 @@ describe('capture', () => {
       .mockRejectedValueOnce(new Error('disk unavailable'))
       .mockImplementation(durableWrite);
     const service = createStudioService({ vault, index: new RecordingIndex() });
-    const input = { body: 'One atomic thought', semanticType: 'vision' as const };
+    const input = {
+      body: 'One atomic thought',
+      semanticType: 'vision' as const,
+    };
 
     await expect(service.capture(input)).rejects.toThrow('disk unavailable');
     expect(await vault.list()).toEqual([]);
 
     await service.capture(input);
-    expect((await vault.list()).filter((entry) => entry.kind === 'file')).toHaveLength(1);
+    expect(
+      (await vault.list()).filter((entry) => entry.kind === 'file'),
+    ).toHaveLength(1);
   });
 
   it('creates a Foyer slot in one expected-missing write and leaves no partial note on retry', async () => {
     const vault = createInMemoryVault();
     const durableWrite = vault.writeTextAtomic.bind(vault);
-    const write = vi.spyOn(vault, 'writeTextAtomic')
+    const write = vi
+      .spyOn(vault, 'writeTextAtomic')
       .mockRejectedValueOnce(new Error('disk unavailable'))
       .mockImplementation(durableWrite);
     const service = createStudioService({ vault, index: new RecordingIndex() });
-    const input = { body: 'A woman who creates from calm', placement: 'foyer-becoming' as const };
+    const input = {
+      body: 'A woman who creates from calm',
+      placement: 'foyer-becoming' as const,
+    };
 
     await expect(service.capture(input)).rejects.toThrow('disk unavailable');
     expect(await vault.list()).toEqual([]);
@@ -86,11 +101,18 @@ describe('capture', () => {
 
     expect(saved.path).toMatch(/^Foyer\//);
     expect(saved.note).toMatchObject({
-      cardType: 'identity', semanticType: 'foundations', status: 'active',
-      rooms: ['foyer', 'identity-studio'], display: { featured: true },
+      cardType: 'identity',
+      semanticType: 'foundations',
+      status: 'active',
+      rooms: ['foyer', 'identity-studio'],
+      display: { featured: true },
     });
-    expect(write).toHaveBeenLastCalledWith(saved.path, expect.any(String), { expectedMissing: true });
-    expect((await vault.list()).filter((entry) => entry.kind === 'file')).toHaveLength(1);
+    expect(write).toHaveBeenLastCalledWith(saved.path, expect.any(String), {
+      expectedMissing: true,
+    });
+    expect(
+      (await vault.list()).filter((entry) => entry.kind === 'file'),
+    ).toHaveLength(1);
   });
 
   it('stores an authored decision horizon in the atomic Landscape capture', async () => {
@@ -108,15 +130,98 @@ describe('capture', () => {
     expect(write).toHaveBeenCalledOnce();
   });
 
+  it('keeps a contextual Landscape meaning consistent when a stale caller disagrees', async () => {
+    const service = createStudioService({
+      vault: createInMemoryVault(),
+      index: new RecordingIndex(),
+    });
+
+    const saved = await service.capture({
+      body: 'An ordinary Tuesday feels spacious',
+      semanticType: 'celebration',
+      landscape: { lifeArea: 'family', anchor: 'vision' },
+    });
+
+    expect(saved.note.semanticType).toBe('vision');
+  });
+
+  it('captures Identity and Wisdom cards as ordinary classified Markdown notes', async () => {
+    const vault = createInMemoryVault();
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    const identity = await service.capture({
+      body: 'I notice I can trust my timing.',
+      identitySection: 'already-true',
+    });
+    const wisdom = await service.capture({
+      body: 'Rest makes attention possible.',
+      title: 'Rest and attention',
+      wisdom: {
+        kind: 'synthesis',
+        themes: ['rest'],
+        sourceNoteIds: ['source-1'],
+      },
+    });
+
+    expect(identity).toMatchObject({
+      path: expect.stringMatching(/^Identity Studio\//),
+      note: {
+        cardType: 'identity-truth',
+        semanticType: 'foundations',
+        rooms: ['identity-studio'],
+      },
+    });
+    expect(wisdom).toMatchObject({
+      path: expect.stringMatching(/^Wisdom Garden\//),
+      note: {
+        cardType: 'synthesis',
+        semanticType: 'foundations',
+        rooms: ['wisdom-garden'],
+        tags: ['rest'],
+        sourceNoteIds: ['source-1'],
+      },
+    });
+    expect(parseNote((await vault.readText(wisdom.path)).text)).toMatchObject({
+      ok: true,
+      note: { sourceNoteIds: ['source-1'] },
+    });
+  });
+
+  it('rejects conflicting structured destinations and invalid Wisdom metadata before writing', async () => {
+    const vault = createInMemoryVault();
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    await expect(
+      service.capture({
+        body: 'A hybrid thought',
+        identitySection: 'already-true',
+        wisdom: { kind: 'insight', themes: ['identity'] },
+      }),
+    ).rejects.toThrow('one Studio destination');
+    await expect(
+      service.capture({
+        body: 'An unsafe source',
+        wisdom: {
+          kind: 'insight',
+          themes: ['identity'],
+          source: { url: 'javascript:alert(1)' },
+        },
+      }),
+    ).rejects.toThrow('http or https');
+    expect(await vault.list()).toEqual([]);
+  });
+
   it('rejects a decision horizon outside the Decisions anchor before writing', async () => {
     const vault = createInMemoryVault();
     const service = createStudioService({ vault, index: new RecordingIndex() });
 
-    await expect(service.capture({
-      body: 'A calm home',
-      decisionHorizon: '30d',
-      landscape: { lifeArea: 'home', anchor: 'vision' },
-    })).rejects.toThrow('Decision horizons');
+    await expect(
+      service.capture({
+        body: 'A calm home',
+        decisionHorizon: '30d',
+        landscape: { lifeArea: 'home', anchor: 'vision' },
+      }),
+    ).rejects.toThrow('Decision horizons');
     expect(await vault.list()).toEqual([]);
   });
 
@@ -124,11 +229,13 @@ describe('capture', () => {
     const vault = createInMemoryVault();
     const service = createStudioService({ vault, index: new RecordingIndex() });
 
-    await expect(service.capture({
-      body: 'Choose childcare support',
-      decisionHorizon: 'later' as never,
-      landscape: { lifeArea: 'family', anchor: 'decisions' },
-    })).rejects.toThrow('Decision horizons');
+    await expect(
+      service.capture({
+        body: 'Choose childcare support',
+        decisionHorizon: 'later' as never,
+        landscape: { lifeArea: 'family', anchor: 'decisions' },
+      }),
+    ).rejects.toThrow('Decision horizons');
     expect(await vault.list()).toEqual([]);
   });
 });

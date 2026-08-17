@@ -1,9 +1,14 @@
 import { markdownToPlainText } from '@studio/content';
 import {
+  defaultWisdomThemes,
+  identitySectionDefinitions,
+  identitySectionForCardType,
   isDecisionHorizon,
   landscapeAnchors,
   type DecisionHorizon,
   type LandscapeAnchor,
+  type IdentitySection,
+  type NoteSource,
   type SemanticType,
   type StudioNote,
 } from '@studio/domain';
@@ -106,6 +111,39 @@ export interface FoyerProjection {
   priorities: StudioCardProjection[];
   returning: StudioCardProjection | null;
   image: FoyerImageProjection | null;
+}
+
+export interface IdentityEvidenceProjection extends StudioCardProjection {
+  created: string;
+}
+
+export interface IdentityCardProjection extends StudioCardProjection {
+  hash: string;
+  created: string;
+  evidence: IdentityEvidenceProjection[];
+}
+
+export interface IdentityStudioProjection {
+  currentlyBecoming: IdentityCardProjection | null;
+  sections: Record<IdentitySection, IdentityCardProjection[]>;
+}
+
+export interface WisdomCardProjection extends StudioCardProjection {
+  hash: string;
+  themes: string[];
+  source?: NoteSource;
+  sourceNoteIds: string[];
+}
+
+export interface WisdomThemeProjection {
+  id: string;
+  title: string;
+  count: number;
+}
+
+export interface WisdomGardenProjection {
+  cards: WisdomCardProjection[];
+  themes: WisdomThemeProjection[];
 }
 
 export interface ActiveSeasonProjection {
@@ -232,6 +270,137 @@ export async function projectRoom(
   );
 }
 
+function titleForTheme(id: string): string {
+  return id
+    .split('-')
+    .filter(Boolean)
+    .map((part) => `${part[0]?.toUpperCase() ?? ''}${part.slice(1)}`)
+    .join(' ');
+}
+
+export async function projectIdentityStudioRoom(
+  notes: LoadedNote[],
+  views: ViewStateRepository,
+): Promise<IdentityStudioProjection> {
+  const eligible = notes.filter(
+    (item) =>
+      belongsToRoom(item.note, 'identity-studio') &&
+      identitySectionForCardType(item.note.cardType) !== undefined,
+  );
+  const evidenceByIdentity = new Map<string, IdentityEvidenceProjection[]>();
+  for (const item of notes) {
+    if (
+      !visible(item, 'identity:evidence') ||
+      (item.note.semanticType !== 'reflection' &&
+        item.note.semanticType !== 'celebration')
+    )
+      continue;
+    const related = Array.isArray(item.note.extraFrontmatter.related_notes)
+      ? item.note.extraFrontmatter.related_notes.filter(
+          (id): id is string => typeof id === 'string' && id.trim() !== '',
+        )
+      : [];
+    for (const id of new Set(related)) {
+      const values = evidenceByIdentity.get(id) ?? [];
+      values.push({ ...toCard(item), created: item.note.created });
+      evidenceByIdentity.set(id, values);
+    }
+  }
+  const byId = new Map(eligible.map((item) => [item.note.id, item]));
+  const enrich = (card: StudioCardProjection): IdentityCardProjection => {
+    const item = byId.get(card.noteId)!;
+    return {
+      ...card,
+      hash: item.hash,
+      created: item.note.created,
+      evidence: evidenceByIdentity.get(card.noteId) ?? [],
+    };
+  };
+  const sections = Object.fromEntries(
+    await Promise.all(
+      identitySectionDefinitions.map(async (definition) => [
+        definition.id,
+        (
+          await orderedProjection(
+            eligible.filter(
+              (item) =>
+                identitySectionForCardType(item.note.cardType) ===
+                definition.id,
+            ),
+            `identity:${definition.id}`,
+            views,
+          )
+        ).map(enrich),
+      ]),
+    ),
+  ) as Record<IdentitySection, IdentityCardProjection[]>;
+  const currentOrder = await views.load('identity:currently-becoming');
+  const current = currentOrder
+    .map((noteId) =>
+      eligible.find(
+        (item) =>
+          item.note.id === noteId &&
+          identitySectionForCardType(item.note.cardType) === 'practicing-now',
+      ),
+    )
+    .find((item) => item !== undefined);
+  const legacyCurrent = eligible.find(
+    (item) =>
+      item.note.cardType === 'identity' && item.note.rooms.includes('foyer'),
+  );
+  return {
+    currentlyBecoming:
+      current === undefined
+        ? legacyCurrent === undefined
+          ? null
+          : enrich(toCard(legacyCurrent))
+        : enrich(toCard(current)),
+    sections,
+  };
+}
+
+export async function projectWisdomGardenRoom(
+  notes: LoadedNote[],
+  views: ViewStateRepository,
+): Promise<WisdomGardenProjection> {
+  const eligible = notes.filter((item) =>
+    belongsToRoom(item.note, 'wisdom-garden'),
+  );
+  const ordered = await orderedProjection(
+    eligible,
+    'room:wisdom-garden',
+    views,
+  );
+  const byId = new Map(eligible.map((item) => [item.note.id, item]));
+  const cards = ordered.map((card): WisdomCardProjection => {
+    const item = byId.get(card.noteId)!;
+    return {
+      ...card,
+      hash: item.hash,
+      themes: [...item.note.tags],
+      ...(item.note.source === undefined ? {} : { source: item.note.source }),
+      sourceNoteIds: [...(item.note.sourceNoteIds ?? [])],
+    };
+  });
+  const counts = new Map<string, number>();
+  for (const card of cards)
+    for (const theme of card.themes)
+      counts.set(theme, (counts.get(theme) ?? 0) + 1);
+  const known = new Map<string, string>(
+    defaultWisdomThemes.map((theme) => [theme.id, theme.title]),
+  );
+  for (const id of counts.keys())
+    if (!known.has(id)) known.set(id, titleForTheme(id));
+  return {
+    cards,
+    themes: [...known].map(([id, title]) => ({
+      id,
+      title,
+      count: counts.get(id) ?? 0,
+    })),
+  };
+}
+
 export async function projectLandscape(
   notes: LoadedNote[],
   query: LandscapeProjectionQuery,
@@ -315,9 +484,13 @@ export async function projectStream(
 
 function stringList(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return [...new Set(value.flatMap((item) =>
-    typeof item === 'string' && item.trim() !== '' ? [item.trim()] : [],
-  ))];
+  return [
+    ...new Set(
+      value.flatMap((item) =>
+        typeof item === 'string' && item.trim() !== '' ? [item.trim()] : [],
+      ),
+    ),
+  ];
 }
 
 function resolveReflectionEvidenceTargetFromMap(
@@ -435,7 +608,9 @@ export async function projectUnchartedRoom(
   notes: LoadedNote[],
   views: ViewStateRepository,
 ): Promise<UnchartedProjection> {
-  const candidates = notes.filter((item) => belongsToRoom(item.note, 'uncharted'));
+  const candidates = notes.filter((item) =>
+    belongsToRoom(item.note, 'uncharted'),
+  );
   const ordered = await orderedProjection(candidates, 'room:uncharted', views);
   const byId = new Map(candidates.map((item) => [item.note.id, item]));
   return {
@@ -444,9 +619,8 @@ export async function projectUnchartedRoom(
       return {
         ...card,
         hash: source.hash,
-        horizon: source.note.extraFrontmatter.beyond_gate === true
-          ? 'beyond'
-          : 'near',
+        horizon:
+          source.note.extraFrontmatter.beyond_gate === true ? 'beyond' : 'near',
         seasons: [...source.note.seasons],
       };
     }),
@@ -467,9 +641,10 @@ export async function projectReflectionGardenRoom(
   const ordered = dedupe(
     candidates.filter((item) => visible(item, 'room:reflection-garden')),
   )
-    .sort((left, right) =>
-      Date.parse(right.note.created) - Date.parse(left.note.created) ||
-      left.note.id.localeCompare(right.note.id, 'en'),
+    .sort(
+      (left, right) =>
+        Date.parse(right.note.created) - Date.parse(left.note.created) ||
+        left.note.id.localeCompare(right.note.id, 'en'),
     )
     .map(toCard);
   const byId = new Map(candidates.map((item) => [item.note.id, item]));
@@ -481,7 +656,9 @@ export async function projectReflectionGardenRoom(
   }
   const cards = ordered.map((card): ReflectionCardProjection => {
     const source = byId.get(card.noteId)!;
-    const linkedNoteIds = stringList(source.note.extraFrontmatter.related_notes);
+    const linkedNoteIds = stringList(
+      source.note.extraFrontmatter.related_notes,
+    );
     const thenNoteId = source.note.extraFrontmatter.then_note_id;
     return {
       ...card,
@@ -512,8 +689,9 @@ export async function projectReflectionGardenRoom(
   }
   const themes = [...themeCounts]
     .map(([name, count]) => ({ name, count }))
-    .sort((left, right) =>
-      right.count - left.count || left.name.localeCompare(right.name, 'en'),
+    .sort(
+      (left, right) =>
+        right.count - left.count || left.name.localeCompare(right.name, 'en'),
     );
   return { cards, themes };
 }
@@ -550,17 +728,19 @@ export async function projectFoyer(
   notes: LoadedNote[],
   views: ViewStateRepository,
 ): Promise<FoyerProjection> {
-  const [activeSeason, featuredCandidates] = await Promise.all([
-    projectCurrentSeason(notes),
-    orderedProjection(
-      notes.filter(
-        (item) =>
-          item.note.display.featured || item.note.rooms.includes('foyer'),
+  const [activeSeason, featuredCandidates, currentIdentityOrder] =
+    await Promise.all([
+      projectCurrentSeason(notes),
+      orderedProjection(
+        notes.filter(
+          (item) =>
+            item.note.display.featured || item.note.rooms.includes('foyer'),
+        ),
+        'foyer:featured',
+        views,
       ),
-      'foyer:featured',
-      views,
-    ),
-  ]);
+      views.load('identity:currently-becoming'),
+    ]);
   const eligible = notes.filter((item) => visible(item, 'foyer:featured'));
   const foyerNotes = eligible.filter(
     (item) => item.note.rooms.includes('foyer') || item.note.display.featured,
@@ -620,12 +800,26 @@ export async function projectFoyer(
   const imageNote = foyerNotes.find(
     (item) => item.note.display.cover !== undefined,
   );
+  const currentIdentity = currentIdentityOrder
+    .map((noteId) =>
+      notes.find(
+        (item) =>
+          item.note.id === noteId &&
+          visible(item, 'identity:currently-becoming') &&
+          item.note.rooms.includes('identity-studio') &&
+          identitySectionForCardType(item.note.cardType) === 'practicing-now',
+      ),
+    )
+    .find((item) => item !== undefined);
   return {
     currentSeason: activeSeason.current,
     featured: featuredCandidates.filter(
       (item) => item.noteId !== activeSeason.current?.noteId,
     ),
-    becoming: card((item) => item.note.cardType === 'identity'),
+    becoming:
+      currentIdentity === undefined
+        ? card((item) => item.note.cardType === 'identity')
+        : toCard(currentIdentity),
     feelings: cards((item) => item.note.cardType === 'feeling', 8),
     principles: cards((item) => item.note.cardType === 'principle', 3),
     priorities: priorities.slice(0, 3),

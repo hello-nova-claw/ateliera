@@ -8,12 +8,20 @@ import {
 } from '@studio/content';
 import type {
   DecisionHorizon,
+  IdentitySection,
   LandscapeAnchor,
   ParseError,
   SemanticType,
   StudioNote,
+  WisdomKind,
 } from '@studio/domain';
-import { isDecisionHorizon } from '@studio/domain';
+import {
+  identitySectionDefinition,
+  isDecisionHorizon,
+  wisdomKinds,
+  semanticTypeForWisdomKind,
+  semanticTypeForLandscapeAnchor,
+} from '@studio/domain';
 import type { IndexEntry, IndexPort } from '@studio/index';
 import {
   VaultConflictError,
@@ -32,6 +40,7 @@ import type {
 import {
   type ActiveSeasonProjection,
   type FoyerProjection,
+  type IdentityStudioProjection,
   type LandscapeBoardProjection,
   type LandscapeProjectionQuery,
   type LoadedNote,
@@ -40,8 +49,10 @@ import {
   type ReflectionEvidenceTarget,
   type StudioCardProjection,
   type UnchartedProjection,
+  type WisdomGardenProjection,
   projectCurrentSeason,
   projectFoyer,
+  projectIdentityStudioRoom,
   projectLandscape,
   projectLandscapeBoard,
   projectReflectionGardenRoom,
@@ -49,11 +60,16 @@ import {
   projectRoom,
   projectStream,
   projectUnchartedRoom,
+  projectWisdomGardenRoom,
 } from './projections';
 import { createViewStateRepository } from './view-state';
 import type { ViewStateRepository } from './view-state';
 import { createLifeAreaRepository } from './life-area-repository';
 import type { LifeAreaRepository } from './life-area-repository';
+import {
+  createWisdomThemeRepository,
+  type WisdomThemeRepository,
+} from './wisdom-theme-repository';
 import {
   createNoteLifecycleService,
   type RestoreNoteResult,
@@ -80,6 +96,10 @@ export {
   type CoverMediaMimeType,
   type CoverMediaResult,
 } from './cover-media';
+import {
+  capturePlacementMetadata,
+  type CapturePlacement,
+} from './capture-metadata';
 
 export type StudioEvent =
   | { kind: 'note-saved'; noteId: string; path: string }
@@ -128,75 +148,74 @@ export interface CaptureNoteInput {
   landscape?: { lifeArea: string; anchor: LandscapeAnchor };
   decisionHorizon?: DecisionHorizon;
   unchartedHorizon?: 'near' | 'beyond';
+  identitySection?: IdentitySection;
+  wisdom?: {
+    kind: WisdomKind;
+    themes: string[];
+    source?: StudioNote['source'];
+    sourceNoteIds?: string[];
+  };
 }
 
-export type CapturePlacement =
-  | 'foyer-becoming'
-  | 'foyer-feeling'
-  | 'foyer-principle'
-  | 'uncharted'
-  | 'reflection'
-  | 'celebration';
-
-const capturePlacements = {
-  'foyer-becoming': {
-    cardType: 'identity',
-    semanticType: 'foundations',
-    rooms: ['foyer', 'identity-studio'],
-    folder: 'Foyer',
-  },
-  'foyer-feeling': {
-    cardType: 'feeling',
-    semanticType: 'vision',
-    rooms: ['foyer', 'identity-studio'],
-    folder: 'Foyer',
-  },
-  'foyer-principle': {
-    cardType: 'principle',
-    semanticType: 'foundations',
-    rooms: ['foyer', 'identity-studio'],
-    folder: 'Foyer',
-  },
-  uncharted: {
-    cardType: 'possibility',
-    semanticType: 'uncharted',
-    rooms: ['uncharted'],
-    folder: 'Uncharted',
-  },
-  reflection: {
-    cardType: 'reflection',
-    semanticType: 'reflection',
-    rooms: ['reflection-garden'],
-    folder: 'Reflection Garden/Reflections',
-  },
-  celebration: {
-    cardType: 'celebration',
-    semanticType: 'celebration',
-    rooms: ['reflection-garden'],
-    folder: 'Reflection Garden/Celebrations',
-  },
-} as const satisfies Record<
-  CapturePlacement,
-  {
-    cardType: string;
-    semanticType: SemanticType;
-    rooms: readonly string[];
-    folder: string;
+function validateStructuredCapture(input: CaptureNoteInput): void {
+  const destinations = [
+    input.placement,
+    input.landscape,
+    input.identitySection,
+    input.wisdom,
+  ].filter((value) => value !== undefined);
+  if (destinations.length > 1)
+    throw new Error('Choose one Studio destination for this thought.');
+  if (input.wisdom === undefined) return;
+  if (!wisdomKinds.includes(input.wisdom.kind))
+    throw new Error('Choose a recognised kind of Wisdom note.');
+  if (
+    input.wisdom.themes.length > 40 ||
+    input.wisdom.themes.some(
+      (theme) =>
+        !/^[a-z0-9]+(?:-[a-z0-9]+)*$/u.test(theme) || theme.length > 64,
+    )
+  )
+    throw new Error('Wisdom themes must be short lowercase slugs.');
+  if (new Set(input.wisdom.themes).size !== input.wisdom.themes.length)
+    throw new Error('Wisdom themes cannot be repeated.');
+  const source = input.wisdom.source;
+  if (
+    source !== undefined &&
+    [source.title, source.creator].some(
+      (value) => value !== undefined && Array.from(value).length > 200,
+    )
+  )
+    throw new Error('Wisdom source details are too long.');
+  if (source?.url !== undefined) {
+    let url: URL;
+    try {
+      url = new URL(source.url);
+    } catch {
+      throw new Error('Wisdom source URL must be a valid web address.');
+    }
+    if (
+      (url.protocol !== 'https:' && url.protocol !== 'http:') ||
+      source.url.length > 2048
+    )
+      throw new Error('Wisdom source URL must use http or https.');
   }
->;
+  if (
+    input.wisdom.sourceNoteIds?.some(
+      (id) => id.trim() === '' || id.length > 128,
+    )
+  )
+    throw new Error('Wisdom source note IDs are invalid.');
+}
 
 function landscapeAnchorMetadata(anchor: LandscapeAnchor): {
   cardType: LandscapeAnchor;
   semanticType: SemanticType;
 } {
-  const semanticTypeByAnchor: Record<LandscapeAnchor, SemanticType> = {
-    vision: 'vision',
-    'identity-values-feelings': 'foundations',
-    decisions: 'growth',
-    practices: 'growth',
-    'structure-strategy': 'foundations',
+  return {
+    cardType: anchor,
+    semanticType: semanticTypeForLandscapeAnchor(anchor),
   };
-  return { cardType: anchor, semanticType: semanticTypeByAnchor[anchor] };
 }
 
 function removeDecisionOnlyFrontmatter(
@@ -227,6 +246,7 @@ export interface StudioServiceDependencies {
 export interface StudioService {
   readonly views: ViewStateRepository;
   readonly lifeAreas: LifeAreaRepository;
+  readonly wisdomThemes: WisdomThemeRepository;
   readonly onboarding: OnboardingSettingsRepository;
   readonly seasonTransactions: SeasonTransactionStore;
   start(): Promise<void>;
@@ -287,6 +307,10 @@ export interface StudioService {
     type: 'reflection' | 'celebration',
   ): Promise<StudioCardProjection[]>;
   projectFoyer(): Promise<FoyerProjection>;
+  projectIdentityStudio(): Promise<IdentityStudioProjection>;
+  promoteIdentity(noteId: string): Promise<void>;
+  reorderIdentity(section: IdentitySection, noteIds: string[]): Promise<void>;
+  projectWisdomGarden(): Promise<WisdomGardenProjection>;
 }
 
 export class StudioSaveConflictError extends Error {
@@ -372,6 +396,7 @@ export function createStudioService(
   const views = createViewStateRepository(dependencies.vault);
   const lifeAreas =
     dependencies.lifeAreas ?? createLifeAreaRepository(dependencies.vault);
+  const wisdomThemes = createWisdomThemeRepository(dependencies.vault);
   const onboarding = createOnboardingSettingsRepository(dependencies.vault);
   const revisions =
     dependencies.revisions ??
@@ -678,7 +703,17 @@ export function createStudioService(
   }
 
   async function performSave(input: SaveNoteInput): Promise<SavedNote> {
-    const savedNote: StudioNote = { ...input.note, updated: iso(clock) };
+    const savedNote: StudioNote = {
+      ...input.note,
+      ...(input.note.landscapeAnchor === undefined
+        ? {}
+        : {
+            semanticType: semanticTypeForLandscapeAnchor(
+              input.note.landscapeAnchor,
+            ),
+          }),
+      updated: iso(clock),
+    };
     const serialized = validateAndSerialize(savedNote);
     const writeGeneration = (pathWriteGenerations.get(input.path) ?? 0) + 1;
     pathWriteGenerations.set(input.path, writeGeneration);
@@ -803,6 +838,7 @@ export function createStudioService(
   const service: StudioService = {
     views,
     lifeAreas,
+    wisdomThemes,
     onboarding,
     seasonTransactions,
 
@@ -898,6 +934,7 @@ export function createStudioService(
       assertActive();
       const body = input.body.trim();
       if (body === '') throw new Error('Write something to remember first.');
+      validateStructuredCapture(input);
       if (
         input.decisionHorizon !== undefined &&
         (!isDecisionHorizon(input.decisionHorizon) ||
@@ -921,11 +958,22 @@ export function createStudioService(
       const placement =
         input.placement === undefined
           ? undefined
-          : capturePlacements[input.placement];
+          : capturePlacementMetadata(input.placement);
       const landscapeMetadata =
         input.landscape === undefined
           ? undefined
           : landscapeAnchorMetadata(input.landscape.anchor);
+      const identityMetadata =
+        input.identitySection === undefined
+          ? undefined
+          : identitySectionDefinition(input.identitySection);
+      const wisdomMetadata =
+        input.wisdom === undefined
+          ? undefined
+          : {
+              cardType: input.wisdom.kind,
+              semanticType: semanticTypeForWisdomKind(input.wisdom.kind),
+            };
       let lastConflict: StudioSaveConflictError | undefined;
       for (let attempt = 0; attempt < CAPTURE_ATTEMPTS; attempt += 1) {
         const note: StudioNote = {
@@ -933,28 +981,42 @@ export function createStudioService(
           id: generateId(),
           ...(input.title?.trim() ? { title: input.title.trim() } : {}),
           body,
-          cardType: placement?.cardType ?? landscapeMetadata?.cardType ?? 'capture',
+          cardType:
+            placement?.cardType ??
+            landscapeMetadata?.cardType ??
+            identityMetadata?.cardType ??
+            wisdomMetadata?.cardType ??
+            'capture',
           semanticType:
             placement?.semanticType ??
-            input.semanticType ??
             landscapeMetadata?.semanticType ??
+            identityMetadata?.semanticType ??
+            wisdomMetadata?.semanticType ??
+            input.semanticType ??
             'reflection',
           status:
-            placement === undefined && input.landscape === undefined
+            placement === undefined &&
+            input.landscape === undefined &&
+            input.identitySection === undefined &&
+            input.wisdom === undefined
               ? 'draft'
               : 'active',
           rooms:
             placement === undefined
               ? input.landscape
                 ? ['life-landscape']
-                : ['inbox']
+                : input.identitySection
+                  ? ['identity-studio']
+                  : input.wisdom
+                    ? ['wisdom-garden']
+                    : ['inbox']
               : [...placement.rooms],
           lifeAreas: input.landscape ? [input.landscape.lifeArea] : [],
           ...(input.landscape
             ? { landscapeAnchor: input.landscape.anchor }
             : {}),
           seasons: [],
-          tags: [],
+          tags: input.wisdom?.themes ?? [],
           created,
           updated: created,
           attachments: [],
@@ -970,12 +1032,23 @@ export function createStudioService(
           },
           lineEnding: '\n',
         };
+        if (input.wisdom?.source !== undefined)
+          note.source = input.wisdom.source;
+        if (input.wisdom?.sourceNoteIds !== undefined)
+          note.sourceNoteIds = [...new Set(input.wisdom.sourceNoteIds)];
         try {
           return await save({
             note,
             path:
               input.landscape === undefined
-                ? `${placement?.folder ?? 'Inbox'}/${suggestFilename(note)}`
+                ? `${
+                    placement?.folder ??
+                    (input.identitySection
+                      ? 'Identity Studio'
+                      : input.wisdom
+                        ? 'Wisdom Garden'
+                        : 'Inbox')
+                  }/${suggestFilename(note)}`
                 : `Life Landscape/${portableLifeAreaFolder(input.landscape.lifeArea)}/${suggestFilename(note)}`,
             expectedMissing: true,
           });
@@ -1142,10 +1215,13 @@ export function createStudioService(
     async inviteUnchartedToSeason(input) {
       assertActive();
       const seasonId = input.seasonId.trim();
-      if (seasonId === '') throw new Error('Choose a season to invite this into.');
+      if (seasonId === '')
+        throw new Error('Choose a season to invite this into.');
       const loaded = await loadNote(input.path);
       if (loaded.note.semanticType !== 'uncharted') {
-        throw new Error('Only an Uncharted possibility can be invited into a season.');
+        throw new Error(
+          'Only an Uncharted possibility can be invited into a season.',
+        );
       }
       return save({
         path: loaded.path,
@@ -1187,7 +1263,9 @@ export function createStudioService(
         loaded.note.semanticType !== 'reflection' &&
         loaded.note.semanticType !== 'celebration'
       ) {
-        throw new Error('Evidence links belong to a reflection or celebration.');
+        throw new Error(
+          'Evidence links belong to a reflection or celebration.',
+        );
       }
       const existingRelated = Array.isArray(
         loaded.note.extraFrontmatter.related_notes,
@@ -1197,8 +1275,9 @@ export function createStudioService(
               typeof item === 'string' && item.trim() !== '',
           )
         : [];
-      const unique = (items: readonly string[]) =>
-        [...new Set(items.map((item) => item.trim()).filter(Boolean))];
+      const unique = (items: readonly string[]) => [
+        ...new Set(items.map((item) => item.trim()).filter(Boolean)),
+      ];
       return save({
         path: loaded.path,
         expectedHash: input.expectedHash,
@@ -1208,10 +1287,7 @@ export function createStudioService(
             ...loaded.note.lifeAreas,
             ...(input.lifeAreas ?? []),
           ]),
-          seasons: unique([
-            ...loaded.note.seasons,
-            ...(input.seasons ?? []),
-          ]),
+          seasons: unique([...loaded.note.seasons, ...(input.seasons ?? [])]),
           extraFrontmatter: {
             ...loaded.note.extraFrontmatter,
             related_notes: unique([
@@ -1233,6 +1309,44 @@ export function createStudioService(
     async projectFoyer() {
       assertActive();
       return projectFoyer((await scan()).notes, views);
+    },
+    async projectIdentityStudio() {
+      assertActive();
+      return projectIdentityStudioRoom((await scan()).notes, views);
+    },
+    async promoteIdentity(noteId) {
+      assertActive();
+      const projection = await projectIdentityStudioRoom(
+        (await scan()).notes,
+        views,
+      );
+      const eligible = projection.sections['practicing-now'].some(
+        (card) => card.noteId === noteId,
+      );
+      if (!eligible)
+        throw new Error('Choose an identity you are currently practicing.');
+      const existing = await views.load('identity:currently-becoming');
+      const ordered = [noteId, ...existing.filter((id) => id !== noteId)];
+      await views.save('identity:currently-becoming', ordered);
+    },
+    async reorderIdentity(section, noteIds) {
+      assertActive();
+      const projection = await projectIdentityStudioRoom(
+        (await scan()).notes,
+        views,
+      );
+      const eligible = new Set(
+        projection.sections[section].map((card) => card.noteId),
+      );
+      if (noteIds.some((id) => !eligible.has(id)))
+        throw new Error(
+          'Identity order may only include cards from this section.',
+        );
+      await views.save(`identity:${section}`, noteIds);
+    },
+    async projectWisdomGarden() {
+      assertActive();
+      return projectWisdomGardenRoom((await scan()).notes, views);
     },
   };
   return service;

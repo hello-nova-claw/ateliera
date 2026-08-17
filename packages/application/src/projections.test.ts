@@ -1,15 +1,156 @@
 import { describe, expect, it } from 'vitest';
 import { parseNote, serializeNote } from '@studio/content';
 
-import {
-  StudioSaveConflictError,
-  createStudioService,
-} from './studio-service';
+import { StudioSaveConflictError, createStudioService } from './studio-service';
 import { orderedProjection } from './projections';
 import { createViewStateRepository } from './view-state';
 import { RecordingIndex, note, seed } from './test-helpers';
 
 describe('room projections', () => {
+  it('projects Identity Studio sections, one current becoming, and linked evidence', async () => {
+    const vault = await seed([
+      {
+        path: 'Identity Studio/calm.md',
+        note: note({
+          id: 'calm',
+          title: 'I create from calm',
+          cardType: 'identity',
+          semanticType: 'foundations',
+          rooms: ['foyer', 'identity-studio'],
+        }),
+      },
+      {
+        path: 'Identity Studio/truth.md',
+        note: note({
+          id: 'truth',
+          title: 'I am curious',
+          cardType: 'identity-truth',
+          semanticType: 'foundations',
+          rooms: ['identity-studio'],
+        }),
+      },
+      {
+        path: 'Reflection Garden/Celebrations/evidence.md',
+        note: note({
+          id: 'evidence',
+          title: 'Protected a quiet morning',
+          cardType: 'celebration',
+          semanticType: 'celebration',
+          rooms: ['reflection-garden'],
+          extraFrontmatter: { related_notes: ['calm'] },
+        }),
+      },
+      {
+        path: 'Reflection Garden/Celebrations/old-evidence.md',
+        note: note({
+          id: 'old-evidence',
+          title: 'An archived observation',
+          cardType: 'celebration',
+          semanticType: 'celebration',
+          status: 'archived',
+          rooms: ['reflection-garden'],
+          extraFrontmatter: { related_notes: ['calm', 'calm'] },
+        }),
+      },
+    ]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+    await service.views.save('identity:currently-becoming', ['calm']);
+
+    const identity = await service.projectIdentityStudio();
+
+    expect(identity.currentlyBecoming?.noteId).toBe('calm');
+    expect(
+      identity.sections['already-true'].map((card) => card.noteId),
+    ).toEqual(['truth']);
+    expect(identity.sections['practicing-now'][0]).toMatchObject({
+      noteId: 'calm',
+      evidence: [
+        expect.objectContaining({
+          noteId: 'evidence',
+          semanticType: 'celebration',
+        }),
+      ],
+    });
+  });
+
+  it('features a promoted practicing identity in Identity Studio and the Foyer without duplicating it', async () => {
+    const vault = await seed([
+      {
+        path: 'Identity Studio/calm.md',
+        note: note({
+          id: 'calm',
+          title: 'I create from calm',
+          cardType: 'identity-emerging',
+          semanticType: 'growth',
+          rooms: ['identity-studio'],
+        }),
+      },
+    ]);
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    await service.promoteIdentity('calm');
+
+    expect(
+      (await service.projectIdentityStudio()).currentlyBecoming?.noteId,
+    ).toBe('calm');
+    expect((await service.projectFoyer()).becoming?.noteId).toBe('calm');
+    expect(
+      (await vault.list()).filter(
+        (entry) => entry.kind === 'file' && !entry.path.startsWith('.studio/'),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('projects Wisdom Garden by theme while preserving sources and synthesis links', async () => {
+    const service = createStudioService({
+      vault: await seed([
+        {
+          path: 'Wisdom Garden/gentle.md',
+          note: note({
+            id: 'gentle',
+            title: 'Gentleness creates room',
+            cardType: 'insight',
+            rooms: ['wisdom-garden'],
+            tags: ['motherhood', 'rest'],
+            source: {
+              title: 'A thoughtful conversation',
+              creator: 'Anna',
+            },
+          }),
+        },
+        {
+          path: 'Wisdom Garden/synthesis.md',
+          note: note({
+            id: 'synthesis',
+            title: 'Rest supports attention',
+            cardType: 'synthesis',
+            semanticType: 'foundations',
+            rooms: ['wisdom-garden'],
+            tags: ['rest'],
+            sourceNoteIds: ['gentle'],
+          }),
+        },
+      ]),
+      index: new RecordingIndex(),
+    });
+
+    const wisdom = await service.projectWisdomGarden();
+
+    expect(wisdom.themes.find((theme) => theme.id === 'rest')).toMatchObject({
+      title: 'Rest',
+      count: 2,
+    });
+    expect(wisdom.cards.find((card) => card.noteId === 'gentle')).toMatchObject(
+      {
+        themes: ['motherhood', 'rest'],
+        source: { creator: 'Anna' },
+      },
+    );
+    expect(
+      wisdom.cards.find((card) => card.noteId === 'synthesis')?.sourceNoteIds,
+    ).toEqual(['gentle']);
+  });
+
   it('projects a Landscape board once with featured cards, counts, links, and decision horizons', async () => {
     const shared = note({
       id: 'shared',
@@ -189,7 +330,9 @@ describe('room projections', () => {
       }),
     ).rejects.toBeInstanceOf(StudioSaveConflictError);
 
-    const durable = parseNote((await vault.readText('Landscape/stale.md')).text);
+    const durable = parseNote(
+      (await vault.readText('Landscape/stale.md')).text,
+    );
     expect(durable.ok && durable.note.lifeAreas).toEqual(['family']);
     expect(durable.ok && durable.note.landscapeAnchor).toBe('practices');
   });
@@ -224,9 +367,7 @@ describe('room projections', () => {
       },
     });
 
-    expect(saved.path).toMatch(
-      /^Life Landscape\/Home- family-dreams\//,
-    );
+    expect(saved.path).toMatch(/^Life Landscape\/Home- family-dreams\//);
     expect(saved.path).not.toContain('..');
 
     const reserved = await service.capture({

@@ -1,4 +1,5 @@
 export * from './capture-service';
+export * from './capture-metadata';
 export * from './draft-recovery';
 export * from './diagnostics';
 export * from './life-area-repository';
@@ -10,3 +11,4 @@ export * from './season-service';
 export * from './season-transaction-store';
 export * from './studio-service';
 export * from './view-state';
+export * from './wisdom-theme-repository';

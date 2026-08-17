@@ -11,8 +11,13 @@ describe('save', () => {
     const order: string[] = [];
     const index = new RecordingIndex();
     const originalWrite = vault.writeTextAtomic.bind(vault);
-    vault.writeTextAtomic = async (...args) => { order.push('vault'); return originalWrite(...args); };
-    index.upsert = async () => { order.push('index'); };
+    vault.writeTextAtomic = async (...args) => {
+      order.push('vault');
+      return originalWrite(...args);
+    };
+    index.upsert = async () => {
+      order.push('index');
+    };
     const service = createStudioService({
       vault,
       index,
@@ -20,7 +25,11 @@ describe('save', () => {
       clock: () => new Date('2026-07-13T01:00:00.000Z'),
     });
 
-    await service.save({ note: note(), path: 'Reflection/n1.md', expectedMissing: true });
+    await service.save({
+      note: note(),
+      path: 'Reflection/n1.md',
+      expectedMissing: true,
+    });
     expect(order).toEqual(['vault', 'index', 'event']);
   });
 
@@ -37,7 +46,11 @@ describe('save', () => {
       publish: (event) => events.push(event.kind),
     });
 
-    const saved = await service.save({ note: note(), path: 'Reflection/n1.md', expectedMissing: true });
+    const saved = await service.save({
+      note: note(),
+      path: 'Reflection/n1.md',
+      expectedMissing: true,
+    });
 
     expect(parseNote((await vault.readText(saved.path)).text).ok).toBe(true);
     expect(service.indexState()).toBe('stale');
@@ -48,14 +61,22 @@ describe('save', () => {
   it('preserves both versions when a concurrent writer wins', async () => {
     const vault = createInMemoryVault();
     const service = createStudioService({ vault, index: new RecordingIndex() });
-    const first = await service.save({ note: note(), path: 'Reflection/n1.md', expectedMissing: true });
-    await vault.writeTextAtomic('Reflection/n1.md', 'external edit', { expectedHash: first.hash });
-
-    await expect(service.save({
-      note: note({ body: 'my unsaved version' }),
-      path: first.path,
+    const first = await service.save({
+      note: note(),
+      path: 'Reflection/n1.md',
+      expectedMissing: true,
+    });
+    await vault.writeTextAtomic('Reflection/n1.md', 'external edit', {
       expectedHash: first.hash,
-    })).rejects.toMatchObject({
+    });
+
+    await expect(
+      service.save({
+        note: note({ body: 'my unsaved version' }),
+        path: first.path,
+        expectedHash: first.hash,
+      }),
+    ).rejects.toMatchObject({
       name: 'StudioSaveConflictError',
       attemptedNote: expect.objectContaining({ body: 'my unsaved version' }),
       durableText: 'external edit',
@@ -66,11 +87,26 @@ describe('save', () => {
   it('rejects invalid runtime note data before writing', async () => {
     const vault = createInMemoryVault();
     const service = createStudioService({ vault, index: new RecordingIndex() });
-    await expect(service.save({
-      note: { ...note(), semanticType: 'action' } as never,
-      path: 'Reflection/invalid.md',
-      expectedMissing: true,
-    })).rejects.toThrow('invalid');
+    await expect(
+      service.save({
+        note: { ...note(), semanticType: 'action' } as never,
+        path: 'Reflection/invalid.md',
+        expectedMissing: true,
+      }),
+    ).rejects.toThrow('invalid');
     expect(await vault.exists('Reflection/invalid.md')).toBe(false);
+  });
+
+  it('normalizes a Landscape card meaning to its structural anchor on save', async () => {
+    const vault = createInMemoryVault();
+    const service = createStudioService({ vault, index: new RecordingIndex() });
+
+    const saved = await service.save({
+      note: note({ landscapeAnchor: 'decisions', semanticType: 'vision' }),
+      path: 'Life Landscape/Home/decision.md',
+      expectedMissing: true,
+    });
+
+    expect(saved.note.semanticType).toBe('growth');
   });
 });
