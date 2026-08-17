@@ -20,6 +20,9 @@ export function serializeNote(note: StudioNote): string {
     created: note.created,
     updated: note.updated,
     ...(note.source === undefined ? {} : { source: note.source }),
+    ...(note.sourceNoteIds === undefined
+      ? {}
+      : { source_notes: note.sourceNoteIds }),
     attachments: note.attachments,
     display: note.display,
     privacy: {
