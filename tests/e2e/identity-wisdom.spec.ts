@@ -10,11 +10,29 @@ async function createLocalStudio(page: Page): Promise<void> {
   await enterCreatedStudio(page);
 }
 
+async function openIdentityStudio(page: Page): Promise<void> {
+  const link = page.getByRole('link', { name: 'Identity Studio' });
+  if (await link.isVisible()) await link.click();
+  else {
+    await page.getByRole('button', { name: 'More' }).click();
+    await page.getByRole('menuitem', { name: 'Identity Studio' }).click();
+  }
+}
+
+async function openWisdomGarden(page: Page): Promise<void> {
+  const link = page.getByRole('link', { name: 'Wisdom Garden' });
+  if (await link.isVisible()) await link.click();
+  else {
+    await page.getByRole('button', { name: 'More' }).click();
+    await page.getByRole('menuitem', { name: 'Wisdom Garden' }).click();
+  }
+}
+
 test('keeps a practicing identity and makes it the current becoming', async ({
   page,
 }, testInfo) => {
   await createLocalStudio(page);
-  await page.getByRole('link', { name: 'Identity Studio' }).click();
+  await openIdentityStudio(page);
   await expect(
     page.getByRole('heading', { name: 'Identity Studio', level: 1 }),
   ).toBeVisible();
@@ -41,7 +59,7 @@ test('keeps a practicing identity and makes it the current becoming', async ({
   });
   await page.reload();
   await openExistingStudio(page, 'Inner Life Studio');
-  await page.getByRole('link', { name: 'Identity Studio' }).click();
+  await openIdentityStudio(page);
   await expect(
     page.getByRole('heading', { name: 'Creating from calm', level: 2 }),
   ).toBeVisible();
@@ -51,7 +69,7 @@ test('keeps sourced Wisdom and restores it by theme', async ({
   page,
 }, testInfo) => {
   await createLocalStudio(page);
-  await page.getByRole('link', { name: 'Wisdom Garden' }).click();
+  await openWisdomGarden(page);
   await expect(
     page.getByRole('heading', { name: 'Wisdom Garden', level: 1 }),
   ).toBeVisible();
@@ -76,7 +94,7 @@ test('keeps sourced Wisdom and restores it by theme', async ({
   });
   await page.reload();
   await openExistingStudio(page, 'Inner Life Studio');
-  await page.getByRole('link', { name: 'Wisdom Garden' }).click();
+  await openWisdomGarden(page);
   await expect(
     page.getByText('Structure and surprise', { exact: true }),
   ).toBeVisible();
