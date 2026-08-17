@@ -419,3 +419,33 @@
   onboarding browser matrix passed 17/17 applicable Chromium journeys plus 8/8
   applicable WebKit journeys, with the two project-specific preference tests
   intentionally skipped outside desktop Chromium.
+
+## 2026-07-16 — Identity Studio and Wisdom Garden
+
+- Completed the seven-room house with full Identity Studio and Wisdom Garden
+  routes, desktop/mobile navigation, command-palette destinations, calm
+  empty/loading/stale/offline/error states, and responsive editorial layouts.
+- Added canonical identity sections, a current-becoming projection shared with
+  the Foyer, evidence links from Reflection/Celebration, inline capture,
+  promotion, and keyboard-operable section ordering without duplicating
+  Markdown notes.
+- Added editable Wisdom themes, thematic reading, typed and attributed sources,
+  personal responses, and multi-note synthesis that preserves stable
+  source-note IDs alongside readable wiki links.
+- Kept both rooms Markdown-native. `source_notes` now round-trips through
+  frontmatter, source attribution and themes remain editable in the canonical
+  card editor, and Wisdom theme preferences live in a small atomic `.studio`
+  configuration file.
+- Clarified the semantic model: Meaning is the global colour lens, while Life
+  Landscape anchors are structural positions. Contextual capture now suggests
+  or locks the appropriate meaning, moving a Landscape card reclassifies it,
+  and anchored notes explain why their meaning is not independently editable.
+- Introduced one shared handwritten room-heading composition across Foyer,
+  Identity, Landscape, Current Season, Uncharted, Wisdom, Reflection, Search,
+  Settings, and placeholders. Removed Landscape's double horizontal inset and
+  corrected the heading's optical left alignment.
+- Verification passed typecheck, ESLint/stylelint, all 1,330 workspace tests,
+  focused desktop Chromium persistence journeys for both new rooms, axe with
+  zero violations, and the existing Landscape matrix/focus/lens browser
+  journey. Direct screenshot review covered the integrated Identity Studio,
+  Wisdom Garden, and Life Landscape.

@@ -251,7 +251,8 @@ export type SemanticType =
   | 'celebration'
   | 'uncharted';
 
-export type NoteStatus = 'draft' | 'active' | 'resting' | 'archived' | 'trashed';
+export type NoteStatus =
+  'draft' | 'active' | 'resting' | 'archived' | 'trashed';
 
 export type LandscapeAnchor =
   | 'vision'
@@ -304,7 +305,11 @@ export interface WriteCondition {
 export interface VaultPort {
   list(prefix?: string): Promise<VaultEntry[]>;
   readText(path: string): Promise<{ text: string; hash: string }>;
-  writeTextAtomic(path: string, text: string, condition?: WriteCondition): Promise<{ hash: string }>;
+  writeTextAtomic(
+    path: string,
+    text: string,
+    condition?: WriteCondition,
+  ): Promise<{ hash: string }>;
   readBinary(path: string): Promise<Uint8Array>;
   writeBinaryAtomic(path: string, bytes: Uint8Array): Promise<{ hash: string }>;
   move(from: string, to: string): Promise<void>;
@@ -342,7 +347,9 @@ export interface IndexPort {
   getById(id: string): Promise<{ note: StudioNote; path: string } | null>;
   search(query: string, filters?: SearchFilters): Promise<SearchHit[]>;
   backlinks(id: string): Promise<string[]>;
-  rebuild(entries: Array<{ note: StudioNote; path: string; hash: string }>): Promise<void>;
+  rebuild(
+    entries: Array<{ note: StudioNote; path: string; hash: string }>,
+  ): Promise<void>;
   clear(): Promise<void>;
 }
 ```
@@ -366,16 +373,16 @@ export interface StudioService {
 
 ## 4. Milestones and release gates
 
-| Milestone | Working software produced | Gate |
-|---|---|---|
-| M0 | Repository and tokenized shell | CI green; responsive shell visually inspected |
-| M1 | Markdown content kernel | 100% fixture round-trip; unknown keys preserved |
-| M2 | Local vault and index | atomic-write, conflict, rebuild, path-security tests pass |
-| M3 | Capture/edit lifecycle | crash recovery, archive, Trash, autosave E2E pass |
-| M4 | Foyer + Landscape | sparse/dense desktop/mobile visual and a11y gates pass |
-| M5 | Season + Uncharted + Reflection | complete seasonal workflow and no-pressure language review |
-| M6 | Search + portability | export, destroy, clean restore and index rebuild pass |
-| M7 | MVP release candidate | offline, security, performance, VoiceOver, packaging gates pass |
+| Milestone | Working software produced       | Gate                                                            |
+| --------- | ------------------------------- | --------------------------------------------------------------- |
+| M0        | Repository and tokenized shell  | CI green; responsive shell visually inspected                   |
+| M1        | Markdown content kernel         | 100% fixture round-trip; unknown keys preserved                 |
+| M2        | Local vault and index           | atomic-write, conflict, rebuild, path-security tests pass       |
+| M3        | Capture/edit lifecycle          | crash recovery, archive, Trash, autosave E2E pass               |
+| M4        | Foyer + Landscape               | sparse/dense desktop/mobile visual and a11y gates pass          |
+| M5        | Season + Uncharted + Reflection | complete seasonal workflow and no-pressure language review      |
+| M6        | Search + portability            | export, destroy, clean restore and index rebuild pass           |
+| M7        | MVP release candidate           | offline, security, performance, VoiceOver, packaging gates pass |
 
 ---
 
@@ -384,12 +391,14 @@ export interface StudioService {
 ### Task 1: Scaffold the monorepo and quality gates
 
 **Files:**
+
 - Create: root configuration files listed in Section 2.
 - Create: `apps/studio/src/main.tsx`, `apps/studio/src/app/App.tsx`.
 - Create: `.github/workflows/quality.yml`.
 - Test: `apps/studio/src/app/App.test.tsx`.
 
 **Interfaces:**
+
 - Consumes: none.
 - Produces: `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e`, `pnpm build`; workspace packages resolvable as `@studio/*`.
 
@@ -437,6 +446,7 @@ git commit -m "chore: scaffold studio workspace"
 ### Task 2: Establish design tokens and accessible component primitives
 
 **Files:**
+
 - Create: `apps/studio/src/styles/tokens.css`, `reset.css`, `typography.css`.
 - Create: `packages/ui/src/SemanticMark/SemanticMark.tsx` and `.css`.
 - Create: `packages/ui/src/Card/Card.tsx` and `.css`.
@@ -444,6 +454,7 @@ git commit -m "chore: scaffold studio workspace"
 - Test: `packages/ui/src/SemanticMark/SemanticMark.test.tsx`, `Card.test.tsx`.
 
 **Interfaces:**
+
 - Consumes: `SemanticType` from `@studio/domain`; the final visual token and state contracts.
 - Produces: `<SemanticMark type labelMode />`, `<Card semanticType title excerpt actions />`; all theme changes flow through root token overrides and component CSS.
 
@@ -456,7 +467,13 @@ it('does not rely on color to communicate Vision', () => {
 });
 
 it('exposes a named card region', () => {
-  render(<Card semanticType="reflection" title="What I learned" excerpt="Small steps count." />);
+  render(
+    <Card
+      semanticType="reflection"
+      title="What I learned"
+      excerpt="Small steps count."
+    />,
+  );
   expect(screen.getByRole('article', { name: 'What I learned' })).toBeVisible();
 });
 ```
@@ -470,15 +487,25 @@ Expected: FAIL because components do not exist.
 
 ```tsx
 const labels: Record<SemanticType, string> = {
-  foundations: 'Foundations', vision: 'Vision', growth: 'Growth',
-  reflection: 'Reflection', celebration: 'Celebration', uncharted: 'Uncharted',
+  foundations: 'Foundations',
+  vision: 'Vision',
+  growth: 'Growth',
+  reflection: 'Reflection',
+  celebration: 'Celebration',
+  uncharted: 'Uncharted',
 };
 
 export function SemanticMark({ type, labelMode = 'hidden' }: Props) {
   return (
     <span className={`semantic-mark semantic-mark--${type}`}>
-      <span aria-hidden="true" className="semantic-mark__heart">♥</span>
-      <span className={labelMode === 'hidden' ? 'visually-hidden' : 'semantic-mark__label'}>
+      <span aria-hidden="true" className="semantic-mark__heart">
+        ♥
+      </span>
+      <span
+        className={
+          labelMode === 'hidden' ? 'visually-hidden' : 'semantic-mark__label'
+        }
+      >
         {labels[type]}
       </span>
     </span>
@@ -505,11 +532,13 @@ git commit -m "feat: add studio design primitives"
 ### Task 3: Implement the domain schema and Markdown round-trip kernel
 
 **Files:**
+
 - Create: `packages/domain/src/*.ts` listed in Section 2.
 - Create: `packages/content/src/frontmatter-schema.ts`, `parse-note.ts`, `serialize-note.ts`, `filenames.ts`.
 - Test: matching `.test.ts` files and `fixtures/vaults/*` notes.
 
 **Interfaces:**
+
 - Consumes: raw UTF-8 Markdown text.
 - Produces: `parseNote(text: string): ParseResult`; `serializeNote(note: StudioNote): string`; `createNoteId(): string`; `suggestFilename(note): string`.
 
@@ -520,7 +549,9 @@ it('preserves unknown frontmatter keys across a round trip', () => {
   const input = `---\nschema_version: 1\nid: 01JTEST\ncard_type: vision\nsemantic_type: vision\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-13T10:00:00+10:00\nupdated: 2026-07-13T10:00:00+10:00\nattachments: []\ndisplay: { featured: false }\nprivacy: { sensitivity: private, ai_access: ask }\ncustom_key: keep-me\n---\n\n# Hello\n`;
   const parsed = parseNote(input);
   expect(parsed.note.extraFrontmatter).toEqual({ custom_key: 'keep-me' });
-  expect(parseNote(serializeNote(parsed.note)).note.extraFrontmatter).toEqual({ custom_key: 'keep-me' });
+  expect(parseNote(serializeNote(parsed.note)).note.extraFrontmatter).toEqual({
+    custom_key: 'keep-me',
+  });
 });
 ```
 
@@ -558,30 +589,42 @@ git commit -m "feat: add markdown content kernel"
 ### Task 4: Define and contract-test storage adapters
 
 **Files:**
+
 - Create: `packages/storage/src/vault-port.ts`, `in-memory-vault.ts`, `conflict.ts`.
 - Create: `packages/storage/src/__contract__/vault-contract.ts`.
 - Test: `in-memory-vault.test.ts`.
 
 **Interfaces:**
+
 - Consumes: relative normalized vault paths and bytes/text.
 - Produces: `VaultPort`; typed `VaultConflictError`, `PathEscapeError`, `VaultUnavailableError`.
 
 - [ ] **Step 1: Write a reusable failing contract suite**
 
 ```ts
-export function vaultContract(name: string, createVault: () => Promise<VaultPort>) {
+export function vaultContract(
+  name: string,
+  createVault: () => Promise<VaultPort>,
+) {
   describe(name, () => {
     it('rejects paths outside the vault', async () => {
       const vault = await createVault();
-      await expect(vault.writeTextAtomic('../secret.md', 'x')).rejects.toBeInstanceOf(PathEscapeError);
+      await expect(
+        vault.writeTextAtomic('../secret.md', 'x'),
+      ).rejects.toBeInstanceOf(PathEscapeError);
     });
 
     it('prevents lost updates with expected hashes', async () => {
       const vault = await createVault();
       const first = await vault.writeTextAtomic('Inbox/a.md', 'one');
-      await vault.writeTextAtomic('Inbox/a.md', 'two', { expectedHash: first.hash });
-      await expect(vault.writeTextAtomic('Inbox/a.md', 'three', { expectedHash: first.hash }))
-        .rejects.toBeInstanceOf(VaultConflictError);
+      await vault.writeTextAtomic('Inbox/a.md', 'two', {
+        expectedHash: first.hash,
+      });
+      await expect(
+        vault.writeTextAtomic('Inbox/a.md', 'three', {
+          expectedHash: first.hash,
+        }),
+      ).rejects.toBeInstanceOf(VaultConflictError);
     });
   });
 }
@@ -611,6 +654,7 @@ git commit -m "feat: define vault storage contract"
 ### Task 5: Implement the Tauri macOS vault adapter
 
 **Files:**
+
 - Create: `apps/studio/src-tauri/src/commands/vault.rs`.
 - Create: `apps/studio/src-tauri/src/security/path_guard.rs`.
 - Create: `packages/storage/src/tauri-vault.ts`.
@@ -618,6 +662,7 @@ git commit -m "feat: define vault storage contract"
 - Test: Rust unit/integration tests and TypeScript contract invocation.
 
 **Interfaces:**
+
 - Consumes: a directory selected through a native Tauri folder dialog and retained as a capability-scoped open directory handle.
 - Produces: `selectTauriVault(): Promise<VaultPort | null>`; native selection returns a random opaque token that remains private to the adapter.
 
@@ -671,22 +716,29 @@ git commit -m "feat: add secure desktop vault"
 ### Task 6: Implement the browser-local PWA vault
 
 **Files:**
+
 - Create: `packages/storage/src/browser-vault.ts`.
 - Create: `apps/studio/src/app/service-worker.ts`.
 - Modify: `apps/studio/vite.config.ts`.
 - Test: browser adapter contract and offline Playwright spec.
 
 **Interfaces:**
+
 - Consumes: browser OPFS/IndexedDB APIs.
 - Produces: `createBrowserVault(name: string): VaultPort`; ZIP import/export boundary for portability.
 
 - [ ] **Step 1: Add failing browser contract and offline test**
 
 ```ts
-test('captured note survives reload while offline', async ({ page, context }) => {
+test('captured note survives reload while offline', async ({
+  page,
+  context,
+}) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Capture' }).click();
-  await page.getByRole('textbox', { name: 'What would you like remembered?' }).fill('The hill');
+  await page
+    .getByRole('textbox', { name: 'What would you like remembered?' })
+    .fill('The hill');
   await page.getByRole('button', { name: 'Remember' }).click();
   await context.setOffline(true);
   await page.reload();
@@ -718,11 +770,13 @@ git commit -m "feat: add offline browser vault"
 ### Task 7: Build the disposable index and link graph
 
 **Files:**
+
 - Create: `packages/index/src/*` listed in Section 2.
 - Create: `packages/content/src/links.ts`.
 - Test: `sqlite-index.test.ts`, `rebuild.test.ts`, `links.test.ts`.
 
 **Interfaces:**
+
 - Consumes: parsed `StudioNote`, canonical path, content hash.
 - Produces: `IndexPort`; deterministic rebuild; parsed forward links and backlinks.
 
@@ -733,7 +787,9 @@ it('returns identical search results after index deletion and rebuild', async ()
   const before = await index.search('calm', { semanticTypes: ['reflection'] });
   await index.clear();
   await rebuildIndex(index, vault, parser);
-  expect(await index.search('calm', { semanticTypes: ['reflection'] })).toEqual(before);
+  expect(await index.search('calm', { semanticTypes: ['reflection'] })).toEqual(
+    before,
+  );
 });
 ```
 
@@ -765,10 +821,12 @@ git commit -m "feat: add rebuildable studio index"
 ### Task 8: Implement application services and room projections
 
 **Files:**
+
 - Create: `packages/application/src/*` listed in Section 2.
 - Test: `capture-note.test.ts`, `save-note.test.ts`, `projections.test.ts`.
 
 **Interfaces:**
+
 - Consumes: `VaultPort`, `IndexPort`, clock, ID generator.
 - Produces: `createStudioService(dependencies): StudioService`; projection functions for rooms and Landscape cells.
 
@@ -777,14 +835,27 @@ git commit -m "feat: add rebuildable studio index"
 ```ts
 it('captures an unclassified fragment into Inbox with safe defaults', async () => {
   const note = await service.capture({ body: 'A thought worth keeping' });
-  expect(note).toMatchObject({ status: 'draft', rooms: ['inbox'], semanticType: 'reflection' });
+  expect(note).toMatchObject({
+    status: 'draft',
+    rooms: ['inbox'],
+    semanticType: 'reflection',
+  });
   expect(await vault.exists(expect.stringMatching(/^Inbox\//))).toBe(true);
 });
 
 it('projects one canonical note into multiple rooms without duplication', async () => {
-  await seedNote({ id: 'n1', rooms: ['uncharted'], lifeAreas: ['business'], semanticType: 'uncharted' });
-  expect((await service.projectRoom('uncharted')).map(x => x.noteId)).toEqual(['n1']);
-  expect((await projectLifeArea(service, 'business')).map(x => x.noteId)).toEqual(['n1']);
+  await seedNote({
+    id: 'n1',
+    rooms: ['uncharted'],
+    lifeAreas: ['business'],
+    semanticType: 'uncharted',
+  });
+  expect((await service.projectRoom('uncharted')).map((x) => x.noteId)).toEqual(
+    ['n1'],
+  );
+  expect(
+    (await projectLifeArea(service, 'business')).map((x) => x.noteId),
+  ).toEqual(['n1']);
 });
 ```
 
@@ -816,12 +887,14 @@ git commit -m "feat: add studio application services"
 ### Task 9: Build the responsive application shell and onboarding
 
 **Files:**
+
 - Create: `packages/ui/src/AppShell/*`, `CommandPalette/*`, `Dialog/*`.
 - Modify: `apps/studio/src/app/router.tsx`, `providers.tsx`.
 - Create: `apps/studio/src/features/onboarding/*`.
 - Test: component tests and `tests/e2e/onboarding.spec.ts`.
 
 **Interfaces:**
+
 - Consumes: configured `StudioService`, vault status, route definitions.
 - Produces: desktop navigation rail; mobile Home/Capture/Search/More navigation; open/create-vault flow.
 
@@ -865,12 +938,14 @@ git commit -m "feat: add responsive studio shell"
 ### Task 10: Implement capture, editor, autosave, and recovery
 
 **Files:**
+
 - Create: `apps/studio/src/features/capture/*`.
 - Create: `packages/ui/src/CardEditor/*`.
 - Create: `packages/application/src/draft-recovery.ts`.
 - Test: `tests/e2e/capture.spec.ts`, unit tests for debounce/recovery.
 
 **Interfaces:**
+
 - Consumes: `StudioService.capture`, `.save`; recovery-store adapter.
 - Produces: quick capture under 15 seconds; full Markdown editor; save-state model `idle | dirty | saving | saved | conflict | error`.
 
@@ -917,11 +992,13 @@ git commit -m "feat: add capture and autosave"
 ### Task 11: Implement Archive, Trash, restore, and local revision snapshots
 
 **Files:**
+
 - Create: `packages/application/src/archive-note.ts`, `trash-note.ts`, `restore-note.ts`.
 - Create: `packages/storage/src/revisions.ts`.
 - Test: lifecycle unit and E2E tests.
 
 **Interfaces:**
+
 - Consumes: note path/status, VaultPort, IndexPort.
 - Produces: recoverable archive/trash lifecycle; `.studio/Trash/manifest.json`; revision snapshots.
 
@@ -964,11 +1041,13 @@ git commit -m "feat: add recoverable note lifecycle"
 ### Task 12: Build the Foyer vertical slice
 
 **Files:**
+
 - Create: `apps/studio/src/features/foyer/FoyerPage.tsx`, `FoyerPage.css`, `use-foyer.ts`.
 - Create: component files for Becoming, SeasonPreview, Feelings, Principles, ReturnCard, Legend.
 - Test: component, projection, visual, and accessibility tests.
 
 **Interfaces:**
+
 - Consumes: `projectFoyer()` output.
 - Produces: composed Foyer across empty, partial, and full data states.
 
@@ -1010,18 +1089,22 @@ git commit -m "feat: build the foyer"
 ### Task 13: Build Life Landscape overview and focused view
 
 **Files:**
+
 - Create: `apps/studio/src/features/landscape/*`.
 - Create: `packages/domain/src/landscape.ts`.
 - Test: `tests/e2e/landscape.spec.ts`, visual and keyboard-reorder tests.
 
 **Interfaces:**
+
 - Consumes: `projectLandscape()`, life-area configuration, view-order repository.
 - Produces: matrix overview on desktop; one-area focus editor; anchor-by-area lens; accessible reorder/move actions.
 
 - [ ] **Step 1: Write failing projection and mobile tests**
 
 ```ts
-test('mobile opens one life area without shrinking the whole matrix', async ({ page }) => {
+test('mobile opens one life area without shrinking the whole matrix', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/landscape/home');
   await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
@@ -1058,12 +1141,14 @@ git commit -m "feat: build life landscape"
 ### Task 14: Implement Current Season domain and workflow
 
 **Files:**
+
 - Create: `packages/domain/src/season.ts`.
 - Create: `packages/application/src/season-service.ts`.
 - Create: `apps/studio/src/features/season/*`.
 - Test: `tests/e2e/season.spec.ts` and unit tests.
 
 **Interfaces:**
+
 - Consumes: notes and existing seasons.
 - Produces: exactly one active season; `beginSeason`, `updateSeason`, `closeSeason`; one-page read view.
 
@@ -1072,7 +1157,9 @@ git commit -m "feat: build life landscape"
 ```ts
 it('requires an explicit override before adding a fourth priority', () => {
   expect(() => addPriority(seasonWithThree, 'n4')).toThrow(PriorityLimitError);
-  expect(addPriority(seasonWithThree, 'n4', { override: true }).priorities).toHaveLength(4);
+  expect(
+    addPriority(seasonWithThree, 'n4', { override: true }).priorities,
+  ).toHaveLength(4);
 });
 
 it('never carries notes into the next season automatically', () => {
@@ -1110,11 +1197,13 @@ git commit -m "feat: add seasonal planning workflow"
 ### Task 15: Build Uncharted and Reflection Garden
 
 **Files:**
+
 - Create: `apps/studio/src/features/uncharted/*`.
 - Create: `apps/studio/src/features/reflection/*`.
 - Test: room component tests and E2E flows.
 
 **Interfaces:**
+
 - Consumes: semantic room projections and capture service.
 - Produces: no-pressure What-if capture; Reflection/Celebration chronological streams; manual cross-links.
 
@@ -1156,23 +1245,31 @@ git commit -m "feat: add imagination and reflection rooms"
 ### Task 16: Implement Search, filters, backlinks, and repair states
 
 **Files:**
+
 - Create: `apps/studio/src/features/search/*`.
 - Create: `packages/ui/src/Inspector/*`.
 - Create: `packages/application/src/search-service.ts`.
 - Test: `tests/e2e/search.spec.ts`.
 
 **Interfaces:**
+
 - Consumes: `IndexPort.search`, backlinks, parse warnings.
 - Produces: local keyword search, typed filters, highlighted safe snippets, repair queue.
 
 - [ ] **Step 1: Write failing search tests**
 
 ```ts
-test('filters calm reflections without exposing unrelated notes', async ({ page }) => {
+test('filters calm reflections without exposing unrelated notes', async ({
+  page,
+}) => {
   await page.goto('/search?q=calm');
   await page.getByRole('checkbox', { name: 'Reflection' }).check();
-  await expect(page.getByRole('article', { name: 'A quiet morning that worked' })).toBeVisible();
-  await expect(page.getByRole('article', { name: 'What if I created a retreat?' })).toBeHidden();
+  await expect(
+    page.getByRole('article', { name: 'A quiet morning that worked' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('article', { name: 'What if I created a retreat?' }),
+  ).toBeHidden();
 });
 ```
 
@@ -1204,11 +1301,13 @@ git commit -m "feat: add studio search and repair"
 ### Task 17: Implement portable export, import, backup, and restore
 
 **Files:**
+
 - Create: `packages/storage/src/export.ts`, `import.ts`, `backup.ts`.
 - Create: `apps/studio/src/features/settings/PortabilitySettings.tsx`.
 - Test: `tests/e2e/portability.spec.ts` and integrity tests.
 
 **Interfaces:**
+
 - Consumes: VaultPort and schema manifest.
 - Produces: ZIP export/import with Markdown, assets, `.studio` settings excluding disposable index, checksums, and schema version.
 
@@ -1218,7 +1317,9 @@ git commit -m "feat: add studio search and repair"
 it('restores a complete export into an empty vault with the same semantic notes', async () => {
   const archive = await exportVault(sourceVault);
   await importVault(emptyVault, archive);
-  expect(await semanticSnapshot(emptyVault)).toEqual(await semanticSnapshot(sourceVault));
+  expect(await semanticSnapshot(emptyVault)).toEqual(
+    await semanticSnapshot(sourceVault),
+  );
 });
 ```
 
@@ -1250,12 +1351,14 @@ git commit -m "feat: add portable vault backups"
 ### Task 18: Security, privacy, and diagnostics hardening
 
 **Files:**
+
 - Create: `docs/security/threat-model.md`.
 - Create: `packages/application/src/diagnostics.ts`.
 - Modify: Tauri capabilities, CSP, Markdown renderer, logging.
 - Test: security regression suite.
 
 **Interfaces:**
+
 - Consumes: app errors and operation metadata.
 - Produces: content-redacted local diagnostics export; hardened import/render/write surfaces.
 
@@ -1263,12 +1366,17 @@ git commit -m "feat: add portable vault backups"
 
 ```ts
 it('removes scripts and event handlers from rendered markdown', () => {
-  const html = renderMarkdown('<img src=x onerror="alert(1)"><script>alert(2)</script>');
+  const html = renderMarkdown(
+    '<img src=x onerror="alert(1)"><script>alert(2)</script>',
+  );
   expect(html).not.toMatch(/onerror|script/i);
 });
 
 it('never includes note bodies in diagnostics', () => {
-  const report = buildDiagnostics({ operation: 'save', noteBody: 'private words' });
+  const report = buildDiagnostics({
+    operation: 'save',
+    noteBody: 'private words',
+  });
   expect(JSON.stringify(report)).not.toContain('private words');
 });
 ```
@@ -1301,19 +1409,23 @@ git commit -m "security: harden private studio data"
 ### Task 19: Accessibility, performance, offline, and packaging release gate
 
 **Files:**
+
 - Modify: all visible components as findings require.
 - Create: `docs/testing/release-checklist.md`.
 - Create: `.github/workflows/release-candidate.yml`.
 - Test: complete E2E, visual, axe, performance, and desktop packaging flows.
 
 **Interfaces:**
+
 - Consumes: completed MVP.
 - Produces: signed/notarization-ready macOS artifact; installable PWA; release evidence bundle.
 
 - [ ] **Step 1: Add failing budgets and end-to-end release story**
 
 ```ts
-test('complete local-first story survives index destruction', async ({ page }) => {
+test('complete local-first story survives index destruction', async ({
+  page,
+}) => {
   await createSampleStudio(page);
   await captureAndPlaceVision(page);
   await beginSeason(page);
@@ -1362,11 +1474,15 @@ These are separate implementation plans after MVP acceptance.
 
 ### 6.1 Identity Studio
 
+Implementation status: complete as of 2026-07-16.
+
 Add projections and views for currently becoming, already true, becoming, values/principles, desired feelings, beliefs in practice, embodiment cues, and dated identity shifts. Evidence links point to Celebration/Reflection notes. No new durable entity is required; use existing notes, card types, links, and room projections.
 
 Acceptance gate: identity statements can be revised with history, linked to evidence, and displayed without treating aspirational identity as a compulsory emotional performance.
 
 ### 6.2 Wisdom Garden
+
+Implementation status: complete as of 2026-07-16.
 
 Add editable themes, source fields, thematic reading view, multi-select synthesis creation, wiki links, and “Make it mine” prompts. Preserve sources while browsing primarily by ideas. Do not add collection counts or course-completion metrics.
 
@@ -1493,4 +1609,4 @@ Do not parallelize tasks that touch the same package or depend on unfinished con
 
 ---
 
-*This plan is the implementation companion to “Ateliera — Product Requirements & Design Bible,” version 1.0. Update both documents when a product or architecture decision changes.*
+_This plan is the implementation companion to “Ateliera — Product Requirements & Design Bible,” version 1.0. Update both documents when a product or architecture decision changes._

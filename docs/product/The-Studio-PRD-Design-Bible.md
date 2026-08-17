@@ -235,14 +235,14 @@ Tokens are semantic CSS custom properties applied at the app root. Components mu
 
 ### 6.3 Color semantics
 
-| Semantic type | Accent | Meaning | Guiding question |
-|---|---:|---|---|
-| Foundations | Grey | Values, principles, beliefs, supports, non-negotiables | What supports this? |
-| Vision | Gold/yellow | The life or experience intentionally being created | What am I creating? |
-| Growth | Sage green | Practices, skills, experiments, health, cultivation | What am I cultivating? |
-| Reflection | Muted blue | Lessons, questions, insights, observations | What am I learning? |
-| Celebration | Warm orange | Wins, gratitude, evidence, meaningful moments | What is working? |
-| Uncharted | Dusty purple | Possibilities beyond the current map | What if…? |
+| Semantic type |       Accent | Meaning                                                | Guiding question       |
+| ------------- | -----------: | ------------------------------------------------------ | ---------------------- |
+| Foundations   |         Grey | Values, principles, beliefs, supports, non-negotiables | What supports this?    |
+| Vision        |  Gold/yellow | The life or experience intentionally being created     | What am I creating?    |
+| Growth        |   Sage green | Practices, skills, experiments, health, cultivation    | What am I cultivating? |
+| Reflection    |   Muted blue | Lessons, questions, insights, observations             | What am I learning?    |
+| Celebration   |  Warm orange | Wins, gratitude, evidence, meaningful moments          | What is working?       |
+| Uncharted     | Dusty purple | Possibilities beyond the current map                   | What if…?              |
 
 The removed “Action” color is intentional. Execution belongs primarily in calendars or task systems. Within Ateliera, decisions and practices may be represented structurally without creating a seventh semantic category.
 
@@ -1484,8 +1484,8 @@ Identity Studio and Wisdom Garden may be included if schedule permits, but shoul
 
 ### Phase 1.1 — Complete the seven-room house
 
-- Full Identity Studio.
-- Full Wisdom Garden and thematic synthesis.
+- Full Identity Studio. **Implemented 2026-07-16.**
+- Full Wisdom Garden and thematic synthesis. **Implemented 2026-07-16.**
 - Better cross-room links/backlinks.
 - View ordering and richer card variants.
 - PWA installation polish.
@@ -1942,4 +1942,4 @@ privacy.ai_access:
 
 ---
 
-*End of version 1.1. Update this document alongside product decisions, schema migrations, and meaningful changes to the Studio’s philosophy or accepted design authority.*
+_End of version 1.1. Update this document alongside product decisions, schema migrations, and meaningful changes to the Studio’s philosophy or accepted design authority._
