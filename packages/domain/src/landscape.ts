@@ -8,6 +8,19 @@ export const landscapeAnchors = [
 
 export type LandscapeAnchor = (typeof landscapeAnchors)[number];
 
+export function semanticTypeForLandscapeAnchor(
+  anchor: LandscapeAnchor,
+): import('./semantic-type').SemanticType {
+  const meanings = {
+    vision: 'vision',
+    'identity-values-feelings': 'foundations',
+    decisions: 'growth',
+    practices: 'growth',
+    'structure-strategy': 'foundations',
+  } as const;
+  return meanings[anchor];
+}
+
 export const landscapeAnchorDefinitions = [
   {
     id: 'vision',
@@ -32,7 +45,8 @@ export const landscapeAnchorDefinitions = [
   {
     id: 'structure-strategy',
     label: 'Structure & strategy',
-    prompt: 'What time, environment, help, boundary, money, or system supports it?',
+    prompt:
+      'What time, environment, help, boundary, money, or system supports it?',
   },
 ] as const satisfies readonly {
   id: LandscapeAnchor;

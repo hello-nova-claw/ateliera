@@ -36,6 +36,7 @@ export interface StudioNote {
   created: string;
   updated: string;
   source?: NoteSource;
+  sourceNoteIds?: string[];
   attachments: string[];
   display: { cover?: string; featured: boolean };
   privacy: {
