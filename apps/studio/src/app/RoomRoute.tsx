@@ -42,6 +42,7 @@ type LazyRoom = LazyExoticComponent<(props: RoomProps) => React.JSX.Element>;
 
 const roomRoutes = {
   foyer: lazy(() => import('./rooms/FoyerRoom')),
+  identity: lazy(() => import('./rooms/IdentityRoom')),
   inbox: lazy(() => import('./rooms/InboxRoom')),
   landscape: lazy(() => import('./rooms/LandscapeRoom')),
   reflection: lazy(() => import('./rooms/ReflectionRoom')),
@@ -49,6 +50,7 @@ const roomRoutes = {
   season: lazy(() => import('./rooms/SeasonRoom')),
   settings: lazy(() => import('./rooms/SettingsRoom')),
   uncharted: lazy(() => import('./rooms/UnchartedRoom')),
+  wisdom: lazy(() => import('./rooms/WisdomRoom')),
 } satisfies Record<string, LazyRoom>;
 
 function routeKey(path: StudioPath): keyof typeof roomRoutes {

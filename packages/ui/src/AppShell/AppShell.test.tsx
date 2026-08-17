@@ -41,6 +41,14 @@ it('marks the active room and omits development-only destinations', () => {
   expect(screen.queryByText('Design System')).not.toBeInTheDocument();
   expect(screen.queryByText('States Gallery')).not.toBeInTheDocument();
   expect(screen.queryByText('Mobile Preview')).not.toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Identity Studio' })).toHaveAttribute(
+    'href',
+    '/identity',
+  );
+  expect(screen.getByRole('link', { name: 'Wisdom Garden' })).toHaveAttribute(
+    'href',
+    '/wisdom',
+  );
 });
 
 it('makes every room reachable from the compact More menu with focus restoration', () => {

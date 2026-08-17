@@ -1,0 +1,534 @@
+.wisdom-page {
+  max-inline-size: 68rem;
+  margin-inline: auto;
+  padding-block: var(--studio-space-8) var(--studio-space-24);
+}
+
+.wisdom-page > .studio-room-heading {
+  margin-block-end: var(--studio-space-12);
+}
+
+.wisdom-page__state {
+  margin: 0 0 var(--studio-space-8);
+  color: var(--studio-color-ink-muted);
+}
+
+.wisdom-page__state--attention {
+  padding-inline-start: var(--studio-space-4);
+  border-inline-start: 3px solid var(--studio-color-celebration);
+}
+
+.wisdom-page__layout {
+  display: grid;
+  grid-template-columns: minmax(10rem, 13.75rem) minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(2rem, 6vw, 5rem);
+}
+
+.wisdom-contents {
+  position: sticky;
+  inset-block-start: var(--studio-space-6);
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  padding-block: var(--studio-space-2) var(--studio-space-6);
+  border-block: 1px solid var(--studio-color-line);
+}
+
+.wisdom-contents__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--studio-space-2);
+  padding: var(--studio-space-3) var(--studio-space-3) var(--studio-space-4);
+}
+
+.wisdom-contents__heading p,
+.wisdom-page__eyebrow,
+.wisdom-card__topline p {
+  margin: 0;
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-eyebrow);
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.wisdom-contents__heading button,
+.wisdom-contents__theme,
+.wisdom-reading__heading button,
+.wisdom-reading__empty button,
+.wisdom-page__actions button,
+.wisdom-selection button,
+.wisdom-mine > button,
+.wisdom-theme-editor button {
+  min-block-size: var(--studio-touch-target);
+  border: 0;
+  background: transparent;
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-control);
+}
+
+.wisdom-contents__heading button {
+  min-block-size: 2.25rem;
+  padding-inline: var(--studio-space-2);
+  font-size: 0.78rem;
+}
+
+.wisdom-contents__theme {
+  position: relative;
+  inline-size: 100%;
+  padding: var(--studio-space-3);
+  text-align: start;
+  font: 400 1.03rem / 1.3 var(--studio-font-display);
+}
+
+.wisdom-contents__themes {
+  display: flex;
+  flex-direction: column;
+}
+
+.wisdom-contents__theme::before {
+  position: absolute;
+  inset-block: 0.45rem;
+  inset-inline-start: -1px;
+  inline-size: 2px;
+  border-radius: 99px;
+  background: transparent;
+  content: '';
+}
+
+.wisdom-contents__theme:hover,
+.wisdom-contents__theme[aria-current='page'] {
+  color: var(--studio-color-ink-strong);
+}
+
+.wisdom-contents__theme[aria-current='page']::before {
+  background: var(--studio-color-reflection);
+}
+
+.wisdom-reading {
+  min-inline-size: 0;
+  max-inline-size: 43rem;
+}
+
+.wisdom-reading__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--studio-space-5);
+  margin-block-end: var(--studio-space-6);
+}
+
+.wisdom-reading__heading > div {
+  display: flex;
+  align-items: center;
+  gap: var(--studio-space-4);
+}
+
+.wisdom-reading__heading > div > span {
+  inline-size: 0.68rem;
+  block-size: 0.68rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--studio-color-reflection);
+}
+
+.wisdom-reading__heading h2,
+.wisdom-theme-editor h2,
+.wisdom-synthesis h2 {
+  margin: 0;
+  color: var(--studio-color-ink-strong);
+  font: 400 clamp(1.65rem, 3vw, 2rem) / 1.1 var(--studio-font-display);
+}
+
+.wisdom-reading__heading button,
+.wisdom-reading__empty button,
+.wisdom-page__actions button,
+.wisdom-selection button,
+.wisdom-mine > button,
+.wisdom-theme-editor button {
+  padding-inline: var(--studio-space-4);
+  border: 1px solid var(--studio-color-line-strong);
+  border-radius: var(--studio-radius-control);
+  background: var(--studio-color-surface);
+  color: var(--studio-color-ink-strong);
+}
+
+.wisdom-reading__cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--studio-space-4);
+}
+
+.wisdom-card {
+  position: relative;
+  padding: var(--studio-space-6);
+  overflow: hidden;
+  border: 1px solid var(--studio-color-line);
+  border-inline-start: 3px solid var(--studio-color-reflection);
+  border-radius: var(--studio-radius-card);
+  background: var(--studio-color-surface);
+  box-shadow: var(--studio-shadow-note);
+}
+
+.wisdom-card--selected {
+  border-color: var(--studio-color-reflection);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--studio-color-reflection) 22%, transparent);
+}
+
+.wisdom-card__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--studio-space-4);
+}
+
+.wisdom-card__topline label {
+  display: flex;
+  min-block-size: var(--studio-touch-target);
+  align-items: center;
+  gap: var(--studio-space-2);
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-label);
+}
+
+.wisdom-card__open {
+  display: flex;
+  inline-size: 100%;
+  flex-direction: column;
+  gap: var(--studio-space-2);
+  padding: var(--studio-space-2) 0 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+}
+
+.wisdom-card__title {
+  color: var(--studio-color-ink-strong);
+  font: 400 1.25rem / 1.35 var(--studio-font-display);
+}
+
+.wisdom-card__excerpt {
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-body);
+}
+
+.wisdom-card__source {
+  margin: var(--studio-space-3) 0 0;
+  color: var(--studio-color-ink-soft);
+  font: var(--studio-type-label);
+}
+
+.wisdom-card__source a {
+  color: inherit;
+}
+
+.wisdom-reading__empty {
+  padding: var(--studio-space-10);
+  border-block: 1px solid var(--studio-color-line);
+  color: var(--studio-color-ink-muted);
+  text-align: center;
+}
+
+.wisdom-reading__empty p {
+  margin-block-start: 0;
+  font: 400 1.2rem / 1.4 var(--studio-font-display);
+}
+
+.wisdom-composer,
+.wisdom-theme-editor,
+.wisdom-synthesis {
+  margin-block-end: var(--studio-space-8);
+  padding: var(--studio-space-6);
+  border: 1px solid var(--studio-color-line);
+  border-radius: var(--studio-radius-card);
+  background: color-mix(
+    in srgb,
+    var(--studio-stock-reflection) 28%,
+    var(--studio-color-surface)
+  );
+}
+
+.wisdom-composer label,
+.wisdom-synthesis label,
+.wisdom-mine__composer label,
+.wisdom-theme-editor__add label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--studio-space-2);
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-label);
+}
+
+.wisdom-composer input,
+.wisdom-composer select,
+.wisdom-composer textarea,
+.wisdom-synthesis input,
+.wisdom-synthesis textarea,
+.wisdom-mine textarea,
+.wisdom-theme-editor input {
+  box-sizing: border-box;
+  inline-size: 100%;
+  border: 1px solid var(--studio-color-line-strong);
+  border-radius: var(--studio-radius-control);
+  background: var(--studio-color-surface);
+  color: var(--studio-color-ink);
+  padding: var(--studio-space-3);
+  font: var(--studio-type-body);
+}
+
+.wisdom-composer textarea,
+.wisdom-synthesis textarea,
+.wisdom-mine textarea {
+  resize: vertical;
+}
+
+.wisdom-composer__pair,
+.wisdom-composer__source {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--studio-space-4);
+  margin-block-end: var(--studio-space-4);
+}
+
+.wisdom-composer details {
+  margin-block-start: var(--studio-space-4);
+}
+
+.wisdom-composer summary {
+  min-block-size: var(--studio-touch-target);
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-control);
+  cursor: pointer;
+}
+
+.wisdom-composer__source {
+  grid-template-columns: 1fr;
+}
+
+.wisdom-page__actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--studio-space-3);
+  margin-block-start: var(--studio-space-5);
+}
+
+.wisdom-selection button,
+.wisdom-page__actions button:last-child {
+  border-color: var(--studio-color-ink-strong);
+  background: var(--studio-color-ink-strong);
+  color: var(--studio-color-canvas);
+}
+
+.wisdom-selection {
+  position: sticky;
+  inset-block-end: var(--studio-space-5);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--studio-space-4);
+  margin-block: var(--studio-space-5);
+  padding: var(--studio-space-3) var(--studio-space-4);
+  border: 1px solid var(--studio-color-line-strong);
+  border-radius: var(--studio-radius-card);
+  background: var(--studio-color-surface);
+  box-shadow: var(--studio-shadow-card);
+}
+
+.wisdom-selection__thread {
+  inline-size: 2.5rem;
+  block-size: 0.5rem;
+  flex: none;
+  border-block: 1px solid var(--studio-color-reflection);
+  transform: rotate(-3deg);
+}
+
+.wisdom-selection p {
+  flex: 1;
+  margin: 0;
+  color: var(--studio-color-ink-muted);
+}
+
+.wisdom-synthesis ul {
+  margin-block: var(--studio-space-5) 0;
+  color: var(--studio-color-ink-muted);
+}
+
+.wisdom-mine {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--studio-space-6);
+  margin-block-start: var(--studio-space-12);
+  padding: var(--studio-space-6);
+  border: 1px solid var(--studio-stock-growth-edge);
+  border-radius: 0.3rem 0.3rem var(--studio-radius-card)
+    var(--studio-radius-card);
+  background: color-mix(
+    in srgb,
+    var(--studio-stock-growth) 64%,
+    var(--studio-color-surface)
+  );
+  box-shadow: var(--studio-shadow-note);
+}
+
+.wisdom-mine p {
+  margin: 0;
+  color: var(--studio-color-ink-muted);
+}
+
+.wisdom-mine__script {
+  color: var(--studio-color-script-ink);
+  font: 600 1.4rem / 1.1 var(--studio-font-handwritten);
+}
+
+.wisdom-mine__composer {
+  grid-column: 1 / -1;
+}
+
+.wisdom-theme-editor header {
+  display: grid;
+  grid-template-columns: 1fr minmax(12rem, 1fr);
+  gap: var(--studio-space-5);
+  margin-block-end: var(--studio-space-5);
+}
+
+.wisdom-theme-editor header > p {
+  margin: 0;
+  color: var(--studio-color-ink-muted);
+}
+
+.wisdom-theme-editor__list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--studio-space-3);
+}
+
+.wisdom-theme-editor__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--studio-space-3);
+}
+
+.wisdom-theme-editor__row label {
+  display: flex;
+  min-block-size: var(--studio-touch-target);
+  align-items: center;
+  gap: var(--studio-space-2);
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-label);
+}
+
+.wisdom-theme-editor__row label input {
+  inline-size: auto;
+}
+
+.wisdom-theme-editor__add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--studio-space-3);
+  margin-block-start: var(--studio-space-5);
+}
+
+.wisdom-theme-editor__add label {
+  grid-column: 1;
+}
+
+.wisdom-synthesis label + label {
+  margin-block-start: var(--studio-space-4);
+}
+
+.wisdom-page__message {
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-label);
+}
+
+.wisdom-page__message--error {
+  border-inline-start-color: var(--studio-color-celebration);
+  color: var(--studio-color-ink-strong);
+}
+
+@media (width < 48rem) {
+  .wisdom-page {
+    padding-block-start: var(--studio-space-3);
+  }
+
+  .wisdom-page__layout {
+    grid-template-columns: 1fr;
+    gap: var(--studio-space-7);
+  }
+
+  .wisdom-contents {
+    position: static;
+    padding-block: var(--studio-space-3);
+  }
+
+  .wisdom-contents__heading {
+    inline-size: 100%;
+  }
+
+  .wisdom-contents__theme {
+    inline-size: auto;
+    flex: 0 0 auto;
+    padding-inline: var(--studio-space-4);
+    border: 1px solid var(--studio-color-line);
+    border-radius: 999px;
+    font-family: var(--studio-font-interface);
+    font-size: 0.9rem;
+  }
+
+  .wisdom-contents__themes {
+    flex-direction: row;
+    gap: var(--studio-space-2);
+    padding: 0 var(--studio-space-1) var(--studio-space-2);
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+  }
+
+  .wisdom-contents__theme::before {
+    display: none;
+  }
+
+  .wisdom-contents__theme[aria-current='page'] {
+    border-color: var(--studio-color-reflection);
+    background: var(--studio-stock-reflection);
+  }
+
+  .wisdom-composer__pair,
+  .wisdom-theme-editor header,
+  .wisdom-theme-editor__list {
+    grid-template-columns: 1fr;
+  }
+
+  .wisdom-selection,
+  .wisdom-mine {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .wisdom-selection {
+    flex-wrap: wrap;
+  }
+
+  .wisdom-selection button,
+  .wisdom-mine > button {
+    inline-size: 100%;
+  }
+}
+
+@media (forced-colors: active) {
+  .wisdom-card,
+  .wisdom-composer,
+  .wisdom-mine,
+  .wisdom-selection,
+  .wisdom-synthesis,
+  .wisdom-theme-editor {
+    border-color: CanvasText;
+  }
+}

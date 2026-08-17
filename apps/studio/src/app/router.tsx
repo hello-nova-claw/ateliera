@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 export const studioRoutes = {
   '/foyer': 'Foyer',
+  '/identity': 'Identity Studio',
   '/landscape': 'Life Landscape',
   '/season': 'Current Season',
   '/uncharted': 'Uncharted',
+  '/wisdom': 'Wisdom Garden',
   '/reflection': 'Reflection Garden',
   '/search': 'Search',
   '/inbox': 'Inbox',
