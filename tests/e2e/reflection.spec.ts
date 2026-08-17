@@ -294,7 +294,7 @@ test('continues a new entry in the recoverable full editor', async ({ page }) =>
   await page.getByLabel('A sentence to keep').fill('There is more I want to explore.');
   await page.getByRole('button', { name: 'Continue in the editor' }).click();
   await expect(page.getByRole('dialog', { name: 'Edit note' })).toBeVisible();
-  await expect(page.getByLabel('Title')).toHaveValue('There is more I want to explore.');
+  await expect(page.getByLabel('Title', { exact: true })).toHaveValue('There is more I want to explore.');
   await page.getByRole('button', { name: 'Close editor' }).click();
   await expect(page.getByRole('heading', { name: 'There is more I want to explore.' })).toBeVisible();
 });
@@ -356,7 +356,7 @@ test('serializes conflicted evidence, retries, and opens the canonical target', 
   await expect(evidence).toBeVisible();
   await evidence.click();
   await expect(page.getByRole('dialog', { name: 'Edit note' })).toBeVisible();
-  await expect(page.getByLabel('Title')).toHaveValue('Evidence target');
+  await expect(page.getByLabel('Title', { exact: true })).toHaveValue('Evidence target');
   await page.getByRole('button', { name: 'Close editor' }).click();
   await expect(evidence).toBeFocused();
 });

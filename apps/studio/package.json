@@ -18,8 +18,10 @@
     "@studio/index": "workspace:*",
     "@studio/storage": "workspace:*",
     "@studio/ui": "workspace:*",
-    "@vitejs/plugin-react": "^4.6.0",
     "react": "19.1.0",
     "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.6.0"
   }
 }
