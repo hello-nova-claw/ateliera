@@ -34,9 +34,14 @@ export function NoteEditorSession({
     const remote = await service.load(version.path);
     const merged = {
       ...remote,
-      note: { ...remote.note, body: `${local.body}\n\n---\n\n${remote.note.body}` },
+      note: {
+        ...remote.note,
+        body: `${local.body}\n\n---\n\n${remote.note.body}`,
+      },
     };
-    recovery.write(recoveryRecord(studioId, remote.path, merged.note, remote.hash));
+    recovery.write(
+      recoveryRecord(studioId, remote.path, merged.note, remote.hash),
+    );
     setVersion(remote);
     setRestored(merged);
   }
@@ -76,35 +81,50 @@ function AutosaveEditor({
   studioId: string;
 }) {
   const pending = recovery.readForDurable(studioId, initial.path, initial.hash);
-  const staleLocal = pending.kind === 'stale'
-    ? noteFromDraft(initial.note, pending.draft)
-    : undefined;
-  const [recoveryConflict, setRecoveryConflict] = useState<StudioNote | undefined>(
-    staleLocal,
-  );
-  const [recoveryView, setRecoveryView] = useState<RecoveryDraftView | undefined>(
+  const staleLocal =
+    pending.kind === 'stale'
+      ? noteFromDraft(initial.note, pending.draft)
+      : undefined;
+  const [recoveryConflict, setRecoveryConflict] = useState<
+    StudioNote | undefined
+  >(staleLocal);
+  const [recoveryView, setRecoveryView] = useState<
+    RecoveryDraftView | undefined
+  >(
     pending.kind === 'recoverable' && restored === undefined
       ? {
           body: pending.draft.body,
-          ...(pending.draft.title === undefined ? {} : { title: pending.draft.title }),
+          ...(pending.draft.title === undefined
+            ? {}
+            : { title: pending.draft.title }),
         }
       : undefined,
   );
-  const [recoveryUnavailable, setRecoveryUnavailable] = useState(!recovery.available);
-  const [actionState, setActionState] = useState<'idle' | 'busy' | 'error'>('idle');
+  const [recoveryUnavailable, setRecoveryUnavailable] = useState(
+    !recovery.available,
+  );
+  const [actionState, setActionState] = useState<'idle' | 'busy' | 'error'>(
+    'idle',
+  );
   const actionInFlight = useRef(false);
   const [actionError, setActionError] = useState<string>();
   const [closeError, setCloseError] = useState<string>();
   const autosave = useAutosave({
     initial,
-    save: (note, expectedHash) => service.save({ note, path: initial.path, expectedHash }),
+    save: (note, expectedHash) =>
+      service.save({ note, path: initial.path, expectedHash }),
     writeRecovery: (note, expectedHash) => {
-      if (!recovery.write(recoveryRecord(studioId, initial.path, note, expectedHash))) {
+      if (
+        !recovery.write(
+          recoveryRecord(studioId, initial.path, note, expectedHash),
+        )
+      ) {
         setRecoveryUnavailable(true);
       }
     },
     removeRecovery: () => {
-      if (!recovery.remove(studioId, initial.path)) setRecoveryUnavailable(true);
+      if (!recovery.remove(studioId, initial.path))
+        setRecoveryUnavailable(true);
     },
   });
   const restoredApplied = useRef(false);
@@ -118,7 +138,10 @@ function AutosaveEditor({
   const close = useCallback(async (): Promise<void> => {
     setCloseError(undefined);
     if (await flush()) onClose();
-    else setCloseError('The note could not be saved. Retry before closing the editor.');
+    else
+      setCloseError(
+        'The note could not be saved. Retry before closing the editor.',
+      );
   }, [flush, onClose]);
 
   useEffect(() => {
@@ -127,9 +150,10 @@ function AutosaveEditor({
 
   const liveConflict = autosave.conflict;
   const conflictLocal = liveConflict?.attemptedNote ?? recoveryConflict;
-  const conflictRemote = liveConflict === undefined
-    ? initial.note
-    : readableNote(liveConflict.durableText, initial.note);
+  const conflictRemote =
+    liveConflict === undefined
+      ? initial.note
+      : readableNote(liveConflict.durableText, initial.note);
   const saveError = closeError ?? autosave.error?.message;
 
   async function keepMine(): Promise<void> {
@@ -204,14 +228,20 @@ function AutosaveEditor({
 
   return (
     <div className="note-editor-session">
-      <button className="note-editor-session__close" onClick={() => void close()} type="button">
+      <button
+        className="note-editor-session__close"
+        onClick={() => void close()}
+        type="button"
+      >
         Close editor
       </button>
       <CardEditor
         {...(conflictLocal === undefined
           ? {}
           : { conflict: { local: conflictLocal, remote: conflictRemote } })}
-        {...(actionError === undefined ? {} : { conflictActionError: actionError })}
+        {...(actionError === undefined
+          ? {}
+          : { conflictActionError: actionError })}
         conflictActionState={actionState}
         note={conflictLocal ?? autosave.note}
         onChange={autosave.update}
@@ -254,7 +284,10 @@ function recoveryRecord(
   };
 }
 
-function noteFromDraft(note: StudioNote, draft: DraftRecoveryRecord): StudioNote {
+function noteFromDraft(
+  note: StudioNote,
+  draft: DraftRecoveryRecord,
+): StudioNote {
   const next = { ...note, body: draft.body };
   if (draft.title !== undefined) return { ...next, title: draft.title };
   delete next.title;
@@ -285,5 +318,7 @@ async function saveUniqueSibling(
       if (!(error instanceof StudioSaveConflictError)) throw error;
     }
   }
-  throw new Error('A unique sibling filename could not be created.', { cause: lastError });
+  throw new Error('A unique sibling filename could not be created.', {
+    cause: lastError,
+  });
 }

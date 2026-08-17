@@ -25,6 +25,7 @@ it('falls back to session memory when reading the sessionStorage getter is block
       body: 'Still held in memory',
     });
   } finally {
-    if (descriptor !== undefined) Object.defineProperty(window, 'sessionStorage', descriptor);
+    if (descriptor !== undefined)
+      Object.defineProperty(window, 'sessionStorage', descriptor);
   }
 });

@@ -1,17 +1,9 @@
-import {
-  StudioSaveConflictError,
-  type SavedNote,
-} from '@studio/application';
+import { StudioSaveConflictError, type SavedNote } from '@studio/application';
 import type { StudioNote } from '@studio/domain';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 export type SaveState =
-  | 'idle'
-  | 'dirty'
-  | 'saving'
-  | 'saved'
-  | 'conflict'
-  | 'error';
+  'idle' | 'dirty' | 'saving' | 'saved' | 'conflict' | 'error';
 
 export interface UseAutosaveOptions {
   initial: SavedNote;
@@ -63,7 +55,9 @@ export function useAutosave({
       savedRevision.current === editRevision.current ||
       failedRevision.current === editRevision.current
     ) {
-      return !stopped.current && failedRevision.current !== editRevision.current;
+      return (
+        !stopped.current && failedRevision.current !== editRevision.current
+      );
     }
     if (inFlight.current !== undefined) {
       await inFlight.current;
@@ -97,7 +91,11 @@ export function useAutosave({
           setState('conflict');
         } else {
           failedRevision.current = revision;
-          setError(reason instanceof Error ? reason : new Error('The note could not be saved.'));
+          setError(
+            reason instanceof Error
+              ? reason
+              : new Error('The note could not be saved.'),
+          );
           setState('error');
         }
         return false;

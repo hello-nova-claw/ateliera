@@ -6,7 +6,13 @@ import {
 } from '@studio/application';
 import { serializeNote } from '@studio/content';
 import type { StudioNote } from '@studio/domain';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import { NoteEditorSession } from './NoteEditorSession';
 
 const note: StudioNote = {
@@ -111,13 +117,16 @@ it('treats a stale recovery as a read-only conflict and never autosaves it', asy
   );
 
   expect(screen.getByRole('alert')).toHaveTextContent('Another version exists');
-  expect(screen.getByRole('region', { name: 'Your version' })).toHaveTextContent(
-    'Local unsaved words',
+  expect(
+    screen.getByRole('region', { name: 'Your version' }),
+  ).toHaveTextContent('Local unsaved words');
+  expect(
+    screen.getByRole('region', { name: 'Other version' }),
+  ).toHaveTextContent('Durable words');
+  expect(screen.getByLabelText('Markdown body')).toHaveAttribute(
+    'contenteditable',
+    'false',
   );
-  expect(screen.getByRole('region', { name: 'Other version' })).toHaveTextContent(
-    'Durable words',
-  );
-  expect(screen.getByLabelText('Markdown body')).toHaveAttribute('contenteditable', 'false');
   await act(async () => vi.advanceTimersByTimeAsync(2_000));
   expect(service.save).not.toHaveBeenCalled();
 });
@@ -136,7 +145,9 @@ it('keeps mine as a unique complete sibling without touching the durable note', 
     />,
   );
 
-  fireEvent.click(await screen.findByRole('button', { name: 'Keep mine as a sibling' }));
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Keep mine as a sibling' }),
+  );
   await waitFor(() => expect(service.save).toHaveBeenCalledOnce());
 
   expect(service.save).toHaveBeenCalledOnce();
@@ -150,7 +161,9 @@ it('keeps mine as a unique complete sibling without touching the durable note', 
     body: 'Local unsaved words',
   });
   expect(onClose).toHaveBeenCalledOnce();
-  expect(createDraftRecoveryStore(sessionStorage).read('studio-a', initial.path)).toBeNull();
+  expect(
+    createDraftRecoveryStore(sessionStorage).read('studio-a', initial.path),
+  ).toBeNull();
 });
 
 it('turns rapid duplicate Keep mine activation into exactly one durable write', async () => {
@@ -184,7 +197,9 @@ it('turns rapid duplicate Keep mine activation into exactly one durable write', 
 
 it('preserves recovery and enables retry when sibling creation fails', async () => {
   seedStaleDraft();
-  const service = mockService({ save: vi.fn().mockRejectedValue(new Error('Storage offline')) });
+  const service = mockService({
+    save: vi.fn().mockRejectedValue(new Error('Storage offline')),
+  });
   render(
     <NoteEditorSession
       initial={initial}
@@ -195,18 +210,28 @@ it('preserves recovery and enables retry when sibling creation fails', async () 
     />,
   );
 
-  fireEvent.click(await screen.findByRole('button', { name: 'Keep mine as a sibling' }));
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Keep mine as a sibling' }),
+  );
 
-  expect(await screen.findByText(/Storage offline.*still preserved/i)).toBeVisible();
-  expect(screen.getByRole('button', { name: 'Keep mine as a sibling' })).toBeEnabled();
-  expect(createDraftRecoveryStore(sessionStorage).read('studio-a', initial.path)).not.toBeNull();
+  expect(
+    await screen.findByText(/Storage offline.*still preserved/i),
+  ).toBeVisible();
+  expect(
+    screen.getByRole('button', { name: 'Keep mine as a sibling' }),
+  ).toBeEnabled();
+  expect(
+    createDraftRecoveryStore(sessionStorage).read('studio-a', initial.path),
+  ).not.toBeNull();
 });
 
 it('keeps both versions when a required conflict snapshot cannot be created', async () => {
   seedStaleDraft();
   const onClose = vi.fn();
   const service = mockService({
-    snapshot: vi.fn().mockRejectedValue(new Error('Snapshot storage unavailable')),
+    snapshot: vi
+      .fn()
+      .mockRejectedValue(new Error('Snapshot storage unavailable')),
   });
   render(
     <NoteEditorSession
@@ -219,10 +244,15 @@ it('keeps both versions when a required conflict snapshot cannot be created', as
   );
 
   fireEvent.click(screen.getByRole('button', { name: 'Keep other' }));
-  expect(await screen.findByText(/Snapshot storage unavailable.*Both versions are still preserved/i))
-    .toBeVisible();
+  expect(
+    await screen.findByText(
+      /Snapshot storage unavailable.*Both versions are still preserved/i,
+    ),
+  ).toBeVisible();
   expect(onClose).not.toHaveBeenCalled();
-  expect(createDraftRecoveryStore(sessionStorage).read('studio-a', initial.path)).not.toBeNull();
+  expect(
+    createDraftRecoveryStore(sessionStorage).read('studio-a', initial.path),
+  ).not.toBeNull();
 });
 
 it('merges a stale draft explicitly and saves against the current durable hash', async () => {
@@ -241,9 +271,15 @@ it('merges a stale draft explicitly and saves against the current durable hash',
 
   fireEvent.click(screen.getByRole('button', { name: 'Merge manually' }));
   await act(async () => Promise.resolve());
-  expect(screen.queryByRole('heading', { name: 'Another version exists' })).not.toBeInTheDocument();
-  expect(screen.getByLabelText('Markdown body')).toHaveTextContent('Local unsaved words');
-  expect(screen.getByLabelText('Markdown body')).toHaveTextContent('Durable words');
+  expect(
+    screen.queryByRole('heading', { name: 'Another version exists' }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Markdown body')).toHaveTextContent(
+    'Local unsaved words',
+  );
+  expect(screen.getByLabelText('Markdown body')).toHaveTextContent(
+    'Durable words',
+  );
 
   await act(async () => vi.advanceTimersByTimeAsync(750));
   expect(service.save).toHaveBeenCalledWith(
@@ -271,8 +307,12 @@ it('keeps the editor open after a failed close flush and offers a retry', async 
   });
   fireEvent.click(screen.getByRole('button', { name: 'Close editor' }));
 
-  expect(await screen.findByText(/could not be saved.*Retry before closing/i)).toBeVisible();
-  expect(screen.getByRole('button', { name: 'Try saving again' })).toBeEnabled();
+  expect(
+    await screen.findByText(/could not be saved.*Retry before closing/i),
+  ).toBeVisible();
+  expect(
+    screen.getByRole('button', { name: 'Try saving again' }),
+  ).toBeEnabled();
   expect(onClose).not.toHaveBeenCalled();
 });
 
@@ -282,14 +322,20 @@ it('begins a live manual merge with both versions preserved in recovery', async 
   const onClose = vi.fn();
   const save = vi
     .fn()
-    .mockRejectedValueOnce(new StudioSaveConflictError(attempted, serializeNote(remote)))
+    .mockRejectedValueOnce(
+      new StudioSaveConflictError(attempted, serializeNote(remote)),
+    )
     .mockImplementationOnce(async ({ note: savedNote, path }) => ({
       note: savedNote,
       path,
       hash: 'merged-hash',
     }));
   const service = mockService({
-    load: vi.fn(async () => ({ ...initial, note: remote, hash: 'remote-hash' })),
+    load: vi.fn(async () => ({
+      ...initial,
+      note: remote,
+      hash: 'remote-hash',
+    })),
     save,
   });
   render(
@@ -301,17 +347,25 @@ it('begins a live manual merge with both versions preserved in recovery', async 
       studioId="studio-a"
     />,
   );
-  fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Local title' } });
+  fireEvent.change(screen.getByLabelText('Title'), {
+    target: { value: 'Local title' },
+  });
   fireEvent.click(screen.getByRole('button', { name: 'Close editor' }));
   await screen.findByRole('button', { name: 'Merge manually' });
 
   fireEvent.click(screen.getByRole('button', { name: 'Merge manually' }));
 
   await waitFor(() => {
-    expect(screen.getByLabelText('Markdown body')).toHaveTextContent('Durable words');
-    expect(screen.getByLabelText('Markdown body')).toHaveTextContent('Remote words');
+    expect(screen.getByLabelText('Markdown body')).toHaveTextContent(
+      'Durable words',
+    );
+    expect(screen.getByLabelText('Markdown body')).toHaveTextContent(
+      'Remote words',
+    );
   });
-  expect(createDraftRecoveryStore(sessionStorage).read('studio-a', initial.path)).toMatchObject({
+  expect(
+    createDraftRecoveryStore(sessionStorage).read('studio-a', initial.path),
+  ).toMatchObject({
     expectedHash: 'remote-hash',
     body: expect.stringContaining('Remote words'),
   });
@@ -335,9 +389,11 @@ it('keeps both live conflict versions available when manual merge loading fails'
   const remote = { ...note, title: 'Remote title', body: 'Remote words' };
   const service = mockService({
     load: vi.fn().mockRejectedValue(new Error('Remote read failed')),
-    save: vi.fn().mockRejectedValueOnce(
-      new StudioSaveConflictError(attempted, serializeNote(remote)),
-    ),
+    save: vi
+      .fn()
+      .mockRejectedValueOnce(
+        new StudioSaveConflictError(attempted, serializeNote(remote)),
+      ),
   });
   render(
     <NoteEditorSession
@@ -348,18 +404,24 @@ it('keeps both live conflict versions available when manual merge loading fails'
       studioId="studio-a"
     />,
   );
-  fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Local title' } });
+  fireEvent.change(screen.getByLabelText('Title'), {
+    target: { value: 'Local title' },
+  });
   fireEvent.click(screen.getByRole('button', { name: 'Close editor' }));
   await screen.findByRole('button', { name: 'Merge manually' });
 
   fireEvent.click(screen.getByRole('button', { name: 'Merge manually' }));
 
-  expect(await screen.findByText(/Remote read failed.*still preserved/i)).toBeVisible();
-  expect(screen.getByRole('region', { name: 'Your version' })).toHaveTextContent(
-    'Local title',
-  );
-  expect(screen.getByRole('region', { name: 'Other version' })).toHaveTextContent(
-    'Remote title',
-  );
-  expect(createDraftRecoveryStore(sessionStorage).read('studio-a', initial.path)).not.toBeNull();
+  expect(
+    await screen.findByText(/Remote read failed.*still preserved/i),
+  ).toBeVisible();
+  expect(
+    screen.getByRole('region', { name: 'Your version' }),
+  ).toHaveTextContent('Local title');
+  expect(
+    screen.getByRole('region', { name: 'Other version' }),
+  ).toHaveTextContent('Remote title');
+  expect(
+    createDraftRecoveryStore(sessionStorage).read('studio-a', initial.path),
+  ).not.toBeNull();
 });
