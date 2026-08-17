@@ -1,19 +1,16 @@
 import {
+  landscapeAnchorDefinitions,
   noteStatuses,
+  semanticTypeForLandscapeAnchor,
   semanticTypes,
   type StudioNote,
 } from '@studio/domain';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MarkdownEditor } from './MarkdownEditor';
 import './CardEditor.css';
 
 export type EditorSaveState =
-  | 'idle'
-  | 'dirty'
-  | 'saving'
-  | 'saved'
-  | 'conflict'
-  | 'error';
+  'idle' | 'dirty' | 'saving' | 'saved' | 'conflict' | 'error';
 
 export interface RecoveryDraftView {
   body: string;
@@ -60,6 +57,35 @@ function withTitle(note: StudioNote, title: string): StudioNote {
   return copy;
 }
 
+function withSource(
+  note: StudioNote,
+  field: 'creator' | 'title' | 'url',
+  value: string,
+): StudioNote {
+  const source = { ...note.source, [field]: value };
+  if (source.creator === '') delete source.creator;
+  if (source.title === '') delete source.title;
+  if (source.url === '') delete source.url;
+  if (Object.keys(source).length > 0) return { ...note, source };
+  const copy = { ...note };
+  delete copy.source;
+  return copy;
+}
+
+function withTags(note: StudioNote, value: string): StudioNote {
+  return {
+    ...note,
+    tags: [
+      ...new Set(
+        value
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+      ),
+    ],
+  };
+}
+
 export function CardEditor({
   conflict,
   conflictActionError,
@@ -78,6 +104,17 @@ export function CardEditor({
   saveError,
   saveState,
 }: CardEditorProps) {
+  const [tagsDraft, setTagsDraft] = useState(note.tags.join(', '));
+  const landscapeAnchor =
+    note.landscapeAnchor === undefined
+      ? undefined
+      : landscapeAnchorDefinitions.find(
+          (anchor) => anchor.id === note.landscapeAnchor,
+        );
+  const displayedSemanticType =
+    note.landscapeAnchor === undefined
+      ? note.semanticType
+      : semanticTypeForLandscapeAnchor(note.landscapeAnchor);
   const conflictSummary = useRef<HTMLElement>(null);
   const errorSummary = useRef<HTMLElement>(null);
   const conflictWasVisible = useRef(false);
@@ -85,7 +122,8 @@ export function CardEditor({
 
   useEffect(() => {
     const visible = conflict !== undefined;
-    if (visible && !conflictWasVisible.current) conflictSummary.current?.focus();
+    if (visible && !conflictWasVisible.current)
+      conflictSummary.current?.focus();
     conflictWasVisible.current = visible;
   }, [conflict]);
 
@@ -109,12 +147,21 @@ export function CardEditor({
       </header>
 
       {recoveryDraft !== undefined && (
-        <section className="card-editor__notice" aria-labelledby="recovery-title">
+        <section
+          className="card-editor__notice"
+          aria-labelledby="recovery-title"
+        >
           <h2 id="recovery-title">Unsaved words are waiting.</h2>
-          <p>Choose whether to restore them. Your saved note has not changed.</p>
+          <p>
+            Choose whether to restore them. Your saved note has not changed.
+          </p>
           <div className="card-editor__actions">
-            <button onClick={onRestoreDraft} type="button">Restore draft</button>
-            <button onClick={onDiscardDraft} type="button">Discard draft</button>
+            <button onClick={onRestoreDraft} type="button">
+              Restore draft
+            </button>
+            <button onClick={onDiscardDraft} type="button">
+              Discard draft
+            </button>
           </div>
         </section>
       )}
@@ -125,8 +172,8 @@ export function CardEditor({
           className="card-editor__notice"
           role="status"
         >
-          Browser draft recovery is unavailable. Durable saves still work; keep this
-          editor open until the saved confirmation appears.
+          Browser draft recovery is unavailable. Durable saves still work; keep
+          this editor open until the saved confirmation appears.
         </p>
       )}
 
@@ -139,7 +186,9 @@ export function CardEditor({
         >
           <h2>Your changes are still waiting.</h2>
           <p>{saveError}</p>
-          <button onClick={onRetrySave} type="button">Try saving again</button>
+          <button onClick={onRetrySave} type="button">
+            Try saving again
+          </button>
         </section>
       )}
 
@@ -167,17 +216,32 @@ export function CardEditor({
           <label>
             <span>Semantic meaning</span>
             <select
-              disabled={conflict !== undefined}
+              aria-describedby={
+                landscapeAnchor === undefined
+                  ? undefined
+                  : 'card-editor-landscape-meaning'
+              }
+              disabled={conflict !== undefined || landscapeAnchor !== undefined}
               onChange={(event) =>
                 onChange({
                   ...note,
-                  semanticType: event.target.value as StudioNote['semanticType'],
+                  semanticType: event.target
+                    .value as StudioNote['semanticType'],
                 })
               }
-              value={note.semanticType}
+              value={displayedSemanticType}
             >
-              {semanticTypes.map((value) => <option key={value}>{value}</option>)}
+              {semanticTypes.map((value) => (
+                <option key={value}>{value}</option>
+              ))}
             </select>
+            {landscapeAnchor !== undefined && (
+              <small id="card-editor-landscape-meaning">
+                The {landscapeAnchor.label} anchor gives this card its{' '}
+                {displayedSemanticType} meaning. Moving the card to another
+                anchor updates both.
+              </small>
+            )}
           </label>
           <label>
             <span>Status</span>
@@ -191,9 +255,64 @@ export function CardEditor({
               }
               value={note.status}
             >
-              {noteStatuses.map((value) => <option key={value}>{value}</option>)}
+              {noteStatuses.map((value) => (
+                <option key={value}>{value}</option>
+              ))}
             </select>
           </label>
+          <label>
+            <span>Source title</span>
+            <input
+              disabled={conflict !== undefined}
+              onChange={(event) =>
+                onChange(withSource(note, 'title', event.target.value))
+              }
+              value={note.source?.title ?? ''}
+            />
+          </label>
+          <label>
+            <span>Source creator</span>
+            <input
+              disabled={conflict !== undefined}
+              onChange={(event) =>
+                onChange(withSource(note, 'creator', event.target.value))
+              }
+              value={note.source?.creator ?? ''}
+            />
+          </label>
+          <label>
+            <span>Source URL</span>
+            <input
+              disabled={conflict !== undefined}
+              inputMode="url"
+              onChange={(event) =>
+                onChange(withSource(note, 'url', event.target.value))
+              }
+              type="url"
+              value={note.source?.url ?? ''}
+            />
+          </label>
+          <label>
+            <span>Themes</span>
+            <input
+              disabled={conflict !== undefined}
+              onBlur={() => {
+                onChange(withTags(note, tagsDraft));
+                void onFlush();
+              }}
+              onChange={(event) => setTagsDraft(event.target.value)}
+              value={tagsDraft}
+            />
+          </label>
+          {note.sourceNoteIds !== undefined &&
+            note.sourceNoteIds.length > 0 && (
+              <p className="card-editor__source-links">
+                {note.sourceNoteIds.length}{' '}
+                {note.sourceNoteIds.length === 1
+                  ? 'linked source note'
+                  : 'linked source notes'}
+              </p>
+            )}
         </div>
       </details>
 
@@ -205,7 +324,10 @@ export function CardEditor({
           tabIndex={-1}
         >
           <h2>Another version exists</h2>
-          <p>Nothing has been overwritten. Choose how these words should continue.</p>
+          <p>
+            Nothing has been overwritten. Choose how these words should
+            continue.
+          </p>
           <div className="card-editor__versions">
             <section aria-label="Your version">
               <h3>Mine</h3>
@@ -230,12 +352,22 @@ export function CardEditor({
               onClick={onKeepMine}
               type="button"
             >
-              {conflictActionState === 'busy' ? 'Keeping mine…' : 'Keep mine as a sibling'}
+              {conflictActionState === 'busy'
+                ? 'Keeping mine…'
+                : 'Keep mine as a sibling'}
             </button>
-            <button disabled={conflictActionState === 'busy'} onClick={onKeepOther} type="button">
+            <button
+              disabled={conflictActionState === 'busy'}
+              onClick={onKeepOther}
+              type="button"
+            >
               Keep other
             </button>
-            <button disabled={conflictActionState === 'busy'} onClick={onManualMerge} type="button">
+            <button
+              disabled={conflictActionState === 'busy'}
+              onClick={onManualMerge}
+              type="button"
+            >
               Merge manually
             </button>
           </div>

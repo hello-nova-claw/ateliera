@@ -53,6 +53,30 @@
   font: var(--studio-type-page-title);
 }
 
+.card-editor__metadata input {
+  min-block-size: var(--studio-touch-target);
+  padding-inline: var(--studio-space-3);
+  border: 1px solid var(--studio-color-line-strong);
+  border-radius: 0.625rem;
+  color: var(--studio-color-ink);
+  background: var(--studio-color-surface);
+  font: var(--studio-type-control);
+}
+
+.card-editor__source-links {
+  align-self: end;
+  margin: 0;
+  padding-block: var(--studio-space-3);
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-control);
+}
+
+.card-editor__metadata small {
+  color: var(--studio-color-ink-muted);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
 .card-editor__markdown {
   min-block-size: 18rem;
   border: 1px solid var(--studio-color-line);
