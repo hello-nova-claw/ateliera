@@ -1,4 +1,5 @@
 export * from './errors';
+export * from './identity';
 export * from './landscape';
 export * from './life-area';
 export * from './note';
@@ -6,3 +7,4 @@ export * from './room';
 export * from './season';
 export * from './semantic-type';
 export * from './view-projection';
+export * from './wisdom';

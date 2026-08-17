@@ -20,8 +20,12 @@ const memoryStorage: DraftRecoveryStorage = {
 export function browserDraftRecovery(): BrowserDraftRecovery {
   try {
     const storage = window.sessionStorage;
-    return Object.assign(createDraftRecoveryStore(storage), { available: true });
+    return Object.assign(createDraftRecoveryStore(storage), {
+      available: true,
+    });
   } catch {
-    return Object.assign(createDraftRecoveryStore(memoryStorage), { available: false });
+    return Object.assign(createDraftRecoveryStore(memoryStorage), {
+      available: false,
+    });
   }
 }

@@ -88,6 +88,10 @@ it('keeps Place later as the default and optionally captures semantic meaning', 
   );
   expect(screen.getByLabelText('Meaning (optional)')).toHaveValue('');
   expect(screen.getByRole('option', { name: 'Place later' })).toBeVisible();
+  expect(screen.getByText(/meaning is the colour lens/i)).toBeVisible();
+  expect(
+    screen.getByRole('option', { name: 'Vision — what I am creating' }),
+  ).toBeVisible();
   fireEvent.change(screen.getByLabelText('Meaning (optional)'), {
     target: { value: 'uncharted' },
   });
@@ -103,6 +107,41 @@ it('keeps Place later as the default and optionally captures semantic meaning', 
       semanticType: 'uncharted',
     }),
   );
+});
+
+it('shows a contextually inferred meaning while preserving a safe override', () => {
+  render(
+    <QuickCapture
+      capture={vi.fn()}
+      initialSemanticType="uncharted"
+      onCancel={vi.fn()}
+      onRemembered={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByLabelText('Meaning (optional)')).toHaveValue('uncharted');
+  expect(
+    screen.getByText('Suggested from where you opened capture.'),
+  ).toBeVisible();
+  expect(screen.getByLabelText('Meaning (optional)')).not.toBeDisabled();
+});
+
+it('locks exact structural meaning so a Landscape card cannot contradict its anchor', () => {
+  render(
+    <QuickCapture
+      capture={vi.fn()}
+      initialSemanticType="vision"
+      meaningLocked
+      onCancel={vi.fn()}
+      onRemembered={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByLabelText('Meaning (optional)')).toHaveValue('vision');
+  expect(screen.getByLabelText('Meaning (optional)')).toBeDisabled();
+  expect(
+    screen.getByText('This meaning belongs to the place you are adding it.'),
+  ).toBeVisible();
 });
 
 it('authors a decision horizon when capturing into a Landscape decision', async () => {

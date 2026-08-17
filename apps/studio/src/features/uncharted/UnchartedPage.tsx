@@ -2,7 +2,7 @@ import type {
   UnchartedCardProjection,
   UnchartedProjection,
 } from '@studio/application';
-import { SemanticMark } from '@studio/ui';
+import { RoomHeading, SemanticMark } from '@studio/ui';
 import { useEffect, useRef, useState } from 'react';
 
 import './UnchartedPage.css';
@@ -168,16 +168,13 @@ export function UnchartedPage({
 
   return (
     <div className="uncharted-page">
-      <header className="uncharted-page__header">
-        <p className="uncharted-page__eyebrow">
-          <SemanticMark type="uncharted" /> Uncharted
-        </p>
-        <h1>What if…?</h1>
-        <p>
-          A place for possibilities that do not need a route, an answer, or a
-          reason yet.
-        </p>
-      </header>
+      <div className="uncharted-page__header">
+        <RoomHeading
+          eyebrow="leave room for possibility"
+          intro="A place for possibilities that do not need a route, an answer, or a reason yet."
+          title="What if…?"
+        />
+      </div>
 
       {state === 'loading' && (
         <p className="uncharted-page__state" role="status">

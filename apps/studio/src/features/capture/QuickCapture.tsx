@@ -6,6 +6,8 @@ export interface QuickCaptureProps {
   capture: (input: QuickCaptureInput) => Promise<SavedNote>;
   decisionHorizon?: boolean;
   initialBody?: string;
+  initialSemanticType?: SemanticType;
+  meaningLocked?: boolean;
   onCancel: () => void;
   onRemembered: (saved: SavedNote) => void | Promise<void>;
 }
@@ -18,13 +20,17 @@ export function QuickCapture({
   capture,
   decisionHorizon = false,
   initialBody = '',
+  initialSemanticType,
+  meaningLocked = false,
   onCancel,
   onRemembered,
 }: QuickCaptureProps) {
   const [body, setBody] = useState(initialBody);
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
-  const [semanticType, setSemanticType] = useState<'' | SemanticType>('');
+  const [semanticType, setSemanticType] = useState<'' | SemanticType>(
+    initialSemanticType ?? '',
+  );
   const [horizon, setHorizon] = useState<DecisionHorizon>('30d');
 
   async function remember(): Promise<void> {
@@ -68,6 +74,10 @@ export function QuickCapture({
       />
       <label htmlFor="capture-meaning">Meaning (optional)</label>
       <select
+        aria-describedby={`capture-meaning-guide${
+          initialSemanticType === undefined ? '' : ' capture-meaning-hint'
+        }`}
+        disabled={meaningLocked}
         id="capture-meaning"
         onChange={(event) =>
           setSemanticType(event.target.value as '' | SemanticType)
@@ -76,12 +86,23 @@ export function QuickCapture({
       >
         <option value="">Place later</option>
         <option value="foundations">Foundations</option>
-        <option value="vision">Vision</option>
+        <option value="vision">Vision — what I am creating</option>
         <option value="growth">Growth</option>
         <option value="reflection">Reflection</option>
         <option value="celebration">Celebration</option>
         <option value="uncharted">Uncharted</option>
       </select>
+      <p className="quick-capture__meaning-guide" id="capture-meaning-guide">
+        Meaning is the colour lens. In Life Landscape, an anchor describes where
+        the card sits.
+      </p>
+      {initialSemanticType !== undefined && (
+        <p className="quick-capture__meaning-hint" id="capture-meaning-hint">
+          {meaningLocked
+            ? 'This meaning belongs to the place you are adding it.'
+            : 'Suggested from where you opened capture.'}
+        </p>
+      )}
       {decisionHorizon && (
         <>
           <label htmlFor="capture-decision-horizon">Decision horizon</label>

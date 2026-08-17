@@ -89,7 +89,9 @@ it('serializes saves and persists the latest edit after an in-flight save', asyn
   await act(async () => vi.advanceTimersByTimeAsync(750));
   expect(save).toHaveBeenCalledTimes(1);
 
-  await act(async () => releaseFirst?.(saved({ ...note, body: 'First' }, 'hash-1')));
+  await act(async () =>
+    releaseFirst?.(saved({ ...note, body: 'First' }, 'hash-1')),
+  );
 
   expect(save).toHaveBeenCalledTimes(2);
   expect(save.mock.calls[1]).toEqual([

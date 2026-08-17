@@ -54,8 +54,16 @@ export const Recovery: Story = {
 export const Conflict: Story = {
   args: {
     conflict: {
-      local: { ...note, title: 'My version', body: 'The words I wrote locally.' },
-      remote: { ...note, title: 'Other version', body: 'The durable words elsewhere.' },
+      local: {
+        ...note,
+        title: 'My version',
+        body: 'The words I wrote locally.',
+      },
+      remote: {
+        ...note,
+        title: 'Other version',
+        body: 'The durable words elsewhere.',
+      },
     },
     note: { ...note, title: 'My version', body: 'The words I wrote locally.' },
     onKeepMine: () => undefined,

@@ -17,7 +17,12 @@ function ReplaceRouterProbe() {
   return (
     <>
       <output>{path}</output>
-      <button onClick={() => navigate('/landscape/family', false, true)} type="button">Replace</button>
+      <button
+        onClick={() => navigate('/landscape/family', false, true)}
+        type="button"
+      >
+        Replace
+      </button>
     </>
   );
 }
@@ -73,4 +78,13 @@ it('replaces the current history entry when requested', () => {
   expect(replaceState).toHaveBeenCalledWith(null, '', '/landscape/family');
   expect(pushState).not.toHaveBeenCalled();
   expect(screen.getByText('/landscape/family')).toBeVisible();
+});
+
+it.each([
+  ['/identity', 'Identity Studio'],
+  ['/wisdom', 'Wisdom Garden'],
+])('recognises the completed room at %s', (path, title) => {
+  history.replaceState(null, '', path);
+  render(<RouterProbe />);
+  expect(screen.getByText(`${path}|${title}`)).toBeVisible();
 });

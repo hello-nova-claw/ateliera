@@ -132,6 +132,14 @@ function studioService(overrides: Partial<StudioService> = {}) {
         revision: revision ?? 'hash-1',
       }),
     },
+    wisdomThemes: {
+      load: async () => ({ themes: [], repairRequired: false, revision: null }),
+      save: async (themes, revision) => ({
+        themes: [...themes],
+        repairRequired: false,
+        revision: revision ?? 'wisdom-hash-1',
+      }),
+    },
     onboarding: {
       load: async () => ({
         onboarding: {
@@ -224,6 +232,21 @@ function studioService(overrides: Partial<StudioService> = {}) {
       returning: null,
       image: null,
     })),
+    projectIdentityStudio: vi.fn(async () => ({
+      currentlyBecoming: null,
+      sections: {
+        'already-true': [],
+        'practicing-now': [],
+        'values-principles': [],
+        'desired-feelings': [],
+        'beliefs-practice': [],
+        'embodiment-cues': [],
+        'identity-shifts': [],
+      },
+    })),
+    promoteIdentity: vi.fn(async () => undefined),
+    reorderIdentity: vi.fn(async () => undefined),
+    projectWisdomGarden: vi.fn(async () => ({ cards: [], themes: [] })),
     ...overrides,
   };
   return {

@@ -8,6 +8,7 @@ import {
   type LandscapeAnchor,
   type LifeArea,
 } from '@studio/domain';
+import { RoomHeading } from '@studio/ui';
 import {
   DndContext,
   DragOverlay,
@@ -896,11 +897,11 @@ export function LandscapePage({
     >
       <div className="life-landscape">
         <header className="life-landscape__header">
-          <div>
-            <p className="life-landscape__eyebrow">Your life, held together</p>
-            <h1>Life Landscape</h1>
-            <p>Look across the whole, then step gently into one area.</p>
-          </div>
+          <RoomHeading
+            eyebrow="your life, held together"
+            intro="Look across the whole, then step gently into one area."
+            title="Life Landscape"
+          />
           <SegmentedControl areas={areas} onNavigate={onNavigate} view={view} />
         </header>
         {state === 'loading' && <p role="status">Gathering the Landscape…</p>}

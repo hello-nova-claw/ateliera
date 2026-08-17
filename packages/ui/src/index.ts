@@ -6,6 +6,7 @@ export {
   type StudioCommand,
 } from './CommandPalette/CommandPalette';
 export { Dialog, type DialogProps } from './Dialog/Dialog';
+export { RoomHeading, type RoomHeadingProps } from './RoomHeading/RoomHeading';
 export {
   CardEditor,
   type CardEditorProps,

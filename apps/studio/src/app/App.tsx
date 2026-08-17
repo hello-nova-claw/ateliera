@@ -39,6 +39,7 @@ import { useStudioRouter, type StudioPath } from './router';
 import { themes, type ThemeId } from './themes';
 import { QuickCapture } from '../features/capture/QuickCapture';
 import type { QuickCaptureInput } from '../features/capture/QuickCapture';
+import { captureMeaningForContext } from '../features/capture/capture-context';
 import type { FoyerSlot } from '../features/foyer/FoyerPage';
 import { StudioEntryGate } from '../features/onboarding/StudioEntryGate';
 import { FirstVisitGuide } from '../features/onboarding/FirstVisitGuide';
@@ -1072,6 +1073,11 @@ function StudioApplication({
   const commands: StudioCommand[] = [
     { id: 'foyer', label: 'Open Foyer', onSelect: () => go('/foyer') },
     {
+      id: 'identity',
+      label: 'Open Identity Studio',
+      onSelect: () => go('/identity'),
+    },
+    {
       id: 'landscape',
       label: 'Open Life Landscape',
       onSelect: () => go('/landscape'),
@@ -1085,6 +1091,11 @@ function StudioApplication({
       id: 'uncharted',
       label: 'Open Uncharted',
       onSelect: () => go('/uncharted'),
+    },
+    {
+      id: 'wisdom',
+      label: 'Open Wisdom Garden',
+      onSelect: () => go('/wisdom'),
     },
     {
       id: 'reflection',
@@ -1301,6 +1312,16 @@ function StudioApplication({
     );
   }
 
+  const captureMeaning = captureMeaningForContext({
+    path,
+    ...(pendingCapturePlacement.current === undefined
+      ? {}
+      : { placement: pendingCapturePlacement.current }),
+    ...(pendingLandscapePlacement.current === undefined
+      ? {}
+      : { landscape: pendingLandscapePlacement.current }),
+  });
+
   return (
     <ActiveStudioApplication
       activePath={path}
@@ -1420,6 +1441,12 @@ function StudioApplication({
             pendingLandscapePlacement.current?.anchor === 'decisions'
           }
           initialBody={captureInitialBody}
+          {...(captureMeaning === undefined
+            ? {}
+            : {
+                initialSemanticType: captureMeaning.semanticType,
+                meaningLocked: captureMeaning.locked,
+              })}
           onCancel={closeCapture}
           onRemembered={(saved) => {
             const tourExampleKey = pendingTourExampleKey.current;

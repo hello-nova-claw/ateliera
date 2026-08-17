@@ -5,7 +5,7 @@ import type {
   SearchHit,
   SearchMatchField,
 } from '@studio/index';
-import { SemanticMark } from '@studio/ui';
+import { RoomHeading, SemanticMark } from '@studio/ui';
 import { useState } from 'react';
 
 import './SearchPage.css';
@@ -28,10 +28,7 @@ export interface SearchPageProps {
   onQueryChange?: (query: string) => void;
 }
 
-type ListFilterKey = Exclude<
-  keyof SearchFilters,
-  'dateFrom' | 'dateTo'
->;
+type ListFilterKey = Exclude<keyof SearchFilters, 'dateFrom' | 'dateTo'>;
 
 const filterGroups: Array<{
   facet: keyof SearchFacets;
@@ -82,12 +79,22 @@ function cleanRanges(text: string, ranges: HighlightRange[]): HighlightRange[] {
   return output;
 }
 
-function HighlightedText({ ranges, text }: { ranges: HighlightRange[]; text: string }) {
+function HighlightedText({
+  ranges,
+  text,
+}: {
+  ranges: HighlightRange[];
+  text: string;
+}) {
   const children: React.ReactNode[] = [];
   let cursor = 0;
   for (const [index, range] of cleanRanges(text, ranges).entries()) {
     if (range.start > cursor) children.push(text.slice(cursor, range.start));
-    children.push(<mark key={`${range.start}:${range.end}:${index}`}>{text.slice(range.start, range.end)}</mark>);
+    children.push(
+      <mark key={`${range.start}:${range.end}:${index}`}>
+        {text.slice(range.start, range.end)}
+      </mark>,
+    );
     cursor = range.end;
   }
   if (cursor < text.length) children.push(text.slice(cursor));
@@ -129,9 +136,10 @@ function SearchResult({
   hit: SearchHit;
   onOpen?: SearchPageProps['onOpenResult'];
 }) {
-  const reason = hit.matchReason.strategy === 'keyword'
-    ? matchLabels[hit.matchReason.field]
-    : `${matchLabels[hit.matchReason.field]} · close spelling`;
+  const reason =
+    hit.matchReason.strategy === 'keyword'
+      ? matchLabels[hit.matchReason.field]
+      : `${matchLabels[hit.matchReason.field]} · close spelling`;
   return (
     <article
       aria-labelledby={`search-result-${hit.id}`}
@@ -143,10 +151,15 @@ function SearchResult({
       </div>
       <h2 id={`search-result-${hit.id}`}>
         {onOpen ? (
-          <button onClick={(event) => onOpen(hit.id, event.currentTarget)} type="button">
+          <button
+            onClick={(event) => onOpen(hit.id, event.currentTarget)}
+            type="button"
+          >
             {hit.title || 'Untitled note'}
           </button>
-        ) : hit.title || 'Untitled note'}
+        ) : (
+          hit.title || 'Untitled note'
+        )}
       </h2>
       <p className="search-result__snippet">
         <HighlightedText ranges={hit.highlightRanges} text={hit.snippet} />
@@ -154,7 +167,8 @@ function SearchResult({
       <p className="search-result__reason">{reason}</p>
       {hit.matchContext && (
         <p className="search-result__context">
-          {hit.matchContext.field === 'tags' ? 'Tag' : 'Source'} · {hit.matchContext.text}
+          {hit.matchContext.field === 'tags' ? 'Tag' : 'Source'} ·{' '}
+          {hit.matchContext.text}
         </p>
       )}
     </article>
@@ -170,15 +184,19 @@ export function SearchPage({
 }: SearchPageProps) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const activeFilterCount = Object.entries(model.filters).filter(([, value]) =>
-    Array.isArray(value) ? value.length > 0 : value !== undefined && value !== '',
+    Array.isArray(value)
+      ? value.length > 0
+      : value !== undefined && value !== '',
   ).length;
   return (
     <div className="search-page">
-      <header className="search-page__header">
-        <p className="search-page__eyebrow">Find what you remember</p>
-        <h1>Search</h1>
-        <p>Look across your Studio. Everything stays on this device.</p>
-      </header>
+      <div className="search-page__header">
+        <RoomHeading
+          eyebrow="find what you remember"
+          intro="Look across your Studio. Everything stays on this device."
+          title="Search"
+        />
+      </div>
 
       <div className="search-page__search" role="search">
         <label htmlFor="studio-search-query">Search your Studio</label>
@@ -186,7 +204,9 @@ export function SearchPage({
           autoComplete="off"
           id="studio-search-query"
           maxLength={512}
-          onChange={(event) => onQueryChange?.(event.target.value.slice(0, 512))}
+          onChange={(event) =>
+            onQueryChange?.(event.target.value.slice(0, 512))
+          }
           placeholder="A feeling, place, person, or idea…"
           type="search"
           value={model.query}
@@ -209,7 +229,8 @@ export function SearchPage({
             onClick={onOpenRepairQueue}
             type="button"
           >
-            Review {model.repairCount} repair {model.repairCount === 1 ? 'item' : 'items'}
+            Review {model.repairCount} repair{' '}
+            {model.repairCount === 1 ? 'item' : 'items'}
           </button>
         )}
       </div>
@@ -220,15 +241,20 @@ export function SearchPage({
             <fieldset className="search-filters__group" key={group.filter}>
               <legend>{group.label}</legend>
               {model.facets[group.facet].map((option) => {
-                const selected = ((model.filters[group.filter] ?? []) as readonly string[])
-                  .includes(option.value);
+                const selected = (
+                  (model.filters[group.filter] ?? []) as readonly string[]
+                ).includes(option.value);
                 return (
                   <label key={option.value}>
                     <input
                       checked={selected}
                       onChange={() =>
                         onFiltersChange?.(
-                          toggleFilter(model.filters, group.filter, option.value),
+                          toggleFilter(
+                            model.filters,
+                            group.filter,
+                            option.value,
+                          ),
                         )
                       }
                       type="checkbox"
@@ -246,9 +272,15 @@ export function SearchPage({
               <span>Updated from</span>
               <input
                 aria-label="Updated from"
-                onChange={(event) => onFiltersChange?.(
-                  setDateFilter(model.filters, 'dateFrom', event.target.value),
-                )}
+                onChange={(event) =>
+                  onFiltersChange?.(
+                    setDateFilter(
+                      model.filters,
+                      'dateFrom',
+                      event.target.value,
+                    ),
+                  )
+                }
                 type="date"
                 value={model.filters.dateFrom?.slice(0, 10) ?? ''}
               />
@@ -257,9 +289,11 @@ export function SearchPage({
               <span>Updated to</span>
               <input
                 aria-label="Updated to"
-                onChange={(event) => onFiltersChange?.(
-                  setDateFilter(model.filters, 'dateTo', event.target.value),
-                )}
+                onChange={(event) =>
+                  onFiltersChange?.(
+                    setDateFilter(model.filters, 'dateTo', event.target.value),
+                  )
+                }
                 type="date"
                 value={model.filters.dateTo?.slice(0, 10) ?? ''}
               />
@@ -294,8 +328,8 @@ export function SearchPage({
             {model.results.length === 0 && model.state === 'stale'
               ? 'Search is still gathering your notes.'
               : model.results.length === 0
-              ? 'No notes match this search.'
-              : `${model.results.length} ${model.results.length === 1 ? 'note' : 'notes'} found`}
+                ? 'No notes match this search.'
+                : `${model.results.length} ${model.results.length === 1 ? 'note' : 'notes'} found`}
           </p>
           {model.results.map((hit) => (
             <SearchResult hit={hit} key={hit.id} onOpen={onOpenResult} />

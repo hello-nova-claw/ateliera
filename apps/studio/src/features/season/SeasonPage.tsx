@@ -9,7 +9,7 @@ import {
   type SeasonStepAnswers,
   type SeasonWizardStep,
 } from '@studio/domain';
-import { Dialog } from '@studio/ui';
+import { Dialog, RoomHeading } from '@studio/ui';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 
 import './SeasonPage.css';
@@ -606,9 +606,11 @@ export function SeasonPage({
     return (
       <div className="season-empty-room">
         <section className="season-empty">
-          <p className="season-page__eyebrow">A humane present focus</p>
-          <h1>Current Season</h1>
-          <p>A season is a named chapter—not a deadline, streak, or test.</p>
+          <RoomHeading
+            eyebrow="a humane present focus"
+            intro="A season is a named chapter—not a deadline, streak, or test."
+            title="Current Season"
+          />
           <button className="season-button" onClick={onBegin} type="button">
             Begin a season
           </button>
@@ -657,8 +659,7 @@ export function SeasonPage({
           </p>
         )}
         <header className="season-page__cover">
-          <p className="season-page__eyebrow">Current Season</p>
-          <h1>{season.title}</h1>
+          <RoomHeading eyebrow="current season" title={season.title} />
           <p className="season-page__range">
             {formatRange(season.startsOn, season.endsOn)}
           </p>

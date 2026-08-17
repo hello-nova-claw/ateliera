@@ -4,6 +4,7 @@ import {
   defaultLifeAreas,
   landscapeAnchorDefinitions,
   landscapeAnchors,
+  semanticTypeForLandscapeAnchor,
   noteStatuses,
   semanticTypes,
   sensitivityLevels,
@@ -51,4 +52,21 @@ it('defines the configurable Landscape defaults and five fixed prompts', () => {
   expect(
     landscapeAnchorDefinitions.every((anchor) => anchor.prompt.length > 20),
   ).toBe(true);
+});
+
+it('maps every structural Landscape anchor to one canonical meaning', () => {
+  expect(
+    Object.fromEntries(
+      landscapeAnchors.map((anchor) => [
+        anchor,
+        semanticTypeForLandscapeAnchor(anchor),
+      ]),
+    ),
+  ).toEqual({
+    vision: 'vision',
+    'identity-values-feelings': 'foundations',
+    decisions: 'growth',
+    practices: 'growth',
+    'structure-strategy': 'foundations',
+  });
 });

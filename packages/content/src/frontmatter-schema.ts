@@ -22,6 +22,7 @@ export const recognizedFrontmatterKeys = [
   'created',
   'updated',
   'source',
+  'source_notes',
   'attachments',
   'display',
   'privacy',
@@ -47,6 +48,7 @@ export const frontmatterSchema = z.object({
   source: z
     .object({ title: optionalText, creator: optionalText, url: optionalText })
     .optional(),
+  source_notes: z.array(z.string().min(1)).optional(),
   attachments: z.array(z.string()),
   display: z.object({ cover: optionalText, featured: z.boolean() }),
   privacy: z.object({

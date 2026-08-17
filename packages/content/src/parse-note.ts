@@ -15,7 +15,10 @@ export interface RepairSourceInspection {
   frontmatter: Record<string, unknown>;
 }
 
-const UNSAFE_REPAIR_KEY = new RegExp(String.raw`[\u0000-\u001f\u007f-\u009f]`, 'u');
+const UNSAFE_REPAIR_KEY = new RegExp(
+  String.raw`[\u0000-\u001f\u007f-\u009f]`,
+  'u',
+);
 
 function splitDocument(text: string): {
   yaml?: string;
@@ -40,7 +43,8 @@ function safeRepairValue(value: unknown, depth = 0): unknown {
     typeof value === 'string' ||
     typeof value === 'boolean' ||
     (typeof value === 'number' && Number.isFinite(value))
-  ) return value;
+  )
+    return value;
   if (Array.isArray(value)) {
     const items = value.map((item) => safeRepairValue(item, depth + 1));
     return items.some((item) => item === undefined) ? undefined : items;
@@ -49,10 +53,15 @@ function safeRepairValue(value: unknown, depth = 0): unknown {
   const safe: Array<[string, unknown]> = [];
   for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
     if (
-      key.length === 0 || key.length > 128 || key !== key.normalize('NFC') ||
-      key === '__proto__' || key === 'prototype' || key === 'constructor' ||
+      key.length === 0 ||
+      key.length > 128 ||
+      key !== key.normalize('NFC') ||
+      key === '__proto__' ||
+      key === 'prototype' ||
+      key === 'constructor' ||
       UNSAFE_REPAIR_KEY.test(key)
-    ) return undefined;
+    )
+      return undefined;
     const nested = safeRepairValue(item, depth + 1);
     if (nested === undefined) return undefined;
     safe.push([key, nested]);
@@ -78,8 +87,10 @@ export function inspectRepairSource(text: string): RepairSourceInspection {
     body: split.body,
     lineEnding: split.lineEnding,
     frontmatter:
-      typeof repaired === 'object' && repaired !== null && !Array.isArray(repaired)
-        ? repaired as Record<string, unknown>
+      typeof repaired === 'object' &&
+      repaired !== null &&
+      !Array.isArray(repaired)
+        ? (repaired as Record<string, unknown>)
         : {},
   };
 }
@@ -214,6 +225,8 @@ export function parseNote(text: string): ParseResult {
     if (typeof data.source.url === 'string') source.url = data.source.url;
     note.source = source;
   }
+  if (data.source_notes !== undefined)
+    note.sourceNoteIds = [...new Set(data.source_notes)];
   if (typeof data.display.cover === 'string')
     note.display.cover = data.display.cover;
   const warnings = Object.keys(extraFrontmatter).map((path): ParseWarning => ({

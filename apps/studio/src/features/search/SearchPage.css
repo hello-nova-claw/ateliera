@@ -8,26 +8,6 @@
   max-inline-size: 38rem;
 }
 
-.search-page__eyebrow {
-  margin: 0 0 var(--studio-space-3);
-  color: var(--studio-color-ink-muted);
-  font: var(--studio-type-eyebrow);
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-}
-
-.search-page__header h1 {
-  margin: 0;
-  color: var(--studio-color-ink-strong);
-  font: var(--studio-type-room-title);
-}
-
-.search-page__header > p:last-child {
-  margin: var(--studio-space-4) 0 0;
-  color: var(--studio-color-ink-soft);
-  font: var(--studio-type-page-subtitle);
-}
-
 .search-page__search {
   display: grid;
   gap: var(--studio-space-2);

@@ -50,6 +50,71 @@ it('exposes title, Markdown body, metadata, and a deduplicated save state', asyn
   );
 });
 
+it('edits Wisdom attribution and themes without losing linked source notes', () => {
+  const onChange = vi.fn();
+  render(
+    <CardEditor
+      note={{
+        ...note,
+        source: { title: 'The Red Book', creator: 'C. G. Jung' },
+        sourceNoteIds: ['note-source-1'],
+        tags: ['active-imagination', 'dreams'],
+      }}
+      onChange={onChange}
+      onFlush={vi.fn()}
+      saveState="idle"
+    />,
+  );
+
+  fireEvent.click(screen.getByText('Note details'));
+  expect(screen.getByLabelText('Source title')).toHaveValue('The Red Book');
+  expect(screen.getByLabelText('Source creator')).toHaveValue('C. G. Jung');
+  expect(screen.getByLabelText('Themes')).toHaveValue(
+    'active-imagination, dreams',
+  );
+  expect(screen.getByText('1 linked source note')).toBeVisible();
+
+  fireEvent.change(screen.getByLabelText('Source URL'), {
+    target: { value: 'https://example.com/red-book' },
+  });
+  expect(onChange).toHaveBeenCalledWith(
+    expect.objectContaining({
+      source: expect.objectContaining({ url: 'https://example.com/red-book' }),
+      sourceNoteIds: ['note-source-1'],
+    }),
+  );
+  fireEvent.change(screen.getByLabelText('Themes'), {
+    target: { value: 'identity, rest,' },
+  });
+  expect(screen.getByLabelText('Themes')).toHaveValue('identity, rest,');
+  fireEvent.blur(screen.getByLabelText('Themes'));
+  expect(onChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({ tags: ['identity', 'rest'] }),
+  );
+});
+
+it('explains and locks meaning when a Life Landscape anchor owns it', () => {
+  render(
+    <CardEditor
+      note={{
+        ...note,
+        landscapeAnchor: 'decisions',
+        lifeAreas: ['home'],
+        semanticType: 'growth',
+      }}
+      onChange={vi.fn()}
+      onFlush={vi.fn()}
+      saveState="idle"
+    />,
+  );
+
+  fireEvent.click(screen.getByText('Note details'));
+  expect(screen.getByLabelText(/^Semantic meaning/)).toBeDisabled();
+  expect(
+    screen.getByText(/decisions anchor gives this card its growth meaning/i),
+  ).toBeVisible();
+});
+
 it('offers restore or discard without silently replacing durable text', () => {
   const onRestoreDraft = vi.fn();
   const onDiscardDraft = vi.fn();
@@ -91,12 +156,22 @@ it('preserves both conflict versions and exposes all explicit resolutions', () =
   );
 
   expect(screen.getByRole('alert')).toHaveTextContent('Another version exists');
-  expect(screen.getByRole('region', { name: 'Your version' })).toHaveTextContent('Mine');
-  expect(screen.getByRole('region', { name: 'Your version' })).toHaveTextContent('My title');
-  expect(screen.getByRole('region', { name: 'Other version' })).toHaveTextContent('The other version');
-  expect(screen.getByRole('region', { name: 'Other version' })).toHaveTextContent('Other title');
+  expect(
+    screen.getByRole('region', { name: 'Your version' }),
+  ).toHaveTextContent('Mine');
+  expect(
+    screen.getByRole('region', { name: 'Your version' }),
+  ).toHaveTextContent('My title');
+  expect(
+    screen.getByRole('region', { name: 'Other version' }),
+  ).toHaveTextContent('The other version');
+  expect(
+    screen.getByRole('region', { name: 'Other version' }),
+  ).toHaveTextContent('Other title');
   expect(screen.getByLabelText('Title')).toBeDisabled();
-  expect(screen.getByRole('button', { name: 'Keep mine as a sibling' })).toBeVisible();
+  expect(
+    screen.getByRole('button', { name: 'Keep mine as a sibling' }),
+  ).toBeVisible();
   expect(screen.getByRole('button', { name: 'Keep other' })).toBeVisible();
   expect(screen.getByRole('button', { name: 'Merge manually' })).toBeVisible();
 });
@@ -135,8 +210,12 @@ it('prevents duplicate conflict actions and explains retryable failures', () => 
     />,
   );
 
-  expect(screen.getByText('The sibling could not be saved. Try again.')).toBeVisible();
-  expect(screen.getByRole('button', { name: 'Keep mine as a sibling' })).toBeEnabled();
+  expect(
+    screen.getByText('The sibling could not be saved. Try again.'),
+  ).toBeVisible();
+  expect(
+    screen.getByRole('button', { name: 'Keep mine as a sibling' }),
+  ).toBeEnabled();
 });
 
 it('warns when browser recovery storage is unavailable', () => {
@@ -150,9 +229,9 @@ it('warns when browser recovery storage is unavailable', () => {
     />,
   );
 
-  expect(screen.getByRole('status', { name: 'Recovery unavailable' })).toHaveTextContent(
-    'keep this editor open',
-  );
+  expect(
+    screen.getByRole('status', { name: 'Recovery unavailable' }),
+  ).toHaveTextContent('keep this editor open');
 });
 
 it('focuses a newly appearing conflict summary once without stealing focus again', () => {
@@ -190,7 +269,12 @@ it('focuses a newly appearing conflict summary once without stealing focus again
 });
 
 it('focuses a newly appearing save error once and leaves later focus alone', () => {
-  const props = { note, onChange: vi.fn(), onFlush: vi.fn(), onRetrySave: vi.fn() };
+  const props = {
+    note,
+    onChange: vi.fn(),
+    onFlush: vi.fn(),
+    onRetrySave: vi.fn(),
+  };
   const { rerender } = render(<CardEditor {...props} saveState="dirty" />);
 
   rerender(
@@ -202,7 +286,11 @@ it('focuses a newly appearing save error once and leaves later focus alone', () 
   const retry = screen.getByRole('button', { name: 'Try saving again' });
   retry.focus();
   rerender(
-    <CardEditor {...props} saveError="Disk still unavailable" saveState="error" />,
+    <CardEditor
+      {...props}
+      saveError="Disk still unavailable"
+      saveState="error"
+    />,
   );
   expect(retry).toHaveFocus();
 });
