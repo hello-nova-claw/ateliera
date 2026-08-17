@@ -10,21 +10,11 @@
   margin-block-end: var(--studio-space-12);
 }
 
-.uncharted-page__header h1 {
-  margin: var(--studio-space-3) 0 var(--studio-space-4);
-  font: var(--studio-type-room-title);
-}
-
 .uncharted-page__section-heading p,
 .uncharted-card p {
   color: var(--studio-color-ink-muted);
 }
 
-.uncharted-page__header > p:last-child {
-  color: var(--studio-color-ink-muted);
-}
-
-.uncharted-page__eyebrow,
 .uncharted-card__meaning {
   display: flex;
   align-items: center;

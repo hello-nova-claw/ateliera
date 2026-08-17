@@ -1,4 +1,5 @@
 import type { CaptureEntry } from '@studio/application';
+import { RoomHeading } from '@studio/ui';
 
 export interface RoomPlaceholderProps {
   captures?: CaptureEntry[];
@@ -15,15 +16,15 @@ export function RoomPlaceholder({
 }: RoomPlaceholderProps) {
   return (
     <>
-      <p className="studio-room__eyebrow">
-        {foyer ? 'Welcome home' : 'A room in your Studio'}
-      </p>
-      <h1>{foyer ? 'Ateliera' : title}</h1>
-      <p className="studio-room__intro">
-        {foyer
-          ? 'A quiet place to design a life, notice who you are becoming, and keep what you learn.'
-          : 'This room is ready for its focused content in the next stage of the build.'}
-      </p>
+      <RoomHeading
+        eyebrow={foyer ? 'welcome home' : 'a room in your Studio'}
+        intro={
+          foyer
+            ? 'A quiet place to design a life, notice who you are becoming, and keep what you learn.'
+            : 'This room is ready for its focused content in the next stage of the build.'
+        }
+        title={foyer ? 'Ateliera' : title}
+      />
       {foyer && (
         <section
           className="studio-room__remembered"

@@ -3,7 +3,7 @@ import type {
   ReflectionGardenProjection,
   StudioCardProjection,
 } from '@studio/application';
-import { SemanticMark } from '@studio/ui';
+import { RoomHeading, SemanticMark } from '@studio/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import './ReflectionPage.css';
@@ -383,14 +383,13 @@ export function ReflectionPage({
 
   return (
     <div className="reflection-page">
-      <header className="reflection-page__header">
-        <p className="reflection-page__script">notice what is changing</p>
-        <h1>Reflection Garden</h1>
-        <p>
-          A quiet path through what you learned, what worked, and what surprised
-          you.
-        </p>
-      </header>
+      <div className="reflection-page__header">
+        <RoomHeading
+          eyebrow="notice what is changing"
+          intro="A quiet path through what you learned, what worked, and what surprised you."
+          title="Reflection Garden"
+        />
+      </div>
 
       {state === 'loading' && (
         <p className="reflection-page__state" role="status">

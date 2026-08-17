@@ -215,14 +215,6 @@
   text-transform: uppercase;
 }
 
-.studio-room h1 {
-  max-inline-size: 12ch;
-  margin: 0;
-  color: var(--studio-color-ink-strong);
-  font: var(--studio-type-room-title);
-  letter-spacing: -0.015em;
-}
-
 .studio-room__intro {
   max-inline-size: 39ch;
   margin: var(--studio-space-4) 0 0;
@@ -509,6 +501,19 @@
 
 .studio-form__actions {
   justify-content: flex-end;
+}
+
+.quick-capture__meaning-guide,
+.quick-capture__meaning-hint {
+  max-inline-size: 42ch;
+  margin: var(--studio-space-2) 0 0;
+  color: var(--studio-color-ink-muted);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.quick-capture__meaning-hint {
+  color: var(--studio-color-script-ink);
 }
 
 @media (width <= 63.99rem) {

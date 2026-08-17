@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { RoomHeading } from '@studio/ui';
 
 import './PortabilitySettings.css';
 
@@ -64,7 +65,9 @@ export function PortabilitySettings({
   const [message, setMessage] = useState<string>();
   const [preview, setPreview] = useState<PortabilityPreview>();
   const [confirmed, setConfirmed] = useState(false);
-  const [conflicts, setConflicts] = useState<Readonly<Record<string, ConflictResolution>>>({});
+  const [conflicts, setConflicts] = useState<
+    Readonly<Record<string, ConflictResolution>>
+  >({});
   const selectedFile = useRef<File | undefined>(undefined);
   const restoreButton = useRef<HTMLButtonElement>(null);
 
@@ -144,7 +147,8 @@ export function PortabilitySettings({
     }
   }
 
-  const overwriteCount = preview === undefined ? 0 : count(preview, 'overwrite');
+  const overwriteCount =
+    preview === undefined ? 0 : count(preview, 'overwrite');
   const conflictCount = preview === undefined ? 0 : count(preview, 'conflict');
   const unresolvedConflictCount =
     preview === undefined
@@ -156,18 +160,18 @@ export function PortabilitySettings({
         ).length;
   const filesToOverwrite =
     overwriteCount +
-    Object.values(conflicts).filter((resolution) => resolution === 'overwrite').length;
+    Object.values(conflicts).filter((resolution) => resolution === 'overwrite')
+      .length;
 
   return (
     <div className="portability-settings">
-      <header className="portability-settings__header">
-        <p className="portability-settings__eyebrow">Your archive</p>
-        <h1>Backup &amp; restore</h1>
-        <p className="portability-settings__intro">
-          Your writing belongs to you. Keep a complete ZIP of the Markdown,
-          media, and Studio settings that make this place yours.
-        </p>
-      </header>
+      <div className="portability-settings__header">
+        <RoomHeading
+          eyebrow="your archive"
+          intro="Your writing belongs to you. Keep a complete ZIP of the Markdown, media, and Studio settings that make this place yours."
+          title="Backup & restore"
+        />
+      </div>
 
       <section
         aria-labelledby="portable-backup-heading"
@@ -227,15 +231,16 @@ export function PortabilitySettings({
       {error !== undefined && (
         <section className="portability-settings__error" role="alert">
           <p className="portability-settings__error-message">{error}</p>
-          {selectedFile.current !== undefined && onPrepareRestore !== undefined && (
-            <button
-              disabled={busy !== undefined}
-              onClick={() => void prepare(selectedFile.current as File)}
-              type="button"
-            >
-              Check this backup again
-            </button>
-          )}
+          {selectedFile.current !== undefined &&
+            onPrepareRestore !== undefined && (
+              <button
+                disabled={busy !== undefined}
+                onClick={() => void prepare(selectedFile.current as File)}
+                type="button"
+              >
+                Check this backup again
+              </button>
+            )}
         </section>
       )}
       {message !== undefined && (
@@ -255,15 +260,28 @@ export function PortabilitySettings({
               <h2 id="restore-preview-heading">Review this restore</h2>
             </div>
             <p className="portability-preview__archive">
-              {preview.archiveName}<br />
+              {preview.archiveName}
+              <br />
               <small>Created {formatDate(preview.exportedAt)}</small>
             </p>
           </div>
-          <ul aria-label="Restore summary" className="portability-preview__summary">
-            <li><strong>{count(preview, 'create')}</strong> to create</li>
-            <li><strong>{overwriteCount}</strong> to overwrite</li>
-            <li><strong>{count(preview, 'skip')}</strong> unchanged</li>
-            <li><strong>{conflictCount}</strong> conflict{conflictCount === 1 ? '' : 's'}</li>
+          <ul
+            aria-label="Restore summary"
+            className="portability-preview__summary"
+          >
+            <li>
+              <strong>{count(preview, 'create')}</strong> to create
+            </li>
+            <li>
+              <strong>{overwriteCount}</strong> to overwrite
+            </li>
+            <li>
+              <strong>{count(preview, 'skip')}</strong> unchanged
+            </li>
+            <li>
+              <strong>{conflictCount}</strong> conflict
+              {conflictCount === 1 ? '' : 's'}
+            </li>
           </ul>
 
           {conflictCount > 0 && (
@@ -283,54 +301,58 @@ export function PortabilitySettings({
                     const currentPath = item.existingPath ?? item.path;
                     const resolution = conflictResolution(conflicts, item.path);
                     return (
-                    <li key={item.path}>
-                      <strong>{item.path}</strong>
-                      {item.existingPath !== undefined && (
-                        <span>
-                          Backup file {item.path} would replace current file {item.existingPath}.
-                        </span>
-                      )}
-                      {item.reason !== undefined && <span>{item.reason}</span>}
-                      <fieldset className="portability-preview__resolution">
-                        <legend className="studio-visually-hidden">
-                          Resolve backup file {item.path} and current file {currentPath}
-                        </legend>
-                        <label>
-                          <input
-                            checked={resolution === 'skip'}
-                            name={`conflict-${item.path}`}
-                            onChange={() => {
-                              setConflicts((current) => ({
-                                ...current,
-                                [item.path]: 'skip',
-                              }));
-                              setConfirmed(false);
-                            }}
-                            type="radio"
-                          />
-                          {item.existingPath === undefined
-                            ? `Keep the current file for ${item.path}`
-                            : `Keep the current file ${item.existingPath}`}
-                        </label>
-                        <label>
-                          <input
-                            checked={resolution === 'overwrite'}
-                            name={`conflict-${item.path}`}
-                            onChange={() => {
-                              setConflicts((current) => ({
-                                ...current,
-                                [item.path]: 'overwrite',
-                              }));
-                              setConfirmed(false);
-                            }}
-                            type="radio"
-                          />
-                          {item.existingPath === undefined
-                            ? `Use the file from this backup for ${item.path}`
-                            : `Use backup file ${item.path} to replace ${item.existingPath}`}
-                        </label>
-                      </fieldset>
-                    </li>
+                      <li key={item.path}>
+                        <strong>{item.path}</strong>
+                        {item.existingPath !== undefined && (
+                          <span>
+                            Backup file {item.path} would replace current file{' '}
+                            {item.existingPath}.
+                          </span>
+                        )}
+                        {item.reason !== undefined && (
+                          <span>{item.reason}</span>
+                        )}
+                        <fieldset className="portability-preview__resolution">
+                          <legend className="studio-visually-hidden">
+                            Resolve backup file {item.path} and current file{' '}
+                            {currentPath}
+                          </legend>
+                          <label>
+                            <input
+                              checked={resolution === 'skip'}
+                              name={`conflict-${item.path}`}
+                              onChange={() => {
+                                setConflicts((current) => ({
+                                  ...current,
+                                  [item.path]: 'skip',
+                                }));
+                                setConfirmed(false);
+                              }}
+                              type="radio"
+                            />
+                            {item.existingPath === undefined
+                              ? `Keep the current file for ${item.path}`
+                              : `Keep the current file ${item.existingPath}`}
+                          </label>
+                          <label>
+                            <input
+                              checked={resolution === 'overwrite'}
+                              name={`conflict-${item.path}`}
+                              onChange={() => {
+                                setConflicts((current) => ({
+                                  ...current,
+                                  [item.path]: 'overwrite',
+                                }));
+                                setConfirmed(false);
+                              }}
+                              type="radio"
+                            />
+                            {item.existingPath === undefined
+                              ? `Use the file from this backup for ${item.path}`
+                              : `Use backup file ${item.path} to replace ${item.existingPath}`}
+                          </label>
+                        </fieldset>
+                      </li>
                     );
                   })}
               </ul>

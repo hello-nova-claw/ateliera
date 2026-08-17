@@ -4,6 +4,7 @@ import type {
   FoyerProjection,
   StudioCardProjection,
 } from '@studio/application';
+import { RoomHeading } from '@studio/ui';
 import { Becoming } from './Becoming';
 import { Feelings } from './Feelings';
 import { Legend } from './Legend';
@@ -133,13 +134,13 @@ export function FoyerPage({
     model.image === null;
   return (
     <div className={`foyer-page${empty ? ' foyer-page--empty' : ''}`}>
-      <header className="foyer-page__header">
-        <p className="foyer-page__script">life by design</p>
-        <h1>Ateliera</h1>
-        <p className="foyer-page__motto">
-          A private studio for designing a life from the inside out.
-        </p>
-      </header>
+      <div className="foyer-page__header">
+        <RoomHeading
+          eyebrow="life by design"
+          intro="A private studio for designing a life from the inside out."
+          title="Ateliera"
+        />
+      </div>
       {state === 'loading' && (
         <p className="foyer-page__state" role="status">
           Gathering the Foyer…
@@ -185,9 +186,7 @@ export function FoyerPage({
                     className="foyer-tour-glimpse foyer-tour-glimpse--becoming"
                     example={example}
                     key={example.previewKey}
-                    {...(onUseTourExample
-                      ? { onUse: onUseTourExample }
-                      : {})}
+                    {...(onUseTourExample ? { onUse: onUseTourExample } : {})}
                   />
                 ))}
             <SeasonPreview
