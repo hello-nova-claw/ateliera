@@ -10,6 +10,7 @@ const workspacePackages = [
   '@studio/content',
   '@studio/domain',
   '@studio/index',
+  '@studio/rhythm',
   '@studio/storage',
   '@studio/test-utils',
   '@studio/ui',
@@ -67,6 +68,10 @@ export default tseslint.config(
     rules: forbidWorkspaceImportsExcept([]),
   },
   {
+    files: ['packages/rhythm/**/*.{ts,tsx}'],
+    rules: forbidWorkspaceImportsExcept([]),
+  },
+  {
     files: ['packages/{content,index,storage}/**/*.{ts,tsx}'],
     rules: forbidWorkspaceImportsExcept(['@studio/domain']),
   },
@@ -76,6 +81,7 @@ export default tseslint.config(
       '@studio/content',
       '@studio/domain',
       '@studio/index',
+  '@studio/rhythm',
       '@studio/storage',
     ]),
   },
