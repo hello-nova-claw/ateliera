@@ -23,6 +23,9 @@ export const recognizedFrontmatterKeys = [
   'updated',
   'source',
   'source_notes',
+  'resurface_kind',
+  'resurface_due',
+  'resurface_interval_days',
   'attachments',
   'display',
   'privacy',
@@ -49,6 +52,9 @@ export const frontmatterSchema = z.object({
     .object({ title: optionalText, creator: optionalText, url: optionalText })
     .optional(),
   source_notes: z.array(z.string().min(1)).optional(),
+  resurface_kind: z.enum(['evidence', 'reframe', 'wish', 'dream']).optional(),
+  resurface_due: z.iso.date().optional(),
+  resurface_interval_days: z.number().int().positive().optional(),
   attachments: z.array(z.string()),
   display: z.object({ cover: optionalText, featured: z.boolean() }),
   privacy: z.object({

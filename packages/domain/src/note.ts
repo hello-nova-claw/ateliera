@@ -37,6 +37,9 @@ export interface StudioNote {
   updated: string;
   source?: NoteSource;
   sourceNoteIds?: string[];
+  resurfaceKind?: 'evidence' | 'reframe' | 'wish' | 'dream';
+  resurfaceDue?: string;
+  resurfaceIntervalDays?: number;
   attachments: string[];
   display: { cover?: string; featured: boolean };
   privacy: {

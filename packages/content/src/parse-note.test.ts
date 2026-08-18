@@ -107,6 +107,35 @@ describe('parseNote', () => {
     }
   });
 
+  it('round-trips resurface fields', () => {
+    const fixture = input.replace(
+      'attachments: []',
+      'resurface_kind: evidence\nresurface_due: 2026-09-01\nresurface_interval_days: 6\nattachments: []',
+    );
+    const parsed = parseNote(fixture);
+    expect(parsed.ok && parsed.note).toMatchObject({
+      resurfaceKind: 'evidence',
+      resurfaceDue: '2026-09-01',
+      resurfaceIntervalDays: 6,
+    });
+    if (parsed.ok) {
+      const reparsed = parseNote(serializeNote(parsed.note));
+      expect(reparsed.ok && reparsed.note).toMatchObject({
+        resurfaceKind: 'evidence',
+        resurfaceDue: '2026-09-01',
+        resurfaceIntervalDays: 6,
+      });
+    }
+  });
+
+  it('omits resurface fields from serialized output when absent', () => {
+    const parsed = parseNote(input);
+    expect(parsed.ok && parsed.note.resurfaceKind).toBeUndefined();
+    if (parsed.ok) {
+      expect(serializeNote(parsed.note)).not.toContain('resurface_kind');
+    }
+  });
+
   it('preserves CRLF line endings', () => {
     const crlf = input.replaceAll('\n', '\r\n');
     const parsed = parseNote(crlf);

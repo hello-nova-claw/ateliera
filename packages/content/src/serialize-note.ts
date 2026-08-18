@@ -23,6 +23,15 @@ export function serializeNote(note: StudioNote): string {
     ...(note.sourceNoteIds === undefined
       ? {}
       : { source_notes: note.sourceNoteIds }),
+    ...(note.resurfaceKind === undefined
+      ? {}
+      : { resurface_kind: note.resurfaceKind }),
+    ...(note.resurfaceDue === undefined
+      ? {}
+      : { resurface_due: note.resurfaceDue }),
+    ...(note.resurfaceIntervalDays === undefined
+      ? {}
+      : { resurface_interval_days: note.resurfaceIntervalDays }),
     attachments: note.attachments,
     display: note.display,
     privacy: {
