@@ -7,6 +7,7 @@ export * from './note-lifecycle';
 export * from './onboarding-settings';
 export * from './projections';
 export * from './resurface-pool';
+export * from './rhythm-profile-repository';
 export * from './search-service';
 export * from './season-service';
 export * from './season-transaction-store';

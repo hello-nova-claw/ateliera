@@ -16,6 +16,7 @@
     "@studio/content": "workspace:*",
     "@studio/domain": "workspace:*",
     "@studio/index": "workspace:*",
+    "@studio/rhythm": "workspace:*",
     "@studio/storage": "workspace:*",
     "@studio/ui": "workspace:*",
     "react": "19.1.0",

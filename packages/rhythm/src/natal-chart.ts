@@ -12,6 +12,13 @@
  *   - date + time + loc.  → sun + moon + rising
  */
 
+// This package has no `references`-based project graph (every workspace
+// project type-checks by re-parsing raw source it imports, not compiled
+// declaration output), so the ambient `astronomia/*` module declarations
+// only enter a consumer's TS program if this file explicitly pulls them
+// in — a directory `include` glob elsewhere (e.g. a host app's tsconfig)
+// won't reach a sibling .d.ts it never imports.
+import './astronomia.d.ts';
 import type { NatalChart } from './types';
 import { localToUTC } from './timezone';
 
