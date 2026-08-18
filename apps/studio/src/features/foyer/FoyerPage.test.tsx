@@ -261,11 +261,10 @@ it('renders the Gift between Becoming and the season preview, and wires Keep', (
     .getAllByRole('heading', { level: 2 })
     .map((heading) => heading.textContent);
   expect(headings.indexOf('A woman who creates from calm')).toBeLessThan(
-    headings.indexOf('A spacious winter'),
+    headings.indexOf('A door in the hallway.'),
   );
-  const giftText = screen.getByText('A door in the hallway.');
-  expect(giftText.compareDocumentPosition(screen.getByText('A spacious winter'))).toBe(
-    Node.DOCUMENT_POSITION_FOLLOWING,
+  expect(headings.indexOf('A door in the hallway.')).toBeLessThan(
+    headings.indexOf('A spacious winter'),
   );
 
   fireEvent.click(screen.getByRole('button', { name: 'Keep' }));

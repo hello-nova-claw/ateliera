@@ -11,7 +11,9 @@ describe('TodaysGift', () => {
         onKeep={vi.fn()}
       />,
     );
-    expect(screen.getByText('A door in the hallway.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'A door in the hallway.' }),
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Keep' })).toBeInTheDocument();
   });
 
@@ -38,7 +40,9 @@ describe('TodaysGift', () => {
         onKeep={vi.fn()}
       />,
     );
-    expect(screen.getByText('A quiet place to begin.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'A quiet place to begin.' }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Keep' })).not.toBeInTheDocument();
   });
 
