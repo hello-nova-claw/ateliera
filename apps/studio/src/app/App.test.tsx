@@ -140,6 +140,26 @@ function studioService(overrides: Partial<StudioService> = {}) {
         revision: revision ?? 'wisdom-hash-1',
       }),
     },
+    rhythmProfile: {
+      load: vi.fn(async () => ({
+        profile: null,
+        revision: null,
+        repairRequired: false,
+      })),
+      save: vi.fn(),
+    },
+    index: {
+      upsert: vi.fn(),
+      remove: vi.fn(),
+      getById: vi.fn(),
+      getManyById: vi.fn(async () => []),
+      search: vi.fn(async () => []),
+      facets: vi.fn(),
+      backlinks: vi.fn(),
+      forwardLinks: vi.fn(),
+      rebuild: vi.fn(),
+      clear: vi.fn(),
+    },
     onboarding: {
       load: async () => ({
         onboarding: {

@@ -1,0 +1,19 @@
+.foyer-gift {
+  max-inline-size: 47rem;
+  margin-block-start: var(--studio-space-8);
+  padding: clamp(var(--studio-space-5), 4vw, var(--studio-space-7));
+  border: 1px solid var(--studio-color-line);
+  border-radius: var(--studio-radius-card);
+  background: color-mix(in srgb, var(--studio-color-sunken) 60%, transparent);
+}
+
+.foyer-gift__text {
+  margin: 0;
+  color: var(--studio-color-ink-strong);
+  font: 400 clamp(1.15rem, 2.4vw, 1.5rem)/1.5 var(--studio-font-display);
+  overflow-wrap: anywhere;
+}
+
+.foyer-gift .foyer-text-action {
+  margin-block-start: var(--studio-space-4);
+}

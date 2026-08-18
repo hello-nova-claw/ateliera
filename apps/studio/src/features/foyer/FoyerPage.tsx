@@ -11,7 +11,9 @@ import { Legend } from './Legend';
 import { Principles } from './Principles';
 import { ReturnCard } from './ReturnCard';
 import { SeasonPreview } from './SeasonPreview';
+import { TodaysGift } from './TodaysGift';
 import type { FoyerCoverView } from './use-foyer-cover';
+import type { Gift } from './use-todays-gift';
 import type { TourExample } from '../onboarding/tour-examples';
 import {
   TourExampleCard,
@@ -25,8 +27,10 @@ export type FoyerSlot = 'becoming' | 'feeling' | 'principle';
 export interface FoyerPageProps {
   cover?: FoyerCoverView;
   error?: string;
+  gift?: Gift | null;
   model: FoyerProjection;
   onCreate?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
+  onKeepGift?: () => void;
   onOpen?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
   onRemoveImage?: (
     image: FoyerImageProjection,
@@ -113,8 +117,10 @@ function FoyerSkeleton() {
 export function FoyerPage({
   cover = { state: 'none' },
   error,
+  gift = null,
   model,
   onCreate,
+  onKeepGift,
   onOpen,
   onRemoveImage,
   onUseTourExample,
@@ -189,6 +195,7 @@ export function FoyerPage({
                     {...(onUseTourExample ? { onUse: onUseTourExample } : {})}
                   />
                 ))}
+            <TodaysGift gift={gift} {...(onKeepGift ? { onKeep: onKeepGift } : {})} />
             <SeasonPreview
               priorities={model.priorities}
               season={model.currentSeason}

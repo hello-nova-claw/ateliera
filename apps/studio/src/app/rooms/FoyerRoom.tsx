@@ -7,6 +7,7 @@ import type {
 import { FoyerPage, type FoyerSlot } from '../../features/foyer/FoyerPage';
 import { useFoyer } from '../../features/foyer/use-foyer';
 import { useFoyerCover } from '../../features/foyer/use-foyer-cover';
+import { useTodaysGift } from '../../features/foyer/use-todays-gift';
 import type { TourExample } from '../../features/onboarding/tour-examples';
 import type { UseTourExample } from '../../features/onboarding/TourPreview';
 
@@ -36,13 +37,16 @@ export default function FoyerRoom({
 }) {
   const view = useFoyer(service, projectionRevision);
   const cover = useFoyerCover(service, view.model.image);
+  const todaysGift = useTodaysGift(service, new Date().toISOString().slice(0, 10));
   return (
     <>
       <FoyerPage
         cover={cover}
         {...(view.error === undefined ? {} : { error: view.error })}
+        gift={todaysGift.gift}
         model={view.model}
         {...(onCreateFoyer === undefined ? {} : { onCreate: onCreateFoyer })}
+        onKeepGift={() => void todaysGift.keep()}
         {...(onOpenCard === undefined ? {} : { onOpen: onOpenCard })}
         {...(onRemoveFoyerImage === undefined
           ? {}

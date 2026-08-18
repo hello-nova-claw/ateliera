@@ -239,6 +239,44 @@ it('never renders a raw cover reference and offers non-destructive removal', () 
   );
 });
 
+it('renders the Gift between Becoming and the season preview, and wires Keep', () => {
+  const onKeepGift = vi.fn();
+  render(
+    <FoyerPage
+      gift={{ kind: 'dream', payload: { text: 'A door in the hallway.' } }}
+      model={{
+        ...empty,
+        becoming: card({ noteId: 'becoming', title: 'A woman who creates from calm' }),
+        currentSeason: card({
+          noteId: 'season',
+          cardType: 'season',
+          title: 'A spacious winter',
+        }),
+      }}
+      onKeepGift={onKeepGift}
+    />,
+  );
+
+  const headings = screen
+    .getAllByRole('heading', { level: 2 })
+    .map((heading) => heading.textContent);
+  expect(headings.indexOf('A woman who creates from calm')).toBeLessThan(
+    headings.indexOf('A spacious winter'),
+  );
+  const giftText = screen.getByText('A door in the hallway.');
+  expect(giftText.compareDocumentPosition(screen.getByText('A spacious winter'))).toBe(
+    Node.DOCUMENT_POSITION_FOLLOWING,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Keep' }));
+  expect(onKeepGift).toHaveBeenCalled();
+});
+
+it('renders no Gift slot when gift is null', () => {
+  render(<FoyerPage model={empty} />);
+  expect(screen.queryByText("Today's gift")).not.toBeInTheDocument();
+});
+
 it('announces loading and recoverable errors without replacing the fixed structure', () => {
   const view = render(
     <FoyerPage model={empty} onCreate={vi.fn()} state="loading" />,
