@@ -120,3 +120,28 @@ it.each([
 
   expect(onStartTour).toHaveBeenCalledOnce();
 });
+
+it('keeps the rhythm profile section hidden until a save handler is supplied', () => {
+  render(<SettingsRoom />);
+  expect(screen.queryByRole('heading', { name: 'Rhythm profile' })).not.toBeInTheDocument();
+});
+
+it('offers the rhythm profile section once a save handler is supplied', async () => {
+  const onSaveRhythmProfile = vi.fn(async () => undefined);
+  render(
+    <SettingsRoom
+      onSaveRhythmProfile={onSaveRhythmProfile}
+      rhythmProfile={{
+        hemisphere: 'S',
+        birth: { date: '1990-01-01' },
+        natal: { placements: { sun: 'Capricorn' } },
+      }}
+    />,
+  );
+
+  expect(screen.getByRole('heading', { name: 'Rhythm profile' })).toBeVisible();
+  expect(screen.getByLabelText('Birth date')).toHaveValue('1990-01-01');
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+  await waitFor(() => expect(onSaveRhythmProfile).toHaveBeenCalledTimes(1));
+});

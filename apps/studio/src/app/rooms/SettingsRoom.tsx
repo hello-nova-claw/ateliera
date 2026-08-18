@@ -1,3 +1,4 @@
+import type { StoredRhythmProfile } from '@studio/application';
 import {
   applyVaultImport,
   createVaultBackup,
@@ -12,9 +13,12 @@ import {
   PortabilitySettings,
   type PortabilityPreview,
 } from '../../features/settings/PortabilitySettings';
+import { RhythmProfileSettings } from '../../features/settings/RhythmProfileSettings';
 
 export interface SettingsRoomProps {
+  onSaveRhythmProfile?: (profile: StoredRhythmProfile) => Promise<void>;
   onStartTour?: () => void;
+  rhythmProfile?: StoredRhythmProfile | null;
   saveBackup?: (backup: VaultBackup) => Promise<void | 'cancelled' | 'saved'>;
   tourAction?: 'continue' | 'restart';
   vault?: VaultPort;
@@ -65,7 +69,9 @@ function previewFor(file: File, plan: VaultImportPlan): PortabilityPreview {
 }
 
 export default function SettingsRoom({
+  onSaveRhythmProfile,
   onStartTour,
+  rhythmProfile,
   saveBackup = saveBackupToChosenDestination,
   tourAction = 'restart',
   vault,
@@ -106,6 +112,12 @@ export default function SettingsRoom({
               },
             })}
       />
+      {onSaveRhythmProfile && (
+        <RhythmProfileSettings
+          onSave={onSaveRhythmProfile}
+          profile={rhythmProfile ?? null}
+        />
+      )}
       {onStartTour && (
         <section
           aria-labelledby="settings-first-visit"

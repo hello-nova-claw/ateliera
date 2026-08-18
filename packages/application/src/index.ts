@@ -6,6 +6,7 @@ export * from './life-area-repository';
 export * from './note-lifecycle';
 export * from './onboarding-settings';
 export * from './projections';
+export * from './rhythm-profile-repository';
 export * from './search-service';
 export * from './season-service';
 export * from './season-transaction-store';

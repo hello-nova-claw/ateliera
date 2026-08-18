@@ -107,6 +107,9 @@ importers:
       '@studio/index':
         specifier: workspace:*
         version: link:../../packages/index
+      '@studio/rhythm':
+        specifier: workspace:*
+        version: link:../../packages/rhythm
       '@studio/storage':
         specifier: workspace:*
         version: link:../../packages/storage

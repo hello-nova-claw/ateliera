@@ -1,0 +1,137 @@
+.rhythm-profile-settings {
+  max-inline-size: var(--studio-content-narrow, 47.5rem);
+  margin-inline: auto;
+  padding-block-end: clamp(5rem, 12vw, 9rem);
+}
+
+.rhythm-profile-settings__header {
+  max-inline-size: 40rem;
+}
+
+.rhythm-profile-settings__kicker {
+  margin: 0 0 var(--studio-space-3);
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-eyebrow);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.rhythm-profile-settings__section {
+  display: grid;
+  gap: var(--studio-space-5);
+  margin-block-start: clamp(var(--studio-space-8), 7vw, var(--studio-space-12));
+  padding: clamp(var(--studio-space-5), 5vw, var(--studio-space-8));
+  border: 1px solid var(--studio-color-line);
+  border-radius: var(--studio-radius-sheet);
+  background: var(--studio-color-surface);
+  box-shadow: var(--studio-shadow-card);
+}
+
+.rhythm-profile-settings__description {
+  margin-block: var(--studio-space-3) 0;
+  color: var(--studio-color-ink-soft);
+  line-height: 1.6;
+}
+
+.rhythm-profile-settings__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--studio-space-4);
+}
+
+.rhythm-profile-settings__field {
+  display: grid;
+  gap: var(--studio-space-2);
+  color: var(--studio-color-ink);
+  font: var(--studio-type-control);
+}
+
+.rhythm-profile-settings__field input,
+.rhythm-profile-settings__field select {
+  box-sizing: border-box;
+  min-inline-size: 0;
+  inline-size: 100%;
+  min-block-size: var(--studio-touch-target);
+  padding: var(--studio-space-3);
+  border: 1px solid var(--studio-color-line-strong);
+  border-radius: var(--studio-radius-control, 0.75rem);
+  color: var(--studio-color-ink);
+  background: var(--studio-color-canvas);
+  font: var(--studio-type-control);
+}
+
+.rhythm-profile-settings__primary {
+  min-block-size: var(--studio-touch-target);
+  inline-size: fit-content;
+  padding-inline: var(--studio-space-5);
+  border: 1px solid var(--studio-stock-reflection-edge);
+  border-radius: 999px;
+  color: var(--studio-color-ink-strong);
+  background: var(--studio-stock-reflection);
+  font: var(--studio-type-control);
+  cursor: pointer;
+}
+
+.rhythm-profile-settings__primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.rhythm-profile-settings__error,
+.rhythm-profile-settings__success {
+  margin: 0;
+  padding: var(--studio-space-4);
+  border-inline-start: 3px solid var(--studio-color-line-strong);
+  color: var(--studio-color-ink);
+  background: var(--studio-color-sunken);
+}
+
+.rhythm-profile-settings__error {
+  border-inline-start-color: var(--studio-stock-celebration-edge);
+}
+
+.rhythm-profile-settings__placements {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--studio-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rhythm-profile-settings__placements li {
+  padding: var(--studio-space-3) var(--studio-space-4);
+  border: 1px solid var(--studio-color-line);
+  border-radius: var(--studio-radius-card);
+  color: var(--studio-color-ink-muted);
+  background: var(--studio-color-sunken);
+  font: var(--studio-type-metadata);
+}
+
+.rhythm-profile-settings__placements strong {
+  color: var(--studio-color-ink-strong);
+}
+
+.rhythm-profile-settings button:focus-visible,
+.rhythm-profile-settings input:focus-visible,
+.rhythm-profile-settings select:focus-visible {
+  outline: var(--studio-focus-width) solid var(--studio-color-focus);
+  outline-offset: var(--studio-focus-offset);
+}
+
+@media (width < 42rem) {
+  .rhythm-profile-settings__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rhythm-profile-settings__primary {
+    inline-size: 100%;
+  }
+}
+
+@media (forced-colors: active) {
+  .rhythm-profile-settings__section,
+  .rhythm-profile-settings__placements li {
+    border-color: CanvasText;
+  }
+}
