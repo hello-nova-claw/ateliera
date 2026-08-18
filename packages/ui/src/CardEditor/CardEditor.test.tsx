@@ -138,6 +138,136 @@ it('offers restore or discard without silently replacing durable text', () => {
   expect(screen.getByLabelText('Title')).toHaveValue('A quiet beginning');
 });
 
+it('offers resurfacing controls for a Reflection Garden note and calls onChange with the new fields', () => {
+  const onChange = vi.fn();
+  render(
+    <CardEditor
+      note={{ ...note, rooms: ['reflection-garden'] }}
+      onChange={onChange}
+      onFlush={vi.fn()}
+      saveState="idle"
+    />,
+  );
+
+  fireEvent.click(screen.getByText('Note details'));
+  fireEvent.change(screen.getByLabelText('Mark for resurfacing'), {
+    target: { value: 'evidence' },
+  });
+
+  expect(onChange).toHaveBeenCalledWith(
+    expect.objectContaining({
+      resurfaceKind: 'evidence',
+      resurfaceIntervalDays: 6,
+    }),
+  );
+});
+
+it('hides resurfacing controls for a note outside Reflection Garden or Uncharted', () => {
+  const onChange = vi.fn();
+  render(
+    <CardEditor
+      note={{ ...note, rooms: ['foyer'] }}
+      onChange={onChange}
+      onFlush={vi.fn()}
+      saveState="idle"
+    />,
+  );
+
+  fireEvent.click(screen.getByText('Note details'));
+  expect(
+    screen.queryByLabelText('Mark for resurfacing'),
+  ).not.toBeInTheDocument();
+});
+
+it('shows due date and interval controls for an Uncharted note already marked for resurfacing, keeping the existing interval', () => {
+  const onChange = vi.fn();
+  render(
+    <CardEditor
+      note={{
+        ...note,
+        rooms: ['uncharted'],
+        resurfaceKind: 'reframe',
+        resurfaceDue: '2026-08-20',
+        resurfaceIntervalDays: 12,
+      }}
+      onChange={onChange}
+      onFlush={vi.fn()}
+      saveState="idle"
+    />,
+  );
+
+  fireEvent.click(screen.getByText('Note details'));
+  expect(screen.getByLabelText('Mark for resurfacing')).toHaveValue(
+    'reframe',
+  );
+  expect(screen.getByLabelText('Resurface due')).toHaveValue('2026-08-20');
+  expect(screen.getByLabelText('Resurface interval (days)')).toHaveValue(12);
+
+  fireEvent.change(screen.getByLabelText('Resurface due'), {
+    target: { value: '2026-08-27' },
+  });
+  expect(onChange).toHaveBeenCalledWith(
+    expect.objectContaining({ resurfaceDue: '2026-08-27' }),
+  );
+
+  fireEvent.change(screen.getByLabelText('Resurface interval (days)'), {
+    target: { value: '9' },
+  });
+  expect(onChange).toHaveBeenCalledWith(
+    expect.objectContaining({ resurfaceIntervalDays: 9 }),
+  );
+
+  fireEvent.change(screen.getByLabelText('Mark for resurfacing'), {
+    target: { value: 'dream' },
+  });
+  expect(onChange).toHaveBeenCalledWith(
+    expect.objectContaining({ resurfaceKind: 'dream', resurfaceIntervalDays: 12 }),
+  );
+});
+
+it('shows an empty due date when a note is marked for resurfacing without one set yet', () => {
+  render(
+    <CardEditor
+      note={{ ...note, rooms: ['reflection-garden'], resurfaceKind: 'dream' }}
+      onChange={vi.fn()}
+      onFlush={vi.fn()}
+      saveState="idle"
+    />,
+  );
+
+  fireEvent.click(screen.getByText('Note details'));
+  expect(screen.getByLabelText('Resurface due')).toHaveValue('');
+  expect(screen.getByLabelText('Resurface interval (days)')).toHaveValue(6);
+});
+
+it('defaults the resurface interval to 6 days and clears resurfacing fields when unmarked', () => {
+  const onChange = vi.fn();
+  render(
+    <CardEditor
+      note={{
+        ...note,
+        rooms: ['reflection-garden'],
+        resurfaceKind: 'wish',
+        resurfaceDue: '2026-08-20',
+      }}
+      onChange={onChange}
+      onFlush={vi.fn()}
+      saveState="idle"
+    />,
+  );
+
+  fireEvent.click(screen.getByText('Note details'));
+  expect(screen.getByLabelText('Resurface interval (days)')).toHaveValue(6);
+
+  fireEvent.change(screen.getByLabelText('Mark for resurfacing'), {
+    target: { value: '' },
+  });
+  expect(onChange).toHaveBeenCalledWith({
+    ...note,
+    rooms: ['reflection-garden'],
+  });
+});
+
 it('preserves both conflict versions and exposes all explicit resolutions', () => {
   render(
     <CardEditor

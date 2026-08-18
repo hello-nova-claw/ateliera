@@ -72,6 +72,35 @@ function withSource(
   return copy;
 }
 
+const resurfaceKinds = ['evidence', 'reframe', 'wish', 'dream'] as const;
+
+// Mirrors @studio/rhythm's SM2_FIRST_PASS_DAYS (packages/rhythm/src/resurfacing.ts),
+// the SM-2 first successful interval. Hardcoded rather than imported so this UI
+// package doesn't take on @studio/rhythm's dependency graph for one constant.
+const DEFAULT_RESURFACE_INTERVAL_DAYS = 6;
+
+function noteWantsResurfacing(note: StudioNote): boolean {
+  return (
+    note.rooms.includes('reflection-garden') || note.rooms.includes('uncharted')
+  );
+}
+
+function withResurfaceKind(note: StudioNote, value: string): StudioNote {
+  if (value === '') {
+    const copy = { ...note };
+    delete copy.resurfaceKind;
+    delete copy.resurfaceDue;
+    delete copy.resurfaceIntervalDays;
+    return copy;
+  }
+  return {
+    ...note,
+    resurfaceKind: value as (typeof resurfaceKinds)[number],
+    resurfaceIntervalDays:
+      note.resurfaceIntervalDays ?? DEFAULT_RESURFACE_INTERVAL_DAYS,
+  };
+}
+
 function withTags(note: StudioNote, value: string): StudioNote {
   return {
     ...note,
@@ -304,6 +333,60 @@ export function CardEditor({
               value={tagsDraft}
             />
           </label>
+          {noteWantsResurfacing(note) && (
+            <>
+              <label>
+                <span>Mark for resurfacing</span>
+                <select
+                  disabled={conflict !== undefined}
+                  onChange={(event) =>
+                    onChange(withResurfaceKind(note, event.target.value))
+                  }
+                  value={note.resurfaceKind ?? ''}
+                >
+                  <option value="">Not marked</option>
+                  {resurfaceKinds.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {note.resurfaceKind !== undefined && (
+                <>
+                  <label>
+                    <span>Resurface due</span>
+                    <input
+                      disabled={conflict !== undefined}
+                      onChange={(event) =>
+                        onChange({ ...note, resurfaceDue: event.target.value })
+                      }
+                      type="date"
+                      value={note.resurfaceDue ?? ''}
+                    />
+                  </label>
+                  <label>
+                    <span>Resurface interval (days)</span>
+                    <input
+                      disabled={conflict !== undefined}
+                      min={1}
+                      onChange={(event) =>
+                        onChange({
+                          ...note,
+                          resurfaceIntervalDays: Number(event.target.value),
+                        })
+                      }
+                      type="number"
+                      value={
+                        note.resurfaceIntervalDays ??
+                        DEFAULT_RESURFACE_INTERVAL_DAYS
+                      }
+                    />
+                  </label>
+                </>
+              )}
+            </>
+          )}
           {note.sourceNoteIds !== undefined &&
             note.sourceNoteIds.length > 0 && (
               <p className="card-editor__source-links">
