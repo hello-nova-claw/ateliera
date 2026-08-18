@@ -227,6 +227,10 @@ export function parseNote(text: string): ParseResult {
   }
   if (data.source_notes !== undefined)
     note.sourceNoteIds = [...new Set(data.source_notes)];
+  if (data.resurface_kind !== undefined) note.resurfaceKind = data.resurface_kind;
+  if (data.resurface_due !== undefined) note.resurfaceDue = data.resurface_due;
+  if (data.resurface_interval_days !== undefined)
+    note.resurfaceIntervalDays = data.resurface_interval_days;
   if (typeof data.display.cover === 'string')
     note.display.cover = data.display.cover;
   const warnings = Object.keys(extraFrontmatter).map((path): ParseWarning => ({
