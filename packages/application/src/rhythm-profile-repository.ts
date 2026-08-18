@@ -201,6 +201,11 @@ function parse(text: string): StoredRhythmProfile | null | undefined {
     )
       return undefined;
     const profile = (stored as { profile?: unknown }).profile;
+    // `save()` never writes `profile: null` itself (it only accepts a non-nullable
+    // StoredRhythmProfile), but the on-disk format allows it for type-consistency with
+    // RhythmProfileSnapshot.profile — e.g. a future "clear profile" affordance, or a
+    // hand-edited/test fixture that resets the file to the "no profile saved" state
+    // without deleting it outright.
     return profile === null ? null : normalize(profile);
   } catch {
     return undefined;
