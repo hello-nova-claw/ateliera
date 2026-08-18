@@ -12,6 +12,7 @@
  *   - date + time + loc.  → sun + moon + rising
  */
 
+import './astronomia.d.ts';
 import type { NatalChart } from './types';
 import { localToUTC } from './timezone';
 
