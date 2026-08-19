@@ -27,6 +27,15 @@ function toResurfaceCard(record: IndexedNoteRecord): ResurfaceCard | undefined {
  * Garden or Uncharted note that carries a resurface_kind (and its paired
  * resurface_due / resurface_interval_days), mapped to a rhythm ResurfaceCard.
  * Notes missing any of those three fields are excluded.
+ *
+ * `IndexPort.search` caps every query at 200 rows (`sqlite-index.ts`'s
+ * `LIMIT 200`) and, for this empty-query call, orders by `updated DESC` — so
+ * once a vault holds more than 200 Reflection Garden + Uncharted notes, the
+ * candidates silently dropped from the pool are the *least recently
+ * updated* ones. For a resurfacing engine that's backwards: those are
+ * exactly the notes most worth resurfacing. No error is raised; the pool
+ * just quietly stops reaching older material. Not fixed here — flagged so
+ * it isn't a silent surprise as vaults grow past that size.
  */
 export async function buildResurfacePool(index: IndexPort): Promise<ResurfaceCard[]> {
   const hits = await index.search('', { rooms: RESURFACE_ROOMS });
