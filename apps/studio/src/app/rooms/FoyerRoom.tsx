@@ -11,9 +11,17 @@ import { useTodaysGift } from '../../features/foyer/use-todays-gift';
 import type { TourExample } from '../../features/onboarding/tour-examples';
 import type { UseTourExample } from '../../features/onboarding/TourPreview';
 
+function localDateISO(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function FoyerRoom({
   onCreateFoyer,
   captures = [],
+  now = () => new Date(),
   onOpenCapture,
   onRemoveFoyerImage,
   onOpenCard,
@@ -23,6 +31,7 @@ export default function FoyerRoom({
   onUseTourExample,
 }: {
   captures?: CaptureEntry[];
+  now?: () => Date;
   onCreateFoyer?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
   onOpenCapture?: (id: string, trigger: HTMLButtonElement) => void;
   onRemoveFoyerImage?: (
@@ -37,7 +46,7 @@ export default function FoyerRoom({
 }) {
   const view = useFoyer(service, projectionRevision);
   const cover = useFoyerCover(service, view.model.image);
-  const todaysGift = useTodaysGift(service, new Date().toISOString().slice(0, 10));
+  const todaysGift = useTodaysGift(service, localDateISO(now()));
   return (
     <>
       <FoyerPage
