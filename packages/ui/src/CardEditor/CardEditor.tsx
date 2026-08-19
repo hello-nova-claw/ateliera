@@ -101,6 +101,15 @@ function withResurfaceKind(note: StudioNote, value: string): StudioNote {
   };
 }
 
+function withResurfaceIntervalDays(note: StudioNote, value: string): StudioNote {
+  if (value === '') {
+    const copy = { ...note };
+    delete copy.resurfaceIntervalDays;
+    return copy;
+  }
+  return { ...note, resurfaceIntervalDays: Number(value) };
+}
+
 function withTags(note: StudioNote, value: string): StudioNote {
   return {
     ...note,
@@ -371,10 +380,9 @@ export function CardEditor({
                       disabled={conflict !== undefined}
                       min={1}
                       onChange={(event) =>
-                        onChange({
-                          ...note,
-                          resurfaceIntervalDays: Number(event.target.value),
-                        })
+                        onChange(
+                          withResurfaceIntervalDays(note, event.target.value),
+                        )
                       }
                       type="number"
                       value={

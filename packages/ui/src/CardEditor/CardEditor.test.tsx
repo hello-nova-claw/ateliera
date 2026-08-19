@@ -217,6 +217,12 @@ it('shows due date and interval controls for an Uncharted note already marked fo
     expect.objectContaining({ resurfaceIntervalDays: 9 }),
   );
 
+  fireEvent.change(screen.getByLabelText('Resurface interval (days)'), {
+    target: { value: '' },
+  });
+  const lastCall = onChange.mock.calls.at(-1)?.[0] as typeof note;
+  expect(lastCall).not.toHaveProperty('resurfaceIntervalDays');
+
   fireEvent.change(screen.getByLabelText('Mark for resurfacing'), {
     target: { value: 'dream' },
   });
