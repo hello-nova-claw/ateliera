@@ -74,6 +74,13 @@ function withSource(
 
 const resurfaceKinds = ['evidence', 'reframe', 'wish', 'dream'] as const;
 
+const resurfaceKindLabels: Record<(typeof resurfaceKinds)[number], string> = {
+  evidence: 'Evidence — proof of what you did',
+  reframe: 'Reframe — a belief worth reconsidering',
+  wish: 'Wish — an intention to surface',
+  dream: 'Dream — a possibility from Uncharted',
+};
+
 // Mirrors @studio/rhythm's SM2_FIRST_PASS_DAYS (packages/rhythm/src/resurfacing.ts),
 // the SM-2 first successful interval. Hardcoded rather than imported so this UI
 // package doesn't take on @studio/rhythm's dependency graph for one constant.
@@ -356,7 +363,7 @@ export function CardEditor({
                   <option value="">Not marked</option>
                   {resurfaceKinds.map((value) => (
                     <option key={value} value={value}>
-                      {value}
+                      {resurfaceKindLabels[value]}
                     </option>
                   ))}
                 </select>
