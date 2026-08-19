@@ -214,6 +214,46 @@ describe('useTodaysGift', () => {
     await waitFor(() => expect(result.current.gift?.kind).toBe('line'));
   });
 
+  it('falls back to the calm Gift when the rhythm profile fails to load', async () => {
+    const svc = {
+      rhythmProfile: {
+        load: vi.fn().mockRejectedValue(new Error('vault unavailable')),
+      },
+      index: {
+        search: vi.fn(),
+        getManyById: vi.fn(),
+      },
+    } as unknown as StudioService;
+    const { result } = renderHook(() => useTodaysGift(svc, TODAY));
+    await waitFor(() => expect(result.current.gift?.kind).toBe('line'));
+  });
+
+  it('falls back to the calm Gift when the source note fails to load', async () => {
+    const svc = service({
+      rhythmProfileLoad: vi.fn().mockResolvedValue({
+        profile: { hemisphere: 'S', natal: { placements: {} } },
+        revision: 'r1',
+        repairRequired: false,
+      }),
+      searchHits: [{ id: 'dream-1' }],
+      records: [
+        {
+          note: {
+            resurfaceKind: 'dream',
+            resurfaceDue: '2026-08-01',
+            resurfaceIntervalDays: 5,
+            body: 'A door in the hallway.',
+          },
+          path: 'Uncharted/dream-1.md',
+          hash: 'hash-1',
+        },
+      ],
+      load: vi.fn().mockRejectedValue(new Error('file not found')),
+    });
+    const { result } = renderHook(() => useTodaysGift(svc, TODAY));
+    await waitFor(() => expect(result.current.gift?.kind).toBe('line'));
+  });
+
   it('does nothing when service is undefined', () => {
     const { result } = renderHook(() => useTodaysGift(undefined, TODAY));
     expect(result.current.gift).toBeNull();
