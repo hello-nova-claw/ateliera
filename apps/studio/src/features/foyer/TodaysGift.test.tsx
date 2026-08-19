@@ -10,6 +10,9 @@ describe('TodaysGift', () => {
         gift={{
           kind: 'dream',
           payload: { title: 'A door in the hallway.', excerpt: 'A door in the hallway leads somewhere new.' },
+          body: 'A door in the hallway leads somewhere new.',
+          sourcePath: 'Uncharted/dream-1.md',
+          intervalDays: 5,
         }}
         onKeep={vi.fn()}
       />,
@@ -32,6 +35,9 @@ describe('TodaysGift', () => {
             title: 'You did the thing you doubted you could.',
             excerpt: 'You did the thing you doubted you could, and it mattered.',
           },
+          body: 'You did the thing you doubted you could, and it mattered.',
+          sourcePath: 'Reflection Garden/evidence-1.md',
+          intervalDays: 3,
         }}
         onKeep={vi.fn()}
       />,
@@ -67,6 +73,9 @@ describe('TodaysGift', () => {
         gift={{
           kind: 'dream',
           payload: { title: 'A door in the hallway.', excerpt: 'A door in the hallway.' },
+          body: 'A door in the hallway.',
+          sourcePath: 'Uncharted/dream-1.md',
+          intervalDays: 5,
         }}
         onKeep={onKeep}
       />,

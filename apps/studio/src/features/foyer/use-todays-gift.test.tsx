@@ -97,6 +97,7 @@ describe('useTodaysGift', () => {
       },
       body: 'A door in the hallway.',
       sourcePath: 'Uncharted/dream-1.md',
+      intervalDays: 5,
     });
   });
 
@@ -280,7 +281,13 @@ describe('useTodaysGift', () => {
         hash: 'hash-1',
       }),
     });
+    const save = vi.fn().mockResolvedValue({
+      note: { body: 'A door in the hallway.' },
+      path: 'Uncharted/dream-1.md',
+      hash: 'hash-1-next',
+    });
     (svc as unknown as { capture: typeof capture }).capture = capture;
+    (svc as unknown as { save: typeof save }).save = save;
     const { result } = renderHook(() => useTodaysGift(svc, TODAY));
     await waitFor(() => expect(result.current.gift?.kind).toBe('dream'));
 
@@ -323,7 +330,13 @@ describe('useTodaysGift', () => {
         hash: 'hash-2',
       }),
     });
+    const save = vi.fn().mockResolvedValue({
+      note: { body: 'You did the thing you doubted you could.' },
+      path: 'Reflection Garden/evidence-1.md',
+      hash: 'hash-2-next',
+    });
     (svc as unknown as { capture: typeof capture }).capture = capture;
+    (svc as unknown as { save: typeof save }).save = save;
     const { result } = renderHook(() => useTodaysGift(svc, TODAY));
     await waitFor(() => expect(result.current.gift?.kind).toBe('resurfaced'));
 
@@ -332,6 +345,124 @@ describe('useTodaysGift', () => {
     expect(capture).toHaveBeenCalledWith({
       body: 'You did the thing you doubted you could.',
       placement: 'reflection',
+    });
+  });
+
+  it('keep() advances the source card past a 1-day interval to the SM-2 first-pass step', async () => {
+    const capture = vi.fn().mockResolvedValue({
+      note: { body: 'A door in the hallway.' },
+      path: 'Uncharted/captured.md',
+      hash: 'hash-3',
+    });
+    const save = vi.fn().mockResolvedValue({
+      note: { body: 'A door in the hallway.' },
+      path: 'Uncharted/dream-1.md',
+      hash: 'hash-1-next',
+    });
+    const svc = service({
+      rhythmProfileLoad: vi.fn().mockResolvedValue({
+        profile: { hemisphere: 'S', natal: { placements: {} } },
+        revision: 'r1',
+        repairRequired: false,
+      }),
+      searchHits: [{ id: 'dream-1' }],
+      records: [
+        {
+          note: {
+            resurfaceKind: 'dream',
+            resurfaceDue: '2026-08-01',
+            resurfaceIntervalDays: 1,
+            body: 'A door in the hallway.',
+          },
+          path: 'Uncharted/dream-1.md',
+          hash: 'hash-1',
+        },
+      ],
+      load: vi.fn().mockResolvedValue({
+        note: {
+          resurfaceKind: 'dream',
+          resurfaceDue: '2026-08-01',
+          resurfaceIntervalDays: 1,
+          body: 'A door in the hallway.',
+        },
+        path: 'Uncharted/dream-1.md',
+        hash: 'hash-1',
+      }),
+    });
+    (svc as unknown as { capture: typeof capture }).capture = capture;
+    (svc as unknown as { save: typeof save }).save = save;
+    const { result } = renderHook(() => useTodaysGift(svc, TODAY));
+    await waitFor(() => expect(result.current.gift?.kind).toBe('dream'));
+
+    await result.current.keep();
+
+    expect(save).toHaveBeenCalledWith({
+      note: expect.objectContaining({
+        resurfaceKind: 'dream',
+        resurfaceIntervalDays: 6,
+        resurfaceDue: '2026-08-24',
+      }),
+      path: 'Uncharted/dream-1.md',
+      expectedHash: 'hash-1',
+    });
+  });
+
+  it('keep() advances the source card past a multi-day interval by the SM-2 ease factor, rolling over a month boundary', async () => {
+    const capture = vi.fn().mockResolvedValue({
+      note: { body: 'You did the thing you doubted you could.' },
+      path: 'Reflection Garden/captured.md',
+      hash: 'hash-4',
+    });
+    const save = vi.fn().mockResolvedValue({
+      note: { body: 'You did the thing you doubted you could.' },
+      path: 'Reflection Garden/evidence-1.md',
+      hash: 'hash-2-next',
+    });
+    const svc = service({
+      rhythmProfileLoad: vi.fn().mockResolvedValue({
+        profile: { hemisphere: 'S', natal: { placements: {} } },
+        revision: 'r1',
+        repairRequired: false,
+      }),
+      searchHits: [{ id: 'evidence-1' }],
+      records: [
+        {
+          note: {
+            resurfaceKind: 'evidence',
+            resurfaceDue: '2026-08-01',
+            resurfaceIntervalDays: 10,
+            body: 'You did the thing you doubted you could.',
+          },
+          path: 'Reflection Garden/evidence-1.md',
+          hash: 'hash-2',
+        },
+      ],
+      load: vi.fn().mockResolvedValue({
+        note: {
+          resurfaceKind: 'evidence',
+          resurfaceDue: '2026-08-01',
+          resurfaceIntervalDays: 10,
+          body: 'You did the thing you doubted you could.',
+        },
+        path: 'Reflection Garden/evidence-1.md',
+        hash: 'hash-2',
+      }),
+    });
+    (svc as unknown as { capture: typeof capture }).capture = capture;
+    (svc as unknown as { save: typeof save }).save = save;
+    const { result } = renderHook(() => useTodaysGift(svc, TODAY));
+    await waitFor(() => expect(result.current.gift?.kind).toBe('resurfaced'));
+
+    await result.current.keep();
+
+    // sm2Interval(10, 4) = round(10 * 2.5) = 25; 2026-08-18 + 25 days = 2026-09-12.
+    expect(save).toHaveBeenCalledWith({
+      note: expect.objectContaining({
+        resurfaceIntervalDays: 25,
+        resurfaceDue: '2026-09-12',
+      }),
+      path: 'Reflection Garden/evidence-1.md',
+      expectedHash: 'hash-2',
     });
   });
 });

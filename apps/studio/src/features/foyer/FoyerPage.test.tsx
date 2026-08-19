@@ -246,6 +246,9 @@ it('renders the Gift between Becoming and the season preview, and wires Keep', (
       gift={{
         kind: 'dream',
         payload: { title: 'A door in the hallway.', excerpt: 'A door in the hallway.' },
+        body: 'A door in the hallway.',
+        sourcePath: 'Uncharted/dream-1.md',
+        intervalDays: 5,
       }}
       model={{
         ...empty,

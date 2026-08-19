@@ -2,20 +2,41 @@ import { useEffect, useState } from 'react';
 import type { StudioService } from '@studio/application';
 import { buildResurfacePool } from '@studio/application';
 import { markdownToPlainText } from '@studio/content';
-import { computeRhythmContext, selectResurface, type RhythmProfile } from '@studio/rhythm';
+import {
+  computeRhythmContext,
+  selectResurface,
+  sm2Interval,
+  type RhythmProfile,
+} from '@studio/rhythm';
 
-export interface Gift {
-  kind: 'dream' | 'resurfaced' | 'line';
-  payload: { title: string; excerpt: string };
-  /** Full, untruncated Markdown body — used only by keep(), never displayed. */
-  body?: string;
-  sourcePath?: string;
-}
+export type Gift =
+  | { kind: 'line'; payload: { title: string; excerpt: string } }
+  | {
+      kind: 'dream' | 'resurfaced';
+      payload: { title: string; excerpt: string };
+      /** Full, untruncated Markdown body — used only by keep(), never displayed. */
+      body: string;
+      sourcePath: string;
+      intervalDays: number;
+    };
 
 const CALM_GIFT: Gift = {
   kind: 'line',
   payload: { title: 'A quiet place to begin.', excerpt: '' },
 };
+
+// SM-2 quality is a 0-5 recall grade; there is no grading UI on the Gift, so
+// Keep always records a fixed "good recall" pass (>= 3 passes; 5 is
+// "perfect, no hesitation"; 4 sits comfortably in between without claiming
+// a precision the interaction can't back up).
+const KEEP_QUALITY = 4;
+
+function addDaysISO(date: string, days: number): string {
+  const year = Number(date.slice(0, 4));
+  const month = Number(date.slice(5, 7));
+  const day = Number(date.slice(8, 10));
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
 
 export interface UseTodaysGift {
   gift: Gift | null;
@@ -67,6 +88,7 @@ export function useTodaysGift(
         },
         body: loaded.note.body,
         sourcePath: card.sourcePath,
+        intervalDays: card.intervalDays,
       });
     })();
     return () => {
@@ -77,16 +99,24 @@ export function useTodaysGift(
   return {
     gift,
     async keep() {
-      if (
-        service === undefined ||
-        gift === null ||
-        gift.kind === 'line' ||
-        gift.body === undefined
-      )
-        return;
+      if (service === undefined || gift === null || gift.kind === 'line') return;
       await service.capture({
         body: gift.body,
         placement: gift.kind === 'dream' ? 'uncharted' : 'reflection',
+      });
+      // Keep is the acknowledgment action: it both creates the new card
+      // above and advances the source card's own due date, so the same
+      // card doesn't resurface again until its next interval elapses.
+      const source = await service.load(gift.sourcePath);
+      const nextIntervalDays = sm2Interval(gift.intervalDays, KEEP_QUALITY);
+      await service.save({
+        note: {
+          ...source.note,
+          resurfaceDue: addDaysISO(today, nextIntervalDays),
+          resurfaceIntervalDays: nextIntervalDays,
+        },
+        path: source.path,
+        expectedHash: source.hash,
       });
     },
   };
