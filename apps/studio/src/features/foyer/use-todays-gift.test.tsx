@@ -1,5 +1,5 @@
 import type { StudioService } from '@studio/application';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { useTodaysGift } from './use-todays-gift';
@@ -331,7 +331,7 @@ describe('useTodaysGift', () => {
     const { result } = renderHook(() => useTodaysGift(svc, TODAY));
     await waitFor(() => expect(result.current.gift?.kind).toBe('dream'));
 
-    await result.current.keep();
+    await act(async () => result.current.keep());
 
     expect(capture).toHaveBeenCalledWith({
       body: 'A door in the hallway.',
@@ -380,7 +380,7 @@ describe('useTodaysGift', () => {
     const { result } = renderHook(() => useTodaysGift(svc, TODAY));
     await waitFor(() => expect(result.current.gift?.kind).toBe('resurfaced'));
 
-    await result.current.keep();
+    await act(async () => result.current.keep());
 
     expect(capture).toHaveBeenCalledWith({
       body: 'You did the thing you doubted you could.',
@@ -434,7 +434,7 @@ describe('useTodaysGift', () => {
     const { result } = renderHook(() => useTodaysGift(svc, TODAY));
     await waitFor(() => expect(result.current.gift?.kind).toBe('dream'));
 
-    await result.current.keep();
+    await act(async () => result.current.keep());
 
     expect(save).toHaveBeenCalledWith({
       note: expect.objectContaining({
@@ -493,7 +493,7 @@ describe('useTodaysGift', () => {
     const { result } = renderHook(() => useTodaysGift(svc, TODAY));
     await waitFor(() => expect(result.current.gift?.kind).toBe('resurfaced'));
 
-    await result.current.keep();
+    await act(async () => result.current.keep());
 
     // sm2Interval(10, 4) = round(10 * 2.5) = 25; 2026-08-18 + 25 days = 2026-09-12.
     expect(save).toHaveBeenCalledWith({
@@ -504,5 +504,136 @@ describe('useTodaysGift', () => {
       path: 'Reflection Garden/evidence-1.md',
       expectedHash: 'hash-2',
     });
+  });
+
+  it('starts with an idle keepState', async () => {
+    const svc = service({
+      rhythmProfileLoad: vi.fn().mockResolvedValue({
+        profile: { hemisphere: 'S', natal: { placements: {} } },
+        revision: 'r1',
+        repairRequired: false,
+      }),
+    });
+    const { result } = renderHook(() => useTodaysGift(svc, TODAY));
+    await waitFor(() => expect(result.current.gift?.kind).toBe('line'));
+    expect(result.current.keepState).toBe('idle');
+  });
+
+  it('keep() reports busy then success, and guards against a second click while busy', async () => {
+    let resolveCapture: (value: {
+      note: { body: string };
+      path: string;
+      hash: string;
+    }) => void = () => undefined;
+    const capture = vi.fn(
+      () =>
+        new Promise<{ note: { body: string }; path: string; hash: string }>(
+          (resolve) => {
+            resolveCapture = resolve;
+          },
+        ),
+    );
+    const save = vi.fn().mockResolvedValue({
+      note: { body: 'A door in the hallway.' },
+      path: 'Uncharted/dream-1.md',
+      hash: 'hash-1-next',
+    });
+    const svc = service({
+      rhythmProfileLoad: vi.fn().mockResolvedValue({
+        profile: { hemisphere: 'S', natal: { placements: {} } },
+        revision: 'r1',
+        repairRequired: false,
+      }),
+      searchHits: [{ id: 'dream-1' }],
+      records: [
+        {
+          note: {
+            resurfaceKind: 'dream',
+            resurfaceDue: '2026-08-01',
+            resurfaceIntervalDays: 5,
+            body: 'A door in the hallway.',
+          },
+          path: 'Uncharted/dream-1.md',
+          hash: 'hash-1',
+        },
+      ],
+      load: vi.fn().mockResolvedValue({
+        note: {
+          resurfaceKind: 'dream',
+          resurfaceDue: '2026-08-01',
+          resurfaceIntervalDays: 5,
+          body: 'A door in the hallway.',
+        },
+        path: 'Uncharted/dream-1.md',
+        hash: 'hash-1',
+      }),
+    });
+    (svc as unknown as { capture: typeof capture }).capture = capture;
+    (svc as unknown as { save: typeof save }).save = save;
+    const { result } = renderHook(() => useTodaysGift(svc, TODAY));
+    await waitFor(() => expect(result.current.gift?.kind).toBe('dream'));
+
+    let firstKeep: Promise<void> = Promise.resolve();
+    act(() => {
+      firstKeep = result.current.keep();
+    });
+    await waitFor(() => expect(result.current.keepState).toBe('busy'));
+
+    // A second click while busy must not fire a second capture.
+    await act(async () => result.current.keep());
+    expect(capture).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveCapture({
+        note: { body: 'A door in the hallway.' },
+        path: 'Uncharted/captured.md',
+        hash: 'hash-3',
+      });
+      await firstKeep;
+    });
+
+    expect(result.current.keepState).toBe('success');
+  });
+
+  it('keep() reports an error and leaves keepError set when capture fails', async () => {
+    const capture = vi.fn().mockRejectedValue(new Error('capture unavailable'));
+    const svc = service({
+      rhythmProfileLoad: vi.fn().mockResolvedValue({
+        profile: { hemisphere: 'S', natal: { placements: {} } },
+        revision: 'r1',
+        repairRequired: false,
+      }),
+      searchHits: [{ id: 'dream-1' }],
+      records: [
+        {
+          note: {
+            resurfaceKind: 'dream',
+            resurfaceDue: '2026-08-01',
+            resurfaceIntervalDays: 5,
+            body: 'A door in the hallway.',
+          },
+          path: 'Uncharted/dream-1.md',
+          hash: 'hash-1',
+        },
+      ],
+      load: vi.fn().mockResolvedValue({
+        note: {
+          resurfaceKind: 'dream',
+          resurfaceDue: '2026-08-01',
+          resurfaceIntervalDays: 5,
+          body: 'A door in the hallway.',
+        },
+        path: 'Uncharted/dream-1.md',
+        hash: 'hash-1',
+      }),
+    });
+    (svc as unknown as { capture: typeof capture }).capture = capture;
+    const { result } = renderHook(() => useTodaysGift(svc, TODAY));
+    await waitFor(() => expect(result.current.gift?.kind).toBe('dream'));
+
+    await act(async () => result.current.keep());
+
+    expect(result.current.keepState).toBe('error');
+    expect(result.current.keepError).toBe('capture unavailable');
   });
 });

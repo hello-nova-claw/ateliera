@@ -44,6 +44,10 @@ export default function FoyerRoom({
         cover={cover}
         {...(view.error === undefined ? {} : { error: view.error })}
         gift={todaysGift.gift}
+        giftKeepState={todaysGift.keepState}
+        {...(todaysGift.keepError === undefined
+          ? {}
+          : { giftKeepError: todaysGift.keepError })}
         model={view.model}
         {...(onCreateFoyer === undefined ? {} : { onCreate: onCreateFoyer })}
         onKeepGift={() => void todaysGift.keep()}

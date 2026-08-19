@@ -38,9 +38,13 @@ function addDaysISO(date: string, days: number): string {
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 
+export type KeepState = 'idle' | 'busy' | 'success' | 'error';
+
 export interface UseTodaysGift {
   gift: Gift | null;
   keep: () => Promise<void>;
+  keepState: KeepState;
+  keepError?: string;
 }
 
 export function useTodaysGift(
@@ -48,6 +52,8 @@ export function useTodaysGift(
   today: string,
 ): UseTodaysGift {
   const [gift, setGift] = useState<Gift | null>(null);
+  const [keepState, setKeepState] = useState<KeepState>('idle');
+  const [keepError, setKeepError] = useState<string>();
 
   useEffect(() => {
     if (service === undefined) return undefined;
@@ -106,26 +112,46 @@ export function useTodaysGift(
 
   return {
     gift,
+    keepState,
+    ...(keepError === undefined ? {} : { keepError }),
     async keep() {
-      if (service === undefined || gift === null || gift.kind === 'line') return;
-      await service.capture({
-        body: gift.body,
-        placement: gift.kind === 'dream' ? 'uncharted' : 'reflection',
-      });
-      // Keep is the acknowledgment action: it both creates the new card
-      // above and advances the source card's own due date, so the same
-      // card doesn't resurface again until its next interval elapses.
-      const source = await service.load(gift.sourcePath);
-      const nextIntervalDays = sm2Interval(gift.intervalDays, KEEP_QUALITY);
-      await service.save({
-        note: {
-          ...source.note,
-          resurfaceDue: addDaysISO(today, nextIntervalDays),
-          resurfaceIntervalDays: nextIntervalDays,
-        },
-        path: source.path,
-        expectedHash: source.hash,
-      });
+      if (
+        service === undefined ||
+        gift === null ||
+        gift.kind === 'line' ||
+        keepState === 'busy'
+      )
+        return;
+      setKeepState('busy');
+      setKeepError(undefined);
+      try {
+        await service.capture({
+          body: gift.body,
+          placement: gift.kind === 'dream' ? 'uncharted' : 'reflection',
+        });
+        // Keep is the acknowledgment action: it both creates the new card
+        // above and advances the source card's own due date, so the same
+        // card doesn't resurface again until its next interval elapses.
+        const source = await service.load(gift.sourcePath);
+        const nextIntervalDays = sm2Interval(gift.intervalDays, KEEP_QUALITY);
+        await service.save({
+          note: {
+            ...source.note,
+            resurfaceDue: addDaysISO(today, nextIntervalDays),
+            resurfaceIntervalDays: nextIntervalDays,
+          },
+          path: source.path,
+          expectedHash: source.hash,
+        });
+        setKeepState('success');
+      } catch (reason) {
+        setKeepState('error');
+        setKeepError(
+          reason instanceof Error
+            ? reason.message
+            : 'This gift could not be kept just now.',
+        );
+      }
     },
   };
 }

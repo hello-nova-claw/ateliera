@@ -277,6 +277,27 @@ it('renders the Gift between Becoming and the season preview, and wires Keep', (
   expect(onKeepGift).toHaveBeenCalled();
 });
 
+it('passes the Gift keep busy/error state through to TodaysGift', () => {
+  render(
+    <FoyerPage
+      gift={{
+        kind: 'dream',
+        payload: { title: 'A door in the hallway.', excerpt: 'A door in the hallway.' },
+        body: 'A door in the hallway.',
+        sourcePath: 'Uncharted/dream-1.md',
+        intervalDays: 5,
+      }}
+      giftKeepState="error"
+      giftKeepError="This gift could not be kept just now."
+      model={empty}
+      onKeepGift={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    'This gift could not be kept just now.',
+  );
+});
+
 it('renders no Gift slot when gift is null', () => {
   render(<FoyerPage model={empty} />);
   expect(screen.queryByText("Today's gift")).not.toBeInTheDocument();

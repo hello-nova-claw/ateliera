@@ -24,3 +24,14 @@
 .foyer-gift .foyer-text-action {
   margin-block-start: var(--studio-space-4);
 }
+
+.foyer-gift .foyer-text-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.foyer-gift__error,
+.foyer-gift__success {
+  margin: var(--studio-space-3) 0 0;
+  color: var(--studio-color-ink-soft);
+}

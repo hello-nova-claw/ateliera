@@ -83,4 +83,59 @@ describe('TodaysGift', () => {
     screen.getByRole('button', { name: 'Keep' }).click();
     expect(onKeep).toHaveBeenCalled();
   });
+
+  it('disables the Keep button and shows "Keeping…" while busy', () => {
+    render(
+      <TodaysGift
+        gift={{
+          kind: 'dream',
+          payload: { title: 'A door in the hallway.', excerpt: 'A door in the hallway.' },
+          body: 'A door in the hallway.',
+          sourcePath: 'Uncharted/dream-1.md',
+          intervalDays: 5,
+        }}
+        onKeep={vi.fn()}
+        keepState="busy"
+      />,
+    );
+    const button = screen.getByRole('button', { name: 'Keeping…' });
+    expect(button).toBeDisabled();
+  });
+
+  it('shows the keep error message when keeping fails', () => {
+    render(
+      <TodaysGift
+        gift={{
+          kind: 'dream',
+          payload: { title: 'A door in the hallway.', excerpt: 'A door in the hallway.' },
+          body: 'A door in the hallway.',
+          sourcePath: 'Uncharted/dream-1.md',
+          intervalDays: 5,
+        }}
+        onKeep={vi.fn()}
+        keepState="error"
+        keepError="This gift could not be kept just now."
+      />,
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'This gift could not be kept just now.',
+    );
+  });
+
+  it('shows a success confirmation once kept', () => {
+    render(
+      <TodaysGift
+        gift={{
+          kind: 'dream',
+          payload: { title: 'A door in the hallway.', excerpt: 'A door in the hallway.' },
+          body: 'A door in the hallway.',
+          sourcePath: 'Uncharted/dream-1.md',
+          intervalDays: 5,
+        }}
+        onKeep={vi.fn()}
+        keepState="success"
+      />,
+    );
+    expect(screen.getByRole('status')).toHaveTextContent('Kept.');
+  });
 });

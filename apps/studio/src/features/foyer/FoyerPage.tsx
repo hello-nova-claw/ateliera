@@ -13,7 +13,7 @@ import { ReturnCard } from './ReturnCard';
 import { SeasonPreview } from './SeasonPreview';
 import { TodaysGift } from './TodaysGift';
 import type { FoyerCoverView } from './use-foyer-cover';
-import type { Gift } from './use-todays-gift';
+import type { Gift, KeepState } from './use-todays-gift';
 import type { TourExample } from '../onboarding/tour-examples';
 import {
   TourExampleCard,
@@ -28,6 +28,8 @@ export interface FoyerPageProps {
   cover?: FoyerCoverView;
   error?: string;
   gift?: Gift | null;
+  giftKeepState?: KeepState;
+  giftKeepError?: string;
   model: FoyerProjection;
   onCreate?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
   onKeepGift?: () => void;
@@ -118,6 +120,8 @@ export function FoyerPage({
   cover = { state: 'none' },
   error,
   gift = null,
+  giftKeepState,
+  giftKeepError,
   model,
   onCreate,
   onKeepGift,
@@ -195,7 +199,12 @@ export function FoyerPage({
                     {...(onUseTourExample ? { onUse: onUseTourExample } : {})}
                   />
                 ))}
-            <TodaysGift gift={gift} {...(onKeepGift ? { onKeep: onKeepGift } : {})} />
+            <TodaysGift
+              gift={gift}
+              {...(onKeepGift ? { onKeep: onKeepGift } : {})}
+              {...(giftKeepState === undefined ? {} : { keepState: giftKeepState })}
+              {...(giftKeepError === undefined ? {} : { keepError: giftKeepError })}
+            />
             <SeasonPreview
               priorities={model.priorities}
               season={model.currentSeason}
