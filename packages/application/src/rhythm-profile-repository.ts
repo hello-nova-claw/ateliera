@@ -42,9 +42,10 @@ export class UnsupportedRhythmProfileConfigError extends Error {
 
 function hasExactKeys(value: Record<string, unknown>, keys: string[]): boolean {
   const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
   return (
-    actual.length === keys.length &&
-    actual.every((key, index) => key === [...keys].sort()[index])
+    actual.length === expected.length &&
+    actual.every((key, index) => key === expected[index])
   );
 }
 
