@@ -1,4 +1,4 @@
-import type { StoredRhythmProfile } from '@studio/application';
+import type { StudioService } from '@studio/application';
 import {
   applyVaultImport,
   createVaultBackup,
@@ -14,12 +14,12 @@ import {
   type PortabilityPreview,
 } from '../../features/settings/PortabilitySettings';
 import { RhythmProfileSettings } from '../../features/settings/RhythmProfileSettings';
+import { useRhythmProfile } from '../../features/settings/use-rhythm-profile';
 
 export interface SettingsRoomProps {
-  onSaveRhythmProfile?: (profile: StoredRhythmProfile) => Promise<void>;
   onStartTour?: () => void;
-  rhythmProfile?: StoredRhythmProfile | null;
   saveBackup?: (backup: VaultBackup) => Promise<void | 'cancelled' | 'saved'>;
+  service?: StudioService;
   tourAction?: 'continue' | 'restart';
   vault?: VaultPort;
 }
@@ -69,14 +69,14 @@ function previewFor(file: File, plan: VaultImportPlan): PortabilityPreview {
 }
 
 export default function SettingsRoom({
-  onSaveRhythmProfile,
   onStartTour,
-  rhythmProfile,
   saveBackup = saveBackupToChosenDestination,
+  service,
   tourAction = 'restart',
   vault,
 }: SettingsRoomProps) {
   const pendingPlan = useRef<VaultImportPlan | undefined>(undefined);
+  const rhythmProfile = useRhythmProfile(service);
 
   return (
     <>
@@ -112,10 +112,11 @@ export default function SettingsRoom({
               },
             })}
       />
-      {onSaveRhythmProfile && (
+      {service !== undefined && (
         <RhythmProfileSettings
-          onSave={onSaveRhythmProfile}
-          profile={rhythmProfile ?? null}
+          key={rhythmProfile.revision ?? 'new'}
+          onSave={rhythmProfile.save}
+          profile={rhythmProfile.profile}
         />
       )}
       {onStartTour && (

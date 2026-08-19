@@ -5,9 +5,26 @@ import {
   prepareVaultImport,
   type VaultBackup,
 } from '@studio/storage';
+import type { StudioService } from '@studio/application';
 import { vi } from 'vitest';
 
 import SettingsRoom from './SettingsRoom';
+
+function rhythmProfileService(
+  overrides: Partial<StudioService['rhythmProfile']> = {},
+): StudioService {
+  return {
+    rhythmProfile: {
+      load: vi.fn(async () => ({
+        profile: null,
+        revision: null,
+        repairRequired: false,
+      })),
+      save: vi.fn(),
+      ...overrides,
+    },
+  } as unknown as StudioService;
+}
 
 it('creates a complete portable backup from the active vault', async () => {
   const vault = createInMemoryVault();
@@ -121,27 +138,80 @@ it.each([
   expect(onStartTour).toHaveBeenCalledOnce();
 });
 
-it('keeps the rhythm profile section hidden until a save handler is supplied', () => {
+it('keeps the rhythm profile section hidden until a Studio is open', () => {
   render(<SettingsRoom />);
   expect(screen.queryByRole('heading', { name: 'Rhythm profile' })).not.toBeInTheDocument();
 });
 
-it('offers the rhythm profile section once a save handler is supplied', async () => {
-  const onSaveRhythmProfile = vi.fn(async () => undefined);
-  render(
-    <SettingsRoom
-      onSaveRhythmProfile={onSaveRhythmProfile}
-      rhythmProfile={{
-        hemisphere: 'S',
+it('offers the rhythm profile section once a Studio service is supplied', async () => {
+  const save = vi.fn(async (profile: unknown, revision: string | null) => ({
+    profile,
+    revision: revision ?? 'r1',
+    repairRequired: false,
+  }));
+  const service = rhythmProfileService({
+    load: vi.fn(async () => ({
+      profile: {
+        hemisphere: 'S' as const,
         birth: { date: '1990-01-01' },
         natal: { placements: { sun: 'Capricorn' } },
-      }}
-    />,
-  );
+      },
+      revision: 'r0',
+      repairRequired: false,
+    })),
+    save: save as never,
+  });
 
+  render(<SettingsRoom service={service} />);
+
+  await waitFor(() =>
+    expect(screen.getByLabelText('Birth date')).toHaveValue('1990-01-01'),
+  );
   expect(screen.getByRole('heading', { name: 'Rhythm profile' })).toBeVisible();
-  expect(screen.getByLabelText('Birth date')).toHaveValue('1990-01-01');
   fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-  await waitFor(() => expect(onSaveRhythmProfile).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+  expect(save).toHaveBeenCalledWith(expect.anything(), 'r0');
+});
+
+it('remounts the rhythm profile form once its async load resolves', async () => {
+  let resolveLoad: (value: {
+    profile: null;
+    revision: string | null;
+    repairRequired: boolean;
+  }) => void = () => undefined;
+  const load = vi.fn(
+    () =>
+      new Promise<{
+        profile: null;
+        revision: string | null;
+        repairRequired: boolean;
+      }>((resolve) => {
+        resolveLoad = resolve;
+      }),
+  );
+  const service = rhythmProfileService({ load: load as never });
+
+  render(<SettingsRoom service={service} />);
+  expect(screen.getByRole('heading', { name: 'Rhythm profile' })).toBeVisible();
+  expect(screen.getByLabelText('Birth date')).toHaveValue('');
+
+  fireEvent.change(screen.getByLabelText('Birth date'), {
+    target: { value: '2000-06-15' },
+  });
+  expect(screen.getByLabelText('Birth date')).toHaveValue('2000-06-15');
+
+  resolveLoad({
+    profile: {
+      hemisphere: 'N',
+      birth: { date: '1990-01-01' },
+      natal: { placements: {} },
+    } as never,
+    revision: 'r0',
+    repairRequired: false,
+  });
+
+  await waitFor(() =>
+    expect(screen.getByLabelText('Birth date')).toHaveValue('1990-01-01'),
+  );
 });

@@ -1,7 +1,6 @@
 import type { StoredRhythmProfile } from '@studio/application';
 import { computeNatalChartLocal, zoneOptions } from '@studio/rhythm';
 import { type ChangeEvent, type FormEvent, useMemo, useState } from 'react';
-import { RoomHeading } from '@studio/ui';
 
 import './RhythmProfileSettings.css';
 
@@ -145,13 +144,18 @@ export function RhythmProfileSettings({
   const placementEntries = Object.entries(placements);
 
   return (
-    <div className="rhythm-profile-settings">
+    <section
+      aria-labelledby="rhythm-profile-heading"
+      className="rhythm-profile-settings"
+    >
       <div className="rhythm-profile-settings__header">
-        <RoomHeading
-          eyebrow="your rhythm"
-          intro="Enter your birth details once so the Studio can quietly reflect your season, moon, and cycle back to you. Nothing leaves this device."
-          title="Rhythm profile"
-        />
+        <p className="rhythm-profile-settings__kicker">Your rhythm</p>
+        <h2 id="rhythm-profile-heading">Rhythm profile</h2>
+        <p className="rhythm-profile-settings__description">
+          Enter your birth details once so the Studio can quietly reflect
+          your season, moon, and cycle back to you. Nothing leaves this
+          device.
+        </p>
       </div>
 
       <form
@@ -288,6 +292,6 @@ export function RhythmProfileSettings({
           {busy ? 'Saving…' : 'Save'}
         </button>
       </form>
-    </div>
+    </section>
   );
 }
