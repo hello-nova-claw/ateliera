@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react';
 import type { StudioService } from '@studio/application';
 import { buildResurfacePool } from '@studio/application';
+import { markdownToPlainText } from '@studio/content';
 import { computeRhythmContext, selectResurface, type RhythmProfile } from '@studio/rhythm';
 
 export interface Gift {
   kind: 'dream' | 'resurfaced' | 'line';
-  payload: { text: string };
+  payload: { title: string; excerpt: string };
+  /** Full, untruncated Markdown body — used only by keep(), never displayed. */
+  body?: string;
   sourcePath?: string;
 }
 
-const CALM_GIFT: Gift = { kind: 'line', payload: { text: 'A quiet place to begin.' } };
+const CALM_GIFT: Gift = {
+  kind: 'line',
+  payload: { title: 'A quiet place to begin.', excerpt: '' },
+};
 
 export interface UseTodaysGift {
   gift: Gift | null;
@@ -52,9 +58,14 @@ export function useTodaysGift(
       }
       const loaded = await service.load(card.sourcePath);
       if (!current) return;
+      const plain = markdownToPlainText(loaded.note.body);
       setGift({
         kind: card.kind === 'dream' ? 'dream' : 'resurfaced',
-        payload: { text: loaded.note.body },
+        payload: {
+          title: loaded.note.title?.trim() || plain.slice(0, 80) || 'Untitled',
+          excerpt: plain.slice(0, 240),
+        },
+        body: loaded.note.body,
         sourcePath: card.sourcePath,
       });
     })();
@@ -66,9 +77,15 @@ export function useTodaysGift(
   return {
     gift,
     async keep() {
-      if (service === undefined || gift === null || gift.kind === 'line') return;
+      if (
+        service === undefined ||
+        gift === null ||
+        gift.kind === 'line' ||
+        gift.body === undefined
+      )
+        return;
       await service.capture({
-        body: gift.payload.text,
+        body: gift.body,
         placement: gift.kind === 'dream' ? 'uncharted' : 'reflection',
       });
     },

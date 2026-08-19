@@ -14,6 +14,13 @@
   overflow-wrap: anywhere;
 }
 
+.foyer-gift__excerpt {
+  margin: var(--studio-space-3) 0 0;
+  color: var(--studio-color-ink-soft);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
 .foyer-gift .foyer-text-action {
   margin-block-start: var(--studio-space-4);
 }

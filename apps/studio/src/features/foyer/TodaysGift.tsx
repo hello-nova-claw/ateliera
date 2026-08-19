@@ -12,8 +12,11 @@ export function TodaysGift({ gift, onKeep }: TodaysGiftProps) {
     <article className="foyer-gift" aria-labelledby="foyer-gift-title">
       <p className="foyer-section-label">Today's gift</p>
       <h2 id="foyer-gift-title" className="foyer-gift__text">
-        {gift.payload.text}
+        {gift.payload.title}
       </h2>
+      {gift.payload.excerpt && gift.payload.excerpt !== gift.payload.title && (
+        <p className="foyer-gift__excerpt">{gift.payload.excerpt}</p>
+      )}
       {gift.kind !== 'line' && onKeep && (
         <button className="foyer-text-action" onClick={onKeep} type="button">
           Keep

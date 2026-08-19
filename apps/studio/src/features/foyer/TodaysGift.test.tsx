@@ -7,12 +7,18 @@ describe('TodaysGift', () => {
   it('renders a dream Gift with a Keep action', () => {
     render(
       <TodaysGift
-        gift={{ kind: 'dream', payload: { text: 'A door in the hallway.' } }}
+        gift={{
+          kind: 'dream',
+          payload: { title: 'A door in the hallway.', excerpt: 'A door in the hallway leads somewhere new.' },
+        }}
         onKeep={vi.fn()}
       />,
     );
     expect(
       screen.getByRole('heading', { level: 2, name: 'A door in the hallway.' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('A door in the hallway leads somewhere new.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Keep' })).toBeInTheDocument();
   });
@@ -22,13 +28,16 @@ describe('TodaysGift', () => {
       <TodaysGift
         gift={{
           kind: 'resurfaced',
-          payload: { text: 'You did the thing you doubted you could.' },
+          payload: {
+            title: 'You did the thing you doubted you could.',
+            excerpt: 'You did the thing you doubted you could, and it mattered.',
+          },
         }}
         onKeep={vi.fn()}
       />,
     );
     expect(
-      screen.getByText('You did the thing you doubted you could.'),
+      screen.getByText('You did the thing you doubted you could, and it mattered.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Keep' })).toBeInTheDocument();
   });
@@ -36,7 +45,7 @@ describe('TodaysGift', () => {
   it('renders the calm fallback without a Keep action', () => {
     render(
       <TodaysGift
-        gift={{ kind: 'line', payload: { text: 'A quiet place to begin.' } }}
+        gift={{ kind: 'line', payload: { title: 'A quiet place to begin.', excerpt: '' } }}
         onKeep={vi.fn()}
       />,
     );
@@ -55,7 +64,10 @@ describe('TodaysGift', () => {
     const onKeep = vi.fn();
     render(
       <TodaysGift
-        gift={{ kind: 'dream', payload: { text: 'A door in the hallway.' } }}
+        gift={{
+          kind: 'dream',
+          payload: { title: 'A door in the hallway.', excerpt: 'A door in the hallway.' },
+        }}
         onKeep={onKeep}
       />,
     );

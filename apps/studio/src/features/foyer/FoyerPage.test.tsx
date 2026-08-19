@@ -243,7 +243,10 @@ it('renders the Gift between Becoming and the season preview, and wires Keep', (
   const onKeepGift = vi.fn();
   render(
     <FoyerPage
-      gift={{ kind: 'dream', payload: { text: 'A door in the hallway.' } }}
+      gift={{
+        kind: 'dream',
+        payload: { title: 'A door in the hallway.', excerpt: 'A door in the hallway.' },
+      }}
       model={{
         ...empty,
         becoming: card({ noteId: 'becoming', title: 'A woman who creates from calm' }),

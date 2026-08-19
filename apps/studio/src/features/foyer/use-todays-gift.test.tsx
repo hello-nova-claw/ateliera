@@ -57,7 +57,7 @@ describe('useTodaysGift', () => {
     await waitFor(() => expect(result.current.gift?.kind).toBe('line'));
     expect(result.current.gift).toEqual({
       kind: 'line',
-      payload: { text: 'A quiet place to begin.' },
+      payload: { title: 'A quiet place to begin.', excerpt: '' },
     });
   });
 
@@ -91,7 +91,11 @@ describe('useTodaysGift', () => {
     await waitFor(() => expect(result.current.gift?.kind).toBe('dream'));
     expect(result.current.gift).toEqual({
       kind: 'dream',
-      payload: { text: 'A door in the hallway.' },
+      payload: {
+        title: 'A door in the hallway.',
+        excerpt: 'A door in the hallway.',
+      },
+      body: 'A door in the hallway.',
       sourcePath: 'Uncharted/dream-1.md',
     });
   });
@@ -124,6 +128,71 @@ describe('useTodaysGift', () => {
     });
     const { result } = renderHook(() => useTodaysGift(svc, TODAY));
     await waitFor(() => expect(result.current.gift?.kind).toBe('resurfaced'));
+  });
+
+  it('prefers the note title over the projected excerpt when one exists', async () => {
+    const svc = service({
+      rhythmProfileLoad: vi.fn().mockResolvedValue({
+        profile: { hemisphere: 'S', natal: { placements: {} } },
+        revision: 'r1',
+        repairRequired: false,
+      }),
+      searchHits: [{ id: 'evidence-1' }],
+      records: [
+        {
+          note: {
+            resurfaceKind: 'evidence',
+            resurfaceDue: '2026-08-01',
+            resurfaceIntervalDays: 3,
+            body: 'The body text, which is not the title.',
+          },
+          path: 'Reflection Garden/evidence-1.md',
+          hash: 'hash-2',
+        },
+      ],
+      load: vi.fn().mockResolvedValue({
+        note: {
+          title: 'A named reflection',
+          body: 'The body text, which is not the title.',
+        },
+        path: 'Reflection Garden/evidence-1.md',
+        hash: 'hash-2',
+      }),
+    });
+    const { result } = renderHook(() => useTodaysGift(svc, TODAY));
+    await waitFor(() => expect(result.current.gift?.kind).toBe('resurfaced'));
+    expect(result.current.gift?.payload.title).toBe('A named reflection');
+  });
+
+  it('falls back to "Untitled" when the note has no title and no body text', async () => {
+    const svc = service({
+      rhythmProfileLoad: vi.fn().mockResolvedValue({
+        profile: { hemisphere: 'S', natal: { placements: {} } },
+        revision: 'r1',
+        repairRequired: false,
+      }),
+      searchHits: [{ id: 'evidence-1' }],
+      records: [
+        {
+          note: {
+            resurfaceKind: 'evidence',
+            resurfaceDue: '2026-08-01',
+            resurfaceIntervalDays: 3,
+            body: '',
+          },
+          path: 'Reflection Garden/evidence-1.md',
+          hash: 'hash-2',
+        },
+      ],
+      load: vi.fn().mockResolvedValue({
+        note: { body: '' },
+        path: 'Reflection Garden/evidence-1.md',
+        hash: 'hash-2',
+      }),
+    });
+    const { result } = renderHook(() => useTodaysGift(svc, TODAY));
+    await waitFor(() => expect(result.current.gift?.kind).toBe('resurfaced'));
+    expect(result.current.gift?.payload.title).toBe('Untitled');
   });
 
   it('falls back to the calm Gift when the index query fails', async () => {
