@@ -449,3 +449,72 @@
   zero violations, and the existing Landscape matrix/focus/lens browser
   journey. Direct screenshot review covered the integrated Identity Studio,
   Wisdom Garden, and Life Landscape.
+
+## 2026-08-21 — The Almara Seam: rhythm engine and Today's Gift
+
+- Folded Almara's rhythm/resurfacing engine into Ateliera. A Gift — a real
+  resurfaced card or a calm fallback line — now appears in the Foyer, ranked by
+  moon/cycle/year-wheel/natal position, and can be kept as an ordinary card
+  through the existing capture-placement system. Implemented as the eight-task
+  `docs/superpowers/plans/2026-08-18-almara-seam.md` plan; every task is one
+  atomic commit and the feature branch is not yet merged pending a live try.
+- Merged the extracted, dependency-free `@studio/rhythm` package (natal chart,
+  resurfacing selection, year-wheel/moon/cycle context, timezone) with its 60
+  tests. Ambient season stays "the year-wheel" in new code so it never collides
+  with the Current Season room.
+- Added opt-in `resurface_kind` (`evidence`/`reframe`/`wish`/`dream`),
+  `resurface_due`, and `resurface_interval_days` frontmatter, round-tripping
+  through parse/serialize and preserved when absent. `resurface_kind` is never
+  auto-assigned — a person marks a card for resurfacing deliberately in the
+  CardEditor, and only for Reflection Garden or Uncharted notes.
+- Built `buildResurfacePool` over the disposable index — cards with a
+  resurface kind from Reflection Garden and Uncharted only — with documented
+  `LIMIT 200` ordering. Added the versioned, atomic, revision-guarded
+  `rhythm-profile.json` repository mirroring the Wisdom theme repository, including
+  the corrupt-bytes-untouched recoverable-default and future-version-refusal
+  behavior. Exposed the repository on `StudioService`.
+- Added the Settings rhythm-profile section: birth date/time/timezone/place and
+  cycle basis, recomputing and caching natal placements on save. Added the
+  Foyer `TodaysGift` component and `useTodaysGift` hook — no slot when no profile
+  is saved, the calm fallback when a profile exists but nothing is due, and the
+  resurfaced card's title/excerpt otherwise. Keep routes dreams to Uncharted and
+  everything else to Reflection Garden, advances the source card's due date, and
+  shows busy/error/success feedback; index or note-load failure falls back to the
+  calm Gift rather than breaking the Foyer. Today is sourced from an injectable
+  clock, not `new Date()`.
+- Verification passed typecheck, ESLint/stylelint, all 1,486 workspace tests,
+  and the full Playwright suite at 172 passed with 32 intentional
+  browser/layout skips. The feature is code-complete; live trial of the Gift in
+  the running app and the merge decision remain Anna's call.
+
+## 2026-08-21 — Birthplace picker instead of raw coordinates
+
+- Replaced manual latitude/longitude entry in the rhythm profile with an
+  offline birthplace picker. A person types a place name; the Studio derives the
+  latitude, longitude, IANA timezone, and hemisphere from the choice. Nobody has
+  to know their own coordinates. Manual lat/lon/timezone/hemisphere entry moves
+  into a collapsed "Set the location manually" advanced section, still pre-filled
+  by a chosen place, for birthplaces not in the list or exact coordinates.
+- Added a build-time-only gazetteer pipeline: `scripts/generate-places.mjs`
+  bakes `all-the-cities` (GeoNames, CC BY 4.0) plus `tz-lookup` into a committed
+  `packages/rhythm/src/places-data.js` asset — 135,233 places, population-sorted,
+  one TSV row of name/country/lat/lon/timezone each. `all-the-cities` and
+  `tz-lookup` are devDependencies only; the app gains no new runtime dependency.
+  The generated `.js` is a plain module (with a `.d.ts` companion) so tsc never
+  parses its ~6.5 MB string literal, mirroring the astronomia lazy-import pattern.
+- Added `searchPlaces(query, limit)` to `@studio/rhythm` — pure, offline,
+  case-insensitive, prefix matches ahead of mid-string, each in descending
+  population order. The gazetteer loads lazily on the first search and is cached.
+- The gazetteer builds as its own lazy chunk (5.85 MB / 2.23 MB gzipped),
+  separate from the 390 KB startup entry, and is deliberately excluded from the
+  service-worker precache: it's a rarely-used enhancement, so it's fetched on
+  demand rather than tripling the install payload. Core offline behavior is
+  unaffected — manual coordinate entry still works, and a failed gazetteer load
+  degrades quietly to no suggestions.
+- The birthplace combobox is a keyboard-operable ARIA listbox (Arrow keys, Enter
+  to choose, Escape to close, active-descendant tracking) and injects its search
+  function so tests never load the real gazetteer.
+- Verification passed typecheck, ESLint/stylelint, all 1,496 workspace tests
+  (10 new: 6 for `searchPlaces`, plus birthplace-picker cases in the Settings
+  suite), the production build with the startup-entry budget intact, and the
+  full Playwright suite at 172 passed / 32 intentional skips.
