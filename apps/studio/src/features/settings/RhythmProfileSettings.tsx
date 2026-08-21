@@ -1,18 +1,39 @@
 import type { StoredRhythmProfile } from '@studio/application';
-import { computeNatalChartLocal, zoneOptions } from '@studio/rhythm';
-import { type ChangeEvent, type FormEvent, useMemo, useState } from 'react';
+import {
+  computeNatalChartLocal,
+  searchPlaces as defaultSearchPlaces,
+  zoneOptions,
+  type Place,
+} from '@studio/rhythm';
+import {
+  type ChangeEvent,
+  type FormEvent,
+  type KeyboardEvent,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import './RhythmProfileSettings.css';
 
 export interface RhythmProfileSettingsProps {
   onSave: (profile: StoredRhythmProfile) => Promise<void>;
   profile: StoredRhythmProfile | null;
+  /** Injectable so tests never load the ~6.5 MB gazetteer. */
+  searchPlaces?: (query: string, limit?: number) => Promise<Place[]>;
 }
 
 type Hemisphere = 'N' | 'S';
 
+const SUGGESTION_LIMIT = 8;
+
 function placementLabel(key: string): string {
   return `${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+}
+
+function placeLabel(place: Place): string {
+  return `${place.name}, ${place.country}`;
 }
 
 function validate(
@@ -48,6 +69,7 @@ function validate(
 export function RhythmProfileSettings({
   onSave,
   profile,
+  searchPlaces = defaultSearchPlaces,
 }: RhythmProfileSettingsProps) {
   const zones = useMemo(() => zoneOptions(), []);
   const [birthDate, setBirthDate] = useState(profile?.birth.date ?? '');
@@ -77,6 +99,76 @@ export function RhythmProfileSettings({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [message, setMessage] = useState<string>();
+
+  const [suggestions, setSuggestions] = useState<Place[]>([]);
+  const [listOpen, setListOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const latestQuery = useRef('');
+  const listboxId = useId();
+  const optionId = (index: number): string => `${listboxId}-opt-${index}`;
+
+  function closeSuggestions(): void {
+    setListOpen(false);
+    setActiveIndex(-1);
+    setSuggestions([]);
+  }
+
+  function handlePlaceChange(value: string): void {
+    setPlace(value);
+    latestQuery.current = value;
+    if (value.trim() === '') {
+      closeSuggestions();
+      return;
+    }
+    void searchPlaces(value, SUGGESTION_LIMIT)
+      .then((results) => {
+        // Ignore a slow response the person has already typed past.
+        if (latestQuery.current !== value) return;
+        setSuggestions(results);
+        setListOpen(results.length > 0);
+        setActiveIndex(results.length > 0 ? 0 : -1);
+      })
+      .catch(() => {
+        // Gazetteer unavailable (e.g. cold offline before it's cached): quietly
+        // offer no suggestions. Manual entry via Advanced still works.
+        closeSuggestions();
+      });
+  }
+
+  function selectPlace(chosen: Place): void {
+    setPlace(placeLabel(chosen));
+    setLat(String(chosen.lat));
+    setLon(String(chosen.lon));
+    setTimeZone(chosen.timeZone);
+    setHemisphere(chosen.hemisphere);
+    closeSuggestions();
+  }
+
+  function handlePlaceKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (!listOpen && suggestions.length > 0) {
+        setListOpen(true);
+        setActiveIndex(0);
+        return;
+      }
+      setActiveIndex((index) => Math.min(index + 1, suggestions.length - 1));
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActiveIndex((index) => Math.max(index - 1, 0));
+    } else if (event.key === 'Enter') {
+      const chosen = suggestions[activeIndex];
+      if (listOpen && chosen !== undefined) {
+        event.preventDefault();
+        selectPlace(chosen);
+      }
+    } else if (event.key === 'Escape') {
+      if (listOpen) {
+        event.preventDefault();
+        closeSuggestions();
+      }
+    }
+  }
 
   function handleLatChange(event: ChangeEvent<HTMLInputElement>): void {
     const value = event.currentTarget.value;
@@ -166,7 +258,8 @@ export function RhythmProfileSettings({
           <p className="rhythm-profile-settings__kicker">Birth details</p>
           <p className="rhythm-profile-settings__description">
             Time and place are optional, but each one you add sharpens the
-            chart from sun-only to sun, moon, and rising.
+            chart from sun-only to sun, moon, and rising. Choose your birthplace
+            and the Studio works out its coordinates and timezone for you.
           </p>
         </div>
         <div className="rhythm-profile-settings__grid">
@@ -186,53 +279,101 @@ export function RhythmProfileSettings({
               value={birthTime}
             />
           </label>
-          <label className="rhythm-profile-settings__field">
-            <span>Timezone</span>
-            <select
-              onChange={(event) => setTimeZone(event.currentTarget.value)}
-              value={timeZone}
-            >
-              <option value="">Not set</option>
-              {zones.map((zone) => (
-                <option key={zone.id} value={zone.id}>
-                  {zone.label}
-                </option>
-              ))}
-            </select>
-          </label>
+        </div>
+
+        <div className="rhythm-profile-settings__place">
           <label className="rhythm-profile-settings__field">
             <span>Birth place</span>
             <input
-              onChange={(event) => setPlace(event.currentTarget.value)}
+              aria-activedescendant={
+                listOpen && activeIndex >= 0 ? optionId(activeIndex) : undefined
+              }
+              aria-autocomplete="list"
+              aria-controls={listboxId}
+              aria-expanded={listOpen}
+              autoComplete="off"
+              onBlur={() => setListOpen(false)}
+              onChange={(event) => handlePlaceChange(event.currentTarget.value)}
+              onKeyDown={handlePlaceKeyDown}
+              role="combobox"
               type="text"
               value={place}
             />
           </label>
-          <label className="rhythm-profile-settings__field">
-            <span>Latitude</span>
-            <input onChange={handleLatChange} type="number" value={lat} />
-          </label>
-          <label className="rhythm-profile-settings__field">
-            <span>Longitude</span>
-            <input
-              onChange={(event) => setLon(event.currentTarget.value)}
-              type="number"
-              value={lon}
-            />
-          </label>
-          <label className="rhythm-profile-settings__field">
-            <span>Hemisphere</span>
-            <select
-              onChange={(event) =>
-                setHemisphere(event.currentTarget.value as Hemisphere)
-              }
-              value={hemisphere}
+          {listOpen && suggestions.length > 0 && (
+            <ul
+              className="rhythm-profile-settings__suggestions"
+              id={listboxId}
+              role="listbox"
             >
-              <option value="N">Northern</option>
-              <option value="S">Southern</option>
-            </select>
-          </label>
+              {suggestions.map((suggestion, index) => (
+                <li
+                  aria-selected={index === activeIndex}
+                  className="rhythm-profile-settings__suggestion"
+                  id={optionId(index)}
+                  key={`${suggestion.name}-${suggestion.country}-${suggestion.lat}-${suggestion.lon}`}
+                  onClick={() => selectPlace(suggestion)}
+                  onMouseDown={(event) => {
+                    // Keep focus on the input (avoids the blur that would close
+                    // the list) so the click that follows still selects.
+                    event.preventDefault();
+                  }}
+                  role="option"
+                >
+                  {placeLabel(suggestion)}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
+
+        <details className="rhythm-profile-settings__advanced">
+          <summary>Set the location manually</summary>
+          <p className="rhythm-profile-settings__description">
+            Only needed if your birthplace isn't listed, or you'd rather enter
+            exact coordinates. Choosing a place above fills these in for you.
+          </p>
+          <div className="rhythm-profile-settings__grid">
+            <label className="rhythm-profile-settings__field">
+              <span>Timezone</span>
+              <select
+                onChange={(event) => setTimeZone(event.currentTarget.value)}
+                value={timeZone}
+              >
+                <option value="">Not set</option>
+                {zones.map((zone) => (
+                  <option key={zone.id} value={zone.id}>
+                    {zone.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="rhythm-profile-settings__field">
+              <span>Latitude</span>
+              <input onChange={handleLatChange} type="number" value={lat} />
+            </label>
+            <label className="rhythm-profile-settings__field">
+              <span>Longitude</span>
+              <input
+                onChange={(event) => setLon(event.currentTarget.value)}
+                type="number"
+                value={lon}
+              />
+            </label>
+            <label className="rhythm-profile-settings__field">
+              <span>Hemisphere</span>
+              <select
+                onChange={(event) =>
+                  setHemisphere(event.currentTarget.value as Hemisphere)
+                }
+                value={hemisphere}
+              >
+                <option value="N">Northern</option>
+                <option value="S">Southern</option>
+              </select>
+            </label>
+          </div>
+        </details>
 
         <div>
           <p className="rhythm-profile-settings__kicker">Cycle</p>

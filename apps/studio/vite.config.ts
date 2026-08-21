@@ -99,6 +99,11 @@ function studioServiceWorker(): Plugin {
       const entries: PrecacheEntry[] = [];
       for (const [fileName, output] of Object.entries(bundle)) {
         if (fileName.includes('studio-service-worker')) continue;
+        // The ~2.2 MB (gzip) place gazetteer is a rarely-used, lazily-imported
+        // chunk (birthplace picker only). Precaching it would triple the
+        // install payload for a one-time enhancement, so it's fetched on demand
+        // instead; manual coordinate entry keeps the profile usable offline.
+        if (fileName.includes('places-data')) continue;
         const source = output.type === 'asset' ? output.source : output.code;
         entries.push({
           url: fileName === 'index.html' ? '/' : `/${fileName}`,

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import type { Place } from '@studio/rhythm';
 import { vi } from 'vitest';
 
 import {
@@ -10,18 +11,31 @@ function typeInto(labelText: string, value: string): void {
   fireEvent.change(screen.getByLabelText(labelText), { target: { value } });
 }
 
+const AUCKLAND: Place = {
+  name: 'Auckland',
+  country: 'NZ',
+  lat: -36.849,
+  lon: 174.763,
+  timeZone: 'Pacific/Auckland',
+  hemisphere: 'S',
+};
+
 function renderSettings(
   props: Partial<RhythmProfileSettingsProps> = {},
-): { onSave: ReturnType<typeof vi.fn> } {
+): { onSave: ReturnType<typeof vi.fn>; searchPlaces: ReturnType<typeof vi.fn> } {
   const onSave = vi.fn(async () => undefined);
+  // Default to a stub so the real ~6.5 MB gazetteer is never loaded in tests
+  // that don't exercise the picker; individual tests override it as needed.
+  const searchPlaces = vi.fn(async () => [] as Place[]);
   render(
     <RhythmProfileSettings
       onSave={onSave}
       profile={null}
+      searchPlaces={searchPlaces}
       {...props}
     />,
   );
-  return { onSave };
+  return { onSave, searchPlaces };
 }
 
 it('saves birth data and shows the computed placements', async () => {
@@ -246,4 +260,63 @@ it('leaves the hemisphere as previously inferred once latitude is cleared', () =
   expect(screen.getByLabelText('Hemisphere')).toHaveValue('S');
   typeInto('Latitude', '');
   expect(screen.getByLabelText('Hemisphere')).toHaveValue('S');
+});
+
+it('suggests places as the birthplace is typed', async () => {
+  renderSettings({ searchPlaces: vi.fn(async () => [AUCKLAND]) });
+  typeInto('Birth place', 'Auck');
+  const listbox = await screen.findByRole('listbox');
+  expect(within(listbox).getByText('Auckland, NZ')).toBeVisible();
+});
+
+it('derives coordinates, timezone, and hemisphere from a chosen place', async () => {
+  const { onSave } = renderSettings({
+    searchPlaces: vi.fn(async () => [AUCKLAND]),
+  });
+  typeInto('Birth date', '1990-01-01');
+  typeInto('Birth place', 'Auck');
+  fireEvent.click(await screen.findByRole('option', { name: 'Auckland, NZ' }));
+
+  // The manual advanced fields are filled in from the choice.
+  expect(screen.getByLabelText('Latitude')).toHaveValue(-36.849);
+  expect(screen.getByLabelText('Longitude')).toHaveValue(174.763);
+  expect(screen.getByLabelText('Timezone')).toHaveValue('Pacific/Auckland');
+  expect(screen.getByLabelText('Hemisphere')).toHaveValue('S');
+
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() =>
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        hemisphere: 'S',
+        birth: expect.objectContaining({
+          place: 'Auckland, NZ',
+          lat: -36.849,
+          lon: 174.763,
+          timeZone: 'Pacific/Auckland',
+        }),
+      }),
+    ),
+  );
+});
+
+it('selects the active suggestion with the keyboard', async () => {
+  renderSettings({ searchPlaces: vi.fn(async () => [AUCKLAND]) });
+  const input = screen.getByLabelText('Birth place');
+  typeInto('Birth place', 'Auck');
+  await screen.findByRole('listbox');
+  fireEvent.keyDown(input, { key: 'Enter' });
+
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Timezone')).toHaveValue('Pacific/Auckland');
+});
+
+it('closes the suggestion list on Escape without choosing', async () => {
+  renderSettings({ searchPlaces: vi.fn(async () => [AUCKLAND]) });
+  const input = screen.getByLabelText('Birth place');
+  typeInto('Birth place', 'Auck');
+  await screen.findByRole('listbox');
+  fireEvent.keyDown(input, { key: 'Escape' });
+
+  expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  expect(screen.getByLabelText('Timezone')).toHaveValue('');
 });
