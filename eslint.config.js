@@ -40,6 +40,7 @@ export default tseslint.config(
       'artifacts/**',
       'playwright-report/**',
       'test-results/**',
+      'packages/rhythm/src/places-data.js',
     ],
   },
   eslint.configs.recommended,

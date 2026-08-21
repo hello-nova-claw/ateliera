@@ -1,0 +1,33 @@
+{
+  "projectId": "66e2a383-4cac-49e2-b0e7-0c047929492a",
+  "shape": "storybook",
+  "pkg": "@studio/ui",
+  "globalName": "StudioUI",
+  "storybookConfigDir": ".storybook",
+  "storybookStatic": ".design-sync/sb-reference",
+  "buildCmd": "pnpm -F \"@studio/ui...\" build && (cd packages/ui && npx tsc -p tsconfig.dts.json) && node .design-sync/gen-design-tokens.mjs",
+  "entry": "packages/ui/src/index.ts",
+  "cssEntry": "dist/design-tokens.css",
+  "extraFonts": ["../../apps/studio/src/styles/typography.css"],
+  "extraEntries": ["../../.design-sync/preview-provider.tsx"],
+  "provider": { "component": "StudioThemeRoot" },
+  "readmeHeader": ".design-sync/conventions.md",
+  "overrides": {
+    "Inspector": { "cardMode": "single", "primaryStory": "Full" }
+  },
+  "titleMap": {
+    "Primitives/Card": "Card",
+    "Primitives/CardEditor": "CardEditor",
+    "Primitives/SemanticMark": "SemanticMark",
+    "Overlays/Inspector": "Inspector",
+    "Onboarding/Studio Entry Gate": null,
+    "Rooms/Life Landscape": null,
+    "Rooms/Identity Studio": null,
+    "Rooms/Foyer": null,
+    "Rooms/Search": null,
+    "Rooms/Settings/Portability": null,
+    "Rooms/Current Season": null,
+    "Rooms/Reflection Garden": null,
+    "Rooms/Uncharted": null
+  }
+}
