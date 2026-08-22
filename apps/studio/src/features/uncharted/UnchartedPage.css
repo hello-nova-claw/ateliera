@@ -21,7 +21,7 @@
   gap: var(--studio-space-2);
   color: var(--studio-color-ink-1);
   font: var(--studio-type-eyebrow);
-  letter-spacing: 0.1em;
+  letter-spacing: var(--studio-type-eyebrow-tracking);
   text-transform: uppercase;
 }
 
@@ -35,20 +35,18 @@
   padding-inline-start: var(--studio-space-4);
 }
 
+/* The composer gets the page's open space, not a pastel card. */
 .uncharted-composer {
-  margin-block-end: var(--studio-space-20);
-  padding: clamp(1.5rem, 4vw, 3.25rem);
-  border: 1px solid var(--studio-stock-uncharted-edge);
-  border-radius: var(--studio-radius-card);
-  background: var(--studio-stock-uncharted);
-  box-shadow: var(--studio-shadow-card);
+  margin-block-end: var(--studio-rhythm-group);
+  padding-block-start: var(--studio-rhythm-module);
+  border-block-start: 2px solid var(--studio-color-uncharted);
 }
 
 .uncharted-composer > label:first-child {
   display: block;
   margin-block-end: var(--studio-space-4);
   color: var(--studio-color-ink-strong);
-  font: 400 clamp(1.65rem, 3vw, 2.5rem) / 1.15 var(--studio-font-display);
+  font: var(--studio-type-section);
 }
 
 .uncharted-composer textarea {
@@ -61,7 +59,12 @@
   border-radius: 0;
   background: transparent;
   color: var(--studio-color-ink);
-  font: 400 1.125rem / 1.65 var(--studio-font-interface);
+  font: var(--studio-type-page-subtitle);
+}
+
+.uncharted-composer textarea::placeholder {
+  color: var(--studio-color-ink-faint);
+  font: var(--studio-type-quote);
 }
 
 .uncharted-composer__footer {
@@ -96,7 +99,7 @@
 
 .uncharted-page__section-heading h2 {
   margin: 0 0 var(--studio-space-2);
-  font: 400 1.8rem / 1.2 var(--studio-font-display);
+  font: var(--studio-type-section);
 }
 
 .uncharted-page__grid {
@@ -107,30 +110,22 @@
 
 .uncharted-card {
   min-inline-size: 0;
-  padding: var(--studio-space-8);
-  border: 1px solid var(--studio-stock-uncharted-edge);
-  border-radius: var(--studio-radius-card);
-  background: color-mix(
-    in srgb,
-    var(--studio-stock-uncharted) 58%,
-    var(--studio-color-surface)
-  );
-  box-shadow: var(--studio-shadow-note);
+  padding: var(--studio-space-6);
+  border: 1px solid var(--studio-color-line);
+  border-inline-start: 2px solid var(--studio-color-uncharted);
+  border-radius: var(--studio-radius-note);
+  background: var(--studio-color-surface);
   overflow-wrap: anywhere;
 }
 
 .uncharted-card--beyond {
   border-style: dashed;
-  background: color-mix(
-    in srgb,
-    var(--studio-stock-uncharted) 28%,
-    transparent
-  );
+  background: transparent;
 }
 
 .uncharted-card h3 {
   margin: var(--studio-space-4) 0 var(--studio-space-3);
-  font: 400 1.35rem / 1.25 var(--studio-font-display);
+  font: var(--studio-type-card-title);
 }
 
 .uncharted-card__actions {

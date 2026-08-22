@@ -19,15 +19,17 @@
   font: var(--studio-type-control);
 }
 
+/* The query is the room's one hero, on a single bottom rule. */
 .search-page__search input {
   min-block-size: 4.25rem;
-  padding: var(--studio-space-4) var(--studio-space-5);
-  border: 1px solid var(--studio-color-line-strong);
-  border-radius: var(--studio-radius-sheet);
+  padding: var(--studio-space-3) 0;
+  border: 0;
+  border-block-end: 1px solid var(--studio-color-line-strong);
+  border-radius: 0;
   color: var(--studio-color-ink-strong);
-  background: var(--studio-color-surface);
-  box-shadow: var(--studio-shadow-card);
-  font: 400 clamp(1.15rem, 2.4vw, 1.45rem) / 1.35 var(--studio-font-display);
+  background: transparent;
+  font: var(--studio-type-room-title);
+  letter-spacing: var(--studio-type-room-title-tracking);
 }
 
 .search-page__tools {
@@ -79,7 +81,7 @@
   margin-block-end: var(--studio-space-2);
   color: var(--studio-color-ink-muted);
   font: var(--studio-type-eyebrow);
-  letter-spacing: 0.12em;
+  letter-spacing: var(--studio-type-eyebrow-tracking);
   text-transform: uppercase;
 }
 

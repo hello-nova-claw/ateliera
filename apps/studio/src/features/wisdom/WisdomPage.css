@@ -49,7 +49,7 @@
   margin: 0;
   color: var(--studio-color-ink-muted);
   font: var(--studio-type-eyebrow);
-  letter-spacing: 0.13em;
+  letter-spacing: var(--studio-type-eyebrow-tracking);
   text-transform: uppercase;
 }
 
@@ -79,7 +79,7 @@
   inline-size: 100%;
   padding: var(--studio-space-3);
   text-align: start;
-  font: 400 1.03rem / 1.3 var(--studio-font-display);
+  font: var(--studio-type-control);
 }
 
 .wisdom-contents__themes {
@@ -138,7 +138,7 @@
 .wisdom-synthesis h2 {
   margin: 0;
   color: var(--studio-color-ink-strong);
-  font: 400 clamp(1.65rem, 3vw, 2rem) / 1.1 var(--studio-font-display);
+  font: var(--studio-type-section);
 }
 
 .wisdom-reading__heading button,
@@ -207,7 +207,7 @@
 
 .wisdom-card__title {
   color: var(--studio-color-ink-strong);
-  font: 400 1.25rem / 1.35 var(--studio-font-display);
+  font: var(--studio-type-card-title);
 }
 
 .wisdom-card__excerpt {
@@ -234,7 +234,7 @@
 
 .wisdom-reading__empty p {
   margin-block-start: 0;
-  font: 400 1.2rem / 1.4 var(--studio-font-display);
+  font: var(--studio-type-quote);
 }
 
 .wisdom-composer,
@@ -382,7 +382,7 @@
 
 .wisdom-mine__script {
   color: var(--studio-color-script-ink);
-  font: 600 1.4rem / 1.1 var(--studio-font-handwritten);
+  font: var(--studio-type-greeting);
 }
 
 .wisdom-mine__composer {

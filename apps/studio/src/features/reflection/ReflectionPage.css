@@ -18,7 +18,7 @@
 .reflection-page__eyebrow {
   color: var(--studio-color-ink-1);
   font: var(--studio-type-eyebrow);
-  letter-spacing: 0.1em;
+  letter-spacing: var(--studio-type-eyebrow-tracking);
   text-transform: uppercase;
 }
 
@@ -74,7 +74,7 @@
 }
 
 .reflection-capture__heading label {
-  font: 400 1.35rem / 1.2 var(--studio-font-display);
+  font: var(--studio-type-section);
 }
 
 .reflection-capture textarea {
@@ -146,7 +146,7 @@
 
 .reflection-then-now h3 {
   margin-block: var(--studio-space-3);
-  font: 400 1.15rem / 1.25 var(--studio-font-display);
+  font: var(--studio-type-card-title);
 }
 
 .reflection-then-now__line {
@@ -202,7 +202,7 @@
 
 .reflection-entry h3 {
   margin: var(--studio-space-4) 0 var(--studio-space-3);
-  font: 400 1.35rem / 1.25 var(--studio-font-display);
+  font: var(--studio-type-card-title);
 }
 
 .reflection-entry__meaning .semantic-mark {
