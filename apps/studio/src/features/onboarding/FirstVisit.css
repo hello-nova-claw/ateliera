@@ -23,7 +23,7 @@
 
 .first-visit-welcome__script {
   color: var(--studio-color-script-ink);
-  font: 500 1.1rem/1.2 var(--studio-font-handwritten);
+  font: var(--studio-type-signature);
 }
 
 .first-visit-welcome h1 {
@@ -129,7 +129,7 @@
 .tour-preview__eyebrow {
   color: var(--studio-color-ink-1);
   font: var(--studio-type-eyebrow);
-  letter-spacing: 0.09em;
+  letter-spacing: var(--studio-type-eyebrow-tracking);
   text-transform: uppercase;
 }
 
@@ -139,7 +139,7 @@
 }
 
 .first-visit-guide h2 {
-  font: 400 2rem/1.15 var(--studio-font-display);
+  font: var(--studio-type-room-title);
   margin-block: var(--studio-space-3);
 }
 
@@ -289,7 +289,7 @@
 .tour-glimpse__label {
   color: var(--studio-color-ink-strong);
   font: var(--studio-type-eyebrow);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--studio-type-eyebrow-tracking);
   margin: 0;
   text-transform: uppercase;
 }
@@ -317,12 +317,12 @@
 .studio-tour-invitation__eyebrow {
   color: var(--studio-color-ink-muted);
   font: var(--studio-type-eyebrow);
-  letter-spacing: 0.09em;
+  letter-spacing: var(--studio-type-eyebrow-tracking);
   text-transform: uppercase;
 }
 
 .studio-tour-invitation h2 {
-  font: 400 1.75rem/1.15 var(--studio-font-display);
+  font: var(--studio-type-section);
   margin-block: var(--studio-space-2);
 }
 
