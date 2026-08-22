@@ -6,6 +6,7 @@ import {
   type StudioNote,
 } from '@studio/domain';
 import { useEffect, useRef, useState } from 'react';
+import { SemanticMark } from '../SemanticMark/SemanticMark';
 import { MarkdownEditor } from './MarkdownEditor';
 import './CardEditor.css';
 
@@ -49,6 +50,20 @@ const saveLabels: Record<EditorSaveState, string> = {
   conflict: 'Another version exists',
   error: 'Not saved yet',
 };
+
+// The pure UI package has no access to the app's room-label map, but every
+// room id humanises cleanly ('reflection-garden' → 'Reflection Garden').
+function humanizeRoom(roomId: string): string {
+  return roomId
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function countWords(body: string): number {
+  const trimmed = body.trim();
+  return trimmed === '' ? 0 : trimmed.split(/\s+/).length;
+}
 
 function withTitle(note: StudioNote, title: string): StudioNote {
   if (title !== '') return { ...note, title };
@@ -160,6 +175,8 @@ export function CardEditor({
     note.landscapeAnchor === undefined
       ? note.semanticType
       : semanticTypeForLandscapeAnchor(note.landscapeAnchor);
+  const wordCount = countWords(note.body);
+  const primaryRoom = note.rooms[0];
   const conflictSummary = useRef<HTMLElement>(null);
   const errorSummary = useRef<HTMLElement>(null);
   const conflictWasVisible = useRef(false);
@@ -181,12 +198,12 @@ export function CardEditor({
   return (
     <article className="card-editor" aria-label="Note editor">
       <header className="card-editor__header">
-        <p className="card-editor__eyebrow">Markdown focus mode</p>
         <p
           aria-atomic="true"
           className={`card-editor__save-state card-editor__save-state--${saveState}`}
           role="status"
         >
+          <span aria-hidden="true" className="card-editor__save-dot" />
           {saveLabels[saveState]}
         </p>
       </header>
@@ -237,23 +254,35 @@ export function CardEditor({
         </section>
       )}
 
+      <p className="card-editor__meaning">
+        <SemanticMark type={displayedSemanticType} labelMode="visible" />
+        {primaryRoom !== undefined && (
+          <span className="card-editor__meaning-room">
+            {humanizeRoom(primaryRoom)}
+          </span>
+        )}
+      </p>
+
       <label className="card-editor__title-field">
-        <span>Title</span>
+        <span className="visually-hidden">Title</span>
         <input
           disabled={conflict !== undefined}
           onBlur={() => void onFlush()}
           onChange={(event) => onChange(withTitle(note, event.target.value))}
+          placeholder="Untitled"
           value={note.title ?? ''}
         />
       </label>
 
-      <MarkdownEditor
-        label="Markdown body"
-        onBlur={() => void onFlush()}
-        onChange={(body) => onChange({ ...note, body })}
-        readOnly={conflict !== undefined}
-        value={note.body}
-      />
+      <div className="card-editor__body">
+        <MarkdownEditor
+          label="Markdown body"
+          onBlur={() => void onFlush()}
+          onChange={(body) => onChange({ ...note, body })}
+          readOnly={conflict !== undefined}
+          value={note.body}
+        />
+      </div>
 
       <details className="card-editor__details">
         <summary>Note details</summary>
@@ -413,6 +442,12 @@ export function CardEditor({
             )}
         </div>
       </details>
+
+      <footer className="card-editor__footer">
+        <span className="card-editor__wordcount">
+          {wordCount} {wordCount === 1 ? 'word' : 'words'}
+        </span>
+      </footer>
 
       {conflict !== undefined && (
         <section

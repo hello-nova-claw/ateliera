@@ -34,14 +34,18 @@
 .studio-app-shell__brand {
   padding: 0 var(--studio-space-3) var(--studio-space-8);
   color: var(--studio-color-ink-strong);
-  font: 400 1.45rem/1.1 var(--studio-font-display);
+  font: 600 0.9375rem/1.1 var(--studio-font-display);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .studio-app-shell__brand small {
   display: block;
-  margin-block-start: 0.2rem;
+  margin-block-start: var(--studio-space-2);
   color: var(--studio-color-script-ink);
-  font: 500 1.05rem/1 var(--studio-font-handwritten);
+  font: var(--studio-type-signature);
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .studio-app-shell__room-nav,
@@ -72,13 +76,19 @@
   cursor: pointer;
 }
 
-.studio-app-shell__nav-link:hover,
-.studio-app-shell__nav-link[aria-current='page'] {
+.studio-app-shell__nav-link:hover {
   color: var(--studio-color-ink-1);
   background: var(--studio-color-sunken);
 }
 
 .studio-app-shell__nav-link[aria-current='page'] {
+  color: var(--studio-color-ink-1);
+
+  /* A quiet left rule, not a filled pill — keeps the room title the loudest mark. */
+  padding-inline-start: calc(var(--studio-space-3) - 2px);
+  border-inline-start: 2px solid var(--studio-color-vision);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
   font-weight: 600;
 }
 
@@ -134,7 +144,9 @@
   max-inline-size: var(--studio-content-max);
   min-block-size: calc(100dvh - var(--studio-topbar-height));
   margin-inline: auto;
-  padding: clamp(var(--studio-space-8), 5vw, var(--studio-space-16));
+
+  /* The two-column spread owns its own horizontal gutter. */
+  padding-block-start: var(--studio-space-16);
 }
 
 .studio-app-shell__mobile-nav {
