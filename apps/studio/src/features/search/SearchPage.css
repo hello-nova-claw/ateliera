@@ -159,7 +159,7 @@
   align-items: center;
   gap: var(--studio-space-3);
   color: var(--studio-color-ink-muted);
-  font: var(--studio-type-metadata);
+  font: var(--studio-type-meta);
 }
 
 .search-result h2 {
@@ -198,13 +198,13 @@
 .search-result__reason {
   margin: var(--studio-space-3) 0 0;
   color: var(--studio-color-ink-muted);
-  font: var(--studio-type-metadata);
+  font: var(--studio-type-meta);
 }
 
 .search-result__context {
   margin: var(--studio-space-2) 0 0;
   color: var(--studio-color-ink-soft);
-  font: var(--studio-type-metadata);
+  font: var(--studio-type-meta);
   overflow-wrap: anywhere;
 }
 

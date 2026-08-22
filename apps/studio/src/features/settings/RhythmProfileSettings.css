@@ -171,7 +171,7 @@
   border-radius: var(--studio-radius-card);
   color: var(--studio-color-ink-muted);
   background: var(--studio-color-sunken);
-  font: var(--studio-type-metadata);
+  font: var(--studio-type-meta);
 }
 
 .rhythm-profile-settings__placements strong {

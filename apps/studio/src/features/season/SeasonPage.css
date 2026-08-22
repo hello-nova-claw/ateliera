@@ -55,7 +55,7 @@
 .season-page__support-grid h2,
 .season-page__enough h2 {
   margin: 0 0 var(--studio-space-5);
-  font: var(--studio-type-section-title);
+  font: var(--studio-type-section);
 }
 
 .season-page__priorities {

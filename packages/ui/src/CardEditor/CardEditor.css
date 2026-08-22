@@ -50,7 +50,7 @@
   border-block-end: 1px solid var(--studio-color-line);
   color: var(--studio-color-ink-strong);
   background: transparent;
-  font: var(--studio-type-page-title);
+  font: var(--studio-type-room-title);
 }
 
 .card-editor__metadata input {

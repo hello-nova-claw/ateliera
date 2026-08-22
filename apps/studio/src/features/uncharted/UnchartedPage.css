@@ -170,7 +170,7 @@
 
 .uncharted-page__script {
   color: var(--studio-color-uncharted);
-  font: 400 1.45rem / 1.2 var(--studio-font-script);
+  font: var(--studio-type-greeting);
 }
 
 .uncharted-page__empty {
