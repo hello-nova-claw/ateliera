@@ -357,22 +357,17 @@
   color: var(--studio-color-ink-muted);
 }
 
+/* "Make it mine" is the last section on the spine, not a floating card. */
 .wisdom-mine {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--studio-space-6);
-  margin-block-start: var(--studio-space-12);
-  padding: var(--studio-space-6);
-  border: 1px solid var(--studio-stock-growth-edge);
-  border-radius: 0.3rem 0.3rem var(--studio-radius-card)
-    var(--studio-radius-card);
-  background: color-mix(
-    in srgb,
-    var(--studio-stock-growth) 64%,
-    var(--studio-color-surface)
-  );
-  box-shadow: var(--studio-shadow-note);
+  margin-block-start: var(--studio-rhythm-group);
+  padding-block-start: var(--studio-rhythm-module);
+  padding-inline-start: var(--studio-space-6);
+  border-block-start: 1px solid var(--studio-color-line);
+  border-inline-start: 2px solid var(--studio-color-growth);
 }
 
 .wisdom-mine p {

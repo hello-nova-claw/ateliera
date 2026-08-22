@@ -51,16 +51,13 @@
   color: var(--studio-color-ink-strong);
 }
 
+/* The capture is open space with a reflection rule, not a pastel card. */
 .reflection-capture {
-  margin-block: var(--studio-space-8) var(--studio-space-16);
-  padding: var(--studio-space-8);
-  border: 1px solid var(--studio-stock-reflection-edge);
-  border-radius: var(--studio-radius-card);
-  background: color-mix(
-    in srgb,
-    var(--studio-stock-reflection) 48%,
-    var(--studio-color-surface)
-  );
+  margin-block: var(--studio-space-8) var(--studio-rhythm-group);
+  padding-block-start: var(--studio-rhythm-module);
+  padding-inline-start: var(--studio-space-6);
+  border-block-start: 1px solid var(--studio-color-line);
+  border-inline-start: 2px solid var(--studio-color-reflection);
 }
 
 .reflection-capture__heading,
@@ -193,11 +190,6 @@
 
 .reflection-entry--celebration {
   border-inline-start-color: var(--studio-color-celebration);
-  background: color-mix(
-    in srgb,
-    var(--studio-stock-celebration) 38%,
-    var(--studio-color-surface)
-  );
 }
 
 .reflection-entry h3 {
