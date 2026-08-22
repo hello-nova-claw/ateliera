@@ -60,7 +60,7 @@
   margin: 0;
   color: var(--studio-color-ink-muted);
   font: var(--studio-type-eyebrow);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--studio-type-eyebrow-tracking);
   text-transform: uppercase;
 }
 
@@ -68,7 +68,7 @@
   max-inline-size: 23ch;
   margin: var(--studio-space-4) 0;
   color: var(--studio-color-ink-strong);
-  font: 400 clamp(1.8rem, 4vw, 3rem) / 1.08 var(--studio-font-display);
+  font: var(--studio-type-room-title);
   text-wrap: balance;
 }
 
@@ -125,7 +125,7 @@
 .identity-section__heading h2 {
   margin: 0 0 var(--studio-space-2);
   color: var(--studio-color-ink-strong);
-  font: 400 clamp(1.35rem, 2.5vw, 1.75rem) / 1.2 var(--studio-font-display);
+  font: var(--studio-type-section);
 }
 
 .identity-section__heading p,
@@ -196,7 +196,7 @@
 .identity-card h3 {
   margin: var(--studio-space-4) 0 var(--studio-space-2);
   color: var(--studio-color-ink-strong);
-  font: 400 1.25rem / 1.25 var(--studio-font-display);
+  font: var(--studio-type-card-title);
 }
 
 .identity-card > p {

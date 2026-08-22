@@ -1,26 +1,24 @@
 .studio-room-heading {
-  max-inline-size: 48rem;
+  max-inline-size: var(--studio-measure-room);
 }
 
 .studio-room-heading__script {
   margin: 0 0 var(--studio-space-3);
   color: var(--studio-color-script-ink);
-  font: 600 clamp(1.2rem, 2vw, 1.45rem) / 1.05 var(--studio-font-handwritten);
-  transform: translateX(-0.08em) rotate(-1deg);
-  transform-origin: left center;
+  font: var(--studio-type-greeting);
 }
 
 .studio-room-heading h1 {
-  max-inline-size: 14ch;
+  max-inline-size: 22ch;
   margin: 0;
   color: var(--studio-color-ink-strong);
   font: var(--studio-type-room-title);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--studio-type-room-title-tracking);
   text-wrap: balance;
 }
 
 .studio-room-heading__intro {
-  max-inline-size: 43ch;
+  max-inline-size: 52ch;
   margin: var(--studio-space-4) 0 0;
   color: var(--studio-color-ink-muted);
   font: var(--studio-type-page-subtitle);

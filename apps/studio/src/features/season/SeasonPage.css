@@ -22,7 +22,7 @@
   margin: 0 0 var(--studio-space-3);
   color: var(--studio-color-ink-muted);
   font: var(--studio-type-eyebrow);
-  letter-spacing: 0.13em;
+  letter-spacing: var(--studio-type-eyebrow-tracking);
   text-transform: uppercase;
 }
 
@@ -44,7 +44,7 @@
 .season-page__statement {
   max-inline-size: 35ch;
   margin-block-start: var(--studio-space-8);
-  font: 400 clamp(1.6rem, 4vw, 2.8rem)/1.2 var(--studio-font-display);
+  font: var(--studio-type-section);
 }
 
 .season-page__section {
@@ -55,7 +55,7 @@
 .season-page__support-grid h2,
 .season-page__enough h2 {
   margin: 0 0 var(--studio-space-5);
-  font: var(--studio-type-section-title);
+  font: var(--studio-type-section);
 }
 
 .season-page__priorities {
@@ -99,25 +99,25 @@
   background: var(--studio-color-surface);
 }
 
+/* "A limited focus" is a pulled quote, not a card: a left rule, no fill. */
 .season-page__enough {
   position: relative;
-  max-inline-size: 45rem;
+  max-inline-size: var(--studio-measure-room);
   margin-block: clamp(4rem, 9vw, 8rem);
-  padding: var(--studio-space-8);
+  padding-inline-start: var(--studio-space-6);
   border-inline-start: 2px solid var(--studio-color-celebration);
-  background: var(--studio-stock-celebration);
 }
 
 .season-page__script,
 .season-wizard__script {
   margin: 0;
   color: var(--studio-color-script-ink);
-  font: 500 1.2rem/1 var(--studio-font-handwritten);
-  transform: rotate(-2deg);
+  font: var(--studio-type-greeting);
 }
 
 .season-page__enough .season-page__script {
   color: var(--studio-color-ink-strong);
+  font: var(--studio-type-quote);
 }
 
 .season-page__support-grid {
@@ -199,8 +199,8 @@
 .season-wizard__error {
   max-inline-size: 48rem;
   padding: var(--studio-space-4);
+  border-block: 1px solid var(--studio-color-line);
   border-inline-start: 3px solid var(--studio-color-celebration);
-  background: var(--studio-stock-celebration);
 }
 
 .season-page__repair-actions {
@@ -348,8 +348,8 @@
 }
 
 .season-tour-glimpse__cover h2 {
-  font: 400 clamp(1.75rem, 4vw, 3rem) / 1.05 var(--studio-font-display);
   margin: var(--studio-space-2) 0 0;
+  font: var(--studio-type-room-title);
 }
 
 .season-tour-glimpse__composition {

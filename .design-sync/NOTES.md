@@ -24,8 +24,8 @@ CardEditor, SemanticMark, Inspector), all graded `match`.
     (its `@font-face` blocks are stripped). Regenerated every sync from the live
     sources, so it never drifts.
   - `cfg.extraFonts: [../../apps/studio/src/styles/typography.css]` — ships the
-    `@font-face` rules + woff2 (Newsreader, Hanken Grotesk, Caveat) with correct
-    url()s into `fonts/`.
+    `@font-face` rules + woff2 (Source Serif 4, Figtree, Nothing You Could Do)
+    with correct url()s into `fonts/`.
 - **[GENERAL] The `.storybook/preview.tsx` decorator wouldn't bundle** (esbuild
   had no `.woff2` loader for the fonts its CSS imports reach). It provided the
   `.studio-app[data-theme="chamomile"]` wrapper, and **every colour token is
@@ -63,10 +63,10 @@ CardEditor, SemanticMark, Inspector), all graded `match`.
   `--studio-reading-max`): referenced only by leaked `apps/studio` room-page CSS
   in the storybook scrape, not by any of the 4 synced components. Harmless.
   Don't chase them.
-- **`[FONT_MISSING]` for Iowan Old Style / Baskerville / Bradley Hand is
+- **`[FONT_MISSING]` for Iowan Old Style / Charter / Bradley Hand is
   accepted:** these are system-font *fallbacks* in the display/handwritten
-  stacks. The primary brand fonts (Newsreader, Hanken Grotesk, Caveat) all ship
-  and render. Confirmed against the rendered previews.
+  stacks. The primary brand fonts (Source Serif 4, Figtree, Nothing You Could
+  Do) all ship and render. Confirmed against the rendered previews.
 - **`publishConfig.types` was added to `packages/ui/package.json`** — a real repo
   change (harmless for a private package). If it's reverted, export discovery
   regresses to 0 components.

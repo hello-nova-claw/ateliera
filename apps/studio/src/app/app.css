@@ -235,24 +235,20 @@
 
 .studio-room__remembered h2 {
   margin: 0;
-  font: 400 1.85rem/1.2 var(--studio-font-display);
+  font: var(--studio-type-section);
 }
 
 .studio-room__remembered ul {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
-  gap: var(--studio-space-4);
+  gap: 0;
   padding: 0;
   list-style: none;
 }
 
+/* Remembered notes are hairline-ruled rows, not pastel cards. */
 .studio-room__remembered li {
-  min-block-size: 8rem;
-  padding: var(--studio-space-5);
-  border: 1px solid var(--studio-stock-reflection-edge);
-  border-radius: var(--studio-radius-note);
-  background: var(--studio-stock-reflection);
-  box-shadow: var(--studio-shadow-note);
+  padding-block: var(--studio-space-4);
+  border-block-start: 1px solid var(--studio-color-line);
   white-space: pre-wrap;
 }
 
@@ -340,16 +336,15 @@
 .studio-entry__script {
   margin: 0;
   color: var(--studio-color-script-ink);
-  font: 500 1.25rem/1 var(--studio-font-handwritten);
-  transform: rotate(-2deg);
-  transform-origin: left;
+  font: var(--studio-type-greeting);
 }
 
 .studio-entry__panel h1,
 .studio-form h2 {
   margin: var(--studio-space-3) 0;
   color: var(--studio-color-ink-strong);
-  font: 400 clamp(2.5rem, 7vw, 4rem) / 0.98 var(--studio-font-display);
+  font: var(--studio-type-room-title);
+  letter-spacing: var(--studio-type-room-title-tracking);
 }
 
 .studio-entry__tagline {

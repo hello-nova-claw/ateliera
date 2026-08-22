@@ -81,7 +81,7 @@
   padding-inline: var(--studio-space-5);
   color: var(--studio-color-ink-soft);
   font: var(--studio-type-eyebrow);
-  letter-spacing: 0.1em;
+  letter-spacing: var(--studio-type-eyebrow-tracking);
   text-transform: uppercase;
 }
 
@@ -114,15 +114,13 @@
 
 .life-landscape__anchor strong {
   color: var(--studio-color-ink-strong);
-  font-family: var(--studio-font-display);
-  font-size: 1.125rem;
+  font: var(--studio-type-card-title);
 }
 
 .life-landscape__anchor span {
   margin-block-start: var(--studio-space-2);
   color: var(--studio-color-ink-soft);
-  font-size: 0.75rem;
-  line-height: 1.45;
+  font: var(--studio-type-meta);
 }
 
 .life-landscape__cell {
@@ -245,9 +243,8 @@
 .life-landscape__lens > h2 {
   margin-block: 0 var(--studio-space-8);
   color: var(--studio-color-ink-strong);
-  font-family: var(--studio-font-display);
-  font-size: clamp(2rem, 4vw, 3rem);
-  font-weight: 400;
+  font: var(--studio-type-room-title);
+  letter-spacing: var(--studio-type-room-title-tracking);
 }
 
 .life-landscape__section {
@@ -266,9 +263,7 @@
 .life-landscape__section-heading h2 {
   margin: 0;
   color: var(--studio-color-ink-strong);
-  font-family: var(--studio-font-display);
-  font-size: 1.75rem;
-  font-weight: 400;
+  font: var(--studio-type-section);
 }
 
 .life-landscape__section-heading p,
@@ -340,8 +335,7 @@
   border: 0;
   color: var(--studio-color-ink-strong);
   background: transparent;
-  font-family: var(--studio-font-display);
-  font-size: 1.25rem;
+  font: var(--studio-type-card-title);
   text-align: start;
 }
 
@@ -459,7 +453,7 @@
 .life-landscape-card__menu p {
   margin: var(--studio-space-2) var(--studio-space-3) 0;
   font: var(--studio-type-eyebrow);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--studio-type-eyebrow-tracking);
   text-transform: uppercase;
 }
 
@@ -488,9 +482,7 @@
 }
 
 .life-landscape__lens-grid h3 {
-  font-family: var(--studio-font-display);
-  font-size: 1.4rem;
-  font-weight: 400;
+  font: var(--studio-type-section);
 }
 
 .life-landscape__manage {

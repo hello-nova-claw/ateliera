@@ -17,11 +17,10 @@
 .card__title {
   margin: 0;
   font: var(--studio-type-card-title);
-  letter-spacing: var(--studio-letter-spacing-tight);
 }
 
 .card__excerpt {
-  max-inline-size: var(--studio-reading-max);
+  max-inline-size: var(--studio-reading-measure);
   margin: 0;
   color: var(--studio-color-ink-muted);
   font: var(--studio-type-body);

@@ -41,6 +41,12 @@ export default tseslint.config(
       'playwright-report/**',
       'test-results/**',
       'packages/rhythm/src/places-data.js',
+      // Generated / vendored design-system artifacts (all gitignored).
+      'ds-bundle/**',
+      '.ds-sync/**',
+      '.design-sync/**',
+      // Design handoff bundle — reference prototypes, not app source.
+      'design_handoff_ateliera_polish/**',
     ],
   },
   eslint.configs.recommended,

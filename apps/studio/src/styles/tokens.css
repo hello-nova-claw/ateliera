@@ -1,18 +1,39 @@
 :root {
-  --studio-type-room-title: 400 clamp(2.25rem, 5vw, 4.5rem) / 1.04
+  /* One hero per room. 30px → 44px, never larger. */
+  --studio-type-room-title: 300 clamp(1.875rem, 3.4vw, 2.75rem) / 1.14
     var(--studio-font-display);
-  --studio-type-page-subtitle: 400 clamp(1.125rem, 2vw, 1.375rem) / 1.55
-    var(--studio-font-interface);
+  --studio-type-room-title-tracking: -0.015em;
+
+  /* The step that was missing: section headings inside a room. */
+  --studio-type-section: 400 1.5rem / 1.25 var(--studio-font-display);
+
+  /* Card and list-item titles. */
+  --studio-type-card-title: 400 1.1875rem / 1.3 var(--studio-font-display);
+
+  /* The room greeting, in display italic — replaces the handwritten line. */
+  --studio-type-greeting: 300 italic 1.1875rem / 1.2 var(--studio-font-display);
+
+  /* Pulled quotes: Today's gift, Wisdom Garden, Season "Enough". */
+  --studio-type-quote: 300 italic 1.375rem / 1.55 var(--studio-font-display);
+
+  /* Brand mark and user image captions. The only handwritten token. */
+  --studio-type-signature: 400 1rem / 1.15 var(--studio-font-handwritten);
+  --studio-type-page-subtitle: 400 1.0625rem / 1.65 var(--studio-font-interface);
+
+  /* Secondary interface text: prompts, captions, metadata. */
+  --studio-type-meta: 400 0.9375rem / 1.6 var(--studio-font-interface);
   --studio-type-body: 400 1rem / 1.65 var(--studio-font-interface);
-  --studio-type-control: 500 0.9rem / 1.2 var(--studio-font-interface);
+  --studio-type-control: 500 0.875rem / 1.2 var(--studio-font-interface);
   --studio-type-label: 600 0.875rem / 1.4 var(--studio-font-interface);
   --studio-type-eyebrow: 600 0.6875rem / 1.2 var(--studio-font-interface);
+  --studio-type-eyebrow-tracking: 0.16em;
   --studio-space-1: 0.25rem;
   --studio-space-2: 0.5rem;
   --studio-space-3: 0.75rem;
   --studio-space-4: 1rem;
   --studio-space-5: 1.25rem;
   --studio-space-6: 1.5rem;
+  --studio-space-7: 1.75rem;
   --studio-space-8: 2rem;
   --studio-space-10: 2.5rem;
   --studio-space-12: 3rem;
@@ -29,6 +50,18 @@
   --studio-content-max: 73.75rem;
   --studio-content-narrow: 47.5rem;
   --studio-reading-measure: 70ch;
+
+  /* The two-column room: content column + aside, inside content-room. */
+  --studio-content-room: 58.5rem; /* 936px — the spread's outer width */
+  --studio-column-aside: 18.75rem; /* 300px — the aside, fixed */
+  --studio-column-gap: 3.5rem; /* 56px — spine gutter, each side */
+
+  /* Every module in a room clips to this. Nothing declares its own. */
+  --studio-measure-room: 36rem; /* 576px */
+
+  /* Two values, not a clamp. */
+  --studio-rhythm-module: 3rem; /* 48px between modules */
+  --studio-rhythm-group: 6rem; /* 96px between groups of modules */
   --studio-nav-width: 15.5rem;
   --studio-topbar-height: 3.75rem;
   --studio-inspector-width: 27.5rem;
@@ -330,6 +363,20 @@
   --studio-stock-celebration-edge: #4c412b;
   --studio-stock-uncharted: #2d2f3f;
   --studio-stock-uncharted-edge: #3f4155;
+}
+
+/*
+ * Dark canvases expand light type optically, thinning the 300-weight display
+ * face. Override to weight 400 rather than compromise the light themes. See
+ * ADR-009 and board option 7g.
+ */
+.studio-app[data-theme='deep-ocean'],
+.studio-app[data-theme='sunset'],
+.studio-app[data-theme='forest'] {
+  --studio-type-room-title: 400 clamp(1.875rem, 3.4vw, 2.75rem) / 1.14
+    var(--studio-font-display);
+  --studio-type-greeting: 400 italic 1.1875rem / 1.2 var(--studio-font-display);
+  --studio-type-quote: 400 italic 1.375rem / 1.55 var(--studio-font-display);
 }
 
 @media (prefers-contrast: more) {

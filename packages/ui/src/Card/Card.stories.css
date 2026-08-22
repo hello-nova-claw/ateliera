@@ -1,0 +1,82 @@
+.fill-rule {
+  display: grid;
+  gap: var(--studio-rhythm-group);
+  max-inline-size: var(--studio-measure-room);
+}
+
+.fill-rule__group {
+  display: grid;
+  gap: var(--studio-space-4);
+}
+
+.fill-rule__caption {
+  margin: 0;
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-meta);
+}
+
+.fill-rule__caption strong {
+  color: var(--studio-color-ink-strong);
+  font: var(--studio-type-eyebrow);
+  letter-spacing: var(--studio-type-eyebrow-tracking);
+  text-transform: uppercase;
+}
+
+/* A note inside a room: hairline rule, coloured mark, no fill. */
+.fill-rule__rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fill-rule__row {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  gap: var(--studio-space-4);
+  align-items: baseline;
+  padding-block: var(--studio-space-4);
+  border-block-start: 1px solid var(--studio-color-line);
+}
+
+.fill-rule__row-title {
+  margin: 0;
+  color: var(--studio-color-ink-strong);
+  font: var(--studio-type-card-title);
+}
+
+.fill-rule__row-action {
+  color: var(--studio-color-link);
+  font: var(--studio-type-control);
+}
+
+/* A genuine card — a Landscape note or Season tile — may carry a stock fill. */
+.fill-rule__card {
+  display: grid;
+  gap: var(--studio-space-3);
+  padding: var(--studio-space-6);
+  border: 1px solid var(--studio-stock-reflection-edge);
+  border-radius: var(--studio-radius-card);
+  background: var(--studio-stock-reflection);
+}
+
+.fill-rule__card-title {
+  margin: 0;
+  color: var(--studio-color-ink-strong);
+  font: var(--studio-type-card-title);
+}
+
+.fill-rule__card-excerpt {
+  margin: 0;
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-body);
+}
+
+@media (forced-colors: active) {
+  .fill-rule__row {
+    border-block-start: 1px solid CanvasText;
+  }
+
+  .fill-rule__card {
+    border-color: CanvasText;
+  }
+}

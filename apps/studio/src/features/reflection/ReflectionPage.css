@@ -18,7 +18,7 @@
 .reflection-page__eyebrow {
   color: var(--studio-color-ink-1);
   font: var(--studio-type-eyebrow);
-  letter-spacing: 0.1em;
+  letter-spacing: var(--studio-type-eyebrow-tracking);
   text-transform: uppercase;
 }
 
@@ -51,16 +51,13 @@
   color: var(--studio-color-ink-strong);
 }
 
+/* The capture is open space with a reflection rule, not a pastel card. */
 .reflection-capture {
-  margin-block: var(--studio-space-8) var(--studio-space-16);
-  padding: var(--studio-space-8);
-  border: 1px solid var(--studio-stock-reflection-edge);
-  border-radius: var(--studio-radius-card);
-  background: color-mix(
-    in srgb,
-    var(--studio-stock-reflection) 48%,
-    var(--studio-color-surface)
-  );
+  margin-block: var(--studio-space-8) var(--studio-rhythm-group);
+  padding-block-start: var(--studio-rhythm-module);
+  padding-inline-start: var(--studio-space-6);
+  border-block-start: 1px solid var(--studio-color-line);
+  border-inline-start: 2px solid var(--studio-color-reflection);
 }
 
 .reflection-capture__heading,
@@ -74,7 +71,7 @@
 }
 
 .reflection-capture__heading label {
-  font: 400 1.35rem / 1.2 var(--studio-font-display);
+  font: var(--studio-type-section);
 }
 
 .reflection-capture textarea {
@@ -146,7 +143,7 @@
 
 .reflection-then-now h3 {
   margin-block: var(--studio-space-3);
-  font: 400 1.15rem / 1.25 var(--studio-font-display);
+  font: var(--studio-type-card-title);
 }
 
 .reflection-then-now__line {
@@ -193,16 +190,11 @@
 
 .reflection-entry--celebration {
   border-inline-start-color: var(--studio-color-celebration);
-  background: color-mix(
-    in srgb,
-    var(--studio-stock-celebration) 38%,
-    var(--studio-color-surface)
-  );
 }
 
 .reflection-entry h3 {
   margin: var(--studio-space-4) 0 var(--studio-space-3);
-  font: 400 1.35rem / 1.25 var(--studio-font-display);
+  font: var(--studio-type-card-title);
 }
 
 .reflection-entry__meaning .semantic-mark {

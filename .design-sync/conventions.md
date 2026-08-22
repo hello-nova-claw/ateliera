@@ -33,11 +33,14 @@ design tokens — always `var(--studio-*)`, never hard-coded colours or pixels:
   `--studio-color-vision`, `--studio-color-growth`, `--studio-color-reflection`,
   `--studio-color-celebration`, `--studio-color-uncharted` (+ matching
   `--studio-stock-*` / `--studio-stock-*-edge` tints for card backgrounds).
-- **Type:** `--studio-type-room-title`, `--studio-type-page-subtitle`,
-  `--studio-type-body`, `--studio-type-control`, `--studio-type-label`,
-  `--studio-type-eyebrow` (each a full `font` shorthand). Font families:
-  `--studio-font-display` (Newsreader serif), `--studio-font-interface` (Hanken
-  Grotesk), `--studio-font-handwritten` (Caveat).
+- **Type:** `--studio-type-room-title` (the one hero per room),
+  `--studio-type-section`, `--studio-type-card-title`, `--studio-type-greeting`,
+  `--studio-type-quote`, `--studio-type-page-subtitle`, `--studio-type-body`,
+  `--studio-type-meta`, `--studio-type-control`, `--studio-type-label`,
+  `--studio-type-eyebrow`, `--studio-type-signature` (each a full `font`
+  shorthand). Font families: `--studio-font-display` (Source Serif 4 serif),
+  `--studio-font-interface` (Figtree), `--studio-font-handwritten` (Nothing You
+  Could Do — the accent hand, used only for the brand mark and image captions).
 - **Space:** `--studio-space-1` … `-24`. **Radius:** `--studio-radius-note`,
   `-card`, `-sheet`, `-control`.
 

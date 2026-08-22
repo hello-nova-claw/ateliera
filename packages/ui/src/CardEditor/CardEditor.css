@@ -1,88 +1,99 @@
 .card-editor {
   display: grid;
-  gap: var(--studio-space-5);
+  justify-items: center;
+  gap: var(--studio-rhythm-module);
   min-block-size: 100%;
-  padding: clamp(var(--studio-space-5), 5vw, var(--studio-space-10));
+  padding-block: var(--studio-space-4) var(--studio-space-16);
+  padding-inline: var(--studio-space-5);
   color: var(--studio-color-ink);
   background: var(--studio-color-surface);
 }
 
+/* Every block sits on the one reading measure; the chrome bar spans the width. */
+.card-editor > * {
+  inline-size: min(100%, var(--studio-measure-room));
+}
+
+/* The chrome collapses to one quiet bar. */
 .card-editor__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--studio-space-4);
+  justify-content: flex-end;
+  inline-size: 100%;
+  min-block-size: 3.5rem;
+  border-block-end: 1px solid var(--studio-color-line);
 }
 
-.card-editor__eyebrow,
 .card-editor__save-state {
+  display: inline-flex;
+  gap: var(--studio-space-2);
+  align-items: center;
   margin: 0;
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-control);
+}
+
+/* The label stays readable; the meaning lives in the dot. */
+.card-editor__save-dot {
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: var(--studio-color-ink-faint);
+}
+
+.card-editor__save-state--saved .card-editor__save-dot {
+  background: var(--studio-color-growth);
+}
+
+.card-editor__save-state--conflict .card-editor__save-dot,
+.card-editor__save-state--error .card-editor__save-dot {
+  background: var(--studio-color-celebration);
+}
+
+/* Meaning + room, an eyebrow above the one hero. */
+.card-editor__meaning {
+  display: flex;
+  gap: var(--studio-space-2);
+  align-items: center;
+  margin: 0;
+  color: var(--studio-color-ink-soft);
   font: var(--studio-type-eyebrow);
-  letter-spacing: 0.12em;
+  letter-spacing: var(--studio-type-eyebrow-tracking);
   text-transform: uppercase;
 }
 
-.card-editor__save-state {
-  color: var(--studio-color-ink-muted);
+.card-editor__meaning-room::before {
+  content: '·';
+  margin-inline-end: var(--studio-space-2);
+  color: var(--studio-color-ink-faint);
 }
 
-.card-editor__save-state--saved {
-  color: var(--studio-color-growth);
-}
-
-.card-editor__save-state--conflict,
-.card-editor__save-state--error {
-  color: var(--studio-color-ink-strong);
-}
-
-.card-editor__title-field,
-.card-editor__metadata label {
+/* The title is the page's one hero: no border, no background, no visible label. */
+.card-editor__title-field {
   display: grid;
-  gap: var(--studio-space-2);
-  color: var(--studio-color-ink-muted);
-  font: var(--studio-type-control);
 }
 
 .card-editor__title-field input {
   inline-size: 100%;
-  padding: var(--studio-space-2) 0;
+  padding: 0;
   border: 0;
-  border-block-end: 1px solid var(--studio-color-line);
   color: var(--studio-color-ink-strong);
   background: transparent;
-  font: var(--studio-type-page-title);
+  font: var(--studio-type-room-title);
+  letter-spacing: var(--studio-type-room-title-tracking);
 }
 
-.card-editor__metadata input {
-  min-block-size: var(--studio-touch-target);
-  padding-inline: var(--studio-space-3);
-  border: 1px solid var(--studio-color-line-strong);
-  border-radius: 0.625rem;
-  color: var(--studio-color-ink);
-  background: var(--studio-color-surface);
-  font: var(--studio-type-control);
+.card-editor__title-field input::placeholder {
+  color: var(--studio-color-ink-faint);
 }
 
-.card-editor__source-links {
-  align-self: end;
-  margin: 0;
-  padding-block: var(--studio-space-3);
-  color: var(--studio-color-ink-muted);
-  font: var(--studio-type-control);
-}
-
-.card-editor__metadata small {
-  color: var(--studio-color-ink-muted);
-  font-size: 0.75rem;
-  line-height: 1.45;
+/* The editor sits directly on the surface — no frame, no radius. */
+.card-editor__body {
+  inline-size: min(100%, var(--studio-measure-room));
 }
 
 .card-editor__markdown {
-  min-block-size: 18rem;
-  border: 1px solid var(--studio-color-line);
-  border-radius: var(--studio-radius-card);
-  background: var(--studio-color-frame);
-  overflow: clip;
+  min-block-size: 20rem;
 }
 
 .card-editor__markdown .cm-editor,
@@ -94,16 +105,32 @@
   color: var(--studio-color-ink);
   background: transparent;
   font: var(--studio-type-body);
+  line-height: 1.85;
 }
 
 .card-editor__markdown .cm-content {
-  padding: var(--studio-space-5);
+  padding: 0;
   caret-color: var(--studio-color-ink);
 }
 
 .card-editor__markdown .cm-focused {
   outline: var(--studio-focus-width) solid var(--studio-color-focus);
-  outline-offset: calc(-1 * var(--studio-focus-width));
+  outline-offset: var(--studio-focus-offset);
+}
+
+/* Footer hairline: word count now, the reading weight of the note. */
+.card-editor__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-block-start: var(--studio-space-4);
+  border-block-start: 1px solid var(--studio-color-line);
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-meta);
+}
+
+.card-editor__wordcount {
+  margin: 0;
 }
 
 .card-editor__details {
@@ -118,16 +145,24 @@
   cursor: pointer;
 }
 
-.card-editor__metadata,
-.card-editor__versions {
+.card-editor__metadata {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--studio-space-4);
+  margin-block-start: var(--studio-space-4);
 }
 
-.card-editor__metadata select,
-.card-editor__actions button {
+.card-editor__metadata label {
+  display: grid;
+  gap: var(--studio-space-2);
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-control);
+}
+
+.card-editor__metadata input,
+.card-editor__metadata select {
   min-block-size: var(--studio-touch-target);
+  padding-inline: var(--studio-space-3);
   border: 1px solid var(--studio-color-line-strong);
   border-radius: 0.625rem;
   color: var(--studio-color-ink);
@@ -135,27 +170,67 @@
   font: var(--studio-type-control);
 }
 
-.card-editor__notice,
-.card-editor__conflict {
+.card-editor__metadata small {
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-meta);
+}
+
+.card-editor__source-links {
+  align-self: end;
+  margin: 0;
+  padding-block: var(--studio-space-3);
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-control);
+}
+
+/* Transient notices keep a soft panel; they are not part of the reading flow. */
+.card-editor__notice {
   padding: var(--studio-space-5);
-  border: 1px solid var(--studio-color-line-strong);
+  border: 1px solid var(--studio-color-line);
   border-radius: var(--studio-radius-card);
   background: var(--studio-color-sunken);
 }
 
-.card-editor__notice h2,
-.card-editor__conflict h2,
-.card-editor__versions h3 {
+.card-editor__notice h2 {
   margin-block-start: 0;
-  font-family: var(--studio-font-display);
+  font: var(--studio-type-section);
+}
+
+/* Conflict: two versions on a shared hairline spine, no card fill. */
+.card-editor__conflict h2 {
+  margin-block-start: 0;
+  font: var(--studio-type-section);
+}
+
+.card-editor__conflict > p {
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-greeting);
+}
+
+.card-editor__versions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--studio-column-gap);
+  margin-block: var(--studio-space-5);
 }
 
 .card-editor__versions section {
-  padding: var(--studio-space-4);
-  border: 1px solid var(--studio-color-line);
-  border-radius: var(--studio-radius-note);
-  background: var(--studio-stock-reflection);
   white-space: pre-wrap;
+}
+
+.card-editor__versions section + section {
+  padding-inline-start: var(--studio-column-gap);
+  border-inline-start: 1px solid var(--studio-color-line);
+}
+
+.card-editor__versions h3 {
+  margin-block-start: 0;
+  font: var(--studio-type-section);
+}
+
+.card-editor__action-error {
+  color: var(--studio-color-celebration);
+  font: var(--studio-type-meta);
 }
 
 .card-editor__actions {
@@ -165,7 +240,13 @@
 }
 
 .card-editor__actions button {
+  min-block-size: var(--studio-touch-target);
   padding-inline: var(--studio-space-4);
+  border: 1px solid var(--studio-color-line-strong);
+  border-radius: 0.625rem;
+  color: var(--studio-color-ink);
+  background: var(--studio-color-surface);
+  font: var(--studio-type-control);
   cursor: pointer;
 }
 
@@ -175,13 +256,16 @@
 }
 
 @media (width <= 47.99rem) {
-  .card-editor {
-    padding: var(--studio-space-5);
-  }
-
   .card-editor__metadata,
   .card-editor__versions {
     grid-template-columns: 1fr;
+  }
+
+  .card-editor__versions section + section {
+    padding-inline-start: 0;
+    padding-block-start: var(--studio-space-5);
+    border-inline-start: 0;
+    border-block-start: 1px solid var(--studio-color-line);
   }
 }
 
@@ -192,9 +276,11 @@
 }
 
 @media (forced-colors: active) {
+  .card-editor__header,
+  .card-editor__footer,
+  .card-editor__details,
   .card-editor__notice,
-  .card-editor__conflict,
-  .card-editor__markdown {
+  .card-editor__versions section + section {
     border-color: CanvasText;
   }
 }

@@ -1,23 +1,22 @@
+/* A pulled quote at the foot of the spread, not a card. */
 .foyer-gift {
-  max-inline-size: 47rem;
-  margin-block-start: var(--studio-space-8);
-  padding: clamp(var(--studio-space-5), 4vw, var(--studio-space-7));
-  border: 1px solid var(--studio-color-line);
-  border-radius: var(--studio-radius-card);
-  background: color-mix(in srgb, var(--studio-color-sunken) 60%, transparent);
+  max-inline-size: var(--studio-measure-room);
+  margin-block-start: var(--studio-rhythm-group);
+  padding-block-start: var(--studio-rhythm-module);
+  border-block-start: 1px solid var(--studio-color-line);
 }
 
 .foyer-gift__text {
   margin: 0;
-  color: var(--studio-color-ink-strong);
-  font: 400 clamp(1.15rem, 2.4vw, 1.5rem)/1.5 var(--studio-font-display);
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-quote);
   overflow-wrap: anywhere;
 }
 
 .foyer-gift__excerpt {
   margin: var(--studio-space-3) 0 0;
   color: var(--studio-color-ink-soft);
-  line-height: 1.6;
+  font: var(--studio-type-meta);
   overflow-wrap: anywhere;
 }
 

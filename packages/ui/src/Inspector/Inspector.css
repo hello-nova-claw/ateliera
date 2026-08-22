@@ -35,7 +35,7 @@
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--studio-color-ink-strong);
-  font: 400 clamp(1.5rem, 4vw, 2rem) / 1.15 var(--studio-font-display);
+  font: var(--studio-type-section);
 }
 
 .inspector__close,
@@ -127,7 +127,7 @@
 }
 
 .inspector__state h2 {
-  font: 400 1.5rem/1.2 var(--studio-font-display);
+  font: var(--studio-type-section);
 }
 
 .inspector__skeleton {
@@ -197,7 +197,7 @@
 
 .inspector__links h3 {
   margin: 0 0 var(--studio-space-3);
-  font: 600 1rem/1.4 var(--studio-font-interface);
+  font: var(--studio-type-label);
 }
 
 .inspector__link-list {

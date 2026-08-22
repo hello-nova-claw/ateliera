@@ -18,7 +18,7 @@
   margin: 0 0 var(--studio-space-2);
   color: var(--studio-color-ink-muted);
   font: var(--studio-type-eyebrow);
-  letter-spacing: 0.13em;
+  letter-spacing: var(--studio-type-eyebrow-tracking);
   text-transform: uppercase;
 }
 
@@ -34,18 +34,19 @@
   gap: var(--studio-space-5);
 }
 
+/* A repair is a hairline note with a celebration left rule, not a card. */
 .repair-card {
-  padding: var(--studio-space-5);
-  border: 1px solid var(--studio-stock-celebration-edge);
-  border-radius: var(--studio-radius-note);
-  background: var(--studio-stock-celebration);
+  padding-block: var(--studio-space-5);
+  padding-inline: var(--studio-space-4) var(--studio-space-5);
+  border-block: 1px solid var(--studio-color-line);
+  border-inline-start: 2px solid var(--studio-color-celebration);
 }
 
 .repair-card h3 {
   overflow-wrap: anywhere;
   margin: 0;
   color: var(--studio-color-ink-strong);
-  font: 400 1.2rem/1.3 var(--studio-font-display);
+  font: var(--studio-type-card-title);
 }
 
 .repair-card__errors {
