@@ -200,6 +200,7 @@
 .studio-room {
   position: relative;
   max-inline-size: 56rem;
+  margin-inline: auto;
 }
 
 .studio-room:has(.studio-tour-layout) {

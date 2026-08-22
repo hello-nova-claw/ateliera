@@ -145,8 +145,9 @@
   min-block-size: calc(100dvh - var(--studio-topbar-height));
   margin-inline: auto;
 
-  /* The two-column spread owns its own horizontal gutter. */
+  /* The outer page gutter. The spread's own column spine is separate. */
   padding-block-start: var(--studio-space-16);
+  padding-inline: clamp(var(--studio-space-8), 5vw, var(--studio-space-20));
 }
 
 .studio-app-shell__mobile-nav {
