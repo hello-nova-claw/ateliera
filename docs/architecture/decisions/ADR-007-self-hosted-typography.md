@@ -1,7 +1,13 @@
 # ADR-007: Self-host the licensed Studio typefaces
 
-**Status:** Accepted
+**Status:** Superseded by ADR-009
 **Date:** 13 July 2026
+
+> **Superseded by [ADR-009](./ADR-009-revise-studio-typefaces.md) (22 August 2026).**
+> The self-hosting policy, preload rules, `font-display: swap`, release-gating, and
+> `document.fonts.ready` baseline requirement all carry forward unchanged. Only the
+> three families and their approved faces/fallbacks changed: Newsreader → Source
+> Serif 4, Hanken Grotesk → Figtree, Caveat → Nothing You Could Do.
 
 ## Context
 
