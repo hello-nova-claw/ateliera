@@ -29,24 +29,25 @@
   gap: var(--studio-space-2);
   align-items: center;
   margin: 0;
-  color: var(--studio-color-ink-faint);
+  color: var(--studio-color-ink-muted);
   font: var(--studio-type-control);
 }
 
+/* The label stays readable; the meaning lives in the dot. */
 .card-editor__save-dot {
   inline-size: 0.5rem;
   block-size: 0.5rem;
   border-radius: 50%;
-  background: currentcolor;
+  background: var(--studio-color-ink-faint);
 }
 
-.card-editor__save-state--saved {
-  color: var(--studio-color-growth);
+.card-editor__save-state--saved .card-editor__save-dot {
+  background: var(--studio-color-growth);
 }
 
-.card-editor__save-state--conflict,
-.card-editor__save-state--error {
-  color: var(--studio-color-celebration);
+.card-editor__save-state--conflict .card-editor__save-dot,
+.card-editor__save-state--error .card-editor__save-dot {
+  background: var(--studio-color-celebration);
 }
 
 /* Meaning + room, an eyebrow above the one hero. */
@@ -124,7 +125,7 @@
   justify-content: space-between;
   padding-block-start: var(--studio-space-4);
   border-block-start: 1px solid var(--studio-color-line);
-  color: var(--studio-color-ink-faint);
+  color: var(--studio-color-ink-muted);
   font: var(--studio-type-meta);
 }
 
