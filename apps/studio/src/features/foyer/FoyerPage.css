@@ -1,5 +1,5 @@
 .studio-room:has(.foyer-page) {
-  max-inline-size: var(--studio-content-max);
+  max-inline-size: var(--studio-content-room);
 }
 
 .foyer-page {
@@ -9,58 +9,22 @@
 
 .foyer-page__header {
   position: relative;
-  max-inline-size: 47rem;
-  margin-block-end: clamp(3rem, 7vw, 6.5rem);
+  max-inline-size: var(--studio-measure-room);
+  margin-block-end: var(--studio-rhythm-group);
 }
 
-.foyer-page__header::after {
-  position: absolute;
-  inline-size: 4.5rem;
-  block-size: 1.5rem;
-  inset-inline-start: min(24rem, 55%);
-  inset-block-end: -2rem;
-  border-block-start: 1px solid var(--studio-color-growth);
-  border-radius: 50%;
-  content: '';
-  opacity: 0.55;
-  transform: rotate(-7deg);
-}
-
-.foyer-page__script {
-  margin: 0 0 var(--studio-space-2);
-  color: var(--studio-color-script-ink);
-  font: 500 1.3rem/1 var(--studio-font-handwritten);
-  transform: rotate(-2deg);
-  transform-origin: left;
-}
-
-.foyer-page h1 {
-  max-inline-size: none;
-  margin: 0;
-  color: var(--studio-color-ink-strong);
-  font: var(--studio-type-room-title);
-  letter-spacing: -0.025em;
-}
-
-.foyer-page__motto {
-  max-inline-size: 38ch;
-  margin: var(--studio-space-4) 0 0;
-  color: var(--studio-color-ink-muted);
-  font: var(--studio-type-page-subtitle);
-}
-
+/* Page-state banners are not cards: a hairline and a meaning rule, no fill. */
 .foyer-page__state {
-  max-inline-size: 42rem;
-  margin: calc(-1 * var(--studio-space-10)) 0 var(--studio-space-8);
+  max-inline-size: var(--studio-measure-room);
+  margin: calc(-1 * var(--studio-space-8)) 0 var(--studio-space-8);
   padding: var(--studio-space-3) var(--studio-space-4);
+  border-block: 1px solid var(--studio-color-line);
   border-inline-start: 3px solid var(--studio-color-reflection);
   color: var(--studio-color-ink-1);
-  background: var(--studio-stock-reflection);
 }
 
 .foyer-page__state--error {
   border-inline-start-color: var(--studio-color-celebration);
-  background: var(--studio-stock-celebration);
 }
 
 .foyer-page__spread {
@@ -145,34 +109,34 @@
 .foyer-page__wide,
 .foyer-page__narrow {
   display: grid;
-  gap: clamp(3rem, 6vw, 5.5rem);
+  gap: var(--studio-rhythm-group);
   min-inline-size: 0;
 }
 
 .foyer-page__narrow {
-  padding-block-start: clamp(1rem, 5vw, 4.5rem);
+  padding-block-start: var(--studio-space-4);
 }
 
 .foyer-section-label {
   margin: 0 0 var(--studio-space-3);
   color: var(--studio-color-ink-muted);
   font: var(--studio-type-eyebrow);
-  letter-spacing: 0.14em;
+  letter-spacing: var(--studio-type-eyebrow-tracking);
   text-transform: uppercase;
 }
 
 .foyer-becoming {
   position: relative;
-  max-inline-size: 47rem;
-  padding-inline-start: clamp(1.25rem, 3vw, 2.5rem);
+  max-inline-size: var(--studio-measure-room);
+  padding-inline-start: var(--studio-space-6);
   border-inline-start: 2px solid var(--studio-color-vision);
 }
 
 .foyer-becoming h2 {
-  max-inline-size: 19ch;
+  max-inline-size: 22ch;
   margin: 0;
   color: var(--studio-color-ink-strong);
-  font: 400 clamp(1.85rem, 4vw, 3.2rem)/1.12 var(--studio-font-display);
+  font: var(--studio-type-section);
   text-wrap: balance;
 }
 
@@ -222,16 +186,16 @@
 }
 
 .foyer-season {
-  max-inline-size: 44rem;
-  padding-block: var(--studio-space-6);
-  border-block: 1px solid var(--studio-color-line);
+  max-inline-size: var(--studio-measure-room);
+  padding-block-start: var(--studio-rhythm-module);
+  border-block-start: 1px solid var(--studio-color-line);
 }
 
 .foyer-season__heading,
 .foyer-principles__heading {
   display: flex;
   gap: var(--studio-space-5);
-  align-items: start;
+  align-items: baseline;
   justify-content: space-between;
 }
 
@@ -240,7 +204,7 @@
 .foyer-return h2 {
   margin: 0;
   color: var(--studio-color-ink-strong);
-  font: 400 clamp(1.45rem, 2.5vw, 2rem)/1.2 var(--studio-font-display);
+  font: var(--studio-type-section);
 }
 
 .foyer-season__excerpt {
@@ -250,27 +214,23 @@
 
 .foyer-season__priorities {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
-  gap: var(--studio-space-3);
-  margin: var(--studio-space-6) 0 0;
+  gap: 0;
+  margin: var(--studio-space-5) 0 0;
   padding: 0;
-  counter-reset: priorities;
   list-style: none;
 }
 
+/* A priority is a note in a room: a hairline row with a coloured mark, not a tile. */
 .foyer-season__priorities li {
-  min-block-size: 6.5rem;
-  padding: var(--studio-space-4);
-  border: 1px solid var(--studio-stock-growth-edge);
-  border-radius: var(--studio-radius-note);
-  background: var(--studio-stock-growth);
-  box-shadow: var(--studio-shadow-note);
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: var(--studio-space-4);
+  padding-block: var(--studio-space-4);
+  border-block-start: 1px solid var(--studio-color-line);
   overflow-wrap: anywhere;
 }
 
 .foyer-season__priorities li::before {
-  display: block;
-  margin-block-end: var(--studio-space-2);
   color: var(--studio-color-growth);
   content: '♥';
 }
@@ -295,32 +255,26 @@
 }
 
 .foyer-feelings__list li {
-  padding: 0.55rem 0.95rem;
-  border: 1px solid var(--studio-stock-vision-edge);
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--studio-color-line-strong);
   border-radius: 999px;
   color: var(--studio-color-ink-strong);
-  background: color-mix(
-    in srgb,
-    var(--studio-stock-vision) 58%,
-    var(--studio-color-surface)
-  );
   overflow-wrap: anywhere;
 }
 
 .foyer-principles__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
-  gap: var(--studio-space-4);
+  gap: 0;
   margin-block-start: var(--studio-space-5);
 }
 
+/* A guiding principle is a hairline row with a coloured mark, not a tile. */
 .foyer-principle {
-  min-block-size: 10.5rem;
-  padding: var(--studio-space-5);
-  border: 1px solid var(--studio-stock-foundation-edge);
-  border-radius: var(--studio-radius-note);
-  background: var(--studio-stock-foundation);
-  box-shadow: var(--studio-shadow-note);
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: var(--studio-space-4);
+  padding-block: var(--studio-space-4);
+  border-block-start: 1px solid var(--studio-color-line);
 }
 
 .foyer-principle__mark {
@@ -328,14 +282,16 @@
 }
 
 .foyer-principle h3 {
-  margin: var(--studio-space-3) 0 0;
-  font: 400 1.2rem/1.25 var(--studio-font-display);
+  margin: 0;
+  font: var(--studio-type-card-title);
   overflow-wrap: anywhere;
 }
 
 .foyer-principle__excerpt {
+  grid-column: 2;
+  margin-block-start: var(--studio-space-1);
   color: var(--studio-color-ink-muted);
-  font-size: 0.92rem;
+  font: var(--studio-type-meta);
   overflow-wrap: anywhere;
 }
 
@@ -343,16 +299,14 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: var(--studio-space-4);
-  padding: var(--studio-space-5);
-  border: 1px solid var(--studio-stock-reflection-edge);
-  border-radius: var(--studio-radius-note);
-  background: var(--studio-stock-reflection);
-  box-shadow: var(--studio-shadow-note);
+  padding-block: var(--studio-space-4);
+  border-block-start: 1px solid var(--studio-color-line);
+  border-inline-start: 2px solid var(--studio-color-reflection);
+  padding-inline-start: var(--studio-space-4);
 }
 
 .foyer-return--celebration {
-  border-color: var(--studio-stock-celebration-edge);
-  background: var(--studio-stock-celebration);
+  border-inline-start-color: var(--studio-color-celebration);
 }
 
 .foyer-return__mark {
@@ -388,7 +342,7 @@
 
 .foyer-polaroid figcaption {
   margin-block-start: var(--studio-space-3);
-  font: 500 1rem/1.2 var(--studio-font-handwritten);
+  font: var(--studio-type-signature);
   text-align: center;
 }
 
@@ -466,17 +420,15 @@
 }
 
 .foyer-drafts {
-  max-inline-size: 44rem;
-  margin-block-start: var(--studio-space-12);
-  padding: var(--studio-space-5);
-  border: 1px solid var(--studio-color-line);
-  border-radius: var(--studio-radius-card);
-  background: var(--studio-color-sunken);
+  max-inline-size: var(--studio-measure-room);
+  margin-block-start: var(--studio-rhythm-group);
+  padding-block-start: var(--studio-rhythm-module);
+  border-block-start: 1px solid var(--studio-color-line);
 }
 
 .foyer-drafts h2 {
   margin: 0;
-  font: 400 1.35rem/1.2 var(--studio-font-display);
+  font: var(--studio-type-section);
 }
 
 .foyer-drafts ul {
@@ -618,13 +570,17 @@
 }
 
 @media (forced-colors: active) {
-  .foyer-becoming,
+  .foyer-polaroid,
+  .foyer-feelings__list li {
+    border: 1px solid CanvasText;
+  }
+
   .foyer-principle,
   .foyer-return,
-  .foyer-polaroid,
-  .foyer-feelings__list li,
-  .foyer-season__priorities li {
-    border: 1px solid CanvasText;
+  .foyer-season__priorities li,
+  .foyer-drafts,
+  .foyer-page__state {
+    border-block-start: 1px solid CanvasText;
   }
 
   .foyer-legend__heart,
