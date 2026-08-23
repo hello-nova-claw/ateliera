@@ -34,6 +34,7 @@ import {
   type BrowserStudioRecord,
 } from './browser-studios';
 import { useTheme } from './theme-context';
+import { MoonGuide } from './MoonGuide';
 import { RoomRoute } from './RoomRoute';
 import { useStudioRouter, type StudioPath } from './router';
 import { themes, type ThemeId } from './themes';
@@ -1325,6 +1326,15 @@ function StudioApplication({
   return (
     <ActiveStudioApplication
       activePath={path}
+      {...(opened
+        ? {
+            brandAside: (
+              <MoonGuide
+                {...(isStudioService(service) ? { service } : {})}
+              />
+            ),
+          }
+        : {})}
       captureEnabled={opened && service !== null}
       {...(visibleTourStep === undefined ? {} : { focusMode: 'tour' })}
       localStatus={opened ? 'Stored locally' : 'No Studio open'}

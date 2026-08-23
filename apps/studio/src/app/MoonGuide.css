@@ -1,0 +1,25 @@
+/* The moon guide sits beside the wordmark; its caption resets the brand's
+   uppercase treatment back to plain, quiet text. */
+.studio-moon-guide {
+  display: flex;
+  gap: var(--studio-space-2);
+  align-items: center;
+  color: var(--studio-color-ink-muted);
+}
+
+.studio-moon-guide__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font: var(--studio-type-meta);
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.studio-moon-guide__phase {
+  color: var(--studio-color-ink-muted);
+}
+
+.studio-moon-guide__meta {
+  color: var(--studio-color-ink-soft);
+}
