@@ -40,4 +40,31 @@ describe('useAlmanac', () => {
     expect(result.current.season).toBe('winter');
     expect(result.current.microSeason.term).toBe('Lesser Cold');
   });
+
+  it('leans outward at the new moon and inward at the full moon', () => {
+    const outward = renderHook(() => useAlmanac(undefined, '2026-08-12'));
+    expect(outward.result.current.orientation).toBe('outward');
+    const inward = renderHook(() => useAlmanac(undefined, '2026-08-28'));
+    expect(inward.result.current.orientation).toBe('inward');
+  });
+
+  it('surfaces the cycle when a profile carries a cycle basis', async () => {
+    const load = vi.fn().mockResolvedValue({
+      profile: {
+        hemisphere: 'N',
+        cycle: { lastPeriodStart: '2026-08-01', avgLengthDays: 28 },
+        natal: { placements: {} },
+      },
+      revision: 'r1',
+      repairRequired: false,
+    });
+    const { result } = renderHook(() => useAlmanac(service(load), '2026-08-23'));
+    await waitFor(() => expect(result.current.cycle).toBeDefined());
+    expect(result.current.cycle).toEqual({ day: 23, phase: 'luteal' });
+  });
+
+  it('has no cycle without a profile', () => {
+    const { result } = renderHook(() => useAlmanac(undefined, DATE));
+    expect(result.current.cycle).toBeUndefined();
+  });
 });

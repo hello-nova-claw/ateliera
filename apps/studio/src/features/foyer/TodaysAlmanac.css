@@ -20,6 +20,12 @@
   overflow-wrap: anywhere;
 }
 
+.foyer-almanac__orientation {
+  margin: var(--studio-space-4) 0 0;
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-body);
+}
+
 .foyer-almanac__facts {
   display: flex;
   flex-wrap: wrap;
