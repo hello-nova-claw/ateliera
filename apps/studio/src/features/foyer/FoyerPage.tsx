@@ -11,7 +11,9 @@ import { Legend } from './Legend';
 import { Principles } from './Principles';
 import { ReturnCard } from './ReturnCard';
 import { SeasonPreview } from './SeasonPreview';
+import { TodaysAlmanac } from './TodaysAlmanac';
 import { TodaysGift } from './TodaysGift';
+import type { Almanac } from './use-almanac';
 import type { FoyerCoverView } from './use-foyer-cover';
 import type { Gift, KeepState } from './use-todays-gift';
 import type { TourExample } from '../onboarding/tour-examples';
@@ -25,6 +27,7 @@ import './FoyerPage.css';
 export type FoyerSlot = 'becoming' | 'feeling' | 'principle';
 
 export interface FoyerPageProps {
+  almanac?: Almanac | null;
   cover?: FoyerCoverView;
   error?: string;
   gift?: Gift | null;
@@ -117,6 +120,7 @@ function FoyerSkeleton() {
 }
 
 export function FoyerPage({
+  almanac = null,
   cover = { state: 'none' },
   error,
   gift = null,
@@ -199,6 +203,7 @@ export function FoyerPage({
                     {...(onUseTourExample ? { onUse: onUseTourExample } : {})}
                   />
                 ))}
+            <TodaysAlmanac almanac={almanac} />
             <TodaysGift
               gift={gift}
               {...(onKeepGift ? { onKeep: onKeepGift } : {})}

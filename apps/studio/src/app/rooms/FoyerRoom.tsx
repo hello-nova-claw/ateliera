@@ -5,6 +5,7 @@ import type {
   StudioService,
 } from '@studio/application';
 import { FoyerPage, type FoyerSlot } from '../../features/foyer/FoyerPage';
+import { useAlmanac } from '../../features/foyer/use-almanac';
 import { useFoyer } from '../../features/foyer/use-foyer';
 import { useFoyerCover } from '../../features/foyer/use-foyer-cover';
 import { useTodaysGift } from '../../features/foyer/use-todays-gift';
@@ -46,10 +47,13 @@ export default function FoyerRoom({
 }) {
   const view = useFoyer(service, projectionRevision);
   const cover = useFoyerCover(service, view.model.image);
-  const todaysGift = useTodaysGift(service, localDateISO(now()));
+  const today = localDateISO(now());
+  const todaysGift = useTodaysGift(service, today);
+  const almanac = useAlmanac(service, today);
   return (
     <>
       <FoyerPage
+        almanac={almanac}
         cover={cover}
         {...(view.error === undefined ? {} : { error: view.error })}
         gift={todaysGift.gift}
