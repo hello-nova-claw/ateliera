@@ -75,6 +75,7 @@ it('shows the existing profile when one is already saved', () => {
   });
   expect(screen.getByLabelText('Birth date')).toHaveValue('1990-01-01');
   expect(screen.getByLabelText('Hemisphere')).toHaveValue('S');
+  expect(screen.getByText('Your chart')).toBeVisible();
   const placements = screen.getByRole('list', { name: 'Current placements' });
   expect(within(placements).getByText('Capricorn')).toBeVisible();
 });

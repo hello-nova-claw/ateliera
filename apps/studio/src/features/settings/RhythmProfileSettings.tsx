@@ -412,16 +412,19 @@ export function RhythmProfileSettings({
         )}
 
         {placementEntries.length > 0 && (
-          <ul
-            aria-label="Current placements"
-            className="rhythm-profile-settings__placements"
-          >
-            {placementEntries.map(([key, value]) => (
-              <li key={key}>
-                <strong>{placementLabel(key)}</strong> {value}
-              </li>
-            ))}
-          </ul>
+          <div className="rhythm-profile-settings__chart">
+            <p className="rhythm-profile-settings__kicker">Your chart</p>
+            <ul
+              aria-label="Current placements"
+              className="rhythm-profile-settings__placements"
+            >
+              {placementEntries.map(([key, value]) => (
+                <li key={key}>
+                  <strong>{placementLabel(key)}</strong> {value}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         <button
