@@ -39,10 +39,23 @@ describe('Geography', () => {
 });
 
 describe('Moon phase + illumination', () => {
-  it('known new moon 2026-06-25 is new with illumination < 0.02', () => {
-    const ctx = computeRhythmContext(makeProfile(), '2026-06-25');
+  it('is new at the 2026-08-12 new moon', () => {
+    const ctx = computeRhythmContext(makeProfile(), '2026-08-12');
     expect(ctx.moon.phase).toBe('new');
-    expect(ctx.moon.illumination).toBeLessThan(0.02);
+    expect(ctx.moon.illumination).toBeLessThan(0.03);
+  });
+
+  it('is full at the 2026-08-28 full moon', () => {
+    const ctx = computeRhythmContext(makeProfile(), '2026-08-28');
+    expect(ctx.moon.phase).toBe('full');
+    expect(ctx.moon.illumination).toBeGreaterThan(0.99);
+  });
+
+  it('is a waxing gibbous roughly three-quarters lit on 2026-08-23', () => {
+    const ctx = computeRhythmContext(makeProfile(), '2026-08-23');
+    expect(ctx.moon.phase).toBe('waxing-gibbous');
+    expect(ctx.moon.illumination).toBeGreaterThan(0.7);
+    expect(ctx.moon.illumination).toBeLessThan(0.82);
   });
 
   it('illumination is always within [0, 1]', () => {
@@ -53,14 +66,7 @@ describe('Moon phase + illumination', () => {
     }
   });
 
-  it('computeMoon reaches full roughly half a synodic month after the reference new moon', () => {
-    const halfCycleMs = Date.UTC(2026, 5, 25) + 14.77 * 86400000;
-    const moon = computeMoon(halfCycleMs);
-    expect(moon.phase).toBe('full');
-    expect(moon.illumination).toBeGreaterThan(0.99);
-  });
-
-  it('computeMoon returns a phase for dates far before the reference epoch', () => {
+  it('computeMoon returns a valid phase for any historical date', () => {
     const moon = computeMoon(Date.UTC(1900, 0, 1));
     expect(moon.illumination).toBeGreaterThanOrEqual(0);
     expect(moon.illumination).toBeLessThanOrEqual(1);

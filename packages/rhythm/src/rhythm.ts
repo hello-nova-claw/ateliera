@@ -34,9 +34,6 @@ export function resolveSeason(month: number, hemisphere: Hemisphere): Season {
   return hemisphere === 'S' ? FLIP[northern] : northern;
 }
 
-const SYNODIC_MONTH = 29.530588853; // days
-const REFERENCE_NEW_MOON_MS = Date.UTC(2026, 5, 25, 0, 0, 0); // 2026-06-25T00:00:00Z
-
 const MOON_PHASES: readonly MoonPhase[] = [
   'new',
   'waxing-crescent',
@@ -48,14 +45,53 @@ const MOON_PHASES: readonly MoonPhase[] = [
   'waning-crescent',
 ];
 
+const DEG = Math.PI / 180;
+const sinDeg = (deg: number): number => Math.sin(deg * DEG);
+const cosDeg = (deg: number): number => Math.cos(deg * DEG);
+const mod360 = (deg: number): number => ((deg % 360) + 360) % 360;
+
+/**
+ * Moon phase and illuminated fraction for an instant, from Meeus'
+ * *Astronomical Algorithms* (ch. 47–48). Accurate to ~0.5% illumination —
+ * good enough to name the phase and draw it, with no ephemeris download and
+ * no fixed epoch to drift out of date. `dateMs` is a Unix millisecond time.
+ */
 export function computeMoon(dateMs: number): MoonState {
-  const daysSinceRef = (dateMs - REFERENCE_NEW_MOON_MS) / 86400000;
-  const age = ((daysSinceRef % SYNODIC_MONTH) + SYNODIC_MONTH) % SYNODIC_MONTH;
-  const fraction = age / SYNODIC_MONTH; // 0 = new, 0.5 = full
-  const illumination = (1 - Math.cos(2 * Math.PI * fraction)) / 2;
-  // Eight equal phase bins centred on their canonical fraction (new at 0,
-  // full at 0.5); +1/16 shifts bin edges so the new-moon bin straddles 0.
-  const index = Math.floor(((fraction + 1 / 16) % 1) * 8) % 8;
+  const jd = dateMs / 86400000 + 2440587.5;
+  const t = (jd - 2451545.0) / 36525;
+  // Mean elongation of the Moon, Sun's mean anomaly, Moon's mean anomaly (deg).
+  const d =
+    297.8501921 +
+    445267.1114034 * t -
+    0.0018819 * t * t +
+    (t * t * t) / 545868 -
+    (t * t * t * t) / 113065000;
+  const m =
+    357.5291092 + 35999.0502909 * t - 0.0001536 * t * t + (t * t * t) / 24490000;
+  const mPrime =
+    134.9633964 +
+    477198.8675055 * t +
+    0.0087414 * t * t +
+    (t * t * t) / 69699 -
+    (t * t * t * t) / 14712000;
+  // Phase angle (Sun–Moon–Earth), Meeus 48.4.
+  const phaseAngle =
+    180 -
+    d -
+    6.289 * sinDeg(mPrime) +
+    2.1 * sinDeg(m) -
+    1.274 * sinDeg(2 * d - mPrime) -
+    0.658 * sinDeg(2 * d) -
+    0.214 * sinDeg(2 * mPrime) -
+    0.11 * sinDeg(d);
+  const illumination = (1 + cosDeg(phaseAngle)) / 2;
+  // Fold the phase angle to [0, 180] and pair it with the waxing/waning sign
+  // (mean elongation < 180° ⇒ waxing) to get an elongation on 0 (new) … 180
+  // (full) … 360, then bin into eight phases 45° wide, centred on their marks.
+  const waxing = mod360(d) < 180;
+  const folded = mod360(phaseAngle) > 180 ? 360 - mod360(phaseAngle) : mod360(phaseAngle);
+  const elongation = waxing ? 180 - folded : 180 + folded;
+  const index = Math.floor(mod360(elongation + 22.5) / 45) % 8;
   return { phase: MOON_PHASES[index]!, illumination };
 }
 
