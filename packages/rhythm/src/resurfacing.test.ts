@@ -44,7 +44,13 @@ describe('SM-2 helpers', () => {
 
   it('sm2Interval grows the interval on a passing recall (quality >= 3)', () => {
     expect(sm2Interval(1, 4)).toBe(6); // first pass → fixed 6-day step
-    expect(sm2Interval(6, 5)).toBe(15); // 6 * 2.5 = 15, rounded
+    expect(sm2Interval(6, 4)).toBe(15); // clean pass → 6 * 2.5
+  });
+
+  it('sm2Interval stretches further the more deeply a card lands', () => {
+    expect(sm2Interval(6, 3)).toBe(10); // grudging pass → 6 * 1.6
+    expect(sm2Interval(6, 4)).toBe(15); // clean pass → 6 * 2.5
+    expect(sm2Interval(6, 5)).toBe(18); // deep pass → 6 * 3
   });
 });
 

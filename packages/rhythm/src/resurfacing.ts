@@ -9,18 +9,30 @@ export function isDue(card: ResurfaceCard, today: string): boolean {
   return card.dueDate <= today;
 }
 
-const SM2_EASE = 2.5; // classic SM-2 default ease factor
 const SM2_FIRST_PASS_DAYS = 6; // second successful interval in the SM-2 sequence
+
+/**
+ * Ease factor by recall grade. A grudging pass (3) grows the interval gently, a
+ * clean pass (4) uses the classic SM-2 default of 2.5, and a deep pass (5)
+ * stretches it further — so "this landed deeply" genuinely schedules the card
+ * to return later than a plain "keep".
+ */
+function easeForQuality(quality: number): number {
+  if (quality >= 5) return 3;
+  if (quality === 4) return 2.5;
+  return 1.6;
+}
 
 /**
  * SM-2-style interval grader. `quality` is a 0–5 recall grade. A failing grade
  * (< 3) resets the card to a 1-day interval; a passing grade grows it: the first
- * pass jumps to a fixed 6-day step, subsequent passes multiply by the ease factor.
+ * pass jumps to a fixed 6-day step, subsequent passes multiply by an ease factor
+ * scaled to how well the card landed.
  */
 export function sm2Interval(prevIntervalDays: number, quality: number): number {
   if (quality < 3) return 1;
   if (prevIntervalDays <= 1) return SM2_FIRST_PASS_DAYS;
-  return Math.round(prevIntervalDays * SM2_EASE);
+  return Math.round(prevIntervalDays * easeForQuality(quality));
 }
 
 // The four kinds, ordered from "strongest proof" to "intention".
