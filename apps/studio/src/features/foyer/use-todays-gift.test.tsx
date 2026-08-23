@@ -2,7 +2,7 @@ import type { StudioService } from '@studio/application';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { useTodaysGift } from './use-todays-gift';
+import { GIFT_GRADES, useTodaysGift } from './use-todays-gift';
 
 const TODAY = '2026-08-18';
 
@@ -504,6 +504,104 @@ describe('useTodaysGift', () => {
       path: 'Reflection Garden/evidence-1.md',
       expectedHash: 'hash-2',
     });
+  });
+
+  it('keep("not now") reschedules the source soon without keeping a card', async () => {
+    const capture = vi.fn();
+    const save = vi.fn().mockResolvedValue({
+      note: { body: 'A door in the hallway.' },
+      path: 'Uncharted/dream-1.md',
+      hash: 'hash-1-next',
+    });
+    const record = {
+      note: {
+        resurfaceKind: 'dream' as const,
+        resurfaceDue: '2026-08-01',
+        resurfaceIntervalDays: 40,
+        body: 'A door in the hallway.',
+      },
+      path: 'Uncharted/dream-1.md',
+      hash: 'hash-1',
+    };
+    const svc = service({
+      rhythmProfileLoad: vi.fn().mockResolvedValue({
+        profile: { hemisphere: 'S', natal: { placements: {} } },
+        revision: 'r1',
+        repairRequired: false,
+      }),
+      searchHits: [{ id: 'dream-1' }],
+      records: [record],
+      load: vi.fn().mockResolvedValue(record),
+    });
+    (svc as unknown as { capture: typeof capture }).capture = capture;
+    (svc as unknown as { save: typeof save }).save = save;
+    const { result } = renderHook(() => useTodaysGift(svc, TODAY));
+    await waitFor(() => expect(result.current.gift?.kind).toBe('dream'));
+
+    await act(async () => result.current.keep(GIFT_GRADES.notNow));
+
+    expect(capture).not.toHaveBeenCalled();
+    // sm2Interval(40, 2) resets to 1 day; 2026-08-18 + 1 = 2026-08-19.
+    expect(save).toHaveBeenCalledWith({
+      note: expect.objectContaining({
+        resurfaceIntervalDays: 1,
+        resurfaceDue: '2026-08-19',
+      }),
+      path: 'Uncharted/dream-1.md',
+      expectedHash: 'hash-1',
+    });
+    expect(result.current.keepMessage).toBe('Set aside — it will return soon.');
+  });
+
+  it('keep("landed deeply") keeps a card and schedules it further out', async () => {
+    const capture = vi.fn().mockResolvedValue({
+      note: { body: 'You did the thing you doubted you could.' },
+      path: 'Reflection Garden/captured.md',
+      hash: 'hash-4',
+    });
+    const save = vi.fn().mockResolvedValue({
+      note: { body: 'You did the thing you doubted you could.' },
+      path: 'Reflection Garden/evidence-1.md',
+      hash: 'hash-2-next',
+    });
+    const record = {
+      note: {
+        resurfaceKind: 'evidence' as const,
+        resurfaceDue: '2026-08-01',
+        resurfaceIntervalDays: 10,
+        body: 'You did the thing you doubted you could.',
+      },
+      path: 'Reflection Garden/evidence-1.md',
+      hash: 'hash-2',
+    };
+    const svc = service({
+      rhythmProfileLoad: vi.fn().mockResolvedValue({
+        profile: { hemisphere: 'S', natal: { placements: {} } },
+        revision: 'r1',
+        repairRequired: false,
+      }),
+      searchHits: [{ id: 'evidence-1' }],
+      records: [record],
+      load: vi.fn().mockResolvedValue(record),
+    });
+    (svc as unknown as { capture: typeof capture }).capture = capture;
+    (svc as unknown as { save: typeof save }).save = save;
+    const { result } = renderHook(() => useTodaysGift(svc, TODAY));
+    await waitFor(() => expect(result.current.gift?.kind).toBe('resurfaced'));
+
+    await act(async () => result.current.keep(GIFT_GRADES.deeply));
+
+    expect(capture).toHaveBeenCalled();
+    // sm2Interval(10, 5) = round(10 * 3) = 30; 2026-08-18 + 30 = 2026-09-17.
+    expect(save).toHaveBeenCalledWith({
+      note: expect.objectContaining({
+        resurfaceIntervalDays: 30,
+        resurfaceDue: '2026-09-17',
+      }),
+      path: 'Reflection Garden/evidence-1.md',
+      expectedHash: 'hash-2',
+    });
+    expect(result.current.keepMessage).toBe('Kept.');
   });
 
   it('starts with an idle keepState', async () => {

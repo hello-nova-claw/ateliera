@@ -33,9 +33,10 @@ export interface FoyerPageProps {
   gift?: Gift | null;
   giftKeepState?: KeepState;
   giftKeepError?: string;
+  giftKeepMessage?: string;
   model: FoyerProjection;
   onCreate?: (slot: FoyerSlot, trigger: HTMLButtonElement) => void;
-  onKeepGift?: () => void;
+  onKeepGift?: (quality: number) => void;
   onOpen?: (card: StudioCardProjection, trigger: HTMLButtonElement) => void;
   onRemoveImage?: (
     image: FoyerImageProjection,
@@ -126,6 +127,7 @@ export function FoyerPage({
   gift = null,
   giftKeepState,
   giftKeepError,
+  giftKeepMessage,
   model,
   onCreate,
   onKeepGift,
@@ -209,6 +211,9 @@ export function FoyerPage({
               {...(onKeepGift ? { onKeep: onKeepGift } : {})}
               {...(giftKeepState === undefined ? {} : { keepState: giftKeepState })}
               {...(giftKeepError === undefined ? {} : { keepError: giftKeepError })}
+              {...(giftKeepMessage === undefined
+                ? {}
+                : { keepMessage: giftKeepMessage })}
             />
             <SeasonPreview
               priorities={model.priorities}

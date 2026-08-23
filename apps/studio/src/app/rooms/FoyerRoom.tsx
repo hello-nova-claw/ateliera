@@ -61,9 +61,12 @@ export default function FoyerRoom({
         {...(todaysGift.keepError === undefined
           ? {}
           : { giftKeepError: todaysGift.keepError })}
+        {...(todaysGift.keepMessage === undefined
+          ? {}
+          : { giftKeepMessage: todaysGift.keepMessage })}
         model={view.model}
         {...(onCreateFoyer === undefined ? {} : { onCreate: onCreateFoyer })}
-        onKeepGift={() => void todaysGift.keep()}
+        onKeepGift={(quality) => void todaysGift.keep(quality)}
         {...(onOpenCard === undefined ? {} : { onOpen: onOpenCard })}
         {...(onRemoveFoyerImage === undefined
           ? {}

@@ -20,8 +20,25 @@
   overflow-wrap: anywhere;
 }
 
+.foyer-gift__prompt {
+  margin: var(--studio-space-4) 0 0;
+  color: var(--studio-color-ink-soft);
+  font: var(--studio-type-meta);
+}
+
+.foyer-gift__grades {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--studio-space-4);
+  margin-block-start: var(--studio-space-3);
+}
+
 .foyer-gift .foyer-text-action {
   margin-block-start: var(--studio-space-4);
+}
+
+.foyer-gift__grades .foyer-text-action {
+  margin-block-start: 0;
 }
 
 .foyer-gift .foyer-text-action:disabled {

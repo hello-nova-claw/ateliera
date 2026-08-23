@@ -2,53 +2,36 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { TodaysGift } from './TodaysGift';
+import { GIFT_GRADES } from './use-todays-gift';
+
+const dreamGift = {
+  kind: 'dream' as const,
+  payload: {
+    title: 'A door in the hallway.',
+    excerpt: 'A door in the hallway leads somewhere new.',
+  },
+  body: 'A door in the hallway leads somewhere new.',
+  sourcePath: 'Uncharted/dream-1.md',
+  intervalDays: 5,
+};
 
 describe('TodaysGift', () => {
-  it('renders a dream Gift with a Keep action', () => {
-    render(
-      <TodaysGift
-        gift={{
-          kind: 'dream',
-          payload: { title: 'A door in the hallway.', excerpt: 'A door in the hallway leads somewhere new.' },
-          body: 'A door in the hallway leads somewhere new.',
-          sourcePath: 'Uncharted/dream-1.md',
-          intervalDays: 5,
-        }}
-        onKeep={vi.fn()}
-      />,
-    );
+  it('renders a dream Gift with the three recall grades', () => {
+    render(<TodaysGift gift={dreamGift} onKeep={vi.fn()} />);
     expect(
       screen.getByRole('heading', { level: 2, name: 'A door in the hallway.' }),
     ).toBeInTheDocument();
     expect(
       screen.getByText('A door in the hallway leads somewhere new.'),
     ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Not now' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Keep' })).toBeInTheDocument();
-  });
-
-  it('renders a resurfaced Gift with a Keep action', () => {
-    render(
-      <TodaysGift
-        gift={{
-          kind: 'resurfaced',
-          payload: {
-            title: 'You did the thing you doubted you could.',
-            excerpt: 'You did the thing you doubted you could, and it mattered.',
-          },
-          body: 'You did the thing you doubted you could, and it mattered.',
-          sourcePath: 'Reflection Garden/evidence-1.md',
-          intervalDays: 3,
-        }}
-        onKeep={vi.fn()}
-      />,
-    );
     expect(
-      screen.getByText('You did the thing you doubted you could, and it mattered.'),
+      screen.getByRole('button', { name: 'This landed deeply' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Keep' })).toBeInTheDocument();
   });
 
-  it('renders the calm fallback without a Keep action', () => {
+  it('renders the calm fallback without any grade actions', () => {
     render(
       <TodaysGift
         gift={{ kind: 'line', payload: { title: 'A quiet place to begin.', excerpt: '' } }}
@@ -66,52 +49,27 @@ describe('TodaysGift', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('calls onKeep when the Keep button is clicked', async () => {
+  it('grades each recall with its SM-2 quality', () => {
     const onKeep = vi.fn();
-    render(
-      <TodaysGift
-        gift={{
-          kind: 'dream',
-          payload: { title: 'A door in the hallway.', excerpt: 'A door in the hallway.' },
-          body: 'A door in the hallway.',
-          sourcePath: 'Uncharted/dream-1.md',
-          intervalDays: 5,
-        }}
-        onKeep={onKeep}
-      />,
-    );
+    render(<TodaysGift gift={dreamGift} onKeep={onKeep} />);
+    screen.getByRole('button', { name: 'Not now' }).click();
     screen.getByRole('button', { name: 'Keep' }).click();
-    expect(onKeep).toHaveBeenCalled();
+    screen.getByRole('button', { name: 'This landed deeply' }).click();
+    expect(onKeep).toHaveBeenNthCalledWith(1, GIFT_GRADES.notNow);
+    expect(onKeep).toHaveBeenNthCalledWith(2, GIFT_GRADES.keep);
+    expect(onKeep).toHaveBeenNthCalledWith(3, GIFT_GRADES.deeply);
   });
 
-  it('disables the Keep button and shows "Keeping…" while busy', () => {
-    render(
-      <TodaysGift
-        gift={{
-          kind: 'dream',
-          payload: { title: 'A door in the hallway.', excerpt: 'A door in the hallway.' },
-          body: 'A door in the hallway.',
-          sourcePath: 'Uncharted/dream-1.md',
-          intervalDays: 5,
-        }}
-        onKeep={vi.fn()}
-        keepState="busy"
-      />,
-    );
-    const button = screen.getByRole('button', { name: 'Keeping…' });
-    expect(button).toBeDisabled();
+  it('disables the grade actions while busy', () => {
+    render(<TodaysGift gift={dreamGift} onKeep={vi.fn()} keepState="busy" />);
+    expect(screen.getByRole('button', { name: 'Keep' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Not now' })).toBeDisabled();
   });
 
   it('shows the keep error message when keeping fails', () => {
     render(
       <TodaysGift
-        gift={{
-          kind: 'dream',
-          payload: { title: 'A door in the hallway.', excerpt: 'A door in the hallway.' },
-          body: 'A door in the hallway.',
-          sourcePath: 'Uncharted/dream-1.md',
-          intervalDays: 5,
-        }}
+        gift={dreamGift}
         onKeep={vi.fn()}
         keepState="error"
         keepError="This gift could not be kept just now."
@@ -122,20 +80,17 @@ describe('TodaysGift', () => {
     );
   });
 
-  it('shows a success confirmation once kept', () => {
+  it('shows the success confirmation message once acted on', () => {
     render(
       <TodaysGift
-        gift={{
-          kind: 'dream',
-          payload: { title: 'A door in the hallway.', excerpt: 'A door in the hallway.' },
-          body: 'A door in the hallway.',
-          sourcePath: 'Uncharted/dream-1.md',
-          intervalDays: 5,
-        }}
+        gift={dreamGift}
         onKeep={vi.fn()}
         keepState="success"
+        keepMessage="Set aside — it will return soon."
       />,
     );
-    expect(screen.getByRole('status')).toHaveTextContent('Kept.');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Set aside — it will return soon.',
+    );
   });
 });

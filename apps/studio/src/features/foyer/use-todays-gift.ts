@@ -40,11 +40,22 @@ function addDaysISO(date: string, days: number): string {
 
 export type KeepState = 'idle' | 'busy' | 'success' | 'error';
 
+// Recall grades the Gift offers, mapped to SM-2 quality (0–5). "Not now" is a
+// failing grade that brings the card back soon without keeping it; the two
+// passing grades keep a card and schedule its return further out the more
+// deeply it landed.
+export const GIFT_GRADES = {
+  notNow: 2,
+  keep: 4,
+  deeply: 5,
+} as const;
+
 export interface UseTodaysGift {
   gift: Gift | null;
-  keep: () => Promise<void>;
+  keep: (quality?: number) => Promise<void>;
   keepState: KeepState;
   keepError?: string;
+  keepMessage?: string;
 }
 
 export function useTodaysGift(
@@ -54,6 +65,7 @@ export function useTodaysGift(
   const [gift, setGift] = useState<Gift | null>(null);
   const [keepState, setKeepState] = useState<KeepState>('idle');
   const [keepError, setKeepError] = useState<string>();
+  const [keepMessage, setKeepMessage] = useState<string>();
 
   useEffect(() => {
     if (service === undefined) return undefined;
@@ -114,7 +126,8 @@ export function useTodaysGift(
     gift,
     keepState,
     ...(keepError === undefined ? {} : { keepError }),
-    async keep() {
+    ...(keepMessage === undefined ? {} : { keepMessage }),
+    async keep(quality: number = KEEP_QUALITY) {
       if (
         service === undefined ||
         gift === null ||
@@ -124,16 +137,22 @@ export function useTodaysGift(
         return;
       setKeepState('busy');
       setKeepError(undefined);
+      setKeepMessage(undefined);
+      // A passing grade (>= 3) keeps the resurfaced text as a real card; a
+      // "not now" grade only reschedules the source so it returns soon.
+      const kept = quality >= 3;
       try {
-        await service.capture({
-          body: gift.body,
-          placement: gift.kind === 'dream' ? 'uncharted' : 'reflection',
-        });
-        // Keep is the acknowledgment action: it both creates the new card
-        // above and advances the source card's own due date, so the same
-        // card doesn't resurface again until its next interval elapses.
+        if (kept) {
+          await service.capture({
+            body: gift.body,
+            placement: gift.kind === 'dream' ? 'uncharted' : 'reflection',
+          });
+        }
+        // Either way, advance the source card's own due date by the graded
+        // interval, so how deeply it landed decides when it next resurfaces —
+        // this is the loop that lets the Studio learn a card's rhythm.
         const source = await service.load(gift.sourcePath);
-        const nextIntervalDays = sm2Interval(gift.intervalDays, KEEP_QUALITY);
+        const nextIntervalDays = sm2Interval(gift.intervalDays, quality);
         await service.save({
           note: {
             ...source.note,
@@ -144,6 +163,7 @@ export function useTodaysGift(
           expectedHash: source.hash,
         });
         setKeepState('success');
+        setKeepMessage(kept ? 'Kept.' : 'Set aside — it will return soon.');
       } catch (reason) {
         setKeepState('error');
         setKeepError(
