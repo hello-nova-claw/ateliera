@@ -9,12 +9,14 @@ import {
   type SeasonStepAnswers,
   type SeasonWizardStep,
 } from '@studio/domain';
+import type { MicroSeason, Season } from '@studio/rhythm';
 import { Dialog, RoomHeading } from '@studio/ui';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 
 import './SeasonPage.css';
 import type { TourExample } from '../onboarding/tour-examples';
 import { TourExampleCard, TourGlimpseLabel } from '../onboarding/TourPreview';
+import { YearWheel } from './YearWheel';
 
 export interface SeasonPriorityCandidate {
   noteId: string;
@@ -49,6 +51,7 @@ export interface SeasonPageProps {
   state: 'ready' | 'loading' | 'saving' | 'error';
   wizardStep?: SeasonWizardStep;
   tourExamples?: readonly TourExample[];
+  yearWheel?: { season: Season; microSeason: MicroSeason };
 }
 
 function SeasonTourGlimpse({ examples }: { examples: readonly TourExample[] }) {
@@ -563,6 +566,7 @@ export function SeasonPage({
   state,
   tourExamples = [],
   wizardStep,
+  yearWheel,
 }: SeasonPageProps) {
   const [closeOpen, setCloseOpen] = useState(false);
   const [celebration, setCelebration] = useState('');
@@ -668,6 +672,7 @@ export function SeasonPage({
             {season.statement || 'listening for what matters now'}
           </p>
         </header>
+        {yearWheel && <YearWheel {...yearWheel} />}
         <section
           aria-labelledby="season-priorities-title"
           className="season-page__section"

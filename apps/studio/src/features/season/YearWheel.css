@@ -1,0 +1,24 @@
+/* Ambient astronomical year, shown beside the authored Current Season. */
+.season-year-wheel {
+  margin-block-start: var(--studio-rhythm-group);
+  padding-block-start: var(--studio-rhythm-module);
+  border-block-start: 1px solid var(--studio-color-line);
+}
+
+.season-year-wheel__term {
+  margin: var(--studio-space-2) 0 0;
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-quote);
+}
+
+.season-year-wheel__gloss {
+  margin: var(--studio-space-3) 0 0;
+  color: var(--studio-color-ink-soft);
+  font: var(--studio-type-meta);
+}
+
+.season-year-wheel__season {
+  margin: var(--studio-space-3) 0 0;
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-body);
+}

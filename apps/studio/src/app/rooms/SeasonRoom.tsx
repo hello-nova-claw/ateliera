@@ -1,18 +1,29 @@
 import type { StudioService } from '@studio/application';
 import { SeasonPage } from '../../features/season/SeasonPage';
 import { useSeason } from '../../features/season/use-season';
+import { useAlmanac } from '../../features/foyer/use-almanac';
 import type { TourExample } from '../../features/onboarding/tour-examples';
 
+function localDateISO(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function SeasonRoom({
+  now = () => new Date(),
   projectionRevision = 0,
   service,
   tourExamples,
 }: {
+  now?: () => Date;
   projectionRevision?: number;
   service?: StudioService;
   tourExamples?: readonly TourExample[];
 }) {
   const season = useSeason(service, projectionRevision);
+  const almanac = useAlmanac(service, localDateISO(now()));
   return (
     <SeasonPage
       conflicts={season.conflicts}
@@ -27,6 +38,7 @@ export default function SeasonRoom({
       record={season.record}
       priorityCandidates={season.priorityCandidates}
       state={season.state}
+      yearWheel={{ season: almanac.season, microSeason: almanac.microSeason }}
       {...(season.wizardStep ? { wizardStep: season.wizardStep } : {})}
       {...(tourExamples ? { tourExamples } : {})}
     />
