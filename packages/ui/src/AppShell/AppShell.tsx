@@ -3,6 +3,7 @@ import './AppShell.css';
 
 export interface AppShellProps {
   activePath: string;
+  brandAside?: ReactNode;
   captureEnabled?: boolean;
   children: ReactNode;
   focusMode?: 'tour';
@@ -30,6 +31,7 @@ const utilities = [
 
 export function AppShell({
   activePath,
+  brandAside,
   captureEnabled = true,
   children,
   focusMode,
@@ -128,8 +130,11 @@ export function AppShell({
       </a>
       <aside className="studio-app-shell__rail" inert={focusMode !== undefined}>
         <div className="studio-app-shell__brand">
-          <span>Ateliera</span>
-          <small aria-hidden="true">inside out</small>
+          <div className="studio-app-shell__wordmark">
+            <span>Ateliera</span>
+            <small aria-hidden="true">inside out</small>
+          </div>
+          {brandAside}
         </div>
         <nav aria-label="Studio rooms" className="studio-app-shell__room-nav">
           {rooms.map(([path, label, mark]) => studioLink(path, label, mark))}

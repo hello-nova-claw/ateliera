@@ -22,6 +22,22 @@ it('provides named navigation, main content, and a one-tap capture action', () =
   expect(onCapture).toHaveBeenCalledOnce();
 });
 
+it('renders a brand aside beside the wordmark when provided', () => {
+  render(
+    <AppShell
+      activePath="/foyer"
+      brandAside={<span>Waning gibbous</span>}
+      onCapture={() => undefined}
+      onNavigate={() => undefined}
+      roomTitle="Foyer"
+    >
+      <h1>Foyer</h1>
+    </AppShell>,
+  );
+
+  expect(screen.getByText('Waning gibbous')).toBeInTheDocument();
+});
+
 it('marks the active room and omits development-only destinations', () => {
   render(
     <AppShell

@@ -1,0 +1,16 @@
+/* A small moon that draws its own phase — a hairline disc with the
+   illuminated portion inked in the surrounding text colour. */
+.studio-moon-phase {
+  display: block;
+  flex: none;
+}
+
+.studio-moon-phase__disc {
+  fill: none;
+  stroke: var(--studio-color-line);
+  stroke-width: 1;
+}
+
+.studio-moon-phase__lit {
+  fill: currentcolor;
+}

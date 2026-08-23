@@ -15,6 +15,10 @@ export {
   type RecoveryDraftView,
 } from './CardEditor/CardEditor';
 export {
+  MoonPhaseIcon,
+  type MoonPhaseIconProps,
+} from './MoonPhaseIcon/MoonPhaseIcon';
+export {
   SemanticMark,
   type SemanticMarkProps,
 } from './SemanticMark/SemanticMark';

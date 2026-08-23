@@ -32,6 +32,10 @@
 }
 
 .studio-app-shell__brand {
+  display: flex;
+  gap: var(--studio-space-4);
+  align-items: flex-start;
+  justify-content: space-between;
   padding: 0 var(--studio-space-3) var(--studio-space-8);
   color: var(--studio-color-ink-strong);
   font: 600 0.9375rem/1.1 var(--studio-font-display);
