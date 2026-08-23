@@ -69,7 +69,7 @@ export function MoonGuide({ service, today = todayLocalISO() }: MoonGuideProps) 
         illumination={illumination}
         label={`${label}, ${percent}% lit`}
         litSide={litRight ? 'right' : 'left'}
-        size={26}
+        size={18}
       />
       <span className="studio-moon-guide__text">
         <span className="studio-moon-guide__phase">{label}</span>
