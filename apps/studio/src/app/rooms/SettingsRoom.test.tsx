@@ -23,6 +23,14 @@ function rhythmProfileService(
       save: vi.fn(),
       ...overrides,
     },
+    preferences: {
+      load: vi.fn(async () => ({
+        preferences: {},
+        revision: null,
+        repairRequired: false,
+      })),
+      save: vi.fn(),
+    },
   } as unknown as StudioService;
 }
 

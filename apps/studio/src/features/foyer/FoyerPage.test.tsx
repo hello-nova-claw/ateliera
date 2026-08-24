@@ -322,3 +322,78 @@ it('announces loading and recoverable errors without replacing the fixed structu
   );
   expect(screen.getByRole('heading', { name: 'Ateliera' })).toBeVisible();
 });
+
+const populated: FoyerProjection = {
+  currentSeason: card({ noteId: 'season', cardType: 'season', title: 'A spacious winter' }),
+  featured: [],
+  becoming: card({ noteId: 'becoming', cardType: 'identity', title: 'A woman who creates from calm' }),
+  feelings: [card({ noteId: 'feeling', cardType: 'feeling', title: 'Spacious', semanticType: 'vision' })],
+  principles: [card({ noteId: 'principle', cardType: 'principle', title: 'Structure and surprise' })],
+  priorities: [card({ noteId: 'one', cardType: 'priority', title: 'Create before consuming' })],
+  returning: card({ noteId: 'return', cardType: 'reflection', semanticType: 'celebration', title: 'You returned gently' }),
+  image: null,
+};
+
+const allLayers = { moon: true, microSeason: true, cycle: true };
+const almanac = {
+  moonPhase: 'full',
+  illumination: 1,
+  season: 'winter',
+  microSeason: { term: 'Deep winter', gloss: 'The still point of the year.' },
+  orientation: 'inward',
+} as const;
+
+it('renders every Foyer section when no sections prop is given (existing Studios)', () => {
+  render(<FoyerPage model={populated} almanac={almanac} rhythmLayers={allLayers} />);
+  expect(screen.getByText('Currently becoming')).toBeVisible();
+  expect(screen.getByText('How I want life to feel')).toBeVisible();
+  expect(screen.getByText('Guiding principles')).toBeVisible();
+  expect(screen.getByText('Current season')).toBeVisible();
+  expect(screen.getByText("Today's rhythm")).toBeVisible();
+});
+
+it('hides the sections a seeded new Studio turns off', () => {
+  render(
+    <FoyerPage
+      model={populated}
+      almanac={almanac}
+      rhythmLayers={allLayers}
+      sections={{
+        becoming: true,
+        gift: true,
+        feelings: false,
+        principles: false,
+        almanac: false,
+        seasonPreview: false,
+        returnCard: false,
+        cover: false,
+      }}
+    />,
+  );
+  expect(screen.getByText('Currently becoming')).toBeVisible();
+  expect(screen.queryByText('How I want life to feel')).toBeNull();
+  expect(screen.queryByText('Guiding principles')).toBeNull();
+  expect(screen.queryByText('Current season')).toBeNull();
+  expect(screen.queryByText("Today's rhythm")).toBeNull();
+});
+
+it('keeps the almanac hidden when the section is on but every rhythm layer is off', () => {
+  render(
+    <FoyerPage
+      model={populated}
+      almanac={almanac}
+      rhythmLayers={{ moon: false, microSeason: false, cycle: false }}
+      sections={{
+        becoming: true,
+        gift: true,
+        feelings: true,
+        principles: true,
+        almanac: true,
+        seasonPreview: true,
+        returnCard: true,
+        cover: true,
+      }}
+    />,
+  );
+  expect(screen.queryByText("Today's rhythm")).toBeNull();
+});

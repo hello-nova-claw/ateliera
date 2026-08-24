@@ -67,6 +67,51 @@ it('marks the active room and omits development-only destinations', () => {
   );
 });
 
+it('hides the rooms listed in hiddenRoomPaths from the rail and the More menu', () => {
+  render(
+    <AppShell
+      activePath="/foyer"
+      hiddenRoomPaths={['/identity', '/season', '/uncharted']}
+      onCapture={() => undefined}
+      onNavigate={() => undefined}
+      roomTitle="Foyer"
+    >
+      <h1>Foyer</h1>
+    </AppShell>,
+  );
+
+  // Hidden rooms are not in the rail navigation.
+  expect(screen.queryByRole('link', { name: 'Identity Studio' })).toBeNull();
+  expect(screen.queryByRole('link', { name: 'Current Season' })).toBeNull();
+  // Still-on rooms remain reachable.
+  expect(screen.getByRole('link', { name: 'Life Landscape' })).toBeVisible();
+  expect(screen.getByRole('link', { name: 'Wisdom Garden' })).toBeVisible();
+
+  // And they are not offered in the compact More menu either.
+  fireEvent.click(screen.getByRole('button', { name: 'More' }));
+  expect(screen.queryByRole('menuitem', { name: 'Identity Studio' })).toBeNull();
+  expect(screen.queryByRole('menuitem', { name: 'Current Season' })).toBeNull();
+  expect(screen.getByRole('menuitem', { name: 'Wisdom Garden' })).toBeVisible();
+});
+
+it('never hides core or utility rooms even if their path is passed', () => {
+  render(
+    <AppShell
+      activePath="/foyer"
+      hiddenRoomPaths={['/foyer', '/landscape', '/search', '/settings']}
+      onCapture={() => undefined}
+      onNavigate={() => undefined}
+      roomTitle="Foyer"
+    >
+      <h1>Foyer</h1>
+    </AppShell>,
+  );
+  expect(screen.getByRole('link', { name: 'Foyer' })).toBeVisible();
+  expect(screen.getByRole('link', { name: 'Life Landscape' })).toBeVisible();
+  expect(screen.getAllByRole('link', { name: 'Search' }).length).toBeGreaterThan(0);
+  expect(screen.getByRole('link', { name: 'Settings' })).toBeVisible();
+});
+
 it('makes every room reachable from the compact More menu with focus restoration', () => {
   const onNavigate = vi.fn();
   render(

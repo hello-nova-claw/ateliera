@@ -30,18 +30,26 @@ const guide = {
 
 export function FirstVisitGuide({
   busy = false,
+  nextLabel,
   onLeave,
   onNext,
   onPrevious,
   step,
 }: {
   busy?: boolean;
+  /**
+   * Overrides the static "next room" copy when the tour skips rooms that are off
+   * (plan §7.4). When the person is on the last on-room, this becomes the finish
+   * label so no hidden room is ever named as "next".
+   */
+  nextLabel?: string;
   onLeave: () => void;
   onNext: () => void;
   onPrevious?: () => void;
   step: TourStep;
 }) {
   const content = guide[step];
+  const next = nextLabel ?? content.next;
   return (
     <aside
       aria-label={`Guided tour · ${content.name}`}
@@ -74,7 +82,7 @@ export function FirstVisitGuide({
             onClick={onNext}
             type="button"
           >
-            <span>{content.next}</span>
+            <span>{next}</span>
             <span aria-hidden="true">→</span>
           </button>
           {onPrevious && (

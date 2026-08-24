@@ -1,0 +1,73 @@
+.room-reveal-invitation {
+  background: color-mix(
+    in srgb,
+    var(--studio-color-surface) 94%,
+    var(--studio-stock-vision)
+  );
+  border: 1px solid var(--studio-color-line);
+  border-inline-start: 0.25rem solid var(--studio-color-uncharted);
+  border-radius: var(--studio-radius-card);
+  margin-block-end: var(--studio-space-6);
+  max-inline-size: 42rem;
+  padding: var(--studio-space-5);
+}
+
+.room-reveal-invitation__eyebrow {
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-eyebrow);
+  letter-spacing: var(--studio-type-eyebrow-tracking);
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.room-reveal-invitation__copy {
+  color: var(--studio-color-ink);
+  line-height: 1.6;
+  margin-block: var(--studio-space-2) var(--studio-space-4);
+}
+
+.room-reveal-invitation__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--studio-space-3);
+}
+
+.room-reveal-invitation__actions button {
+  border-radius: var(--studio-radius-control);
+  min-block-size: var(--studio-touch-target);
+  padding: var(--studio-space-2) var(--studio-space-4);
+}
+
+.room-reveal-invitation__accept {
+  background: var(--studio-color-ink-strong);
+  border: 1px solid var(--studio-color-ink-strong);
+  color: var(--studio-color-surface);
+  font-weight: 650;
+}
+
+.room-reveal-invitation__dismiss {
+  background: transparent;
+  border: 0;
+  color: var(--studio-color-ink-1);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+@media (width < 560px) {
+  .room-reveal-invitation__actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+@media (forced-colors: active) {
+  .room-reveal-invitation {
+    border: 3px solid Highlight;
+  }
+
+  .room-reveal-invitation__accept {
+    background: Highlight;
+    border-color: Highlight;
+    color: HighlightText;
+  }
+}

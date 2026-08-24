@@ -1,0 +1,121 @@
+.rooms-settings {
+  max-inline-size: var(--studio-content-narrow, 47.5rem);
+  margin-inline: auto;
+  margin-block-start: clamp(var(--studio-space-8), 7vw, var(--studio-space-12));
+}
+
+.rooms-settings__header {
+  max-inline-size: 40rem;
+}
+
+.rooms-settings__header h2 {
+  margin: 0;
+  color: var(--studio-color-ink-strong);
+  font: var(--studio-type-card-title);
+}
+
+.rooms-settings__kicker {
+  margin: 0 0 var(--studio-space-3);
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-eyebrow);
+  letter-spacing: var(--studio-type-eyebrow-tracking);
+  text-transform: uppercase;
+}
+
+.rooms-settings__description {
+  margin-block: var(--studio-space-3) 0;
+  color: var(--studio-color-ink-soft);
+  line-height: 1.6;
+}
+
+.rooms-settings__group {
+  margin-block-start: var(--studio-space-6);
+  padding: clamp(var(--studio-space-5), 5vw, var(--studio-space-8));
+  border: 1px solid var(--studio-color-line);
+  border-radius: var(--studio-radius-sheet);
+  background: var(--studio-color-surface);
+  box-shadow: var(--studio-shadow-card);
+}
+
+.rooms-settings__group-header {
+  display: flex;
+  gap: var(--studio-space-4);
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.rooms-settings__group-title {
+  margin: 0;
+  color: var(--studio-color-ink-strong);
+  font: var(--studio-type-control);
+}
+
+.rooms-settings__action {
+  color: var(--studio-color-ink);
+  font: var(--studio-type-control);
+}
+
+.rooms-settings__group-description {
+  margin-block: var(--studio-space-2) 0;
+  color: var(--studio-color-ink-soft);
+  line-height: 1.6;
+}
+
+.rooms-settings__list {
+  display: grid;
+  gap: var(--studio-space-4);
+  margin-block-start: var(--studio-space-5);
+  padding: 0;
+  list-style: none;
+}
+
+.rooms-settings__item {
+  display: grid;
+  gap: var(--studio-space-2);
+}
+
+.rooms-settings__item + .rooms-settings__item {
+  padding-block-start: var(--studio-space-4);
+  border-block-start: 1px solid var(--studio-color-line);
+}
+
+.rooms-settings__toggle {
+  display: flex;
+  gap: var(--studio-space-3);
+  align-items: center;
+  min-block-size: var(--studio-touch-target);
+  color: var(--studio-color-ink);
+  font: var(--studio-type-control);
+}
+
+.rooms-settings__label {
+  color: var(--studio-color-ink-strong);
+}
+
+.rooms-settings__item-description {
+  margin: 0;
+  color: var(--studio-color-ink-soft);
+  line-height: 1.6;
+}
+
+.rooms-settings__always {
+  display: grid;
+  gap: var(--studio-space-3);
+  margin-block-start: var(--studio-space-6);
+  padding-block-start: var(--studio-space-5);
+  border-block-start: 1px solid var(--studio-color-line);
+  list-style: none;
+}
+
+.rooms-settings__always-item {
+  display: flex;
+  gap: var(--studio-space-2);
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+.rooms-settings__always-note {
+  color: var(--studio-color-ink-soft);
+  line-height: 1.6;
+}

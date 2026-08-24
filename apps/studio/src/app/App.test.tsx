@@ -148,6 +148,14 @@ function studioService(overrides: Partial<StudioService> = {}) {
       })),
       save: vi.fn(),
     },
+    preferences: {
+      load: vi.fn(async () => ({
+        preferences: {},
+        revision: null,
+        repairRequired: false,
+      })),
+      save: vi.fn(),
+    },
     index: {
       upsert: vi.fn(),
       remove: vi.fn(),
@@ -736,7 +744,7 @@ it('persists the newest tour room after competing direct navigations', async () 
   fireEvent.click(
     await screen.findByRole('button', { name: 'Continue the tour' }),
   );
-  await screen.findByRole('heading', { level: 2, name: 'Foyer' });
+  await screen.findByText('What are you currently becoming?');
 
   fireEvent.click(screen.getByRole('link', { name: 'Life Landscape' }));
   await waitFor(() =>
@@ -811,7 +819,7 @@ it('serializes a guide advance behind an in-flight direct tour visit', async () 
   fireEvent.click(
     await screen.findByRole('button', { name: 'Continue the tour' }),
   );
-  await screen.findByRole('heading', { level: 2, name: 'Foyer' });
+  await screen.findByText('What are you currently becoming?');
   fireEvent.click(screen.getByRole('link', { name: 'Life Landscape' }));
   await waitFor(() =>
     expect(transition).toHaveBeenCalledWith(
@@ -914,7 +922,7 @@ it.each([
     fireEvent.click(
       await screen.findByRole('button', { name: 'Continue the tour' }),
     );
-    await screen.findByRole('heading', { level: 2, name: 'Foyer' });
+    await screen.findByText('What are you currently becoming?');
     fireEvent.click(screen.getByRole('link', { name: destination }));
     await waitFor(() =>
       expect(transition).toHaveBeenCalledWith(
@@ -997,7 +1005,7 @@ it('resumes at the Foyer after a replay is interrupted', async () => {
   fireEvent.click(
     await screen.findByRole('button', { name: 'Start the tour again' }),
   );
-  await screen.findByRole('heading', { level: 2, name: 'Foyer' });
+  await screen.findByText('What are you currently becoming?');
   expect(transition.mock.calls.map(([action]) => action.type)).toEqual([
     'replay',
     'visit',
@@ -1108,7 +1116,7 @@ it('turns an empty Foyer invitation into a canonical featured note', async () =>
     screen.getByRole('button', { name: 'Add a becoming sentence' }),
   );
   fireEvent.change(
-    screen.getByRole('textbox', { name: 'What would you like remembered?' }),
+    screen.getByRole('textbox', { name: 'What are you currently becoming?' }),
     { target: { value: 'A woman who creates from calm' } },
   );
   fireEvent.click(screen.getByRole('button', { name: 'Remember' }));
@@ -1675,4 +1683,257 @@ it('keeps failed navigation and the dirty editor in place', async () => {
   ).toBeVisible();
   expect(location.pathname).toBe('/foyer');
   expect(screen.getByRole('dialog', { name: 'Edit note' })).toBeVisible();
+});
+
+it('lists every room in the palette for an existing Studio with no preferences', async () => {
+  const fixture = studioService();
+  render(<App studioId="studio:first" studioService={fixture.service} />);
+  await screen.findByText('What are you currently becoming?');
+
+  fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+  const palette = await screen.findByRole('listbox', { name: 'Commands' });
+  expect(within(palette).getByRole('option', { name: 'Open Identity Studio' })).toBeVisible();
+  expect(within(palette).getByRole('option', { name: 'Open Current Season' })).toBeVisible();
+  expect(within(palette).getByRole('option', { name: 'Open Wisdom Garden' })).toBeVisible();
+  expect(within(palette).getByRole('option', { name: 'Rooms & sections…' })).toBeVisible();
+});
+
+it('hides optional rooms in the palette for a small-core Studio but keeps a way back', async () => {
+  const fixture = studioService({
+    preferences: {
+      load: vi.fn(async () => ({
+        preferences: {
+          rooms: {
+            identity: 'off',
+            season: 'off',
+            uncharted: 'off',
+            wisdom: 'off',
+            reflection: 'off',
+            inbox: 'off',
+          },
+        } as const,
+        revision: 'seeded',
+        repairRequired: false,
+      })),
+      save: vi.fn(),
+    },
+  });
+  render(<App studioId="studio:small" studioService={fixture.service} />);
+  await screen.findByText('What are you currently becoming?');
+
+  fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+  const palette = await screen.findByRole('listbox', { name: 'Commands' });
+  expect(within(palette).queryByRole('option', { name: 'Open Identity Studio' })).toBeNull();
+  expect(within(palette).queryByRole('option', { name: 'Open Current Season' })).toBeNull();
+  expect(within(palette).queryByRole('option', { name: 'Open Wisdom Garden' })).toBeNull();
+  // Core, utility, and the always-present entry to Settings remain.
+  expect(within(palette).getByRole('option', { name: 'Open Foyer' })).toBeVisible();
+  expect(within(palette).getByRole('option', { name: 'Open Life Landscape' })).toBeVisible();
+  expect(within(palette).getByRole('option', { name: 'Search the Studio' })).toBeVisible();
+  expect(within(palette).getByRole('option', { name: 'Rooms & sections…' })).toBeVisible();
+});
+
+it('seeds a small-core preferences file when a new Studio is created', async () => {
+  vi.stubGlobal('localStorage', browserStorage([]));
+  const fixture = studioService();
+  createBrowserVault.mockReturnValue({ list: vi.fn(async () => []) });
+  createAppStudioService.mockResolvedValue(fixture.service);
+
+  render(<App />);
+  fireEvent.click(
+    screen.getByRole('button', { name: 'Create a new Studio Space' }),
+  );
+  fireEvent.change(screen.getByLabelText('Studio name'), {
+    target: { value: 'Anna’s Studio' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /^Create$/ }));
+
+  await screen.findByRole('heading', { name: 'Your Studio Space is ready.' });
+  await waitFor(() =>
+    expect(fixture.service.preferences.save).toHaveBeenCalledTimes(1),
+  );
+  const call = (fixture.service.preferences.save as ReturnType<typeof vi.fn>).mock
+    .calls[0];
+  if (call === undefined) throw new Error('Expected preferences.save to be called');
+  const [seeded, revision] = call;
+  expect(revision).toBeNull();
+  expect(seeded.rooms.identity).toBe('off');
+  expect(seeded.rooms.season).toBe('off');
+  expect(seeded.foyerSections.feelings).toBe('off');
+  expect(seeded.foyerSections.almanac).toBe('off');
+  // Core rooms are never listed, and the always-shown sections are absent (= on).
+  expect(seeded.rooms.foyer).toBeUndefined();
+  expect(seeded.foyerSections.becoming).toBeUndefined();
+});
+
+const smallCoreRooms = {
+  identity: 'off',
+  season: 'off',
+  uncharted: 'off',
+  wisdom: 'off',
+  reflection: 'off',
+  inbox: 'off',
+} as const;
+
+/** A small-core Studio whose captures cross a reveal threshold (plan §6.2). */
+function revealFixture({
+  captureCount = 3,
+  reveals,
+  save = vi.fn(),
+}: {
+  captureCount?: number;
+  reveals?: Record<string, 'accepted' | 'dismissed'>;
+  save?: ReturnType<typeof vi.fn>;
+} = {}) {
+  return studioService({
+    preferences: {
+      load: vi.fn(async () => ({
+        preferences: {
+          rooms: { ...smallCoreRooms },
+          ...(reveals === undefined ? {} : { reveals }),
+        } as const,
+        revision: 'seeded',
+        repairRequired: false,
+      })),
+      save,
+    },
+    projectRoom: vi.fn(async () =>
+      Array.from({ length: captureCount }, (_unused, index) => ({
+        ...projection(note.body),
+        noteId: `note-${index}`,
+      })),
+    ),
+  });
+}
+
+it('offers to open one currently-off optional room when activity crosses a threshold', async () => {
+  const fixture = revealFixture({ captureCount: 3 });
+  render(<App studioId="studio:reveal" studioService={fixture.service} />);
+  await screen.findByText('What are you currently becoming?');
+
+  const invitation = await screen.findByRole('complementary', {
+    name: /Identity Studio/u,
+  });
+  expect(invitation).toHaveAttribute('aria-live', 'polite');
+  // A quiet offer, never a modal dialog that traps focus.
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  // Only one invitation is ever pending, even though 3 captures also qualify
+  // Reflection (5+) is not yet met, so Identity alone is offered.
+  expect(screen.getAllByRole('complementary', { name: /—/u })).toHaveLength(1);
+});
+
+it('turns the room on, records it accepted, and navigates there when accepted', async () => {
+  const save = vi.fn(async (next) => ({ preferences: next, revision: 'next' }));
+  const fixture = revealFixture({ captureCount: 3, save });
+  render(<App studioId="studio:reveal" studioService={fixture.service} />);
+  await screen.findByText('What are you currently becoming?');
+  await screen.findByRole('complementary', { name: /Identity Studio/u });
+
+  fireEvent.click(screen.getByRole('button', { name: 'Open it' }));
+
+  await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+  const [saved] = save.mock.calls[0]!;
+  expect(saved.rooms.identity).toBe('on');
+  expect(saved.reveals.identity).toBe('accepted');
+  await waitFor(() => expect(location.pathname).toBe('/identity'));
+});
+
+it('records a dismissal and never re-offers the same room', async () => {
+  const save = vi.fn(async (next) => ({ preferences: next, revision: 'next' }));
+  const fixture = revealFixture({ captureCount: 3, save });
+  render(<App studioId="studio:reveal" studioService={fixture.service} />);
+  await screen.findByText('What are you currently becoming?');
+  await screen.findByRole('complementary', { name: /Identity Studio/u });
+
+  fireEvent.click(screen.getByRole('button', { name: 'Not yet' }));
+
+  await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+  const [saved] = save.mock.calls[0]!;
+  expect(saved.reveals.identity).toBe('dismissed');
+  // The offer disappears at once and does not return this session.
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('complementary', { name: /Identity Studio/u }),
+    ).not.toBeInTheDocument(),
+  );
+});
+
+it('does not re-offer a room whose reveal was already recorded', async () => {
+  const fixture = revealFixture({
+    captureCount: 3,
+    reveals: { identity: 'dismissed' },
+  });
+  render(<App studioId="studio:reveal" studioService={fixture.service} />);
+  await screen.findByText('What are you currently becoming?');
+  // A moment for signal queries to settle; Identity stays dismissed and, with
+  // only 3 captures, no later room qualifies yet — so nothing is offered.
+  await waitFor(() =>
+    expect(fixture.service.preferences.load).toHaveBeenCalled(),
+  );
+  expect(
+    screen.queryByRole('complementary', { name: /Identity Studio/u }),
+  ).not.toBeInTheDocument();
+});
+
+it('walks only the rooms that are on, so a small-core tour finishes after Landscape', async () => {
+  vi.stubGlobal(
+    'localStorage',
+    browserStorage([
+      {
+        name: 'Anna’s Studio',
+        vaultId: 'studio:anna',
+        createdAt: '2026-07-15T00:00:00.000Z',
+      },
+    ]),
+  );
+  const fixture = studioService({
+    preferences: {
+      load: vi.fn(async () => ({
+        preferences: { rooms: { ...smallCoreRooms } } as const,
+        revision: 'seeded',
+        repairRequired: false,
+      })),
+      save: vi.fn(),
+    },
+    onboarding: {
+      ...studioService().service.onboarding,
+      load: async () => ({
+        onboarding: {
+          version: 1,
+          status: 'in-progress',
+          currentStep: 'foyer',
+          startedAt: '2026-07-15T00:00:00.000Z',
+          updatedAt: '2026-07-15T01:00:00.000Z',
+        },
+        extra: {},
+        revision: 'settings-hash',
+        repairRequired: false,
+      }),
+    },
+  });
+  createBrowserVault.mockReturnValue({});
+  createAppStudioService.mockResolvedValue(fixture.service);
+
+  render(<App />);
+  fireEvent.click(screen.getByRole('button', { name: 'Open Anna’s Studio' }));
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Continue the tour' }),
+  );
+  await screen.findByText('What are you currently becoming?');
+
+  // Season is off, so the Foyer step names Landscape as next — never a hidden room.
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Next room · Life Landscape' }),
+  );
+
+  // Landscape is the last on-room; the next action finishes the tour rather than
+  // introducing Current Season, which this small-core Studio has not opened.
+  expect(
+    await screen.findByRole('button', {
+      name: 'Finish tour · Return to Foyer',
+    }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole('button', { name: 'Next room · Current Season' }),
+  ).not.toBeInTheDocument();
 });

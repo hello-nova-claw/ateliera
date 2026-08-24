@@ -9,6 +9,9 @@ import { useAlmanac } from '../../features/foyer/use-almanac';
 import { useFoyer } from '../../features/foyer/use-foyer';
 import { useFoyerCover } from '../../features/foyer/use-foyer-cover';
 import { useTodaysGift } from '../../features/foyer/use-todays-gift';
+import { resolveRhythmLayers } from '../../features/settings/rhythm-layers';
+import { resolveFoyerSections } from '../../features/settings/room-visibility';
+import { useStudioPreferences } from '../../features/settings/use-studio-preferences';
 import type { TourExample } from '../../features/onboarding/tour-examples';
 import type { UseTourExample } from '../../features/onboarding/TourPreview';
 
@@ -50,10 +53,15 @@ export default function FoyerRoom({
   const today = localDateISO(now());
   const todaysGift = useTodaysGift(service, today);
   const almanac = useAlmanac(service, today);
+  const { preferences } = useStudioPreferences(service);
+  const rhythmLayers = resolveRhythmLayers(preferences);
+  const sections = resolveFoyerSections(preferences);
   return (
     <>
       <FoyerPage
         almanac={almanac}
+        rhythmLayers={rhythmLayers}
+        sections={sections}
         cover={cover}
         {...(view.error === undefined ? {} : { error: view.error })}
         gift={todaysGift.gift}

@@ -14,7 +14,11 @@ import {
   type PortabilityPreview,
 } from '../../features/settings/PortabilitySettings';
 import { RhythmProfileSettings } from '../../features/settings/RhythmProfileSettings';
+import { RhythmLayersSettings } from '../../features/settings/RhythmLayersSettings';
+import { RoomsSettings } from '../../features/settings/RoomsSettings';
+import { resolveRhythmLayers } from '../../features/settings/rhythm-layers';
 import { useRhythmProfile } from '../../features/settings/use-rhythm-profile';
+import { useStudioPreferences } from '../../features/settings/use-studio-preferences';
 
 export interface SettingsRoomProps {
   onStartTour?: () => void;
@@ -77,6 +81,7 @@ export default function SettingsRoom({
 }: SettingsRoomProps) {
   const pendingPlan = useRef<VaultImportPlan | undefined>(undefined);
   const rhythmProfile = useRhythmProfile(service);
+  const preferences = useStudioPreferences(service);
 
   return (
     <>
@@ -112,6 +117,21 @@ export default function SettingsRoom({
               },
             })}
       />
+      {service !== undefined && (
+        <RoomsSettings
+          preferences={preferences.preferences}
+          rhythmLayers={resolveRhythmLayers(preferences.preferences)}
+          onChange={(next) => preferences.save(next)}
+        />
+      )}
+      {service !== undefined && (
+        <RhythmLayersSettings
+          layers={resolveRhythmLayers(preferences.preferences)}
+          onChange={(next) =>
+            preferences.save({ ...preferences.preferences, rhythm: next })
+          }
+        />
+      )}
       {service !== undefined && (
         <RhythmProfileSettings
           key={rhythmProfile.revision ?? 'new'}

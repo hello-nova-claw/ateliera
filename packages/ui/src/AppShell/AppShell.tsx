@@ -7,12 +7,27 @@ export interface AppShellProps {
   captureEnabled?: boolean;
   children: ReactNode;
   focusMode?: 'tour';
+  /**
+   * Room paths to leave out of the navigation (rail, mobile More menu). This is
+   * presentation only — the host still routes every path, so a hidden room stays
+   * reachable by deep link. Core/utility destinations are never hidden even if
+   * listed, so navigation always has a way home and a way to Settings.
+   */
+  hiddenRoomPaths?: readonly string[];
   localStatus?: string;
   onCapture: (trigger: HTMLButtonElement) => void;
   onNavigate: (path: string) => void;
   roomTitle: string;
   topbar?: ReactNode;
 }
+
+/** Destinations that must always remain reachable from the navigation. */
+const ALWAYS_VISIBLE_PATHS: ReadonlySet<string> = new Set([
+  '/foyer',
+  '/landscape',
+  '/search',
+  '/settings',
+]);
 
 const rooms = [
   ['/foyer', 'Foyer', '⌂'],
@@ -35,12 +50,18 @@ export function AppShell({
   captureEnabled = true,
   children,
   focusMode,
+  hiddenRoomPaths,
   localStatus = 'Stored locally',
   onCapture,
   onNavigate,
   roomTitle,
   topbar,
 }: AppShellProps) {
+  const isHidden = (path: string): boolean =>
+    !ALWAYS_VISIBLE_PATHS.has(path) &&
+    (hiddenRoomPaths?.includes(path) ?? false);
+  const visibleRooms = rooms.filter(([path]) => !isHidden(path));
+  const visibleUtilities = utilities.filter(([path]) => !isHidden(path));
   const [moreOpen, setMoreOpen] = useState(false);
   const moreButton = useRef<HTMLButtonElement>(null);
   const moreMenu = useRef<HTMLDivElement>(null);
@@ -137,13 +158,15 @@ export function AppShell({
           {brandAside}
         </div>
         <nav aria-label="Studio rooms" className="studio-app-shell__room-nav">
-          {rooms.map(([path, label, mark]) => studioLink(path, label, mark))}
+          {visibleRooms.map(([path, label, mark]) =>
+            studioLink(path, label, mark),
+          )}
         </nav>
         <nav
           aria-label="Studio utilities"
           className="studio-app-shell__utility-nav"
         >
-          {utilities.map(([path, label, mark]) =>
+          {visibleUtilities.map(([path, label, mark]) =>
             studioLink(path, label, mark),
           )}
         </nav>
@@ -206,8 +229,8 @@ export function AppShell({
           role="menu"
         >
           {[
-            ...rooms.slice(1),
-            ...utilities.filter(([path]) => path !== '/search'),
+            ...visibleRooms.slice(1),
+            ...visibleUtilities.filter(([path]) => path !== '/search'),
           ].map(([path, label, mark]) => (
             <button
               className="studio-app-shell__more-item"

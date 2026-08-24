@@ -40,7 +40,10 @@ import { useStudioRouter, type StudioPath } from './router';
 import { themes, type ThemeId } from './themes';
 import { QuickCapture } from '../features/capture/QuickCapture';
 import type { QuickCaptureInput } from '../features/capture/QuickCapture';
-import { captureMeaningForContext } from '../features/capture/capture-context';
+import {
+  captureGuidanceForContext,
+  captureMeaningForContext,
+} from '../features/capture/capture-context';
 import type { FoyerSlot } from '../features/foyer/FoyerPage';
 import { StudioEntryGate } from '../features/onboarding/StudioEntryGate';
 import { FirstVisitGuide } from '../features/onboarding/FirstVisitGuide';
@@ -51,6 +54,14 @@ import {
   type TourExample,
 } from '../features/onboarding/tour-examples';
 import { preloadTourRoom } from '../features/onboarding/tour-prefetch';
+import { useStudioPreferences } from '../features/settings/use-studio-preferences';
+import {
+  NEW_STUDIO_PREFERENCES,
+  resolveRoomVisibility,
+  type RoomId,
+} from '../features/settings/room-visibility';
+import { RoomRevealInvitation } from '../features/settings/RoomRevealInvitation';
+import { selectRoomReveal } from '../features/settings/room-reveal';
 import {
   initialStudioEntryState,
   studioEntryReducer,
@@ -82,6 +93,31 @@ const tourHeading = {
 
 function pathForTourStep(step: TourStep): StudioPath {
   return `/${step}` as StudioPath;
+}
+
+// Room names as the tour's "Next room · …" copy uses them (plan §7.4). Kept in
+// step order so the finish/next label can be rebuilt when off rooms are skipped.
+const tourRoomName = {
+  foyer: 'Foyer',
+  landscape: 'Life Landscape',
+  season: 'Current Season',
+  uncharted: 'Uncharted',
+  reflection: 'Reflection Garden',
+} satisfies Record<TourStep, string>;
+
+/**
+ * The "next" button copy for a tour step, given the order of rooms actually on.
+ * When the step is the last on-room, the tour finishes; otherwise it names the
+ * next on-room, never a hidden one.
+ */
+function tourNextLabel(
+  step: TourStep,
+  order: readonly TourStep[],
+): string {
+  const next = order[order.indexOf(step) + 1];
+  return next === undefined
+    ? 'Finish tour · Return to Foyer'
+    : `Next room · ${tourRoomName[next]}`;
 }
 
 function tourStepForPath(path: string): TourStep | undefined {
@@ -215,7 +251,34 @@ function StudioApplication({
     opened,
   );
   const { announce: themeAnnouncement, setTheme, theme } = useTheme();
+  const { preferences: studioPreferences, save: saveStudioPreferences } =
+    useStudioPreferences(isStudioService(service) ? service : undefined);
+  const roomVisibility = resolveRoomVisibility(studioPreferences);
+  const hiddenRoomPaths = Object.entries(roomVisibility)
+    .filter(([, visible]) => !visible)
+    .map(([id]) => `/${id}`);
+  // The tour walks only rooms that are currently on for this Studio (plan §7.4).
+  // Foyer and Landscape are core and always present, so a brand-new small-core
+  // Studio tours just those two; an existing Studio (all rooms on) still walks
+  // all five as it does today.
+  const visibleTourOrder = tourOrder.filter(
+    (step) => roomVisibility[step as RoomId] !== false,
+  );
   const [captures, setCaptures] = useState<CaptureEntry[]>([]);
+  // Cheap activity signals for the guided reveal (plan §6.2). captureCount comes
+  // from the captures already loaded; the rest are lazily read only when a
+  // still-offerable optional room exists, so an existing Studio (all rooms on)
+  // never runs these queries.
+  const [revealSignals, setRevealSignals] = useState<{
+    hasPlacedLifeAreaCard: boolean;
+    hasSeason: boolean;
+    hasWisdomSource: boolean;
+  }>({
+    hasPlacedLifeAreaCard: false,
+    hasSeason: false,
+    hasWisdomSource: false,
+  });
+  const [revealDismissed, setRevealDismissed] = useState<RoomId | null>(null);
   const [projectionRevision, setProjectionRevision] = useState(0);
   const [online, setOnline] = useState(() => navigator.onLine);
   const [browserStudios, setBrowserStudios] = useState<BrowserStudioRecord[]>(
@@ -401,6 +464,44 @@ function StudioApplication({
     };
   }, [projectionRevision, service]);
 
+  // Whether any optional room is still off AND has never been accepted/dismissed,
+  // so a reveal could still fire. When nothing is offerable (e.g. an existing
+  // Studio with every room on), we skip the signal queries entirely.
+  const hasOfferableRoom = Object.entries(roomVisibility).some(
+    ([id, visible]) =>
+      !visible && studioPreferences.reveals?.[id] === undefined,
+  );
+
+  useEffect(() => {
+    if (!isStudioService(service) || !hasOfferableRoom) return undefined;
+    let active = true;
+    const studio = service;
+    void (async () => {
+      // hasSeason: exact and cheap.
+      const hasSeason = (await studio.projectCurrentSeason()).current !== null;
+      // hasWisdomSource: a wisdom card saved with a source (plan §6.2). The
+      // Reflection/Growth-meaning half of the trigger is approximated by the
+      // wisdom-garden membership a saved quote already carries.
+      const hasWisdomSource = (await studio.projectWisdomGarden()).cards.some(
+        (card) => card.source !== undefined,
+      );
+      // hasPlacedLifeAreaCard: the honest signal is a non-empty Landscape board
+      // over the person's own life areas — the same read the Landscape room does.
+      const areas = await studio.lifeAreas.load();
+      const board = await studio.projectLandscapeBoard(
+        areas.areas.map((area) => area.id),
+      );
+      const hasPlacedLifeAreaCard = board.cells.some(
+        (cell) => cell.noteIds.length > 0,
+      );
+      if (!active) return;
+      setRevealSignals({ hasPlacedLifeAreaCard, hasSeason, hasWisdomSource });
+    })().catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [hasOfferableRoom, projectionRevision, service]);
+
   useEffect(() => {
     document.title = opened ? `${title} — Ateliera` : 'Welcome — Ateliera';
   }, [opened, title]);
@@ -491,6 +592,21 @@ function StudioApplication({
   const visibleTourStep =
     tourStep === undefined ? undefined : tourStepForPath(path);
 
+  // The single pending guided-reveal offer (plan §6.2). Only one is ever shown;
+  // it stays quiet during the tour, and never re-appears once dismissed this
+  // session (the dismissal is also persisted so it never returns at all).
+  const pendingReveal =
+    opened && tourStep === undefined
+      ? selectRoomReveal(
+          { captureCount: captures.length, ...revealSignals },
+          studioPreferences,
+        )
+      : null;
+  const showReveal =
+    pendingReveal !== null &&
+    pendingReveal.room !== revealDismissed &&
+    path === '/foyer';
+
   useEffect(() => {
     if (visibleTourStep === undefined) return undefined;
     let active = true;
@@ -518,9 +634,11 @@ function StudioApplication({
 
   useEffect(() => {
     if (tourStep === undefined) return;
-    const current = tourOrder.indexOf(tourStep);
-    const next = tourOrder[current + 1];
+    const current = visibleTourOrder.indexOf(tourStep);
+    const next = visibleTourOrder[current + 1];
     if (next !== undefined) void preloadTourRoom(next).catch(() => undefined);
+    // visibleTourOrder is derived from preferences; tourStep drives the preload.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tourStep]);
 
   useEffect(() => {
@@ -615,6 +733,13 @@ function StudioApplication({
     origin: 'create' | 'open',
   ): Promise<void> {
     if (origin === 'create') {
+      // Seed an explicit small-core preferences file for newly created Studios, so
+      // that an absent file always means "existing Studio → show everything" and
+      // never regresses. Best-effort: a failed seed simply leaves the Studio with
+      // the full house, which is safe.
+      await Promise.resolve(
+        lifecycle.preferences.save(NEW_STUDIO_PREFERENCES, null),
+      ).catch(() => undefined);
       dispatchEntry({ type: 'first-visit', attemptId, mode: 'new' });
       return;
     }
@@ -916,8 +1041,8 @@ function StudioApplication({
   async function moveTour(direction: -1 | 1): Promise<void> {
     if (!isStudioService(service) || tourStep === undefined) return;
     await runOnboardingAction(async () => {
-      const current = tourOrder.indexOf(visibleTourStep ?? tourStep);
-      const next = tourOrder[current + direction];
+      const current = visibleTourOrder.indexOf(visibleTourStep ?? tourStep);
+      const next = visibleTourOrder[current + direction];
       if (next === undefined && direction === 1) {
         if (!(await queueTourEnd('complete'))) return;
         dispatchEntry({ type: 'end-tour' });
@@ -984,6 +1109,37 @@ function StudioApplication({
       });
       dispatchEntry({ type: 'dismiss-tour-invitation' });
     }, 'Ateliera could not remember this choice.');
+  }
+
+  // Accepting a guided reveal turns the room on and records it as accepted, then
+  // navigates there (plan §6.2). The persisted `reveals[room]='accepted'` means
+  // the offer never returns; the room stays on unless later switched off.
+  async function acceptReveal(room: RoomId): Promise<void> {
+    try {
+      await saveStudioPreferences({
+        ...studioPreferences,
+        rooms: { ...studioPreferences.rooms, [room]: 'on' },
+        reveals: { ...studioPreferences.reveals, [room]: 'accepted' },
+      });
+      go(`/${room}`, { focusMain: false });
+    } catch {
+      setError('Ateliera could not open that room.');
+    }
+  }
+
+  // Dismissing records `reveals[room]='dismissed'` so the same offer never
+  // returns. The room stays off. We also mute it for this session immediately so
+  // the surface disappears before the persisted preferences round-trip lands.
+  async function dismissReveal(room: RoomId): Promise<void> {
+    setRevealDismissed(room);
+    try {
+      await saveStudioPreferences({
+        ...studioPreferences,
+        reveals: { ...studioPreferences.reveals, [room]: 'dismissed' },
+      });
+    } catch {
+      setError('Ateliera could not remember this choice.');
+    }
   }
 
   function beginFoyerCapture(
@@ -1071,38 +1227,29 @@ function StudioApplication({
     });
   }
 
+  // Only rooms that are currently on appear in the palette. Every route stays
+  // registered in the router, so a hidden room is still reachable by deep link and
+  // via the always-present "Rooms & sections…" command below — nothing is deleted.
+  const roomCommands: StudioCommand[] = (
+    [
+      { id: 'foyer', label: 'Open Foyer', path: '/foyer' },
+      { id: 'identity', label: 'Open Identity Studio', path: '/identity' },
+      { id: 'landscape', label: 'Open Life Landscape', path: '/landscape' },
+      { id: 'season', label: 'Open Current Season', path: '/season' },
+      { id: 'uncharted', label: 'Open Uncharted', path: '/uncharted' },
+      { id: 'wisdom', label: 'Open Wisdom Garden', path: '/wisdom' },
+      { id: 'reflection', label: 'Open Reflection Garden', path: '/reflection' },
+    ] as const
+  )
+    .filter((room) => roomVisibility[room.id])
+    .map((room) => ({
+      id: room.id,
+      label: room.label,
+      onSelect: () => go(room.path),
+    }));
+
   const commands: StudioCommand[] = [
-    { id: 'foyer', label: 'Open Foyer', onSelect: () => go('/foyer') },
-    {
-      id: 'identity',
-      label: 'Open Identity Studio',
-      onSelect: () => go('/identity'),
-    },
-    {
-      id: 'landscape',
-      label: 'Open Life Landscape',
-      onSelect: () => go('/landscape'),
-    },
-    {
-      id: 'season',
-      label: 'Open Current Season',
-      onSelect: () => go('/season'),
-    },
-    {
-      id: 'uncharted',
-      label: 'Open Uncharted',
-      onSelect: () => go('/uncharted'),
-    },
-    {
-      id: 'wisdom',
-      label: 'Open Wisdom Garden',
-      onSelect: () => go('/wisdom'),
-    },
-    {
-      id: 'reflection',
-      label: 'Open Reflection Garden',
-      onSelect: () => go('/reflection'),
-    },
+    ...roomCommands,
     ...(opened && service !== null
       ? [
           {
@@ -1115,6 +1262,11 @@ function StudioApplication({
       : []),
     { id: 'search', label: 'Search the Studio', onSelect: () => go('/search') },
     { id: 'settings', label: 'Open Settings', onSelect: () => go('/settings') },
+    {
+      id: 'rooms-and-sections',
+      label: 'Rooms & sections…',
+      onSelect: () => go('/settings'),
+    },
   ];
 
   const themePicker = (
@@ -1177,13 +1329,15 @@ function StudioApplication({
           {status}
         </span>
         {themePicker}
-        <button
-          className="studio-topbar__button studio-topbar__button--quiet"
-          onClick={() => go('/inbox')}
-          type="button"
-        >
-          Inbox
-        </button>
+        {roomVisibility.inbox && (
+          <button
+            className="studio-topbar__button studio-topbar__button--quiet"
+            onClick={() => go('/inbox')}
+            type="button"
+          >
+            Inbox
+          </button>
+        )}
         <button
           aria-label="Capture"
           className="studio-topbar__new"
@@ -1322,6 +1476,14 @@ function StudioApplication({
       ? {}
       : { landscape: pendingLandscapePlacement.current }),
   });
+  const captureGuidance = captureGuidanceForContext({
+    ...(pendingCapturePlacement.current === undefined
+      ? {}
+      : { placement: pendingCapturePlacement.current }),
+    ...(pendingLandscapePlacement.current === undefined
+      ? {}
+      : { landscape: pendingLandscapePlacement.current }),
+  });
 
   return (
     <ActiveStudioApplication
@@ -1336,6 +1498,7 @@ function StudioApplication({
           }
         : {})}
       captureEnabled={opened && service !== null}
+      hiddenRoomPaths={hiddenRoomPaths}
       {...(visibleTourStep === undefined ? {} : { focusMode: 'tour' })}
       localStatus={opened ? 'Stored locally' : 'No Studio open'}
       onCapture={(trigger) => {
@@ -1359,6 +1522,7 @@ function StudioApplication({
           {visibleTourStep !== undefined && (
             <FirstVisitGuide
               busy={onboardingBusy}
+              nextLabel={tourNextLabel(visibleTourStep, visibleTourOrder)}
               onLeave={() => void leaveTour()}
               onNext={() => void moveTour(1)}
               {...(visibleTourStep === 'foyer'
@@ -1383,6 +1547,13 @@ function StudioApplication({
                   onStart={() => void replayTour()}
                 />
               )}
+            {showReveal && pendingReveal !== null && (
+              <RoomRevealInvitation
+                copy={pendingReveal.copy}
+                onAccept={() => void acceptReveal(pendingReveal.room)}
+                onDismiss={() => void dismissReveal(pendingReveal.room)}
+              />
+            )}
             <RoomRoute
               captures={captures}
               online={online}
@@ -1442,7 +1613,7 @@ function StudioApplication({
       {createStudioDialog}
       <Dialog
         isOpen={captureOpen}
-        label="Hold this thought"
+        label={captureGuidance.title}
         onClose={closeCapture}
       >
         <QuickCapture
@@ -1450,6 +1621,7 @@ function StudioApplication({
           decisionHorizon={
             pendingLandscapePlacement.current?.anchor === 'decisions'
           }
+          guidance={captureGuidance}
           initialBody={captureInitialBody}
           {...(captureMeaning === undefined
             ? {}

@@ -27,6 +27,14 @@ function service(overrides: {
         repairRequired: false,
       }),
     },
+    preferences: {
+      load: vi.fn().mockResolvedValue({
+        preferences: {},
+        revision: null,
+        repairRequired: false,
+      }),
+      save: vi.fn(),
+    },
     index: {
       search: vi.fn().mockResolvedValue([{ id: 'dream-1' }]),
       getManyById: vi.fn().mockResolvedValue([

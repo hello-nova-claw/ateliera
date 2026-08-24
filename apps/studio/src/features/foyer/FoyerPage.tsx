@@ -13,6 +13,8 @@ import { ReturnCard } from './ReturnCard';
 import { SeasonPreview } from './SeasonPreview';
 import { TodaysAlmanac } from './TodaysAlmanac';
 import { TodaysGift } from './TodaysGift';
+import type { RhythmLayers } from '../settings/rhythm-layers';
+import type { FoyerSectionVisibility } from '../settings/room-visibility';
 import type { Almanac } from './use-almanac';
 import type { FoyerCoverView } from './use-foyer-cover';
 import type { Gift, KeepState } from './use-todays-gift';
@@ -28,6 +30,13 @@ export type FoyerSlot = 'becoming' | 'feeling' | 'principle';
 
 export interface FoyerPageProps {
   almanac?: Almanac | null;
+  rhythmLayers?: RhythmLayers;
+  /**
+   * Which Foyer sections to render. Omitted means "show everything", so existing
+   * Studios (and every current test) keep the full spread; a seeded new Studio
+   * passes an explicit map with the extras turned off.
+   */
+  sections?: FoyerSectionVisibility;
   cover?: FoyerCoverView;
   error?: string;
   gift?: Gift | null;
@@ -122,6 +131,7 @@ function FoyerSkeleton() {
 
 export function FoyerPage({
   almanac = null,
+  rhythmLayers,
   cover = { state: 'none' },
   error,
   gift = null,
@@ -134,9 +144,13 @@ export function FoyerPage({
   onOpen,
   onRemoveImage,
   onUseTourExample,
+  sections,
   state = 'ready',
   tourExamples = [],
 }: FoyerPageProps) {
+  // Absent map = show every section (existing Studios keep today's full Foyer).
+  const show = (id: keyof FoyerSectionVisibility): boolean =>
+    sections === undefined || sections[id];
   const empty =
     model.becoming === null &&
     model.feelings.length === 0 &&
@@ -184,64 +198,81 @@ export function FoyerPage({
         <div className="foyer-page__spread">
           <div className="foyer-page__wide">
             {tourExamples.length > 0 && <TourGlimpseLabel />}
-            <Becoming
-              card={model.becoming}
-              {...(onCreate
-                ? {
-                    onCreate: (trigger: HTMLButtonElement) =>
-                      onCreate('becoming', trigger),
-                  }
-                : {})}
-              {...(onOpen ? { onOpen } : {})}
-            />
-            {model.becoming === null &&
-              tourExamples
-                .filter((example) => example.previewKey === 'foyer-becoming')
-                .map((example) => (
-                  <TourExampleCard
-                    className="foyer-tour-glimpse foyer-tour-glimpse--becoming"
-                    example={example}
-                    key={example.previewKey}
-                    {...(onUseTourExample ? { onUse: onUseTourExample } : {})}
-                  />
-                ))}
-            <TodaysAlmanac almanac={almanac} />
-            <TodaysGift
-              gift={gift}
-              {...(onKeepGift ? { onKeep: onKeepGift } : {})}
-              {...(giftKeepState === undefined ? {} : { keepState: giftKeepState })}
-              {...(giftKeepError === undefined ? {} : { keepError: giftKeepError })}
-              {...(giftKeepMessage === undefined
-                ? {}
-                : { keepMessage: giftKeepMessage })}
-            />
-            <SeasonPreview
-              priorities={model.priorities}
-              season={model.currentSeason}
-              {...(onOpen ? { onOpen } : {})}
-            />
-            <Principles
-              principles={model.principles}
-              {...(onCreate
-                ? {
-                    onCreate: (trigger: HTMLButtonElement) =>
-                      onCreate('principle', trigger),
-                  }
-                : {})}
-              {...(onOpen ? { onOpen } : {})}
-            />
-            {tourExamples
-              .filter((example) => example.previewKey === 'foyer-principle')
-              .map((example) => (
-                <TourExampleCard
-                  className="foyer-tour-glimpse foyer-tour-glimpse--principle"
-                  example={example}
-                  key={example.previewKey}
+            {show('becoming') && (
+              <>
+                <Becoming
+                  card={model.becoming}
+                  {...(onCreate
+                    ? {
+                        onCreate: (trigger: HTMLButtonElement) =>
+                          onCreate('becoming', trigger),
+                      }
+                    : {})}
+                  {...(onOpen ? { onOpen } : {})}
                 />
-              ))}
+                {model.becoming === null &&
+                  tourExamples
+                    .filter((example) => example.previewKey === 'foyer-becoming')
+                    .map((example) => (
+                      <TourExampleCard
+                        className="foyer-tour-glimpse foyer-tour-glimpse--becoming"
+                        example={example}
+                        key={example.previewKey}
+                        {...(onUseTourExample ? { onUse: onUseTourExample } : {})}
+                      />
+                    ))}
+              </>
+            )}
+            {show('almanac') && (
+              <TodaysAlmanac
+                almanac={almanac}
+                {...(rhythmLayers ? { layers: rhythmLayers } : {})}
+              />
+            )}
+            {show('gift') && (
+              <TodaysGift
+                gift={gift}
+                {...(onKeepGift ? { onKeep: onKeepGift } : {})}
+                {...(giftKeepState === undefined ? {} : { keepState: giftKeepState })}
+                {...(giftKeepError === undefined ? {} : { keepError: giftKeepError })}
+                {...(giftKeepMessage === undefined
+                  ? {}
+                  : { keepMessage: giftKeepMessage })}
+              />
+            )}
+            {show('seasonPreview') && (
+              <SeasonPreview
+                priorities={model.priorities}
+                season={model.currentSeason}
+                {...(onOpen ? { onOpen } : {})}
+              />
+            )}
+            {show('principles') && (
+              <>
+                <Principles
+                  principles={model.principles}
+                  {...(onCreate
+                    ? {
+                        onCreate: (trigger: HTMLButtonElement) =>
+                          onCreate('principle', trigger),
+                      }
+                    : {})}
+                  {...(onOpen ? { onOpen } : {})}
+                />
+                {tourExamples
+                  .filter((example) => example.previewKey === 'foyer-principle')
+                  .map((example) => (
+                    <TourExampleCard
+                      className="foyer-tour-glimpse foyer-tour-glimpse--principle"
+                      example={example}
+                      key={example.previewKey}
+                    />
+                  ))}
+              </>
+            )}
           </div>
           <aside className="foyer-page__narrow" aria-label="Feeling and return">
-            {model.image && (
+            {show('cover') && model.image && (
               <FoyerImage
                 cover={cover}
                 image={model.image}
@@ -253,28 +284,34 @@ export function FoyerPage({
                   : {})}
               />
             )}
-            <Feelings
-              feelings={model.feelings}
-              {...(onCreate
-                ? {
-                    onCreate: (trigger: HTMLButtonElement) =>
-                      onCreate('feeling', trigger),
-                  }
-                : {})}
-            />
-            {tourExamples
-              .filter((example) => example.previewKey === 'foyer-feeling')
-              .map((example) => (
-                <TourExampleCard
-                  className="foyer-tour-glimpse foyer-tour-glimpse--feeling"
-                  example={example}
-                  key={example.previewKey}
+            {show('feelings') && (
+              <>
+                <Feelings
+                  feelings={model.feelings}
+                  {...(onCreate
+                    ? {
+                        onCreate: (trigger: HTMLButtonElement) =>
+                          onCreate('feeling', trigger),
+                      }
+                    : {})}
                 />
-              ))}
-            <ReturnCard
-              card={model.returning}
-              {...(onOpen ? { onOpen } : {})}
-            />
+                {tourExamples
+                  .filter((example) => example.previewKey === 'foyer-feeling')
+                  .map((example) => (
+                    <TourExampleCard
+                      className="foyer-tour-glimpse foyer-tour-glimpse--feeling"
+                      example={example}
+                      key={example.previewKey}
+                    />
+                  ))}
+              </>
+            )}
+            {show('returnCard') && (
+              <ReturnCard
+                card={model.returning}
+                {...(onOpen ? { onOpen } : {})}
+              />
+            )}
           </aside>
         </div>
       )}

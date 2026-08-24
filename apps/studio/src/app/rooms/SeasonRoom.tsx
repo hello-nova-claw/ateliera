@@ -2,6 +2,8 @@ import type { StudioService } from '@studio/application';
 import { SeasonPage } from '../../features/season/SeasonPage';
 import { useSeason } from '../../features/season/use-season';
 import { useAlmanac } from '../../features/foyer/use-almanac';
+import { resolveRhythmLayers } from '../../features/settings/rhythm-layers';
+import { useStudioPreferences } from '../../features/settings/use-studio-preferences';
 import type { TourExample } from '../../features/onboarding/tour-examples';
 
 function localDateISO(date: Date): string {
@@ -24,6 +26,8 @@ export default function SeasonRoom({
 }) {
   const season = useSeason(service, projectionRevision);
   const almanac = useAlmanac(service, localDateISO(now()));
+  const { preferences } = useStudioPreferences(service);
+  const showYearWheel = resolveRhythmLayers(preferences).microSeason;
   return (
     <SeasonPage
       conflicts={season.conflicts}
@@ -38,7 +42,14 @@ export default function SeasonRoom({
       record={season.record}
       priorityCandidates={season.priorityCandidates}
       state={season.state}
-      yearWheel={{ season: almanac.season, microSeason: almanac.microSeason }}
+      {...(showYearWheel
+        ? {
+            yearWheel: {
+              season: almanac.season,
+              microSeason: almanac.microSeason,
+            },
+          }
+        : {})}
       {...(season.wizardStep ? { wizardStep: season.wizardStep } : {})}
       {...(tourExamples ? { tourExamples } : {})}
     />
