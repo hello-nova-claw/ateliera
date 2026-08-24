@@ -10,10 +10,14 @@ import {
   type SeasonWizardStep,
 } from '@studio/domain';
 import type { MicroSeason, Season } from '@studio/rhythm';
-import { Dialog, RoomHeading } from '@studio/ui';
+import { Dialog, GuidedField, RoomHeading } from '@studio/ui';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 
 import './SeasonPage.css';
+import {
+  seasonFieldGuidance,
+  seasonPrioritiesGuidance,
+} from './field-guidance';
 import type { TourExample } from '../onboarding/tour-examples';
 import { TourExampleCard, TourGlimpseLabel } from '../onboarding/TourPreview';
 import { YearWheel } from './YearWheel';
@@ -159,6 +163,7 @@ function SeasonWizard({
   const [enough, setEnough] = useState(current?.enough ?? '');
   const [notNow, setNotNow] = useState(current?.notNow.join('\n') ?? '');
   const headingId = useId();
+  const fieldId = useId();
   const priorityChoices = [
     ...availablePriorities,
     ...(current?.priorities ?? [])
@@ -308,14 +313,19 @@ function SeasonWizard({
       >
         {step === 'name-dates' && (
           <>
-            <label>
-              Season name
+            <GuidedField
+              controlId={`${fieldId}-name`}
+              description={seasonFieldGuidance.name.description}
+              label="Season name"
+            >
               <input
                 autoFocus
+                id={`${fieldId}-name`}
                 onChange={(event) => setTitle(event.target.value)}
+                placeholder={seasonFieldGuidance.name.example}
                 value={title}
               />
-            </label>
+            </GuidedField>
             <div className="season-wizard__dates">
               <label>
                 Starts{' '}
@@ -338,14 +348,19 @@ function SeasonWizard({
         )}
         {step === 'prior-reflection' && (
           <>
-            <label>
-              What do you want to carry as learning?
+            <GuidedField
+              controlId={`${fieldId}-reflection`}
+              description={seasonFieldGuidance.carryAsLearning.description}
+              label="What do you want to carry as learning?"
+            >
               <textarea
+                id={`${fieldId}-reflection`}
                 onChange={(event) => setReflection(event.target.value)}
+                placeholder={seasonFieldGuidance.carryAsLearning.example}
                 rows={6}
                 value={reflection}
               />
-            </label>
+            </GuidedField>
             <label className="season-wizard__check">
               <input
                 checked={skipReflection}
@@ -358,27 +373,43 @@ function SeasonWizard({
         )}
         {step === 'feelings' && (
           <>
-            <label>
-              This is a season of…
+            <GuidedField
+              controlId={`${fieldId}-statement`}
+              description={seasonFieldGuidance.statement.description}
+              label="This is a season of…"
+            >
               <textarea
+                id={`${fieldId}-statement`}
                 onChange={(event) => setStatement(event.target.value)}
+                placeholder={seasonFieldGuidance.statement.example}
                 rows={3}
                 value={statement}
               />
-            </label>
-            <label>
-              How should it feel? <span>One per line</span>
+            </GuidedField>
+            <GuidedField
+              controlId={`${fieldId}-feelings`}
+              description={seasonFieldGuidance.feelings.description}
+              label="How should it feel?"
+            >
               <textarea
+                id={`${fieldId}-feelings`}
                 onChange={(event) => setFeelings(event.target.value)}
+                placeholder={seasonFieldGuidance.feelings.example}
                 rows={5}
                 value={feelings}
               />
-            </label>
+            </GuidedField>
           </>
         )}
         {step === 'priorities' && (
-          <fieldset>
+          <fieldset aria-describedby={`${fieldId}-priorities-description`}>
             <legend>What deserves the clearest attention?</legend>
+            <p
+              className="season-wizard__field-description"
+              id={`${fieldId}-priorities-description`}
+            >
+              {seasonPrioritiesGuidance.description}
+            </p>
             {priorityChoices.map((choice) => (
               <label className="season-wizard__check" key={choice.noteId}>
                 <input
@@ -403,14 +434,19 @@ function SeasonWizard({
             )}
             {onCreatePriority && (
               <div className="season-wizard__create-priority">
-                <label>
-                  New Landscape priority
+                <GuidedField
+                  controlId={`${fieldId}-new-priority`}
+                  description={seasonFieldGuidance.newPriority.description}
+                  label="New Landscape priority"
+                >
                   <input
                     disabled={creatingPriority}
+                    id={`${fieldId}-new-priority`}
                     onChange={(event) => setNewPriority(event.target.value)}
+                    placeholder={seasonFieldGuidance.newPriority.example}
                     value={newPriority}
                   />
-                </label>
+                </GuidedField>
                 <button
                   aria-busy={creatingPriority}
                   className="season-text-button"
@@ -444,80 +480,120 @@ function SeasonWizard({
         {step === 'decisions-practices' && (
           <>
             <div className="season-wizard__columns">
-              <label>
-                Decisions and experiments — 30 days
+              <GuidedField
+                controlId={`${fieldId}-decisions-30`}
+                description={seasonFieldGuidance.decisions30.description}
+                label="Decisions and experiments — 30 days"
+              >
                 <textarea
+                  id={`${fieldId}-decisions-30`}
                   onChange={(event) => setDecisions30(event.target.value)}
+                  placeholder={seasonFieldGuidance.decisions30.example}
                   rows={4}
                   value={decisions30}
                 />
-              </label>
-              <label>
-                Decisions and experiments — 60 days
+              </GuidedField>
+              <GuidedField
+                controlId={`${fieldId}-decisions-60`}
+                description={seasonFieldGuidance.decisions60.description}
+                label="Decisions and experiments — 60 days"
+              >
                 <textarea
+                  id={`${fieldId}-decisions-60`}
                   onChange={(event) => setDecisions60(event.target.value)}
+                  placeholder={seasonFieldGuidance.decisions60.example}
                   rows={4}
                   value={decisions60}
                 />
-              </label>
-              <label>
-                Decisions and experiments — 90 days
+              </GuidedField>
+              <GuidedField
+                controlId={`${fieldId}-decisions-90`}
+                description={seasonFieldGuidance.decisions90.description}
+                label="Decisions and experiments — 90 days"
+              >
                 <textarea
+                  id={`${fieldId}-decisions-90`}
                   onChange={(event) => setDecisions90(event.target.value)}
+                  placeholder={seasonFieldGuidance.decisions90.example}
                   rows={4}
                   value={decisions90}
                 />
-              </label>
+              </GuidedField>
             </div>
-            <label>
-              Practices <span>One per line</span>
+            <GuidedField
+              controlId={`${fieldId}-practices`}
+              description={seasonFieldGuidance.practices.description}
+              label="Practices"
+            >
               <textarea
+                id={`${fieldId}-practices`}
                 onChange={(event) => setPractices(event.target.value)}
+                placeholder={seasonFieldGuidance.practices.example}
                 rows={5}
                 value={practices}
               />
-            </label>
+            </GuidedField>
           </>
         )}
         {step === 'supports-constraints' && (
           <div className="season-wizard__columns">
-            <label>
-              Support available
+            <GuidedField
+              controlId={`${fieldId}-supports`}
+              description={seasonFieldGuidance.supports.description}
+              label="Support available"
+            >
               <textarea
+                id={`${fieldId}-supports`}
                 onChange={(event) => setSupports(event.target.value)}
+                placeholder={seasonFieldGuidance.supports.example}
                 rows={5}
                 value={supports}
               />
-            </label>
-            <label>
-              Real constraints
+            </GuidedField>
+            <GuidedField
+              controlId={`${fieldId}-constraints`}
+              description={seasonFieldGuidance.constraints.description}
+              label="Real constraints"
+            >
               <textarea
+                id={`${fieldId}-constraints`}
                 onChange={(event) => setConstraints(event.target.value)}
+                placeholder={seasonFieldGuidance.constraints.example}
                 rows={5}
                 value={constraints}
               />
-            </label>
+            </GuidedField>
           </div>
         )}
         {step === 'enough' && (
-          <label>
-            What will be enough?
+          <GuidedField
+            controlId={`${fieldId}-enough`}
+            description={seasonFieldGuidance.enough.description}
+            label="What will be enough?"
+          >
             <textarea
+              id={`${fieldId}-enough`}
               onChange={(event) => setEnough(event.target.value)}
+              placeholder={seasonFieldGuidance.enough.example}
               rows={7}
               value={enough}
             />
-          </label>
+          </GuidedField>
         )}
         {step === 'not-now' && (
-          <label>
-            What are you intentionally setting down? <span>One per line</span>
+          <GuidedField
+            controlId={`${fieldId}-not-now`}
+            description={seasonFieldGuidance.notNow.description}
+            label="What are you intentionally setting down?"
+          >
             <textarea
+              id={`${fieldId}-not-now`}
               onChange={(event) => setNotNow(event.target.value)}
+              placeholder={seasonFieldGuidance.notNow.example}
               rows={7}
               value={notNow}
             />
-          </label>
+          </GuidedField>
         )}
         {step === 'confirm' && (
           <div className="season-wizard__confirm">
@@ -577,6 +653,7 @@ export function SeasonPage({
   >({});
   const [closeError, setCloseError] = useState('');
   const [closeBusy, setCloseBusy] = useState(false);
+  const closeFieldId = useId();
   const closeBusyRef = useRef(false);
   const closeErrorRef = useRef<HTMLParagraphElement>(null);
 
@@ -612,7 +689,7 @@ export function SeasonPage({
         <section className="season-empty">
           <RoomHeading
             eyebrow="a humane present focus"
-            intro="A season is a named chapter—not a deadline, streak, or test."
+            intro="Name what matters now as a gentle chapter — priorities, experiments, and what you're setting down. Not a deadline."
             title="Current Season"
           />
           <button className="season-button" onClick={onBegin} type="button">
@@ -859,33 +936,48 @@ export function SeasonPage({
         >
           <p className="season-page__eyebrow">A letter from this season</p>
           <h2>Close gently</h2>
-          <label>
-            What do you celebrate?
+          <GuidedField
+            controlId={`${closeFieldId}-celebration`}
+            description={seasonFieldGuidance.celebration.description}
+            label="What do you celebrate?"
+          >
             <textarea
               disabled={closeBusy}
+              id={`${closeFieldId}-celebration`}
               onChange={(event) => setCelebration(event.target.value)}
+              placeholder={seasonFieldGuidance.celebration.example}
               rows={4}
               value={celebration}
             />
-          </label>
-          <label>
-            What did you learn?
+          </GuidedField>
+          <GuidedField
+            controlId={`${closeFieldId}-learning`}
+            description={seasonFieldGuidance.learning.description}
+            label="What did you learn?"
+          >
             <textarea
               disabled={closeBusy}
+              id={`${closeFieldId}-learning`}
               onChange={(event) => setLearning(event.target.value)}
+              placeholder={seasonFieldGuidance.learning.example}
               rows={4}
               value={learning}
             />
-          </label>
-          <label>
-            Who did you become?
+          </GuidedField>
+          <GuidedField
+            controlId={`${closeFieldId}-identity`}
+            description={seasonFieldGuidance.identity.description}
+            label="Who did you become?"
+          >
             <textarea
               disabled={closeBusy}
+              id={`${closeFieldId}-identity`}
               onChange={(event) => setIdentity(event.target.value)}
+              placeholder={seasonFieldGuidance.identity.example}
               rows={4}
               value={identity}
             />
-          </label>
+          </GuidedField>
           {season.priorities.length > 0 && (
             <fieldset className="season-close__threads">
               <legend>Where should each thread rest?</legend>

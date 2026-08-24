@@ -5,8 +5,10 @@ import type {
   WisdomThemePreference,
 } from '@studio/application';
 import { wisdomKinds, type WisdomKind } from '@studio/domain';
-import { RoomHeading } from '@studio/ui';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { GuidedField, RoomHeading } from '@studio/ui';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+
+import { wisdomFieldGuidance } from './field-guidance';
 
 import './WisdomPage.css';
 
@@ -74,6 +76,7 @@ export function WisdomPage({
       themes.filter((theme) => !theme.hidden).sort((a, b) => a.order - b.order),
     [themes],
   );
+  const fieldId = useId();
   const [activeTheme, setActiveTheme] = useState(visibleThemes[0]?.id ?? '');
   const [selected, setSelected] = useState<string[]>([]);
   const [synthesizing, setSynthesizing] = useState(false);
@@ -244,7 +247,7 @@ export function WisdomPage({
     <div className="wisdom-page">
       <RoomHeading
         eyebrow="ideas becoming your own"
-        intro="Gather what resonates by theme, keep its source, and let your own philosophy take shape between the lines."
+        intro="Keep ideas worth returning to, and make them your own."
         title="Wisdom Garden"
       />
 
@@ -424,52 +427,77 @@ export function WisdomPage({
                     ))}
                   </select>
                 </label>
-                <label>
-                  Title (optional)
+                <GuidedField
+                  controlId={`${fieldId}-title`}
+                  description={wisdomFieldGuidance.title.description}
+                  label="Title (optional)"
+                >
                   <input
                     disabled={busy}
+                    id={`${fieldId}-title`}
                     onChange={(event) => setNewTitle(event.target.value)}
+                    placeholder={wisdomFieldGuidance.title.example}
                     value={newTitle}
                   />
-                </label>
+                </GuidedField>
               </div>
-              <label>
-                Idea
+              <GuidedField
+                controlId={`${fieldId}-idea`}
+                description={wisdomFieldGuidance.idea.description}
+                label="Idea"
+              >
                 <textarea
                   disabled={busy}
+                  id={`${fieldId}-idea`}
                   onChange={(event) => setNewBody(event.target.value)}
+                  placeholder={wisdomFieldGuidance.idea.example}
                   rows={4}
                   value={newBody}
                 />
-              </label>
+              </GuidedField>
               <details>
                 <summary>Source details</summary>
                 <div className="wisdom-composer__source">
-                  <label>
-                    Creator
+                  <GuidedField
+                    controlId={`${fieldId}-creator`}
+                    description={wisdomFieldGuidance.creator.description}
+                    label="Creator"
+                  >
                     <input
                       disabled={busy}
+                      id={`${fieldId}-creator`}
                       onChange={(event) => setSourceCreator(event.target.value)}
+                      placeholder={wisdomFieldGuidance.creator.example}
                       value={sourceCreator}
                     />
-                  </label>
-                  <label>
-                    Book, course or episode
+                  </GuidedField>
+                  <GuidedField
+                    controlId={`${fieldId}-source-title`}
+                    description={wisdomFieldGuidance.sourceTitle.description}
+                    label="Book, course or episode"
+                  >
                     <input
                       disabled={busy}
+                      id={`${fieldId}-source-title`}
                       onChange={(event) => setSourceTitle(event.target.value)}
+                      placeholder={wisdomFieldGuidance.sourceTitle.example}
                       value={sourceTitle}
                     />
-                  </label>
-                  <label>
-                    Source URL
+                  </GuidedField>
+                  <GuidedField
+                    controlId={`${fieldId}-source-url`}
+                    description={wisdomFieldGuidance.sourceUrl.description}
+                    label="Source URL"
+                  >
                     <input
                       disabled={busy}
+                      id={`${fieldId}-source-url`}
                       inputMode="url"
                       onChange={(event) => setSourceUrl(event.target.value)}
+                      placeholder={wisdomFieldGuidance.sourceUrl.example}
                       value={sourceUrl}
                     />
-                  </label>
+                  </GuidedField>
                 </div>
               </details>
               <div className="wisdom-page__actions">
@@ -582,15 +610,20 @@ export function WisdomPage({
                   value={synthesisTitle}
                 />
               </label>
-              <label>
-                What connects these ideas?
+              <GuidedField
+                controlId={`${fieldId}-synthesis`}
+                description={wisdomFieldGuidance.synthesis.description}
+                label="What connects these ideas?"
+              >
                 <textarea
                   disabled={busy}
+                  id={`${fieldId}-synthesis`}
                   onChange={(event) => setSynthesisBody(event.target.value)}
+                  placeholder={wisdomFieldGuidance.synthesis.example}
                   rows={5}
                   value={synthesisBody}
                 />
-              </label>
+              </GuidedField>
               <ul>
                 {selectedCards.map((card) => (
                   <li key={card.noteId}>{card.title}</li>
@@ -627,16 +660,21 @@ export function WisdomPage({
               </button>
             ) : (
               <div className="wisdom-mine__composer">
-                <label>
-                  What do you believe?
+                <GuidedField
+                  controlId={`${fieldId}-mine`}
+                  description={wisdomFieldGuidance.makeItMine.description}
+                  label="What do you believe?"
+                >
                   <textarea
                     autoFocus
                     disabled={busy}
+                    id={`${fieldId}-mine`}
                     onChange={(event) => setMineBody(event.target.value)}
+                    placeholder={wisdomFieldGuidance.makeItMine.example}
                     rows={4}
                     value={mineBody}
                   />
-                </label>
+                </GuidedField>
                 <div className="wisdom-page__actions">
                   <button onClick={() => setMakingMine(false)} type="button">
                     Not now

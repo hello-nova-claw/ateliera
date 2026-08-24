@@ -225,3 +225,35 @@ it('keeps loading, empty, error, stale, and offline states calm and explicit', (
   );
   expect(screen.getByText(/remains available offline/i)).toBeVisible();
 });
+
+it('guides the add form with a description and a ghost example', () => {
+  render(
+    <IdentityPage
+      model={projection()}
+      onAdd={vi.fn()}
+      onOpen={vi.fn()}
+      onPromote={vi.fn()}
+      onReorder={vi.fn()}
+      state="ready"
+    />,
+  );
+
+  const section = screen.getByRole('region', { name: 'Beliefs in practice' });
+  fireEvent.click(
+    within(section).getByRole('button', { name: 'Add a belief' }),
+  );
+
+  const field = within(section).getByLabelText('Belief in practice');
+  expect(field).toHaveAttribute(
+    'placeholder',
+    'e.g. My work is enough — so I stop at a good stopping point.',
+  );
+  expect(
+    within(section).getByText(
+      'A belief, and how it shows up in what you do.',
+    ),
+  ).toBeVisible();
+
+  const title = within(section).getByLabelText('A short title (optional)');
+  expect(title).toHaveAttribute('placeholder', 'e.g. Unhurried mornings');
+});

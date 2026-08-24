@@ -135,6 +135,15 @@ it('captures a one-sentence reflection and supports opening the full editor', as
     ),
   );
   expect(await screen.findByRole('status')).toHaveTextContent('Remembered');
+  expect(
+    screen.getByText(
+      'One thing you noticed, learned, or want to remember. A single sentence is plenty.',
+    ),
+  ).toBeVisible();
+  expect(screen.getByLabelText('A sentence to keep')).toHaveAttribute(
+    'placeholder',
+    'e.g. I do my clearest thinking in the first hour, before messages.',
+  );
 
   fireEvent.change(screen.getByLabelText('A sentence to keep'), {
     target: { value: 'There is more I want to explore.' },

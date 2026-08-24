@@ -171,7 +171,7 @@ export function UnchartedPage({
       <div className="uncharted-page__header">
         <RoomHeading
           eyebrow="leave room for possibility"
-          intro="A place for possibilities that do not need a route, an answer, or a reason yet."
+          intro="Keep possibilities that don't need a plan, an answer, or a reason yet."
           title="What if…?"
         />
       </div>

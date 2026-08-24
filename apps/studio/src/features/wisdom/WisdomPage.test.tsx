@@ -212,3 +212,18 @@ it('invites the first note without turning emptiness into a metric', () => {
   ).toBeVisible();
   expect(screen.queryByText(/0 notes/u)).not.toBeInTheDocument();
 });
+
+it('guides the idea composer with a description and a ghost example', () => {
+  render(<WisdomPage model={model} onCapture={vi.fn()} themes={themes} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Add an idea' }));
+
+  expect(screen.getByLabelText('Idea')).toHaveAttribute(
+    'placeholder',
+    "e.g. You don't rise to your goals; you fall to your systems.",
+  );
+  expect(
+    screen.getByText(
+      'The insight, quote, or principle, in your own words or theirs.',
+    ),
+  ).toBeVisible();
+});

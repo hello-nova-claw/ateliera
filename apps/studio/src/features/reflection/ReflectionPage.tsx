@@ -3,10 +3,11 @@ import type {
   ReflectionGardenProjection,
   StudioCardProjection,
 } from '@studio/application';
-import { RoomHeading, SemanticMark } from '@studio/ui';
+import { GuidedField, RoomHeading, SemanticMark } from '@studio/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import './ReflectionPage.css';
+import { reflectionFieldGuidance } from './field-guidance';
 import type { TourExample } from '../onboarding/tour-examples';
 import { TourExampleCard, TourGlimpseLabel } from '../onboarding/TourPreview';
 
@@ -386,7 +387,7 @@ export function ReflectionPage({
       <div className="reflection-page__header">
         <RoomHeading
           eyebrow="notice what is changing"
-          intro="A quiet path through what you learned, what worked, and what surprised you."
+          intro="Gather what you're learning and celebrating, so the Studio remembers with you."
           title="Reflection Garden"
         />
       </div>
@@ -462,7 +463,19 @@ export function ReflectionPage({
         }}
       >
         <div className="reflection-capture__heading">
-          <label htmlFor="reflection-sentence">A sentence to keep</label>
+          <GuidedField
+            controlId="reflection-sentence"
+            description={reflectionFieldGuidance.sentenceToKeep.description}
+            label="A sentence to keep"
+          >
+            <textarea
+              id="reflection-sentence"
+              onChange={(event) => setBody(event.target.value)}
+              placeholder={reflectionFieldGuidance.sentenceToKeep.example}
+              rows={2}
+              value={body}
+            />
+          </GuidedField>
           <select
             aria-label="Entry meaning"
             onChange={(event) => setType(event.target.value as typeof type)}
@@ -472,13 +485,6 @@ export function ReflectionPage({
             <option value="celebration">Celebration</option>
           </select>
         </div>
-        <textarea
-          id="reflection-sentence"
-          onChange={(event) => setBody(event.target.value)}
-          placeholder="What did you notice?"
-          rows={2}
-          value={body}
-        />
         <div className="reflection-capture__actions">
           <button
             disabled={saving || body.trim() === '' || !onCapture}

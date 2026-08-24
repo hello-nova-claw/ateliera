@@ -7,10 +7,11 @@ import {
   identitySectionDefinitions,
   type IdentitySection,
 } from '@studio/domain';
-import { RoomHeading, SemanticMark } from '@studio/ui';
+import { GuidedField, RoomHeading, SemanticMark } from '@studio/ui';
 import { useId, useRef, useState } from 'react';
 
 import './IdentityPage.css';
+import { identityFieldGuidance, identityTitleGuidance } from './field-guidance';
 
 type IdentityDraft = { body: string; title?: string };
 
@@ -177,6 +178,7 @@ function IdentityAddForm({
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const labels = addLabels[section];
+  const guidance = identityFieldGuidance[section];
   return (
     <form
       className="identity-add-form"
@@ -191,22 +193,34 @@ function IdentityAddForm({
         }).catch(() => undefined);
       }}
     >
-      <label htmlFor={titleId}>A short title (optional)</label>
-      <input
-        disabled={busy}
-        id={titleId}
-        onChange={(event) => setTitle(event.target.value)}
-        value={title}
-      />
-      <label htmlFor={bodyId}>{labels.field}</label>
-      <textarea
-        autoFocus
-        disabled={busy}
-        id={bodyId}
-        onChange={(event) => setBody(event.target.value)}
-        rows={3}
-        value={body}
-      />
+      <GuidedField
+        controlId={titleId}
+        description={identityTitleGuidance.description}
+        label="A short title (optional)"
+      >
+        <input
+          disabled={busy}
+          id={titleId}
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder={identityTitleGuidance.example}
+          value={title}
+        />
+      </GuidedField>
+      <GuidedField
+        controlId={bodyId}
+        description={guidance.description}
+        label={labels.field}
+      >
+        <textarea
+          autoFocus
+          disabled={busy}
+          id={bodyId}
+          onChange={(event) => setBody(event.target.value)}
+          placeholder={guidance.example}
+          rows={3}
+          value={body}
+        />
+      </GuidedField>
       <div className="identity-add-form__actions">
         <button disabled={busy || body.trim() === ''} type="submit">
           {busy ? 'Remembering…' : `Remember this ${labels.noun}`}
@@ -354,7 +368,7 @@ export function IdentityPage({
     <div className="identity-page">
       <RoomHeading
         eyebrow="who I am, and who I am becoming"
-        intro="A place for what already feels true, what you are practicing, and the small evidence that identity is changing in ordinary life."
+        intro="Notice who you already are and who you're practising becoming — and keep the small, ordinary evidence that it's changing."
         title="Identity Studio"
         titleId="identity-studio-title"
       />

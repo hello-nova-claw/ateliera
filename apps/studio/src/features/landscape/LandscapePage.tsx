@@ -8,7 +8,7 @@ import {
   type LandscapeAnchor,
   type LifeArea,
 } from '@studio/domain';
-import { RoomHeading } from '@studio/ui';
+import { GuidedField, RoomHeading } from '@studio/ui';
 import {
   DndContext,
   DragOverlay,
@@ -35,6 +35,7 @@ import {
 } from 'react';
 
 import './LandscapePage.css';
+import { landscapeFieldGuidance } from './field-guidance';
 import type { TourExample } from '../onboarding/tour-examples';
 import {
   TourExampleCard,
@@ -899,7 +900,7 @@ export function LandscapePage({
         <header className="life-landscape__header">
           <RoomHeading
             eyebrow="your life, held together"
-            intro="Look across the whole, then step gently into one area."
+            intro="See your whole life at a glance, then step into one area to tend it."
             title="Life Landscape"
           />
           <SegmentedControl areas={areas} onNavigate={onNavigate} view={view} />
@@ -1264,17 +1265,21 @@ export function LandscapePage({
                 {areas.map((area, index) => (
                   <li key={area.id}>
                     {renamingArea === area.id ? (
-                      <label>
-                        <span>Name for {area.title}</span>
+                      <GuidedField
+                        controlId={`landscape-rename-${area.id}`}
+                        description={landscapeFieldGuidance.renameArea.description}
+                        label={`Name for ${area.title}`}
+                      >
                         <input
-                          aria-label={`Name for ${area.title}`}
+                          id={`landscape-rename-${area.id}`}
                           maxLength={80}
                           onChange={(event) =>
                             setRenameTitle(event.target.value)
                           }
+                          placeholder={landscapeFieldGuidance.renameArea.example}
                           value={renameTitle}
                         />
-                      </label>
+                      </GuidedField>
                     ) : (
                       <span>{area.title}</span>
                     )}
@@ -1349,15 +1354,19 @@ export function LandscapePage({
                         Add {area.title}
                       </button>
                     ))}
-                  <label>
-                    <span>New life area</span>
+                  <GuidedField
+                    controlId="landscape-new-area"
+                    description={landscapeFieldGuidance.newArea.description}
+                    label="New life area"
+                  >
                     <input
-                      aria-label="New life area"
+                      id="landscape-new-area"
                       maxLength={80}
                       onChange={(event) => setNewAreaTitle(event.target.value)}
+                      placeholder={landscapeFieldGuidance.newArea.example}
                       value={newAreaTitle}
                     />
-                  </label>
+                  </GuidedField>
                   <button
                     disabled={newAreaTitle.trim() === ''}
                     onClick={() => {

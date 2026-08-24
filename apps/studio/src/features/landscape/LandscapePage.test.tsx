@@ -518,6 +518,37 @@ describe('LandscapePage', () => {
     expect(onRenameArea).toHaveBeenCalledWith('home', 'Home & Hearth');
   });
 
+  it('guides the manage-area fields with descriptions and ghost examples', () => {
+    render(
+      <LandscapePage
+        areas={[...defaultLifeAreas.slice(0, 5)]}
+        board={emptyBoard}
+        onAddArea={vi.fn()}
+        onNavigate={vi.fn()}
+        onRenameArea={vi.fn()}
+        path="/landscape"
+      />,
+    );
+
+    fireEvent.click(screen.getByText('Manage life areas'));
+    expect(screen.getByLabelText('New life area')).toHaveAttribute(
+      'placeholder',
+      'e.g. Body & energy',
+    );
+    expect(
+      screen.getByText(
+        'A part of your life you want to tend. Five to ten keeps the Landscape spacious.',
+      ),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Home' }));
+    expect(screen.getByLabelText('Name for Home')).toHaveAttribute(
+      'placeholder',
+      'e.g. Home & belonging',
+    );
+    expect(screen.getByText('A name that feels like yours.')).toBeVisible();
+  });
+
   it('keeps an unreadable area configuration untouched until explicit recovery confirmation', async () => {
     const onRepairAreas = vi.fn(async () => undefined);
     render(

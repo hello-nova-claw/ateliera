@@ -70,7 +70,16 @@
   gap: var(--studio-space-3);
 }
 
-.reflection-capture__heading label {
+.reflection-capture__heading {
+  align-items: flex-start;
+}
+
+.reflection-capture__heading .studio-guided-field {
+  flex: 1 1 20ch;
+}
+
+.reflection-capture__heading .studio-guided-field__label {
+  color: var(--studio-color-ink-strong);
   font: var(--studio-type-section);
 }
 

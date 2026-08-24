@@ -396,3 +396,33 @@ it('surfaces active-season conflicts without silently choosing one', () => {
     'More than one season is active',
   );
 });
+
+it('guides the wizard name step with a description and a ghost example', () => {
+  render(
+    <SeasonPage
+      record={record({ status: 'draft' })}
+      state="ready"
+      wizardStep="name-dates"
+      onSaveStep={vi.fn()}
+    />,
+  );
+  expect(screen.getByLabelText('Season name')).toHaveAttribute(
+    'placeholder',
+    'e.g. Quiet foundations',
+  );
+  expect(
+    screen.getByText('A short name for this chapter — evocative, not a deadline.'),
+  ).toBeVisible();
+});
+
+it('guides the close-season letter with descriptions and ghost examples', () => {
+  render(<SeasonPage record={record()} state="ready" />);
+  fireEvent.click(screen.getByRole('button', { name: 'Close season' }));
+  expect(screen.getByLabelText('What do you celebrate?')).toHaveAttribute(
+    'placeholder',
+    'e.g. I kept the promise about mornings.',
+  );
+  expect(
+    screen.getByText('Something worth marking from this season.'),
+  ).toBeVisible();
+});
