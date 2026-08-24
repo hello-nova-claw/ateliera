@@ -276,12 +276,15 @@ export function UnchartedPage({
       </section>
 
       <section className="uncharted-page__beyond" aria-labelledby="beyond-gate">
-        <div className="uncharted-page__gate-line" aria-hidden="true" />
+        <div className="uncharted-page__threshold">
+          <h2 className="uncharted-page__threshold-label" id="beyond-gate">
+            Beyond the gate
+          </h2>
+        </div>
         <div className="uncharted-page__section-heading uncharted-page__section-heading--beyond">
           <p className="uncharted-page__script">
             You do not have to know how yet.
           </p>
-          <h2 id="beyond-gate">Beyond the gate</h2>
         </div>
         {beyondCards.length === 0 && !beyondExample ? (
           <p className="uncharted-page__empty">The gate can remain unopened.</p>

@@ -102,25 +102,23 @@
   font: var(--studio-type-section);
 }
 
+/* Possibilities are hairline rows, not a card grid. */
 .uncharted-page__grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--studio-space-8);
+  display: flex;
+  flex-direction: column;
 }
 
 .uncharted-card {
   min-inline-size: 0;
-  padding: var(--studio-space-6);
-  border: 1px solid var(--studio-color-line);
+  padding-block: var(--studio-space-5);
+  padding-inline-start: var(--studio-space-5);
+  border-block-start: 1px solid var(--studio-color-line);
   border-inline-start: 2px solid var(--studio-color-uncharted);
-  border-radius: var(--studio-radius-note);
-  background: var(--studio-color-surface);
   overflow-wrap: anywhere;
 }
 
 .uncharted-card--beyond {
-  border-style: dashed;
-  background: transparent;
+  border-inline-start-style: dashed;
 }
 
 .uncharted-card h3 {
@@ -153,13 +151,32 @@
   padding-block-end: var(--studio-space-24);
 }
 
-.uncharted-page__gate-line {
-  border-block-start: 1px dashed var(--studio-color-line-strong);
+/* A labelled threshold: an uncharted eyebrow flanked by a rule. */
+.uncharted-page__threshold {
+  display: flex;
+  align-items: center;
+  gap: var(--studio-space-5);
+  margin-block: var(--studio-space-16) var(--studio-space-8);
+}
+
+.uncharted-page__threshold::before,
+.uncharted-page__threshold::after {
+  flex: 1;
+  border-block-start: 1px dashed var(--studio-color-uncharted);
+  content: '';
+}
+
+.uncharted-page__threshold-label {
+  margin: 0;
+  color: var(--studio-color-uncharted);
+  font: var(--studio-type-eyebrow);
+  letter-spacing: var(--studio-type-eyebrow-tracking);
+  text-transform: uppercase;
 }
 
 .uncharted-page__section-heading--beyond {
   max-inline-size: 38rem;
-  margin: var(--studio-space-12) auto var(--studio-space-10);
+  margin: 0 auto var(--studio-space-10);
   text-align: center;
 }
 
@@ -174,6 +191,12 @@
   border-radius: var(--studio-radius-card);
   color: var(--studio-color-ink-muted);
   text-align: center;
+}
+
+/* Everything past the gate is held a step back. */
+.uncharted-page__beyond .uncharted-page__grid,
+.uncharted-page__beyond .uncharted-page__empty {
+  opacity: 0.86;
 }
 
 @media (width < 45rem) {
