@@ -75,6 +75,10 @@ import {
   type RhythmProfileRepository,
 } from './rhythm-profile-repository';
 import {
+  createStudioPreferencesRepository,
+  type StudioPreferencesRepository,
+} from './studio-preferences-repository';
+import {
   createNoteLifecycleService,
   type RestoreNoteResult,
   type TrashedNoteResult,
@@ -252,6 +256,7 @@ export interface StudioService {
   readonly lifeAreas: LifeAreaRepository;
   readonly wisdomThemes: WisdomThemeRepository;
   readonly rhythmProfile: RhythmProfileRepository;
+  readonly preferences: StudioPreferencesRepository;
   readonly index: IndexPort;
   readonly onboarding: OnboardingSettingsRepository;
   readonly seasonTransactions: SeasonTransactionStore;
@@ -404,6 +409,7 @@ export function createStudioService(
     dependencies.lifeAreas ?? createLifeAreaRepository(dependencies.vault);
   const wisdomThemes = createWisdomThemeRepository(dependencies.vault);
   const rhythmProfile = createRhythmProfileRepository(dependencies.vault);
+  const preferences = createStudioPreferencesRepository(dependencies.vault);
   const onboarding = createOnboardingSettingsRepository(dependencies.vault);
   const revisions =
     dependencies.revisions ??
@@ -847,6 +853,7 @@ export function createStudioService(
     lifeAreas,
     wisdomThemes,
     rhythmProfile,
+    preferences,
     index: dependencies.index,
     onboarding,
     seasonTransactions,

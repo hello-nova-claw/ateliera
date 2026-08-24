@@ -9,6 +9,7 @@ export * from './projections';
 export * from './resurface-pool';
 export * from './rhythm-profile-repository';
 export * from './search-service';
+export * from './studio-preferences-repository';
 export * from './season-service';
 export * from './season-transaction-store';
 export * from './studio-service';
