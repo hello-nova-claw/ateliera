@@ -13,7 +13,9 @@
   "provider": { "component": "StudioThemeRoot" },
   "readmeHeader": ".design-sync/conventions.md",
   "overrides": {
-    "Inspector": { "cardMode": "single", "primaryStory": "Full" }
+    "Inspector": { "cardMode": "single", "primaryStory": "Full" },
+    "Card": { "skip": ["primitives-card--list-row-vs-card"] },
+    "RoomHeading": { "skip": ["primitives-roomheading--type-scale"] }
   },
   "titleMap": {
     "Primitives/Card": "Card",

@@ -72,3 +72,26 @@ CardEditor, SemanticMark, Inspector), all graded `match`.
   regresses to 0 components.
 - **Inspector story cap:** all 8 stories are captured and graded (`--max-stories 8`).
   If stories are added, they'll need re-capture.
+- **Two specimen stories are skipped** (`cfg.overrides.{Card,RoomHeading}.skip`):
+  `primitives-card--list-row-vs-card` and `primitives-roomheading--type-scale`.
+  Both are standalone *design-rule documentation* (the stock-fill rule; the type
+  scale) that render via a story-local `Card.stories.css` / `RoomHeading.stories.css`
+  — side-effect `.css` imports compile empty in previews, so the specimens showed
+  unstyled (a bulleted list instead of hairline rows; token samples in the default
+  font). They don't exercise the component API — the real stories (Card: Reflection,
+  Uncharted; RoomHeading: Default, Without Intro) verify the components and grade
+  `match`. The teaching those specimens carried lives in `conventions.md` instead.
+  To reinstate them, own the `.tsx` and inline the story-local CSS (§3/§5).
+- **Orphan old fonts in the project** (Aug 25 re-sync): the project's `fonts/`
+  still carries the pre-revision woff2 (caveat, hanken-grotesk, newsreader) from
+  an earlier upload. They're unreferenced — `styles.css` imports only
+  `fonts/fonts.css` (new fonts) + `_ds_bundle.css`, so designs never receive them.
+  The anchor doesn't track fonts individually, so the diff can't flag them and the
+  atomic path deletes only `deletePaths` (was `[]`) — correct not to hand-derive.
+  Harmless bloat; a future run could prune them via a reviewed `list_files` delete.
+- **Conventions header undercounts (Aug 25):** `conventions.md` says "Four
+  verified components" and omits the two now shipping — `RoomHeading` (the room
+  hero: eyebrow greeting + display title + optional intro) and `MoonPhaseIcon`
+  (the moon-phase glyph). All named tokens/themes still resolve, so it's an
+  undercount, not misleading drift; the two ship with their own `.d.ts`/`.prompt.md`.
+  Update the header + rebuild + re-sync when convenient.
