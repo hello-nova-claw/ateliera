@@ -52,7 +52,7 @@
 }
 
 .season-page__section h2,
-.season-page__support-grid h2,
+.season-page__support h2,
 .season-page__enough h2 {
   margin: 0 0 var(--studio-space-5);
   font: var(--studio-type-section);
@@ -120,33 +120,53 @@
   font: var(--studio-type-quote);
 }
 
-.season-page__support-grid {
+.season-page__support {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: clamp(2rem, 6vw, 6rem);
+  gap: clamp(3rem, 7vw, 6rem);
+  max-inline-size: var(--studio-measure-room);
   margin-block: clamp(4rem, 9vw, 8rem);
 }
 
-.season-page__support-grid ul {
+.season-page__support ul {
   padding-inline-start: 1.25rem;
+}
+
+.season-page__ladder {
+  margin: 0;
 }
 
 .season-page__decision {
   display: grid;
-  grid-template-columns: 5rem 1fr;
-  gap: var(--studio-space-3);
-  padding-block: var(--studio-space-3);
-  border-block-end: 1px solid var(--studio-color-line);
+  grid-template-columns: 4.5rem 1fr;
+  gap: var(--studio-space-4);
+  align-items: baseline;
+  padding-block: var(--studio-space-4);
+  border-block-start: 1px solid var(--studio-color-line);
 }
 
-.season-page__decision span {
+.season-page__decision dt {
+  color: var(--studio-color-ink-strong);
+  font-family: var(--studio-font-mono);
+  font-size: 1.125rem;
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.season-page__decision dt span {
+  display: block;
   color: var(--studio-color-ink-muted);
-  font: var(--studio-type-eyebrow);
+  font-size: 0.6875rem;
+  letter-spacing: var(--studio-type-eyebrow-tracking);
   text-transform: uppercase;
 }
 
+.season-page__decision dd {
+  margin: 0;
+  color: var(--studio-color-ink-1);
+}
+
 .season-page__decision,
-.season-page__support-grid > section,
+.season-page__support > section,
 .season-wizard__columns > label,
 .season-wizard__columns > .studio-guided-field {
   min-inline-size: 0;
@@ -316,7 +336,6 @@
 
 @media (width < 720px) {
   .season-page__priorities,
-  .season-page__support-grid,
   .season-wizard__dates,
   .season-wizard__columns {
     grid-template-columns: 1fr;

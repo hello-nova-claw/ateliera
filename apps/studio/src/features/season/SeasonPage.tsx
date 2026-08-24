@@ -794,16 +794,21 @@ export function SeasonPage({
               'The definition can stay gentle and change as life changes.'}
           </p>
         </section>
-        <div className="season-page__support-grid">
+        <div className="season-page__support">
           <section>
             <p className="season-page__label">30 / 60 / 90</p>
             <h2>Decisions & experiments</h2>
-            {season.decisions.map((decision) => (
-              <p className="season-page__decision" key={decision.id}>
-                <span>{decision.horizon} days</span>
-                {decision.text}
-              </p>
-            ))}
+            <dl className="season-page__ladder">
+              {season.decisions.map((decision) => (
+                <div className="season-page__decision" key={decision.id}>
+                  <dt>
+                    {decision.horizon}
+                    <span> days</span>
+                  </dt>
+                  <dd>{decision.text}</dd>
+                </div>
+              ))}
+            </dl>
           </section>
           <section>
             <p className="season-page__label">What holds it</p>

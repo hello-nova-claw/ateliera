@@ -70,6 +70,48 @@ it('renders the accepted editorial season cover and keeps Not now collapsed', ()
   expect(screen.getByText('A perfect whole-house system')).toBeVisible();
 });
 
+it('lays the decisions out as a 30/60/90 ladder', () => {
+  render(
+    <SeasonPage
+      record={record({
+        decisions: [
+          {
+            id: 'd1',
+            text: 'Choose the smallest useful scope',
+            horizon: '30' as const,
+            kind: 'decision' as const,
+          },
+          {
+            id: 'd2',
+            text: 'Invite one collaborator',
+            horizon: '60' as const,
+            kind: 'decision' as const,
+          },
+          {
+            id: 'd3',
+            text: 'Review and choose what continues',
+            horizon: '90' as const,
+            kind: 'decision' as const,
+          },
+        ],
+      })}
+      state="ready"
+    />,
+  );
+  expect(screen.getAllByRole('term').map((term) => term.textContent)).toEqual([
+    '30 days',
+    '60 days',
+    '90 days',
+  ]);
+  expect(
+    screen.getAllByRole('definition').map((item) => item.textContent),
+  ).toEqual([
+    'Choose the smallest useful scope',
+    'Invite one collaborator',
+    'Review and choose what continues',
+  ]);
+});
+
 it('starts gently from the empty state', () => {
   const onBegin = vi.fn();
   render(<SeasonPage record={null} state="ready" onBegin={onBegin} />);
