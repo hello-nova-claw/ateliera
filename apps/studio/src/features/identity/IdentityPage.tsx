@@ -436,40 +436,65 @@ export function IdentityPage({
         <small>This can change without becoming a measure of progress.</small>
       </section>
 
-      <div className="identity-page__sections">
-        {identitySectionDefinitions.map((section) => (
-          <IdentitySectionView
-            {...(busyKey === undefined ? {} : { busyKey })}
-            cards={model.sections[section.id]}
-            {...(model.currentlyBecoming === null
-              ? {}
-              : { currentId: model.currentlyBecoming.noteId })}
-            key={section.id}
-            onAdd={(selected, draft) =>
-              perform(
-                `add:${selected}`,
-                () => onAdd(selected, draft),
-                'This thought is now part of your Studio.',
-              )
-            }
-            onOpen={onOpen}
-            onPromote={(noteId) =>
-              perform(
-                `promote:${noteId}`,
-                () => onPromote(noteId),
-                'Currently becoming has been gently updated.',
-              )
-            }
-            onReorder={(selected, noteIds) =>
-              perform(
-                `reorder:${selected}`,
-                () => onReorder(selected, noteIds),
-                'This section has been rearranged.',
-              )
-            }
-            section={section}
-          />
-        ))}
+      <div className="identity-page__spread">
+        <div className="identity-page__sections">
+          {identitySectionDefinitions.map((section) => (
+            <IdentitySectionView
+              {...(busyKey === undefined ? {} : { busyKey })}
+              cards={model.sections[section.id]}
+              {...(model.currentlyBecoming === null
+                ? {}
+                : { currentId: model.currentlyBecoming.noteId })}
+              key={section.id}
+              onAdd={(selected, draft) =>
+                perform(
+                  `add:${selected}`,
+                  () => onAdd(selected, draft),
+                  'This thought is now part of your Studio.',
+                )
+              }
+              onOpen={onOpen}
+              onPromote={(noteId) =>
+                perform(
+                  `promote:${noteId}`,
+                  () => onPromote(noteId),
+                  'Currently becoming has been gently updated.',
+                )
+              }
+              onReorder={(selected, noteIds) =>
+                perform(
+                  `reorder:${selected}`,
+                  () => onReorder(selected, noteIds),
+                  'This section has been rearranged.',
+                )
+              }
+              section={section}
+            />
+          ))}
+        </div>
+        <aside className="identity-page__aside">
+          <nav
+            aria-label="Sections in this room"
+            className="identity-index"
+          >
+            <p className="identity-index__eyebrow">In this room</p>
+            <ul>
+              {identitySectionDefinitions.map((section) => {
+                const count = model.sections[section.id].length;
+                return (
+                  <li key={section.id}>
+                    <a href={`#identity-section-${section.id}`}>
+                      <span>{section.label}</span>
+                      {count > 0 && (
+                        <span className="identity-index__count">{count}</span>
+                      )}
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
+        </aside>
       </div>
     </div>
   );

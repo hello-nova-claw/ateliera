@@ -110,6 +110,35 @@ it('composes the complete Identity Studio and opens cards and evidence', () => {
   );
 });
 
+it('offers a section index with quiet counts in the aside', () => {
+  render(
+    <IdentityPage
+      model={projection()}
+      onAdd={vi.fn()}
+      onOpen={vi.fn()}
+      onPromote={vi.fn()}
+      onReorder={vi.fn()}
+      state="ready"
+    />,
+  );
+
+  const index = screen.getByRole('navigation', { name: 'Sections in this room' });
+  const practicing = within(index).getByRole('link', {
+    name: /Practicing now/,
+  });
+  expect(practicing).toHaveAttribute(
+    'href',
+    '#identity-section-practicing-now',
+  );
+  expect(practicing).toHaveTextContent('2');
+  // Empty sections are still listed, without a guilt-inducing zero.
+  const values = within(index).getByRole('link', {
+    name: /Values & principles/,
+  });
+  expect(values).toBeInTheDocument();
+  expect(values).not.toHaveTextContent('0');
+});
+
 it('adds a thought through the section where it belongs', async () => {
   const onAdd = vi.fn(async () => undefined);
   render(

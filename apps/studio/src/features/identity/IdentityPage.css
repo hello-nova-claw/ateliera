@@ -1,7 +1,65 @@
 .identity-page {
-  max-inline-size: 68rem;
+  max-inline-size: var(--studio-content-room);
   margin-inline: auto;
   padding-block: var(--studio-space-8) var(--studio-space-24);
+}
+
+.identity-page__spread {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, var(--studio-column-aside));
+  align-items: start;
+}
+
+.identity-page__aside {
+  padding-inline-start: clamp(var(--studio-space-6), 4vw, var(--studio-column-gap));
+  border-inline-start: 1px solid var(--studio-color-line);
+}
+
+.identity-index {
+  position: sticky;
+  inset-block-start: var(--studio-space-8);
+}
+
+.identity-index__eyebrow {
+  margin: 0 0 var(--studio-space-4);
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-eyebrow);
+  letter-spacing: var(--studio-type-eyebrow-tracking);
+  text-transform: uppercase;
+}
+
+.identity-index ul {
+  display: grid;
+  gap: var(--studio-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.identity-index a {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--studio-space-3);
+  min-block-size: var(--studio-touch-target);
+  padding-block: var(--studio-space-1);
+  color: var(--studio-color-ink-1);
+  font: var(--studio-type-meta);
+  text-decoration: none;
+}
+
+.identity-index a:hover,
+.identity-index a:focus-visible {
+  color: var(--studio-color-ink-strong);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.identity-index__count {
+  flex: 0 0 auto;
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-label);
+  font-variant-numeric: tabular-nums;
 }
 
 .identity-page > .studio-room-heading {
@@ -102,10 +160,10 @@
 
 .identity-page__sections {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--studio-space-16)
-    clamp(var(--studio-space-8), 5vw, var(--studio-space-16));
+  gap: var(--studio-rhythm-module);
   align-items: start;
+  min-inline-size: 0;
+  padding-inline-end: clamp(var(--studio-space-6), 4vw, var(--studio-column-gap));
 }
 
 .identity-section {
@@ -144,53 +202,30 @@
 
 .identity-section__cards {
   display: grid;
-  gap: var(--studio-space-5);
 }
 
 .identity-card {
-  padding: var(--studio-space-6);
-  border: 1px solid var(--studio-color-line);
-  border-radius: var(--studio-radius-card);
-  background: color-mix(
-    in srgb,
-    var(--studio-color-surface) 88%,
-    var(--studio-stock-foundation)
-  );
-  box-shadow: var(--studio-shadow-card);
-}
-
-.identity-card--vision {
-  background: color-mix(
-    in srgb,
-    var(--studio-color-surface) 84%,
-    var(--studio-stock-vision)
-  );
-}
-
-.identity-card--growth {
-  background: color-mix(
-    in srgb,
-    var(--studio-color-surface) 84%,
-    var(--studio-stock-growth)
-  );
-}
-
-.identity-card--reflection {
-  background: color-mix(
-    in srgb,
-    var(--studio-color-surface) 84%,
-    var(--studio-stock-reflection)
-  );
+  padding-block: var(--studio-space-5);
+  border-block-start: 1px solid var(--studio-color-line);
 }
 
 .identity-card[data-current='true'] {
-  border-color: var(--studio-stock-growth-edge);
+  border-inline-start: 2px solid var(--studio-color-growth);
+  padding-inline-start: var(--studio-space-4);
+  margin-inline-start: calc(var(--studio-space-4) * -1 - 2px);
 }
 
 .identity-card__meaning {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: var(--studio-space-2);
+}
+
+.identity-card[data-current='true'] .identity-card__meaning {
+  padding-inline: var(--studio-space-2);
+  border-radius: var(--studio-radius-control);
+  color: var(--studio-color-ink-strong);
+  background: var(--studio-stock-growth);
 }
 
 .identity-card h3 {
@@ -323,9 +358,24 @@
 }
 
 @media (width <= 52rem) {
-  .identity-page__sections {
+  .identity-page__spread {
     grid-template-columns: 1fr;
-    gap: var(--studio-space-12);
+  }
+
+  .identity-page__sections {
+    padding-inline-end: 0;
+  }
+
+  .identity-page__aside {
+    margin-block-start: var(--studio-rhythm-module);
+    padding-inline-start: 0;
+    padding-block-start: var(--studio-space-6);
+    border-inline-start: 0;
+    border-block-start: 1px solid var(--studio-color-line);
+  }
+
+  .identity-index {
+    position: static;
   }
 }
 
