@@ -1,5 +1,49 @@
 # Development log
 
+## 2026-08-24 — Editorial-spread design overhaul and structural room pass
+
+- Landed the visual-system revision from the `design_handoff_ateliera_polish/`
+  bundle (ADR-009 supersedes ADR-007): swapped to Source Serif 4 / Figtree /
+  Nothing You Could Do, capped and extended the type scale, added shared
+  measure/rhythm tokens, and introduced a stylelint `studio/no-undefined-token`
+  guard. Restyled `@studio/ui` (RoomHeading, AppShell, CardEditor focus mode)
+  and moved every room onto the new scale, replacing non-card pastel fills with
+  hairline rules.
+- Completed the deeper structural room layouts the first pass deferred, one
+  commit per room (branch `design/room-structure`, merged to `main`):
+  - **Landscape** — the empty matrix cell is now the add target; removed the 25
+    "+ Add" chips and the placeholder sentence.
+  - **Identity** — single spine with a section-index aside (quiet counts);
+    notes are hairline rows, not pastel cards.
+  - **Season** — decisions render as a 30/60/90 ladder with a monospace horizon
+    column (new `--studio-font-mono` token); dropped the measure-breaking grid.
+  - **Wisdom** — Contents folded into the room's single aside; entries are
+    hairline rows with a vision left-rule on selection.
+  - **Uncharted** — possibilities as rows; the gate is a labelled threshold with
+    everything past it held back at `opacity: 0.86`.
+  - **Reflection** — view filters moved into the aside as counted filters; date
+    margin tightened to 104px.
+  - **Search** — facets live in a persistent aside; active filters show as
+    removable chips; the match reason moved to a right-hand column.
+  - **Settings** — all panels gathered onto one 640px page via a new
+    `SettingsRoom` wrapper; rhythm layers are label-and-control rows.
+- Fixed two issues caught during visual verification: the Uncharted threshold
+  eyebrow failed AA contrast (accent moved to the flanking rules), and the new
+  mobile spreads needed `minmax(0, 1fr)` so a wide child's min-content cannot
+  exceed the viewport.
+- Recorded future directions in the PRD roadmap (§21): a new **Phase 5 — Guided
+  rituals & rhythm-aware practice** (future-self journalling, magical morning
+  routines, moon-phase guided intention flow) and an extended **Phase 4** (proper
+  dream journalling; auto-generated mantras / EFT tapping / meditation scripts &
+  audio, gated behind AI scopes and the audit log).
+- Verification: `pnpm lint`, `pnpm typecheck`, all 393 `@studio/app` unit tests,
+  and the full Playwright visual suite pass.
+- Current phase: design system and all built rooms are on the editorial spread.
+  Still open — recompile and push the `ds-bundle/` via `/design-sync` (still
+  flags `_ds_needs_recompile`, now also diverged by `--studio-font-mono`), the
+  Inbox room (placeholder, pending its triage model), and surfacing the
+  already-computed cycle/natal rhythm placements in the UI.
+
 ## 2026-07-15 — Studio entry and first-visit onboarding plan
 
 - Reviewed the current launch flow and confirmed that the complete room shell and Foyer mount before a Studio Space is selected, leaving the actual entry decision visually subordinate to inactive navigation.
