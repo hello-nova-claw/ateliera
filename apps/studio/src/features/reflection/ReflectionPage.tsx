@@ -359,6 +359,19 @@ export function ReflectionPage({
     }
     return model.cards;
   }, [model.cards, theme, view]);
+  const viewCounts = useMemo<Record<ReflectionView, number>>(
+    () => ({
+      garden: model.cards.length,
+      reflection: model.cards.filter(
+        (card) => card.semanticType === 'reflection',
+      ).length,
+      celebration: model.cards.filter(
+        (card) => card.semanticType === 'celebration',
+      ).length,
+      themes: model.themes.length,
+    }),
+    [model.cards, model.themes],
+  );
 
   async function capture(
     openAfter: boolean,
@@ -417,160 +430,179 @@ export function ReflectionPage({
         </p>
       )}
 
-      <div
-        aria-label="Reflection Garden view"
-        className="reflection-switch"
-        role="tablist"
-      >
-        {views.map((item, index) => (
-          <button
-            aria-selected={view === item.id}
-            className="reflection-switch__tab"
-            key={item.id}
-            onClick={() => {
-              setView(item.id);
-              if (item.id !== 'themes') setTheme(undefined);
-            }}
-            onKeyDown={(event) => {
-              let next = index;
-              if (event.key === 'ArrowRight') next = (index + 1) % views.length;
-              else if (event.key === 'ArrowLeft')
-                next = (index - 1 + views.length) % views.length;
-              else if (event.key === 'Home') next = 0;
-              else if (event.key === 'End') next = views.length - 1;
-              else return;
-              event.preventDefault();
-              setView(views[next]!.id);
-              tabRefs.current[next]?.focus();
-            }}
-            ref={(element) => {
-              tabRefs.current[index] = element;
-            }}
-            role="tab"
-            tabIndex={view === item.id ? 0 : -1}
-            type="button"
+      <div className="reflection-page__spread">
+        <aside
+          aria-label="Reflection Garden views"
+          className="reflection-page__aside"
+        >
+          <div
+            aria-label="Reflection Garden view"
+            className="reflection-switch"
+            role="tablist"
           >
-            {item.label}
-          </button>
-        ))}
-      </div>
-
-      <form
-        className="reflection-capture"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void capture(false, event.nativeEvent.submitter as HTMLButtonElement);
-        }}
-      >
-        <div className="reflection-capture__heading">
-          <GuidedField
-            controlId="reflection-sentence"
-            description={reflectionFieldGuidance.sentenceToKeep.description}
-            label="A sentence to keep"
-          >
-            <textarea
-              id="reflection-sentence"
-              onChange={(event) => setBody(event.target.value)}
-              placeholder={reflectionFieldGuidance.sentenceToKeep.example}
-              rows={2}
-              value={body}
-            />
-          </GuidedField>
-          <select
-            aria-label="Entry meaning"
-            onChange={(event) => setType(event.target.value as typeof type)}
-            value={type}
-          >
-            <option value="reflection">Reflection</option>
-            <option value="celebration">Celebration</option>
-          </select>
-        </div>
-        <div className="reflection-capture__actions">
-          <button
-            disabled={saving || body.trim() === '' || !onCapture}
-            type="submit"
-          >
-            {saving ? 'Keeping…' : `Keep ${type}`}
-          </button>
-          <button
-            disabled={saving || body.trim() === '' || !onCapture}
-            onClick={(event) => void capture(true, event.currentTarget)}
-            type="button"
-          >
-            Continue in the editor
-          </button>
-        </div>
-        {message && (
-          <p className="reflection-capture__message" role="status">
-            {message}
-          </p>
-        )}
-      </form>
-
-      {view === 'garden' && tourExamples.length > 0 && (
-        <TourThenAndNow examples={tourExamples} />
-      )}
-
-      {view === 'themes' && (
-        <section className="reflection-themes" aria-label="Themes">
-          {model.themes.length === 0 ? (
-            <p>Recurring ideas will gather here gently.</p>
-          ) : (
-            model.themes.map((item) => (
+            {views.map((item, index) => (
               <button
-                aria-pressed={theme === item.name}
-                key={item.name}
-                onClick={() => setTheme(item.name)}
+                aria-label={item.label}
+                aria-selected={view === item.id}
+                className="reflection-switch__tab"
+                key={item.id}
+                onClick={() => {
+                  setView(item.id);
+                  if (item.id !== 'themes') setTheme(undefined);
+                }}
+                onKeyDown={(event) => {
+                  let next = index;
+                  if (event.key === 'ArrowDown' || event.key === 'ArrowRight')
+                    next = (index + 1) % views.length;
+                  else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft')
+                    next = (index - 1 + views.length) % views.length;
+                  else if (event.key === 'Home') next = 0;
+                  else if (event.key === 'End') next = views.length - 1;
+                  else return;
+                  event.preventDefault();
+                  setView(views[next]!.id);
+                  tabRefs.current[next]?.focus();
+                }}
+                ref={(element) => {
+                  tabRefs.current[index] = element;
+                }}
+                role="tab"
+                tabIndex={view === item.id ? 0 : -1}
                 type="button"
-                aria-label={`${item.name}, ${item.count} ${item.count === 1 ? 'entry' : 'entries'}`}
               >
-                {item.name} <span>{item.count}</span>
+                <span>{item.label}</span>
+                {viewCounts[item.id] > 0 && (
+                  <span aria-hidden="true" className="reflection-switch__count">
+                    {viewCounts[item.id]}
+                  </span>
+                )}
               </button>
-            ))
-          )}
-        </section>
-      )}
+            ))}
+          </div>
+        </aside>
 
-      {view === 'garden' && <ThenAndNow cards={model.cards} />}
-
-      <section
-        aria-labelledby="reflection-stream-title"
-        className="reflection-stream"
-      >
-        <h2 className="visually-hidden" id="reflection-stream-title">
-          Garden entries
-        </h2>
-        {filtered.length === 0 ? (
-          <p className="reflection-stream__empty">
-            There is room to notice something small.
-          </p>
-        ) : (
-          filtered.map((card) => (
-            <div className="reflection-stream__row" key={card.noteId}>
-              <time dateTime={card.created}>
-                {new Intl.DateTimeFormat('en-AU', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                }).format(new Date(card.created))}
-              </time>
-              <EntryCard
-                card={card}
-                connections={connections}
-                {...(imageUrls[card.noteId] === undefined
-                  ? {}
-                  : { imageUrl: imageUrls[card.noteId] })}
-                imageUnavailable={imageUnavailableIds.has(card.noteId)}
-                {...(onConnect === undefined ? {} : { onConnect })}
-                {...(onOpenConnection === undefined
-                  ? {}
-                  : { onOpenConnection })}
-                {...(onOpen === undefined ? {} : { onOpen })}
-              />
+        <div className="reflection-page__main">
+          <form
+            className="reflection-capture"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void capture(
+                false,
+                event.nativeEvent.submitter as HTMLButtonElement,
+              );
+            }}
+          >
+            <div className="reflection-capture__heading">
+              <GuidedField
+                controlId="reflection-sentence"
+                description={reflectionFieldGuidance.sentenceToKeep.description}
+                label="A sentence to keep"
+              >
+                <textarea
+                  id="reflection-sentence"
+                  onChange={(event) => setBody(event.target.value)}
+                  placeholder={reflectionFieldGuidance.sentenceToKeep.example}
+                  rows={2}
+                  value={body}
+                />
+              </GuidedField>
+              <select
+                aria-label="Entry meaning"
+                onChange={(event) => setType(event.target.value as typeof type)}
+                value={type}
+              >
+                <option value="reflection">Reflection</option>
+                <option value="celebration">Celebration</option>
+              </select>
             </div>
-          ))
-        )}
-      </section>
+            <div className="reflection-capture__actions">
+              <button
+                disabled={saving || body.trim() === '' || !onCapture}
+                type="submit"
+              >
+                {saving ? 'Keeping…' : `Keep ${type}`}
+              </button>
+              <button
+                disabled={saving || body.trim() === '' || !onCapture}
+                onClick={(event) => void capture(true, event.currentTarget)}
+                type="button"
+              >
+                Continue in the editor
+              </button>
+            </div>
+            {message && (
+              <p className="reflection-capture__message" role="status">
+                {message}
+              </p>
+            )}
+          </form>
+
+          {view === 'garden' && tourExamples.length > 0 && (
+            <TourThenAndNow examples={tourExamples} />
+          )}
+
+          {view === 'themes' && (
+            <section className="reflection-themes" aria-label="Themes">
+              {model.themes.length === 0 ? (
+                <p>Recurring ideas will gather here gently.</p>
+              ) : (
+                model.themes.map((item) => (
+                  <button
+                    aria-pressed={theme === item.name}
+                    key={item.name}
+                    onClick={() => setTheme(item.name)}
+                    type="button"
+                    aria-label={`${item.name}, ${item.count} ${item.count === 1 ? 'entry' : 'entries'}`}
+                  >
+                    {item.name} <span>{item.count}</span>
+                  </button>
+                ))
+              )}
+            </section>
+          )}
+
+          {view === 'garden' && <ThenAndNow cards={model.cards} />}
+
+          <section
+            aria-labelledby="reflection-stream-title"
+            className="reflection-stream"
+          >
+            <h2 className="visually-hidden" id="reflection-stream-title">
+              Garden entries
+            </h2>
+            {filtered.length === 0 ? (
+              <p className="reflection-stream__empty">
+                There is room to notice something small.
+              </p>
+            ) : (
+              filtered.map((card) => (
+                <div className="reflection-stream__row" key={card.noteId}>
+                  <time dateTime={card.created}>
+                    {new Intl.DateTimeFormat('en-AU', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                    }).format(new Date(card.created))}
+                  </time>
+                  <EntryCard
+                    card={card}
+                    connections={connections}
+                    {...(imageUrls[card.noteId] === undefined
+                      ? {}
+                      : { imageUrl: imageUrls[card.noteId] })}
+                    imageUnavailable={imageUnavailableIds.has(card.noteId)}
+                    {...(onConnect === undefined ? {} : { onConnect })}
+                    {...(onOpenConnection === undefined
+                      ? {}
+                      : { onOpenConnection })}
+                    {...(onOpen === undefined ? {} : { onOpen })}
+                  />
+                </div>
+              ))
+            )}
+          </section>
+        </div>
+      </div>
     </div>
   );
 }

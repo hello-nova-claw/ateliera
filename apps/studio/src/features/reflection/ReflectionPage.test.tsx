@@ -102,6 +102,18 @@ it('offers Garden, Reflection, Celebration and Themes without a heatmap', () => 
   expect(screen.queryByText(/heatmap|streak/i)).not.toBeInTheDocument();
 });
 
+it('keeps the view filters in the aside with quiet counts', () => {
+  render(<ReflectionPage model={model} />);
+  const aside = screen.getByRole('complementary', {
+    name: 'Reflection Garden views',
+  });
+  expect(within(aside).getByRole('tablist')).toBeInTheDocument();
+  expect(screen.getByRole('tab', { name: 'Garden' })).toHaveTextContent('2');
+  expect(screen.getByRole('tab', { name: 'Celebration' })).toHaveTextContent(
+    '1',
+  );
+});
+
 it('filters the stream and reveals a deterministic theme reading view', () => {
   render(<ReflectionPage model={model} />);
   fireEvent.click(screen.getByRole('tab', { name: 'Celebration' }));

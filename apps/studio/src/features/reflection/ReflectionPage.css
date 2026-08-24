@@ -1,5 +1,5 @@
 .reflection-page {
-  max-inline-size: 58rem;
+  max-inline-size: var(--studio-content-room);
   margin-inline: auto;
   padding-block: var(--studio-space-8) var(--studio-space-24);
 }
@@ -7,6 +7,28 @@
 .reflection-page__header {
   max-inline-size: 45rem;
   margin-block-end: var(--studio-space-10);
+}
+
+.reflection-page__spread {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(13rem, var(--studio-column-aside));
+  align-items: start;
+}
+
+.reflection-page__main {
+  grid-column: 1;
+  grid-row: 1;
+  min-inline-size: 0;
+  padding-inline-end: clamp(var(--studio-space-6), 4vw, var(--studio-column-gap));
+}
+
+.reflection-page__aside {
+  grid-column: 2;
+  grid-row: 1;
+  position: sticky;
+  inset-block-start: var(--studio-space-8);
+  padding-inline-start: clamp(var(--studio-space-6), 4vw, var(--studio-column-gap));
+  border-inline-start: 1px solid var(--studio-color-line);
 }
 
 .reflection-page__state,
@@ -29,26 +51,33 @@
 
 .reflection-switch {
   display: flex;
-  max-inline-size: 100%;
-  margin-block-end: var(--studio-space-8);
-  overflow-x: auto;
-  border-block-end: 1px solid var(--studio-color-line);
+  flex-direction: column;
 }
 
 .reflection-switch__tab {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--studio-space-3);
   min-block-size: var(--studio-touch-target);
-  flex: 0 0 auto;
   border: 0;
-  border-block-end: 2px solid transparent;
+  border-inline-start: 2px solid transparent;
   background: transparent;
   color: var(--studio-color-ink-muted);
-  padding-inline: var(--studio-space-5);
+  padding-inline: var(--studio-space-4);
   font: var(--studio-type-control);
+  text-align: start;
 }
 
 .reflection-switch__tab[aria-selected='true'] {
-  border-block-end-color: var(--studio-color-reflection);
+  border-inline-start-color: var(--studio-color-reflection);
   color: var(--studio-color-ink-strong);
+}
+
+.reflection-switch__count {
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-label);
+  font-variant-numeric: tabular-nums;
 }
 
 /* The capture is open space with a reflection rule, not a pastel card. */
@@ -175,8 +204,8 @@
 .reflection-stream__row {
   position: relative;
   display: grid;
-  grid-template-columns: 7.5rem minmax(0, 1fr);
-  gap: var(--studio-space-8);
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: var(--studio-space-6);
   margin-block-end: var(--studio-space-12);
 }
 
@@ -294,6 +323,46 @@
 @media (width < 45rem) {
   .reflection-page {
     padding-block-start: var(--studio-space-3);
+  }
+
+  .reflection-page__spread {
+    grid-template-columns: 1fr;
+  }
+
+  .reflection-page__main,
+  .reflection-page__aside {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .reflection-page__main {
+    grid-row: 2;
+    padding-inline-end: 0;
+  }
+
+  .reflection-page__aside {
+    grid-row: 1;
+    position: static;
+    margin-block-end: var(--studio-space-8);
+    padding-inline-start: 0;
+    border-inline-start: 0;
+    border-block-end: 1px solid var(--studio-color-line);
+  }
+
+  .reflection-switch {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .reflection-switch__tab {
+    flex: 0 0 auto;
+    border-inline-start: 0;
+    border-block-end: 2px solid transparent;
+  }
+
+  .reflection-switch__tab[aria-selected='true'] {
+    border-inline-start-color: transparent;
+    border-block-end-color: var(--studio-color-reflection);
   }
 
   .reflection-then-now__pair,
