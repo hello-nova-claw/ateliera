@@ -63,4 +63,57 @@ describe('TodaysAlmanac', () => {
     const { container } = render(<TodaysAlmanac />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  const fullAlmanac = {
+    moonPhase: 'full' as const,
+    illumination: 1,
+    season: 'summer' as const,
+    microSeason: { term: 'Greater Heat', gloss: 'everything ripening' },
+    cycle: { day: 23, phase: 'luteal' as const },
+    orientation: 'inward' as const,
+  };
+
+  it('hides the turning-year layer but keeps the moon when micro-season is off', () => {
+    render(
+      <TodaysAlmanac
+        almanac={fullAlmanac}
+        layers={{ moon: true, microSeason: false, cycle: true }}
+      />,
+    );
+    expect(screen.queryByText('Greater Heat')).not.toBeInTheDocument();
+    expect(screen.queryByText('Season')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: "Today's rhythm" })).toBeInTheDocument();
+    expect(screen.getByText(/Full · 100% lit/)).toBeInTheDocument();
+  });
+
+  it('hides the moon fact when the moon layer is off', () => {
+    render(
+      <TodaysAlmanac
+        almanac={fullAlmanac}
+        layers={{ moon: false, microSeason: true, cycle: true }}
+      />,
+    );
+    expect(screen.queryByText('Moon')).not.toBeInTheDocument();
+    expect(screen.getByText('Greater Heat')).toBeInTheDocument();
+  });
+
+  it('hides the cycle fact when the cycle layer is off', () => {
+    render(
+      <TodaysAlmanac
+        almanac={fullAlmanac}
+        layers={{ moon: true, microSeason: true, cycle: false }}
+      />,
+    );
+    expect(screen.queryByText('Cycle')).not.toBeInTheDocument();
+  });
+
+  it('renders nothing when every layer is off', () => {
+    const { container } = render(
+      <TodaysAlmanac
+        almanac={fullAlmanac}
+        layers={{ moon: false, microSeason: false, cycle: false }}
+      />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
 });

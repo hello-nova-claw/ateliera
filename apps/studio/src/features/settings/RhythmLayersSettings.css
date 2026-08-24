@@ -1,0 +1,70 @@
+.rhythm-layers-settings {
+  max-inline-size: var(--studio-content-narrow, 47.5rem);
+  margin-inline: auto;
+  margin-block-start: clamp(var(--studio-space-8), 7vw, var(--studio-space-12));
+}
+
+.rhythm-layers-settings__header {
+  max-inline-size: 40rem;
+}
+
+.rhythm-layers-settings__header h2 {
+  margin: 0;
+  color: var(--studio-color-ink-strong);
+  font: var(--studio-type-card-title);
+}
+
+.rhythm-layers-settings__kicker {
+  margin: 0 0 var(--studio-space-3);
+  color: var(--studio-color-ink-muted);
+  font: var(--studio-type-eyebrow);
+  letter-spacing: var(--studio-type-eyebrow-tracking);
+  text-transform: uppercase;
+}
+
+.rhythm-layers-settings__description {
+  margin-block: var(--studio-space-3) 0;
+  color: var(--studio-color-ink-soft);
+  line-height: 1.6;
+}
+
+.rhythm-layers-settings__list {
+  display: grid;
+  gap: var(--studio-space-4);
+  margin-block-start: var(--studio-space-6);
+  padding: clamp(var(--studio-space-5), 5vw, var(--studio-space-8));
+  border: 1px solid var(--studio-color-line);
+  border-radius: var(--studio-radius-sheet);
+  background: var(--studio-color-surface);
+  box-shadow: var(--studio-shadow-card);
+  list-style: none;
+}
+
+.rhythm-layers-settings__item {
+  display: grid;
+  gap: var(--studio-space-2);
+}
+
+.rhythm-layers-settings__item + .rhythm-layers-settings__item {
+  padding-block-start: var(--studio-space-4);
+  border-block-start: 1px solid var(--studio-color-line);
+}
+
+.rhythm-layers-settings__toggle {
+  display: flex;
+  gap: var(--studio-space-3);
+  align-items: center;
+  min-block-size: var(--studio-touch-target);
+  color: var(--studio-color-ink);
+  font: var(--studio-type-control);
+}
+
+.rhythm-layers-settings__label {
+  color: var(--studio-color-ink-strong);
+}
+
+.rhythm-layers-settings__item-description {
+  margin: 0;
+  color: var(--studio-color-ink-soft);
+  line-height: 1.6;
+}
