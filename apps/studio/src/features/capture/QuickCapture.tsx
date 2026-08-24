@@ -1,10 +1,17 @@
 import type { CaptureNoteInput, SavedNote } from '@studio/application';
 import type { DecisionHorizon, SemanticType } from '@studio/domain';
+import { GuidedField } from '@studio/ui';
 import { useState } from 'react';
+import {
+  genericCaptureGuidance,
+  type CaptureGuidance,
+} from './field-guidance';
 
 export interface QuickCaptureProps {
   capture: (input: QuickCaptureInput) => Promise<SavedNote>;
   decisionHorizon?: boolean;
+  /** Copy tuned to where capture was opened; defaults to the generic voice. */
+  guidance?: CaptureGuidance;
   initialBody?: string;
   initialSemanticType?: SemanticType;
   meaningLocked?: boolean;
@@ -19,6 +26,7 @@ export type QuickCaptureInput = CaptureNoteInput & {
 export function QuickCapture({
   capture,
   decisionHorizon = false,
+  guidance = genericCaptureGuidance,
   initialBody = '',
   initialSemanticType,
   meaningLocked = false,
@@ -63,45 +71,55 @@ export function QuickCapture({
       }}
     >
       <p className="studio-form__eyebrow">Quick capture</p>
-      <h2>Hold this thought</h2>
-      <label htmlFor="capture-text">What would you like remembered?</label>
-      <textarea
-        autoFocus
-        id="capture-text"
-        onChange={(event) => setBody(event.target.value)}
-        rows={6}
-        value={body}
-      />
-      <label htmlFor="capture-meaning">Meaning (optional)</label>
-      <select
-        aria-describedby={`capture-meaning-guide${
-          initialSemanticType === undefined ? '' : ' capture-meaning-hint'
-        }`}
-        disabled={meaningLocked}
-        id="capture-meaning"
-        onChange={(event) =>
-          setSemanticType(event.target.value as '' | SemanticType)
-        }
-        value={semanticType}
+      <h2>{guidance.title}</h2>
+      <GuidedField
+        controlId="capture-text"
+        description={guidance.description}
+        label={guidance.prompt}
       >
-        <option value="">Place later</option>
-        <option value="foundations">Foundations</option>
-        <option value="vision">Vision — what I am creating</option>
-        <option value="growth">Growth</option>
-        <option value="reflection">Reflection</option>
-        <option value="celebration">Celebration</option>
-        <option value="uncharted">Uncharted</option>
-      </select>
-      <p className="quick-capture__meaning-guide" id="capture-meaning-guide">
-        Meaning is the colour lens. In Life Landscape, an anchor describes where
-        the card sits.
-      </p>
-      {initialSemanticType !== undefined && (
-        <p className="quick-capture__meaning-hint" id="capture-meaning-hint">
-          {meaningLocked
-            ? 'This meaning belongs to the place you are adding it.'
-            : 'Suggested from where you opened capture.'}
-        </p>
+        <textarea
+          autoFocus
+          id="capture-text"
+          onChange={(event) => setBody(event.target.value)}
+          placeholder={guidance.example}
+          rows={6}
+          value={body}
+        />
+      </GuidedField>
+      {/* A locked meaning can't be changed here, so we hide the control entirely
+          rather than show a disabled field — the meaning still travels with the
+          capture via its placement. It appears only when it's actually editable. */}
+      {!meaningLocked && (
+        <>
+          <label htmlFor="capture-meaning">Meaning (optional)</label>
+          <select
+            aria-describedby={`capture-meaning-guide${
+              initialSemanticType === undefined ? '' : ' capture-meaning-hint'
+            }`}
+            id="capture-meaning"
+            onChange={(event) =>
+              setSemanticType(event.target.value as '' | SemanticType)
+            }
+            value={semanticType}
+          >
+            <option value="">Place later</option>
+            <option value="foundations">Foundations</option>
+            <option value="vision">Vision — what I am creating</option>
+            <option value="growth">Growth</option>
+            <option value="reflection">Reflection</option>
+            <option value="celebration">Celebration</option>
+            <option value="uncharted">Uncharted</option>
+          </select>
+          <p className="quick-capture__meaning-guide" id="capture-meaning-guide">
+            Meaning is the colour lens. In Life Landscape, an anchor describes
+            where the card sits.
+          </p>
+          {initialSemanticType !== undefined && (
+            <p className="quick-capture__meaning-hint" id="capture-meaning-hint">
+              Suggested from where you opened capture.
+            </p>
+          )}
+        </>
       )}
       {decisionHorizon && (
         <>

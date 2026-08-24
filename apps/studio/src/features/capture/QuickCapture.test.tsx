@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QuickCapture } from './QuickCapture';
+import { foyerCaptureGuidance } from './field-guidance';
 
 it('captures a body-only thought and returns a quiet completion message', async () => {
   const capture = vi.fn().mockResolvedValue({
@@ -20,6 +21,15 @@ it('captures a body-only thought and returns a quiet completion message', async 
     name: 'What would you like remembered?',
   });
   expect(body).toHaveFocus();
+  expect(
+    screen.getByText(
+      "Anything you want the Studio to hold — a thought, a line, a fragment. It doesn't need to be finished.",
+    ),
+  ).toBeVisible();
+  expect(body).toHaveAttribute(
+    'placeholder',
+    'e.g. Kept choosing rest today instead of pushing through.',
+  );
   expect(screen.getByRole('button', { name: 'Remember' })).toBeDisabled();
   fireEvent.change(body, { target: { value: 'The childhood hill' } });
   fireEvent.click(screen.getByRole('button', { name: 'Remember' }));
@@ -29,6 +39,28 @@ it('captures a body-only thought and returns a quiet completion message', async 
   );
   expect(onRemembered).toHaveBeenCalledWith(
     expect.objectContaining({ path: 'Inbox/the-childhood-hill.md' }),
+  );
+});
+
+it('speaks in the voice of where capture was opened', () => {
+  render(
+    <QuickCapture
+      capture={vi.fn()}
+      guidance={foyerCaptureGuidance['foyer-becoming']}
+      onCancel={vi.fn()}
+      onRemembered={vi.fn()}
+    />,
+  );
+
+  expect(
+    screen.getByRole('heading', { name: 'Name a becoming' }),
+  ).toBeVisible();
+  const body = screen.getByRole('textbox', {
+    name: 'What are you currently becoming?',
+  });
+  expect(body).toHaveAttribute(
+    'placeholder',
+    "e.g. I'm becoming someone who rests before they're depleted.",
   );
 });
 
@@ -126,10 +158,15 @@ it('shows a contextually inferred meaning while preserving a safe override', () 
   expect(screen.getByLabelText('Meaning (optional)')).not.toBeDisabled();
 });
 
-it('locks exact structural meaning so a Landscape card cannot contradict its anchor', () => {
+it('hides a locked meaning entirely, yet still applies it to the capture', async () => {
+  const capture = vi.fn().mockResolvedValue({
+    note: { id: 'n1', body: 'A calm vision' },
+    path: 'Foyer/a-calm-vision.md',
+    hash: 'hash',
+  });
   render(
     <QuickCapture
-      capture={vi.fn()}
+      capture={capture}
       initialSemanticType="vision"
       meaningLocked
       onCancel={vi.fn()}
@@ -137,11 +174,27 @@ it('locks exact structural meaning so a Landscape card cannot contradict its anc
     />,
   );
 
-  expect(screen.getByLabelText('Meaning (optional)')).toHaveValue('vision');
-  expect(screen.getByLabelText('Meaning (optional)')).toBeDisabled();
+  // A meaning that can't be changed here is not shown as a disabled control.
+  expect(screen.queryByLabelText('Meaning (optional)')).not.toBeInTheDocument();
   expect(
-    screen.getByText('This meaning belongs to the place you are adding it.'),
-  ).toBeVisible();
+    screen.queryByText('This meaning belongs to the place you are adding it.'),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByText(/meaning is the colour lens/i),
+  ).not.toBeInTheDocument();
+
+  // …but the locked meaning still travels with the saved note.
+  fireEvent.change(
+    screen.getByRole('textbox', { name: 'What would you like remembered?' }),
+    { target: { value: 'A calm vision' } },
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Remember' }));
+  await waitFor(() =>
+    expect(capture).toHaveBeenCalledWith({
+      body: 'A calm vision',
+      semanticType: 'vision',
+    }),
+  );
 });
 
 it('authors a decision horizon when capturing into a Landscape decision', async () => {
