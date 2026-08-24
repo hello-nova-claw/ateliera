@@ -137,11 +137,6 @@
   font-size: 0.75rem;
 }
 
-.life-landscape__cell > span {
-  color: var(--studio-color-ink-soft);
-  line-height: 1.4;
-}
-
 .life-landscape__cell-title {
   display: -webkit-box;
   inline-size: 100%;
@@ -197,16 +192,36 @@
   text-decoration: underline;
 }
 
+.life-landscape__cell:has(.life-landscape__cell-add) {
+  padding: 0;
+}
+
 .life-landscape__cell-add {
-  justify-self: start;
-  min-block-size: var(--studio-touch-target);
-  padding-inline: var(--studio-space-3);
-  border: 1px solid var(--studio-color-line);
-  border-radius: var(--studio-radius-control);
-  color: var(--studio-color-ink-muted);
-  background: var(--studio-color-surface);
+  display: grid;
+  place-items: center;
+  min-block-size: 9.5rem;
+  border: 0;
+  color: var(--studio-color-ink-faint);
+  background: transparent;
   cursor: pointer;
-  font: var(--studio-type-control);
+  transition: background var(--studio-motion-fast) ease;
+}
+
+.life-landscape__cell-add::before {
+  content: '+';
+  opacity: 0;
+  font: var(--studio-type-section);
+  transition: opacity var(--studio-motion-fast) ease;
+}
+
+.life-landscape__cell-add:hover,
+.life-landscape__cell-add:focus-visible {
+  background: color-mix(in srgb, var(--studio-color-vision) 7%, transparent);
+}
+
+.life-landscape__cell-add:hover::before,
+.life-landscape__cell-add:focus-visible::before {
+  opacity: 0.45;
 }
 
 .life-landscape__focus,

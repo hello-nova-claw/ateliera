@@ -1034,9 +1034,16 @@ export function LandscapePage({
                           >
                             {projected.featured.title}
                           </button>
-                        ) : (
-                          <span>There is room here.</span>
-                        )}
+                        ) : example ? null : onCreate ? (
+                          <button
+                            aria-label={`Add to ${area.title} ${anchor.label}`}
+                            className="life-landscape__cell-add"
+                            onClick={(event) =>
+                              onCreate(area.id, anchor.id, event.currentTarget)
+                            }
+                            type="button"
+                          />
+                        ) : null}
                         {(projected?.additionalCount ?? 0) > 0 && (
                           <button
                             className="life-landscape__additional"
@@ -1063,18 +1070,6 @@ export function LandscapePage({
                                 }
                               : {})}
                           />
-                        )}
-                        {onCreate && (
-                          <button
-                            aria-label={`Add to ${area.title} ${anchor.label}`}
-                            className="life-landscape__cell-add"
-                            onClick={(event) =>
-                              onCreate(area.id, anchor.id, event.currentTarget)
-                            }
-                            type="button"
-                          >
-                            + Add
-                          </button>
                         )}
                       </DropZone>
                     );

@@ -67,7 +67,10 @@ describe('LandscapePage', () => {
     expect(
       screen.getByRole('region', { name: 'Life Landscape matrix' }),
     ).toBeInTheDocument();
-    expect(screen.getAllByText('There is room here.')).toHaveLength(25);
+    expect(screen.queryByText('There is room here.')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('+ Add'),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Open Home' }),
     ).toBeInTheDocument();
