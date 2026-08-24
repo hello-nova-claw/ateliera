@@ -88,6 +88,10 @@ onboarding to an `Ateliera` folder in iCloud Drive so iPhone and iPad share one 
   the full editorial-spread authoring experience is a first-class iPad target (large screen,
   external keyboard). This is a UX posture, not a code fork — the same rooms render responsively.
 
+**Confirmed parameters (locked 25 Aug 2026):** default vault = an `Ateliera` folder in
+iCloud Drive (any File-Provider folder also accepted); iPhone editing = light edit only, full
+authoring iPad-led; distribution = TestFlight first, then App Store; minimum target = iOS 17.
+
 ## Consequences
 
 - A new Rust/Swift plugin under `src-tauri` handles the document picker, security-scoped

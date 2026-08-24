@@ -54,6 +54,7 @@ The governing constraint, inherited from desktop and made harder by iCloud:
 - All existing invariants preserved: atomic writes, path containment, conditional/guarded
   writes, disposable index, unknown-frontmatter survival, backup/restore.
 - Offline-first: everything works with no network; sync is an enhancement, not a dependency.
+- Minimum **iOS 17** (iPhone and iPad), for dependable OPFS and File Provider behaviour.
 
 **Non-goals (explicitly later)**
 - Android (Tauri 2 supports it; out of scope here).
@@ -225,11 +226,14 @@ installable via TestFlight on a physical iPhone and iPad; App Store Connect priv
 - **`writeBatchAtomic` across a coordinating daemon** is the subtlest correctness point — it
   gets the most device testing.
 
-**Decisions to confirm before Phase 1** (sensible defaults assumed in this plan):
-1. **Default vault location** — iCloud Drive `Ateliera` folder (assumed) vs. always ask.
-2. **iPhone editing scope** — light edit only (assumed) vs. full authoring on iPhone too.
-3. **Distribution** — TestFlight first, App Store later (assumed) vs. personal-only sideload.
-4. **Minimum iOS version** — pin to the lowest with dependable OPFS + File Provider (≈ iOS 17).
+**Confirmed decisions (locked 25 Aug 2026):**
+1. **Default vault location** — onboarding creates/points to an `Ateliera` folder in
+   **iCloud Drive**; "Choose a folder" remains available for any File Provider.
+2. **iPhone editing scope** — **light edit only** (capture, read, search, small fixes);
+   full editorial authoring is iPad-led (ADR-004 holds).
+3. **Distribution** — **TestFlight first**, App Store submission after on-device soak.
+4. **Minimum iOS version** — **iOS 17** (dependable OPFS + File Provider); revisit only if a
+   needed API forces higher.
 
 ---
 
