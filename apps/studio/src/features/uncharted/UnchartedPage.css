@@ -168,7 +168,7 @@
 
 .uncharted-page__threshold-label {
   margin: 0;
-  color: var(--studio-color-uncharted);
+  color: var(--studio-color-ink-1);
   font: var(--studio-type-eyebrow);
   letter-spacing: var(--studio-type-eyebrow-tracking);
   text-transform: uppercase;

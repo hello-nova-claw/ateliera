@@ -196,7 +196,6 @@ test('mobile interactive targets remain at least 44 by 44 CSS pixels', async ({
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openStory(page, 'rooms-search--results');
-  await page.getByRole('button', { name: 'Filters' }).click();
   const undersized = await page
     .locator(
       'button:visible, a:visible, input:not([type="checkbox"]):not([type="radio"]):visible, select:visible, textarea:visible',

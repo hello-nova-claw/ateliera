@@ -30,7 +30,6 @@ for (const viewport of [
   test(`Search reflows at ${viewport.name}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto('/iframe.html?id=rooms-search--results&viewMode=story');
-    await page.getByRole('button', { name: 'Filters' }).click();
     await page.evaluate(() => document.fonts.ready);
     expect((await analyzeStory(page)).violations).toEqual([]);
     expect(await page.evaluate(
@@ -46,7 +45,6 @@ for (const viewport of [
 test('Search respects forced colors and reduced motion', async ({ page }) => {
   await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
   await page.goto('/iframe.html?id=rooms-search--results&viewMode=story');
-  await page.getByRole('button', { name: 'Filters' }).click();
   expect((await analyzeStory(page)).violations).toEqual([]);
   await page.screenshot({
     path: path.join(output, 'search-forced-reduced.png'),

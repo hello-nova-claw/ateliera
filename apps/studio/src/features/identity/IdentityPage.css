@@ -359,7 +359,7 @@
 
 @media (width <= 52rem) {
   .identity-page__spread {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .identity-page__sections {

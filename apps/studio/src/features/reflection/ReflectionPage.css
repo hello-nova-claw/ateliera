@@ -326,7 +326,7 @@
   }
 
   .reflection-page__spread {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .reflection-page__main,
