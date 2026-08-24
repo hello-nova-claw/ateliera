@@ -1,0 +1,21 @@
+/* The Studio's settings live on one page, on a single 640px measure. */
+.settings-room {
+  max-inline-size: 40rem;
+  margin-inline: auto;
+  padding-block: var(--studio-space-8) var(--studio-space-24);
+}
+
+.settings-room > .studio-room-heading {
+  margin-block-end: var(--studio-space-8);
+}
+
+/* Each section already carries its own heading and rhythm; hold them all to
+   the shared measure instead of their own wider frames. */
+.settings-room > .portability-settings,
+.settings-room > .rooms-settings,
+.settings-room > .rhythm-layers-settings,
+.settings-room > .rhythm-profile-settings {
+  max-inline-size: 100%;
+  margin-inline: 0;
+  padding-block-end: 0;
+}

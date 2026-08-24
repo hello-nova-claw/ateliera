@@ -42,7 +42,9 @@
 
 .rhythm-layers-settings__item {
   display: grid;
-  gap: var(--studio-space-2);
+  grid-template-columns: minmax(9rem, 14rem) minmax(0, 1fr);
+  gap: var(--studio-space-2) var(--studio-space-6);
+  align-items: baseline;
 }
 
 .rhythm-layers-settings__item + .rhythm-layers-settings__item {
@@ -67,4 +69,10 @@
   margin: 0;
   color: var(--studio-color-ink-soft);
   line-height: 1.6;
+}
+
+@media (width < 34rem) {
+  .rhythm-layers-settings__item {
+    grid-template-columns: 1fr;
+  }
 }

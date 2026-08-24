@@ -7,8 +7,10 @@ import {
   type VaultImportPlan,
   type VaultPort,
 } from '@studio/storage/portable';
+import { RoomHeading } from '@studio/ui';
 import { useRef } from 'react';
 
+import './SettingsRoom.css';
 import {
   PortabilitySettings,
   type PortabilityPreview,
@@ -84,7 +86,12 @@ export default function SettingsRoom({
   const preferences = useStudioPreferences(service);
 
   return (
-    <>
+    <div className="settings-room">
+      <RoomHeading
+        eyebrow="tend to your Studio"
+        intro="Everything here stays on this device. Keep a backup, choose which rooms are open, and set the rhythms you want to feel."
+        title="Settings"
+      />
       <PortabilitySettings
         {...(vault === undefined
           ? {}
@@ -164,6 +171,6 @@ export default function SettingsRoom({
           Open a Studio to create or restore a portable backup.
         </p>
       )}
-    </>
+    </div>
   );
 }
