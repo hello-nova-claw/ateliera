@@ -56,7 +56,6 @@ describe('SearchPage', () => {
     const onFiltersChange = vi.fn();
     render(<SearchPage model={model} onFiltersChange={onFiltersChange} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
     expect(screen.getByRole('checkbox', { name: 'Reflection 1' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Uncharted 1' })).not.toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Reflection Garden 1' })).toBeVisible();
@@ -80,6 +79,17 @@ describe('SearchPage', () => {
       dateFrom: '2026-07-01',
     });
     expect(screen.getByRole('searchbox')).toHaveValue('calm');
+  });
+
+  it('shows active filters as removable chips', () => {
+    const onFiltersChange = vi.fn();
+    render(<SearchPage model={model} onFiltersChange={onFiltersChange} />);
+
+    const chips = screen.getByRole('region', { name: 'Active filters' });
+    fireEvent.click(
+      within(chips).getByRole('button', { name: 'Remove Reflection filter' }),
+    );
+    expect(onFiltersChange).toHaveBeenCalledWith({});
   });
 
   it('opens results and the calm repair queue through named controls', () => {

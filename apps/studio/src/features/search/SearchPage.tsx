@@ -6,7 +6,6 @@ import type {
   SearchMatchField,
 } from '@studio/index';
 import { RoomHeading, SemanticMark } from '@studio/ui';
-import { useState } from 'react';
 
 import './SearchPage.css';
 
@@ -145,32 +144,34 @@ function SearchResult({
       aria-labelledby={`search-result-${hit.id}`}
       className="search-result"
     >
-      <div className="search-result__meaning">
-        <SemanticMark labelMode="visible" type={hit.semanticType} />
-        <span>{label(hit.cardType)}</span>
-      </div>
-      <h2 id={`search-result-${hit.id}`}>
-        {onOpen ? (
-          <button
-            onClick={(event) => onOpen(hit.id, event.currentTarget)}
-            type="button"
-          >
-            {hit.title || 'Untitled note'}
-          </button>
-        ) : (
-          hit.title || 'Untitled note'
-        )}
-      </h2>
-      <p className="search-result__snippet">
-        <HighlightedText ranges={hit.highlightRanges} text={hit.snippet} />
-      </p>
-      <p className="search-result__reason">{reason}</p>
-      {hit.matchContext && (
-        <p className="search-result__context">
-          {hit.matchContext.field === 'tags' ? 'Tag' : 'Source'} ·{' '}
-          {hit.matchContext.text}
+      <div className="search-result__body">
+        <div className="search-result__meaning">
+          <SemanticMark labelMode="visible" type={hit.semanticType} />
+          <span>{label(hit.cardType)}</span>
+        </div>
+        <h2 id={`search-result-${hit.id}`}>
+          {onOpen ? (
+            <button
+              onClick={(event) => onOpen(hit.id, event.currentTarget)}
+              type="button"
+            >
+              {hit.title || 'Untitled note'}
+            </button>
+          ) : (
+            hit.title || 'Untitled note'
+          )}
+        </h2>
+        <p className="search-result__snippet">
+          <HighlightedText ranges={hit.highlightRanges} text={hit.snippet} />
         </p>
-      )}
+        {hit.matchContext && (
+          <p className="search-result__context">
+            {hit.matchContext.field === 'tags' ? 'Tag' : 'Source'} ·{' '}
+            {hit.matchContext.text}
+          </p>
+        )}
+      </div>
+      <p className="search-result__reason">{reason}</p>
     </article>
   );
 }
@@ -182,12 +183,38 @@ export function SearchPage({
   onOpenResult,
   onQueryChange,
 }: SearchPageProps) {
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const activeFilterCount = Object.entries(model.filters).filter(([, value]) =>
-    Array.isArray(value)
-      ? value.length > 0
-      : value !== undefined && value !== '',
-  ).length;
+  const activeChips = [
+    ...filterGroups.flatMap((group) =>
+      ((model.filters[group.filter] ?? []) as readonly string[]).map(
+        (value) => ({
+          id: `${group.filter}:${value}`,
+          label: label(value),
+          remove: () =>
+            onFiltersChange?.(toggleFilter(model.filters, group.filter, value)),
+        }),
+      ),
+    ),
+    ...(model.filters.dateFrom
+      ? [
+          {
+            id: 'dateFrom',
+            label: `From ${model.filters.dateFrom.slice(0, 10)}`,
+            remove: () =>
+              onFiltersChange?.(setDateFilter(model.filters, 'dateFrom', '')),
+          },
+        ]
+      : []),
+    ...(model.filters.dateTo
+      ? [
+          {
+            id: 'dateTo',
+            label: `To ${model.filters.dateTo.slice(0, 10)}`,
+            remove: () =>
+              onFiltersChange?.(setDateFilter(model.filters, 'dateTo', '')),
+          },
+        ]
+      : []),
+  ];
   return (
     <div className="search-page">
       <div className="search-page__header">
@@ -213,30 +240,81 @@ export function SearchPage({
         />
       </div>
 
-      <div className="search-page__tools">
-        <button
-          aria-label="Filters"
-          aria-expanded={filtersOpen}
-          className="search-page__filter-trigger"
-          onClick={() => setFiltersOpen((open) => !open)}
-          type="button"
+      {activeChips.length > 0 && (
+        <div
+          aria-label="Active filters"
+          className="search-page__chips"
+          role="region"
         >
-          Filters{activeFilterCount > 0 ? ` · ${activeFilterCount}` : ''}
-        </button>
-        {model.repairCount > 0 && onOpenRepairQueue && (
-          <button
-            className="search-page__repair-trigger"
-            onClick={onOpenRepairQueue}
-            type="button"
-          >
-            Review {model.repairCount} repair{' '}
-            {model.repairCount === 1 ? 'item' : 'items'}
-          </button>
-        )}
-      </div>
+          {activeChips.map((chip) => (
+            <button
+              aria-label={`Remove ${chip.label} filter`}
+              className="search-page__chip"
+              key={chip.id}
+              onClick={chip.remove}
+              type="button"
+            >
+              <span>{chip.label}</span>
+              <span aria-hidden="true" className="search-page__chip-remove">
+                ×
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
-      {filtersOpen && (
-        <section aria-label="Search filters" className="search-filters">
+      {model.state === 'offline' && (
+        <p className="search-page__notice" role="status">
+          Stored locally · Search is still available offline.
+        </p>
+      )}
+      {model.state === 'stale' && (
+        <p className="search-page__notice" role="status">
+          Showing what is ready while the local index catches up.
+        </p>
+      )}
+      {model.state === 'error' && (
+        <p className="search-page__error" role="alert">
+          {model.error ?? 'Search needs a moment. Your notes remain untouched.'}
+        </p>
+      )}
+      <div className="search-page__spread">
+        <div className="search-page__main">
+          {model.state === 'loading' ? (
+            <div className="search-page__loading" role="status">
+              <span aria-hidden="true" />
+              Gathering your Studio…
+            </div>
+          ) : (
+            <section
+              aria-label="Search results"
+              className="search-page__results"
+            >
+              <p className="search-page__count">
+                {model.results.length === 0 && model.state === 'stale'
+                  ? 'Search is still gathering your notes.'
+                  : model.results.length === 0
+                    ? 'No notes match this search.'
+                    : `${model.results.length} ${model.results.length === 1 ? 'note' : 'notes'} found`}
+              </p>
+              {model.results.map((hit) => (
+                <SearchResult hit={hit} key={hit.id} onOpen={onOpenResult} />
+              ))}
+            </section>
+          )}
+        </div>
+
+        <aside aria-label="Search filters" className="search-page__facets">
+          {model.repairCount > 0 && onOpenRepairQueue && (
+            <button
+              className="search-page__repair-trigger"
+              onClick={onOpenRepairQueue}
+              type="button"
+            >
+              Review {model.repairCount} repair{' '}
+              {model.repairCount === 1 ? 'item' : 'items'}
+            </button>
+          )}
           {filterGroups.map((group) => (
             <fieldset className="search-filters__group" key={group.filter}>
               <legend>{group.label}</legend>
@@ -299,43 +377,8 @@ export function SearchPage({
               />
             </label>
           </fieldset>
-        </section>
-      )}
-
-      {model.state === 'offline' && (
-        <p className="search-page__notice" role="status">
-          Stored locally · Search is still available offline.
-        </p>
-      )}
-      {model.state === 'stale' && (
-        <p className="search-page__notice" role="status">
-          Showing what is ready while the local index catches up.
-        </p>
-      )}
-      {model.state === 'error' && (
-        <p className="search-page__error" role="alert">
-          {model.error ?? 'Search needs a moment. Your notes remain untouched.'}
-        </p>
-      )}
-      {model.state === 'loading' ? (
-        <div className="search-page__loading" role="status">
-          <span aria-hidden="true" />
-          Gathering your Studio…
-        </div>
-      ) : (
-        <section aria-label="Search results" className="search-page__results">
-          <p className="search-page__count">
-            {model.results.length === 0 && model.state === 'stale'
-              ? 'Search is still gathering your notes.'
-              : model.results.length === 0
-                ? 'No notes match this search.'
-                : `${model.results.length} ${model.results.length === 1 ? 'note' : 'notes'} found`}
-          </p>
-          {model.results.map((hit) => (
-            <SearchResult hit={hit} key={hit.id} onOpen={onOpenResult} />
-          ))}
-        </section>
-      )}
+        </aside>
+      </div>
     </div>
   );
 }
