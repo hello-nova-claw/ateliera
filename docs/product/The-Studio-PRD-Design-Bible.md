@@ -1512,10 +1512,33 @@ Identity Studio and Wisdom Garden may be included if schedule permits, but shoul
 
 - Place, figure, dream, symbol, and session schemas.
 - Arrival and open-exploration scripts.
-- Dream/session capture.
+- Dream/session capture, growing into proper dream journalling: a dedicated
+  dream schema (setting, figures, symbols, emotional tone, waking thought),
+  recurring-symbol noticing, and a dream index that cross-links to identity,
+  season, and landscape notes without interpreting on the user's behalf.
 - User-authored map.
-- Optional generated scripts/audio with safety controls.
+- Optional generated companions with safety controls — authored from the user's
+  own notes, never prescriptive, always previewable and editable before saving:
+  mantras and affirmations, EFT tapping scripts, and meditation scripts with
+  optional on-device or opt-in audio. All gated behind explicit AI scopes and
+  the audit log; core practice works without generation.
 - Cross-links between inner and outer notes.
+
+### Phase 5 — Guided rituals & rhythm-aware practice
+
+Structured, optional flows that turn the Studio's existing rhythm awareness and
+note-writing into gentle daily and cyclical practice. Each must work offline,
+stay skippable, and never become a streak, obligation, or guilt-inducing count.
+
+- **Future-self journalling** — a writing surface addressed to (or from) a
+  future self, cross-linked to Identity's "becoming" and the current Season, so
+  entries can resurface for comparison later without measuring progress.
+- **Magical morning routines** — a composable, user-defined morning flow
+  (intention, gratitude, a sentence to keep, a chosen practice) that opens
+  calmly and adapts to the day's rhythm rather than a fixed checklist.
+- **Moon-phase guided intention flow** — a lunar-cycle intention and release
+  ritual keyed to the already-computed moon phase (new-moon intentions,
+  full-moon release), surfaced in the Foyer almanac and reviewable across cycles.
 
 ### Future explorations
 
