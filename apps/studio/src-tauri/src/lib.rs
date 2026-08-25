@@ -38,6 +38,9 @@ pub fn studio_builder<R: Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<
         })
 }
 
+// The mobile shells (iOS/Android) call into this generated entry point; on
+// desktop the attribute is a no-op and `main.rs` calls `run()` directly.
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     studio_builder(tauri::Builder::default())
         .build(tauri::generate_context!())
