@@ -142,6 +142,18 @@ function isNativeShell(): boolean {
   return '__TAURI_INTERNALS__' in window;
 }
 
+// Phase 0 (ADR-011): the iCloud-backed iOS vault adapter is not built yet, so the
+// iOS shell boots an ephemeral in-memory vault to prove the Studio runs on device.
+// Replaced by the real adapter in Phase 1.
+function isIosShell(): boolean {
+  return isNativeShell() && /iP(hone|ad|od)/i.test(navigator.userAgent);
+}
+
+async function bootEphemeralIosVault(): Promise<VaultPort> {
+  const { createInMemoryVault } = await import('@studio/storage/memory');
+  return createInMemoryVault();
+}
+
 async function prepareOfflineShell(): Promise<boolean> {
   if (!('serviceWorker' in navigator)) return false;
   const registration = await navigator.serviceWorker.register(
@@ -788,6 +800,15 @@ function StudioApplication({
     let preparedLifecycle: StudioService | undefined;
     setError(undefined);
     try {
+      if (isIosShell()) {
+        const vault = await bootEphemeralIosVault();
+        dispatchEntry({ type: 'progress', attemptId, phase: 'preparing-rooms' });
+        preparedLifecycle = await createAppStudioService(vault);
+        await finishStudioEntry(preparedLifecycle, attemptId, 'open');
+        commitStudioSession(preparedLifecycle, vault, 'ios:phase0-memory');
+        preparedLifecycle = undefined;
+        return;
+      }
       if (isNativeShell()) {
         const { selectTauriVault } = await import('@studio/storage/tauri');
         const selected = await selectTauriVault();
@@ -846,6 +867,15 @@ function StudioApplication({
     setCreateError(undefined);
     setDuplicateStudio(undefined);
     try {
+      if (isIosShell()) {
+        const vault = await bootEphemeralIosVault();
+        dispatchEntry({ type: 'progress', attemptId, phase: 'preparing-rooms' });
+        const lifecycle = await createAppStudioService(vault);
+        setCreateOpen(false);
+        await finishStudioEntry(lifecycle, attemptId, 'create');
+        commitStudioSession(lifecycle, vault, 'ios:phase0-memory');
+        return;
+      }
       if (isNativeShell()) {
         const studioName = name.trim();
         if (studioName === '') {
