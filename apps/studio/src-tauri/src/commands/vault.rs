@@ -2602,15 +2602,25 @@ fn selected_vault<R: Runtime>(
     state.vault(window.label(), token)
 }
 
+// Desktop opens a native folder dialog. On iOS/Android the vault is reached
+// through the platform document picker (ADR-011, Phase 1); these desktop
+// commands are not invoked there, so the picker resolves to `None`.
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
+fn pick_studio_folder(title: &str) -> Option<std::path::PathBuf> {
+    rfd::FileDialog::new().set_title(title).pick_folder()
+}
+
+#[cfg(any(target_os = "ios", target_os = "android"))]
+fn pick_studio_folder(_title: &str) -> Option<std::path::PathBuf> {
+    None
+}
+
 #[tauri::command]
 pub fn vault_select<R: Runtime>(
     window: WebviewWindow<R>,
     state: State<'_, VaultRegistry>,
 ) -> Result<Option<VaultSelection>, VaultError> {
-    let Some(path) = rfd::FileDialog::new()
-        .set_title("Choose your Studio folder")
-        .pick_folder()
-    else {
+    let Some(path) = pick_studio_folder("Choose your Studio folder") else {
         return Ok(None);
     };
     Ok(Some(state.register_existing_path(window.label(), &path)?))
@@ -2623,10 +2633,7 @@ pub fn vault_create<R: Runtime>(
     name: String,
 ) -> Result<Option<VaultSelection>, VaultError> {
     normalize_studio_folder_name(&name)?;
-    let Some(parent) = rfd::FileDialog::new()
-        .set_title("Choose where to create your Studio")
-        .pick_folder()
-    else {
+    let Some(parent) = pick_studio_folder("Choose where to create your Studio") else {
         return Ok(None);
     };
     Ok(Some(state.create_in_selected_parent(

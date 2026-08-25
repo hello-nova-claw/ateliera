@@ -104,15 +104,26 @@ fn write_backup_atomically(destination: &Path, bytes: &[u8]) -> Result<(), Vault
     result
 }
 
-#[tauri::command]
-pub fn backup_save_zip(request: tauri::ipc::Request<'_>) -> Result<String, VaultError> {
-    let (suggested_file_name, bytes) = decode_backup_request(request.body(), request.headers())?;
-    let Some(destination) = rfd::FileDialog::new()
+// Desktop opens a native save dialog. On iOS/Android backups are shared through
+// the platform document/share sheet (ADR-011); this command is not invoked there.
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
+fn pick_backup_destination(suggested_file_name: String) -> Option<std::path::PathBuf> {
+    rfd::FileDialog::new()
         .set_title("Save Ateliera backup")
         .set_file_name(suggested_file_name)
         .add_filter("ZIP archive", &["zip"])
         .save_file()
-    else {
+}
+
+#[cfg(any(target_os = "ios", target_os = "android"))]
+fn pick_backup_destination(_suggested_file_name: String) -> Option<std::path::PathBuf> {
+    None
+}
+
+#[tauri::command]
+pub fn backup_save_zip(request: tauri::ipc::Request<'_>) -> Result<String, VaultError> {
+    let (suggested_file_name, bytes) = decode_backup_request(request.body(), request.headers())?;
+    let Some(destination) = pick_backup_destination(suggested_file_name) else {
         return Ok("cancelled".to_owned());
     };
     write_backup_atomically(&destination, bytes)?;

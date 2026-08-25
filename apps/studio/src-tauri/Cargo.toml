@@ -6,6 +6,9 @@ edition = "2024"
 [lib]
 name = "ateliera_desktop"
 path = "src/lib.rs"
+# rlib keeps the desktop binary + tests; staticlib/cdylib are required by the
+# Tauri 2 mobile targets (iOS links a staticlib). See ADR-011.
+crate-type = ["staticlib", "cdylib", "rlib"]
 
 [[bin]]
 name = "ateliera-desktop"
@@ -17,13 +20,17 @@ cap-std = "4.0.2"
 hex = "0.4"
 libc = "0.2"
 notify = "8.2"
-rfd = "0.15"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
 tauri = { version = "2.8", features = ["test"] }
 thiserror = "2"
 uuid = { version = "1", features = ["v4"] }
+
+# The native file/save dialogs are desktop-only. iOS/Android reach files through
+# the platform document picker (ADR-011); rfd would not compile for those targets.
+[target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
+rfd = "0.15"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
