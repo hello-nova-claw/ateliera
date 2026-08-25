@@ -1,8 +1,19 @@
 # ADR-011: iOS app via Tauri 2, with a user-owned iCloud-synced vault
 
-- Status: accepted
+- Status: **superseded by ADR-012** (native SwiftUI across the Apple ecosystem), 2026-08-25
 - Date: 2026-08-25
 - Refines: ADR-004 (Desktop authoring, mobile capture); depends on ADR-008 (disposable SQLite index)
+
+> **Superseded the same day it was written.** Building Phase 0 (a working Tauri 2 iOS
+> host) surfaced two decisive facts: (1) native iOS integration — the document picker,
+> HealthKit, widgets — is awkward through Tauri's plugin bridge (this app's iOS host is
+> pure Rust with no Swift layer, so the standard plugin path doesn't even fit), and (2)
+> a webview can look like Ateliera but never truly *feel* native, which the product now
+> wants. The **user-owned iCloud Markdown vault** decision below stands and carries into
+> ADR-012 unchanged — only the host technology changes (Tauri → native SwiftUI). The
+> Phase 0 Tauri work is not wasted: the Rust vault core, the design system, and the
+> desktop/PWA builds all carry forward. See ADR-012 and
+> `docs/superpowers/plans/2026-08-25-ateliera-apple-native.md`.
 
 ## Context
 
