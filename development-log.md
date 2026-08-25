@@ -1,5 +1,33 @@
 # Development log
 
+## 2026-08-25 — iOS Phase 0: Tauri 2 host bring-up
+
+- Brought the app up on iOS per `docs/superpowers/plans/2026-08-25-ateliera-ios.md`
+  (ADR-011). No frontend rewrite — the React app runs in a `WKWebView`.
+- Toolchain: added the `aarch64-apple-ios` / `-sim` Rust targets, installed
+  CocoaPods, and ran `tauri ios init` (scaffolds `gen/apple`, gitignored). Added
+  `ios:init` / `ios:dev` / `ios:build` scripts via `scripts/run-ios.mjs`.
+- Portability fixes so the host compiles for iOS: `rfd` (native desktop dialogs)
+  is now a desktop-only dependency with the three call sites `cfg`-gated (mobile
+  reaches files via the document picker, Phase 1); the lib gained
+  `crate-type = ["staticlib", "cdylib", "rlib"]` and `#[cfg_attr(mobile,
+  tauri::mobile_entry_point)]` on `run()` (Tauri 2 mobile needs the entry symbol).
+- The Xcode "Build Rust Code" phase runs `cargo` from a sandboxed env that does
+  not see the repo's hermetic `.toolchains/`. `run-ios.mjs` idempotently patches
+  `gen/apple/project.yml` to export `CARGO_HOME`/`RUSTUP_HOME` (resolved via
+  `git rev-parse`) so the build phase always finds the toolchain.
+- For Phase 0 the iOS shell boots an ephemeral in-memory vault (`isIosShell()` in
+  `App.tsx`) so the Studio runs before the iCloud adapter exists (Phase 1).
+- **Result:** the app builds, installs, and runs on the iPhone 17 simulator
+  (`** BUILD SUCCEEDED **`, live `UIKitApplication` process, webview connected to
+  the dev server). The webview renders blank under `tauri ios dev` for the same
+  reason `pnpm dev` is blank on desktop — the strict CSP blocks the Vite dev
+  server; the real UI loads from a production build (`tauri ios build`), which is
+  the Phase 5 path. Desktop/PWA unaffected: lint, typecheck, 393 app tests,
+  clippy, and rustfmt all green.
+- Current phase: Phase 0 gate met. Next is Phase 1 — the native vault plugin
+  (document picker + security-scoped bookmarks) and the `ios-vault.ts` adapter.
+
 ## 2026-08-24 — Editorial-spread design overhaul and structural room pass
 
 - Landed the visual-system revision from the `design_handoff_ateliera_polish/`
