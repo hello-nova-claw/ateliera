@@ -237,6 +237,48 @@ installable via TestFlight on a physical iPhone and iPad; App Store Connect priv
 
 ---
 
+## 7a. Phase 1 design (refined after reading the vault internals)
+
+Research into `vault.rs` changed the shape of Phase 1 for the better. The desktop
+read/write commands are **portable `cap-std` logic** — `register_existing_path`
+opens a capability-scoped `Dir` from *any* path and every later command
+(`vault_list`, `vault_read_text`, …) operates on that `Dir`. Only `F_GETPATH`
+(watcher) and `renameatx_np` (write) are macOS-only, and neither is on the read
+path. So the native iOS surface shrinks to **one thing: obtaining that `Dir` from
+a user-selected, security-scoped folder.**
+
+**Approach — a thin Swift plugin, then reuse everything:**
+
+- **Swift plugin (`plugins/ios-vault/ios`)** does only what must touch UIKit:
+  `pickFolder` (present `UIDocumentPickerViewController(forOpeningContentTypes:
+  [.folder])` via `self.manager.viewController`, `asCopy: false`), create an iOS
+  security-scoped bookmark (`.minimalBookmark` — **not** macOS `.withSecurityScope`),
+  `startAccessingSecurityScopedResource()`, and return `{ path, bookmark }`;
+  `resolveBookmark(base64)` for relaunch (resolve with options `[]`, start access).
+  Scoped access is held for the app session (the retained `Dir` fd depends on it).
+- **Rust** registers the plugin (`tauri::ios_plugin_binding!`, `register_ios_plugin`)
+  and, on iOS, `vault_select`/`vault_create` call `run_mobile_plugin("pickFolder"|
+  "resolveBookmark", …)` to get the path, then reuse the existing
+  `register_existing_path` / `create_in_selected_parent` — **no new read/write code.**
+- **`ios-vault.ts`** mirrors `tauri-vault.ts`: after selection it reuses the same
+  read/write method bodies over the same `invoke` bridge (share the internal factory).
+  It persists the base64 bookmark (vault-backed, like the rhythm profile) so relaunch
+  resolves without re-picking.
+- **`NSFileCoordinator`** wrapping and iCloud `.icloud` placeholder download are a
+  follow-up refinement layered into the Swift read path (Phase 3); direct reads
+  inside the scoped resource work for a first cut.
+- **Entitlements:** iOS needs *no* file-access entitlement for document-picker
+  scoped access; iCloud visibility needs the iCloud-documents capability +
+  `NSUbiquitousContainers` (added when the default-to-iCloud onboarding lands).
+- **ACL:** each plugin command needs a capability/permission entry or Tauri blocks it.
+
+**What's verifiable off-device vs. on-device.** The plugin + app *compiling and
+linking for iOS*, the app launching with the plugin registered, and the
+`ios-vault.ts` adapter unit tests (mock bridge, like `tauri-vault.test.ts`) are
+CI/simulator-checkable. The Phase 1 **gate itself — tapping the picker, choosing a
+real iCloud folder, reading a note, relaunching without re-picking — is inherently
+interactive** and must be verified on the simulator/device by hand.
+
 ## 8. What this explicitly does not change
 
 No change to `@studio/domain`, `@studio/content`, `@studio/index`, `@studio/rhythm`, or

@@ -1,0 +1,14 @@
+[package]
+name = "tauri-plugin-ios-vault"
+version = "0.1.0"
+edition = "2024"
+description = "Presents the iOS folder picker and mints/resolves security-scoped bookmarks for the Ateliera vault."
+links = "tauri-plugin-ios-vault"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2.8" }
+thiserror = "2"
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }
