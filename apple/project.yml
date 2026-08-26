@@ -36,3 +36,26 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         ENABLE_PREVIEWS: YES
         ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: NO
+  AtelieraTests:
+    type: bundle.unit-test
+    supportedDestinations: [iOS, macOS]
+    deploymentTarget:
+      iOS: "17.0"
+      macOS: "14.0"
+    sources:
+      - path: AtelieraTests
+    dependencies:
+      - target: Ateliera
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: au.com.annamcphee.ateliera.native.tests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Ateliera:
+    build:
+      targets:
+        Ateliera: all
+        AtelieraTests: [test]
+    test:
+      targets:
+        - AtelieraTests
