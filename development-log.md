@@ -1,5 +1,28 @@
 # Development log
 
+## 2026-08-27 — Native Apple app, Phase N0: SwiftUI skeleton + Ateliera theme
+
+- Pivoted the iOS direction from Tauri to a **native SwiftUI app** across Mac +
+  iPhone + iPad (ADR-012 supersedes ADR-011; plan
+  `docs/superpowers/plans/2026-08-25-ateliera-apple-native.md`). Rationale: the
+  product wants a genuinely native *feel* + deep ecosystem (HealthKit, Handoff,
+  Widgets) while keeping Ateliera's custom styling — SwiftUI does both — and
+  because the vault (Markdown files) is the source of truth, a native app shares
+  the *vault*, not the code. Web/PWA/Tauri-desktop stay untouched.
+- New `apple/` multiplatform Xcode project (xcodegen from `apple/project.yml`;
+  generated `.xcodeproj` + build dirs gitignored). `AtelieraApp` + `RootView` +
+  a `Theme` translated verbatim from `tokens.css` (chamomile palette, the type
+  scale, the six meaning colours).
+- Bundled the real brand fonts as ttf (Source Serif 4 / Figtree / Nothing You
+  Could Do, with OFL licences), registered at launch via
+  `CTFontManagerRegisterFontsForURL`.
+- **Verified:** builds for **iOS and macOS**; installs, launches, and renders the
+  Ateliera identity natively on the iPhone 17 simulator with the real fonts and
+  full type scale (`artifacts/ios/native-n0-fonts.png`). N0 gate met.
+- Next (Phase N1): reuse the Rust vault core via UniFFI (read path) so the native
+  app opens the same iCloud Markdown vault as the web app. Follow-up polish:
+  Dynamic Type (fonts are fixed-size for now) and the other six themes.
+
 ## 2026-08-25 — iOS Phase 0: Tauri 2 host bring-up
 
 - Brought the app up on iOS per `docs/superpowers/plans/2026-08-25-ateliera-ios.md`

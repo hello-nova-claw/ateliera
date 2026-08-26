@@ -27,5 +27,5 @@ packages/ui/dist/
 
 # Native Apple app: generated Xcode project + build artifacts (regenerate with xcodegen)
 apple/Ateliera.xcodeproj/
-apple/build/
+apple/build*/
 apple/**/xcuserdata/
