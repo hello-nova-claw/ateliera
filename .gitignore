@@ -29,3 +29,9 @@ packages/ui/dist/
 apple/Ateliera.xcodeproj/
 apple/build*/
 apple/**/xcuserdata/
+
+# Native vault core: build products (regenerate with apple/AtelieraVaultCore/build.sh)
+apple/AtelieraVaultCore/generated/
+apple/AtelieraVaultCore/headers/
+apple/AtelieraVaultCore/VaultCore.xcframework/
+apple/Ateliera/Generated/

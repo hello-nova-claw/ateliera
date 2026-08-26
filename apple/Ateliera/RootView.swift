@@ -4,6 +4,8 @@ import SwiftUI
 // compact type-scale specimen, and the six meaning marks. This is the visual the
 // simulator screenshot verifies against the design addendum — not a real room yet.
 struct RootView: View {
+  @State private var readout: Result<VaultReadout, VaultDemoError>?
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 32) {
@@ -13,6 +15,10 @@ struct RootView: View {
           intro:
             "Notice who you already are and who you're practising becoming — and keep the small, ordinary evidence that it's changing."
         )
+
+        Divider().overlay(Studio.line)
+
+        vaultSection
 
         Divider().overlay(Studio.line)
 
@@ -50,6 +56,42 @@ struct RootView: View {
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .background(Studio.canvas)
+    .task { readout = VaultDemo.run() }
+  }
+
+  @ViewBuilder private var vaultSection: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      eyebrow("Read via the Rust vault core")
+      switch readout {
+      case .success(let r):
+        VStack(alignment: .leading, spacing: 8) {
+          Text(r.text)
+            .font(StudioFont.meta)
+            .foregroundStyle(Studio.inkMuted)
+            .fixedSize(horizontal: false, vertical: true)
+          HStack(spacing: 16) {
+            tag("rev \(r.revision)")
+            tag("\(r.entryCount) entries")
+            tag("sha \(String(r.hash.prefix(10)))")
+          }
+        }
+      case .failure(let error):
+        Text(error.message).font(StudioFont.meta).foregroundStyle(Studio.celebration)
+      case .none:
+        Text("Reading…").font(StudioFont.meta).foregroundStyle(Studio.inkFaint)
+      }
+    }
+  }
+
+  private func tag(_ text: String) -> some View {
+    Text(text)
+      .font(StudioFont.eyebrow)
+      .foregroundStyle(Studio.growth)
+      .padding(.horizontal, 8)
+      .padding(.vertical, 4)
+      .overlay(
+        RoundedRectangle(cornerRadius: 6).stroke(Studio.line, lineWidth: 1)
+      )
   }
 
   private func eyebrow(_ text: String) -> some View {

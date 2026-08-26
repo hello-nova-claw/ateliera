@@ -22,6 +22,10 @@ targets:
       macOS: "14.0"
     sources:
       - path: Ateliera
+    dependencies:
+      - framework: AtelieraVaultCore/VaultCore.xcframework
+        embed: false
+        codeSign: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: au.com.annamcphee.ateliera.native
