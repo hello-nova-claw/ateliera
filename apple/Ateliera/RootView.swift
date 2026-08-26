@@ -1,54 +1,33 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
-// N0 fidelity screen: the Ateliera identity (eyebrow → serif hero → intro), a
-// compact type-scale specimen, and the six meaning marks. This is the visual the
-// simulator screenshot verifies against the design addendum — not a real room yet.
+// The Reflection Garden as a real room: its notes are read from the vault through
+// the Rust core (VaultStore). The Studio folder is a user-picked, security-scoped
+// iCloud folder via the native `.fileImporter`, or a seeded fixture in the sim.
 struct RootView: View {
-  @State private var readout: Result<VaultReadout, VaultDemoError>?
+  @State private var store = VaultStore()
+  @State private var picking = false
 
   var body: some View {
     ScrollView {
-      VStack(alignment: .leading, spacing: 32) {
+      VStack(alignment: .leading, spacing: 28) {
         RoomHeading(
-          eyebrow: "who I am, and who I am becoming",
-          title: "Identity Studio",
+          eyebrow: "notice what is changing",
+          title: "Reflection Garden",
           intro:
-            "Notice who you already are and who you're practising becoming — and keep the small, ordinary evidence that it's changing."
+            "Gather what you're learning and celebrating, so the Studio remembers with you."
         )
 
-        Divider().overlay(Studio.line)
+        studioBar
 
-        vaultSection
-
-        Divider().overlay(Studio.line)
-
-        VStack(alignment: .leading, spacing: 18) {
-          eyebrow("The type scale")
-          specimen("Room title, one hero per room", StudioFont.roomTitle)
-          specimen("Section heading", StudioFont.section)
-          specimen("Card title", StudioFont.cardTitle)
-          specimen("life by design", StudioFont.greeting)
-          specimen("This is enough.", StudioFont.quote)
-          specimen(
-            "Body — a practice that survives ordinary Tuesdays becomes a life.",
-            StudioFont.body
-          )
-          specimen("Secondary metadata and prompts", StudioFont.meta)
+        if let error = store.error {
+          Text(error).font(StudioFont.meta).foregroundStyle(Studio.celebration)
         }
 
-        Divider().overlay(Studio.line)
-
-        VStack(alignment: .leading, spacing: 12) {
-          eyebrow("Meanings")
-          HStack(spacing: 18) {
-            meaning("Foundation", Studio.foundation)
-            meaning("Vision", Studio.vision)
-            meaning("Growth", Studio.growth)
-          }
-          HStack(spacing: 18) {
-            meaning("Reflection", Studio.reflection)
-            meaning("Celebration", Studio.celebration)
-            meaning("Uncharted", Studio.uncharted)
+        VStack(spacing: 0) {
+          ForEach(store.notes) { note in
+            noteRow(note)
+            Divider().overlay(Studio.line)
           }
         }
       }
@@ -56,64 +35,62 @@ struct RootView: View {
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .background(Studio.canvas)
-    .task { readout = VaultDemo.run() }
-  }
-
-  @ViewBuilder private var vaultSection: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      eyebrow("Read via the Rust vault core")
-      switch readout {
-      case .success(let r):
-        VStack(alignment: .leading, spacing: 8) {
-          Text(r.text)
-            .font(StudioFont.meta)
-            .foregroundStyle(Studio.inkMuted)
-            .fixedSize(horizontal: false, vertical: true)
-          HStack(spacing: 16) {
-            tag("rev \(r.revision)")
-            tag("\(r.entryCount) entries")
-            tag("sha \(String(r.hash.prefix(10)))")
-          }
-        }
-      case .failure(let error):
-        Text(error.message).font(StudioFont.meta).foregroundStyle(Studio.celebration)
-      case .none:
-        Text("Reading…").font(StudioFont.meta).foregroundStyle(Studio.inkFaint)
+    .fileImporter(
+      isPresented: $picking, allowedContentTypes: [.folder], allowsMultipleSelection: false
+    ) { result in
+      if case .success(let urls) = result, let url = urls.first {
+        store.open(url: url)
       }
     }
   }
 
-  private func tag(_ text: String) -> some View {
-    Text(text)
-      .font(StudioFont.eyebrow)
-      .foregroundStyle(Studio.growth)
-      .padding(.horizontal, 8)
-      .padding(.vertical, 4)
-      .overlay(
-        RoundedRectangle(cornerRadius: 6).stroke(Studio.line, lineWidth: 1)
-      )
+  private var studioBar: some View {
+    HStack {
+      HStack(spacing: 6) {
+        Text("STUDIO")
+          .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(Studio.inkFaint)
+        Text(store.vaultName)
+          .font(StudioFont.control).foregroundStyle(Studio.inkMuted)
+      }
+      Spacer()
+      Button("Choose folder…") { picking = true }
+        .font(StudioFont.control)
+        .foregroundStyle(Studio.link)
+    }
+    .padding(.bottom, 4)
+    .overlay(alignment: .bottom) { Divider().overlay(Studio.line) }
   }
 
-  private func eyebrow(_ text: String) -> some View {
-    Text(text.uppercased())
-      .font(StudioFont.eyebrow)
-      .tracking(1.6)
-      .foregroundStyle(Studio.inkMuted)
-  }
-
-  private func specimen(_ text: String, _ font: Font) -> some View {
-    Text(text)
-      .font(font)
-      .foregroundStyle(Studio.inkStrong)
-      .fixedSize(horizontal: false, vertical: true)
-  }
-
-  private func meaning(_ name: String, _ colour: Color) -> some View {
-    HStack(spacing: 8) {
+  private func noteRow(_ note: NoteSummary) -> some View {
+    HStack(alignment: .top, spacing: 14) {
       Image(systemName: "heart.fill")
         .font(.system(size: 12))
-        .foregroundStyle(colour)
-      Text(name).font(StudioFont.meta).foregroundStyle(Studio.inkMuted)
+        .foregroundStyle(meaningColour(note.meaning))
+        .padding(.top, 5)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(note.title)
+          .font(StudioFont.cardTitle)
+          .foregroundStyle(Studio.inkStrong)
+        if !note.snippet.isEmpty {
+          Text(note.snippet)
+            .font(StudioFont.meta)
+            .foregroundStyle(Studio.inkMuted)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+      Spacer(minLength: 0)
+    }
+    .padding(.vertical, 14)
+  }
+
+  private func meaningColour(_ meaning: String) -> Color {
+    switch meaning {
+    case "foundation", "foundations": return Studio.foundation
+    case "vision": return Studio.vision
+    case "growth": return Studio.growth
+    case "celebration": return Studio.celebration
+    case "uncharted": return Studio.uncharted
+    default: return Studio.reflection
     }
   }
 }
