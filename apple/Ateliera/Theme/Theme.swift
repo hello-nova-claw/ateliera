@@ -42,17 +42,33 @@ enum Studio {
   static let uncharted = Color(hex: 0x8976a7)
 }
 
-// The type scale from tokens.css, as SwiftUI fonts. Display = serif, interface = sans.
+// The type scale from tokens.css, as SwiftUI fonts, using the bundled brand
+// families (registered at launch — see AtelieraApp). Display = Source Serif 4,
+// interface = Figtree, the hand = Nothing You Could Do.
 enum StudioFont {
-  static let roomTitle = Font.system(size: 34, weight: .light, design: .serif)
-  static let section = Font.system(size: 24, weight: .regular, design: .serif)
-  static let cardTitle = Font.system(size: 19, weight: .regular, design: .serif)
-  static let greeting = Font.system(size: 19, weight: .light, design: .serif).italic()
-  static let quote = Font.system(size: 22, weight: .light, design: .serif).italic()
-  static let pageSubtitle = Font.system(size: 17, weight: .regular)
-  static let body = Font.system(size: 16, weight: .regular)
-  static let meta = Font.system(size: 15, weight: .regular)
-  static let control = Font.system(size: 14, weight: .medium)
-  static let label = Font.system(size: 14, weight: .semibold)
-  static let eyebrow = Font.system(size: 11, weight: .semibold)
+  static func display(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+    Font.custom("Source Serif 4", size: size).weight(weight)
+  }
+  static func displayItalic(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+    Font.custom("Source Serif 4", size: size).weight(weight).italic()
+  }
+  static func interface(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+    Font.custom("Figtree", size: size).weight(weight)
+  }
+  static func hand(_ size: CGFloat) -> Font {
+    Font.custom("Nothing You Could Do", size: size)
+  }
+
+  static let roomTitle = display(34, weight: .light)
+  static let section = display(24)
+  static let cardTitle = display(19)
+  static let greeting = displayItalic(19, weight: .light)
+  static let quote = displayItalic(22, weight: .light)
+  static let pageSubtitle = interface(17)
+  static let body = interface(16)
+  static let meta = interface(15)
+  static let control = interface(14, weight: .medium)
+  static let label = interface(14, weight: .semibold)
+  static let eyebrow = interface(11, weight: .semibold)
+  static let signature = hand(16)
 }
