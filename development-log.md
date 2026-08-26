@@ -1,5 +1,24 @@
 # Development log
 
+## 2026-08-27 — Native Apple app, Phase N1: reads the vault via the Rust core (UniFFI)
+
+- New `apple/AtelieraVaultCore` Rust crate — the portable cap-std read surface
+  (`open`/`list`/`readText`/`exists`/`getRevision`), ported verbatim from
+  `commands/vault.rs` (path-guard, symlink-nofollow, streaming SHA-256, sorted
+  listing, `.studio-revision`), exposed to Swift via **UniFFI 0.28**.
+- `build.sh` builds the iOS-sim staticlib, generates the Swift bindings, and
+  assembles `VaultCore.xcframework` (products gitignored; run it + `xcodegen
+  generate` on a fresh clone). Wired into `apple/project.yml`.
+- **Verified on the iPhone 17 simulator** (`artifacts/ios/native-n1.png`): the
+  SwiftUI app writes a fixture Studio, then opens and reads a note **through the
+  Rust core** — showing the note text, `rev 1` (from `.studio-revision`),
+  `2 entries` (the sorted listing), and the SHA-256 computed in Rust. The whole
+  UniFFI pipeline works end to end; ADR-012's "reuse the Rust core, vault as the
+  contract" is demonstrated.
+- Next: swap the fixture for a **native security-scoped `UIDocumentPickerViewController`**
+  so the app opens the real shared iCloud vault (the ADR-011 file access, now
+  trivial in Swift), then the Markdown round-trip (Phase N2).
+
 ## 2026-08-27 — Native Apple app, Phase N0: SwiftUI skeleton + Ateliera theme
 
 - Pivoted the iOS direction from Tauri to a **native SwiftUI app** across Mac +
