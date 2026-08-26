@@ -1,5 +1,20 @@
 # Development log
 
+## 2026-08-27 — Native Apple app, Phase N2 (serializer): byte-identical Markdown writes
+
+- Captured the ground-truth bytes of `@studio/content`'s `serializeNote` (key order,
+  block sequences, `[]` for empty, block maps, plain scalars, `extraFrontmatter`
+  first) and reproduced them exactly in Swift (`apple/Ateliera/Note/StudioNote.swift`).
+- Added a native **XCTest target** (`apple/AtelieraTests`, wired into `project.yml`
+  with a test scheme) and a **golden test** asserting the Swift serializer output ==
+  the TS serializer output byte-for-byte. **Passes on the iPhone 17 simulator via
+  `xcodebuild test`.** This is the "both apps share one vault" write-path guarantee.
+- Also this session: a native **Reflection Garden room** reading real notes via the
+  Rust core, with a native `.fileImporter` folder picker + bookmark persistence
+  (`artifacts/ios/native-n1-room.png`).
+- Next: the Markdown **parser** (the round-trip's other half) + broaden the golden
+  fixtures (optional fields, `landscape_anchor`, resurface keys, richer extra keys).
+
 ## 2026-08-27 — Native Apple app, Phase N1: reads the vault via the Rust core (UniFFI)
 
 - New `apple/AtelieraVaultCore` Rust crate — the portable cap-std read surface
