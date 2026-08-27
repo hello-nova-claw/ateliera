@@ -26,10 +26,18 @@
   defaults, duplicate create is refused, path escapes are rejected, and the
   filename/slug/id conventions match. 14 XCTest cases green on the iPhone 17 sim;
   the "Add a reflection" affordance renders (`artifacts/ios/native-n3-room.png`).
-- Next: device-verify the capture sheet writing to a real iCloud folder (the
+- **Editing added** (`VaultStore.beginEdit`/`saveEdit`, a shared `NoteEditorSheet`
+  used by both capture and edit; tapping a note row opens it). Editing reads the
+  note fresh, parses it, applies the new title/body, bumps `updated`, and writes
+  back with `expected_hash` optimistic concurrency (`create_new: false`) — a stale
+  write is refused, and unknown frontmatter keys survive the round trip because the
+  parsed model is re-serialized whole. 2 more XCTest cases (edit keeps unknown keys
+  + advances the revision; a stale-hash write is refused) — **16 green on the sim**.
+  This closes the N3 gate's second half in code (`artifacts/ios/native-n3-edit.png`).
+- Next: device-verify the capture/edit sheets writing to a real iCloud folder (the
   in-app sheet tap, like the `.fileImporter`, is the one path only checkable on
   device); classify captures into rooms beyond Inbox; add device + macOS slices to
-  build.sh/XCFramework.
+  build.sh/XCFramework. Then Phase N4 (rhythm + HealthKit).
 
 ## 2026-08-27 — Native Apple app, Phase N2: broadened golden fixtures (optional fields, quoting, CRLF)
 
