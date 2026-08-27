@@ -20,9 +20,13 @@
   from a "Your rhythm ›" link under the almanac.
 - 31 unit + 3 UI tests green (a new UI test opens the rhythm sheet and confirms the
   chart renders). Both platforms build; `artifacts/ios/native-n4-rhythm-room.png`.
-  Remaining: the almanac hemisphere still needs an on-device location grant to flip
-  from the default; timezone handling for birth time is device-zone (a birthplace
-  timezone is a later refinement).
+- **Birthplace search.** The birth place is no longer "here only": a geocoded
+  search (`PlaceGeocoder`, CoreLocation) resolves any place name to its coordinate
+  AND its IANA time zone, so the natal chart reads the birth time in the
+  birthplace's zone (fixing the earlier device-zone caveat) and the rising sign is
+  right. "Use my location" remains as a shortcut; both persist a place label + zone
+  in `BirthData`. Installed on Anna's iPhone. Both platforms build; 31 unit + 3 UI
+  tests green.
 
 ## 2026-08-27 — Native Apple app, Phase N4b: HealthKit drives the cycle layer
 
