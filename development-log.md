@@ -1,5 +1,28 @@
 # Development log
 
+## 2026-08-27 — Native Apple app, Phase N2: broadened golden fixtures (optional fields, quoting, CRLF)
+
+- Locked in the optional note fields the parser/serializer touch but the base
+  golden never exercised. Captured each as ground-truth bytes from
+  `@studio/content`'s `serializeNote` and added six round-trip fixtures
+  (`apple/AtelieraTests/NoteFixturesTests.swift`, `parse golden → serialize == golden`):
+  `landscape_anchor`, the nested `source` map + `source_notes`, the `resurface_*`
+  keys, YAML scalar quoting, `\r\n` endings, and an everything-at-once note.
+- The fixtures surfaced two real fidelity gaps and fixed them:
+  - **Scalar quoting** (`StudioNote.swift`): the serializer now double-quotes a
+    scalar exactly when the `yaml` library would — colons (`: `/trailing `:`),
+    ` #`, bool/null-like (`true`/`false`/`null`/`~`, case-insensitive; *not*
+    yes/no/on/off), number-like (int/hex/octal/float/inf/nan), leading YAML
+    indicators, and empty/whitespace — otherwise plain. Rules derived empirically
+    from `yaml`'s own output.
+  - **CRLF** (`NoteParser.swift`): the parser now detects the document's line
+    ending at the unicode-scalar level (Swift folds `\r\n` into one `Character`,
+    so `firstIndex(of: "\n")` misses it) and restores it on the body, so a
+    `\r\n` note round-trips byte-for-byte.
+- All 9 XCTest cases pass on the iPhone 17 simulator via `xcodebuild test`.
+- Next: Phase N3 — the capture/write path (native capture UI → serialize → atomic
+  path-contained write back to the vault via the Rust core).
+
 ## 2026-08-27 — Native Apple app, Phase N2 (serializer): byte-identical Markdown writes
 
 - Captured the ground-truth bytes of `@studio/content`'s `serializeNote` (key order,
