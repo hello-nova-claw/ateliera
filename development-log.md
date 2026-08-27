@@ -1,5 +1,25 @@
 # Development log
 
+## 2026-08-27 — Native Apple app: UI tests drive the real capture/edit flow
+
+- Closed the last N3 verification gap. The write path was proven at the FFI/unit
+  level, but the actual button→sheet→write→list flow in the running app was
+  untested (a CLI simulator can't tap). Added an **XCUITest target**
+  (`AtelieraUITests`, iOS-only, wired into the scheme) that launches the app and
+  drives it: tap "Add a reflection", type a title + body, "Keep", and assert the
+  new note row appears; then tap the note, extend its title, "Save", and assert the
+  room reflects the edit. Both pass on the iPhone 17 simulator.
+- To keep the flow deterministic, the app honors an `ATELIERA_UITEST=1` launch
+  environment (`VaultStore`): it opens a fresh, empty vault in its own sandbox
+  instead of the seeded fixture or a persisted bookmark, so the room starts empty
+  and the captured note is unambiguous. Added accessibility identifiers to the
+  capture button, title field, body editor, and save button.
+- Full run: **16 unit + 2 UI tests green on the simulator**; the 16 unit tests also
+  green natively on macOS (`-only-testing:AtelieraTests`, since the UI target is
+  iOS-only). The capture and edit loops are now verified end-to-end in the live app
+  — the remaining unverified paths are strictly hardware-gated (real-device install,
+  iCloud cross-device sync).
+
 ## 2026-08-27 — Native Apple app: multi-slice vault core (device + Mac) and macOS-hosted tests
 
 - The vault-core XCFramework was simulator-only, which blocked device and Mac
