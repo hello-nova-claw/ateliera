@@ -20,6 +20,14 @@
   from a "Your rhythm ›" link under the almanac.
 - 31 unit + 3 UI tests green (a new UI test opens the rhythm sheet and confirms the
   chart renders). Both platforms build; `artifacts/ios/native-n4-rhythm-room.png`.
+- **Rising-sign fix (wrong birthplace zone).** A wrong rising was traced to the
+  time-zone reaching the chart, not the math: a new golden test proved the native
+  local-time→UTC path matches the web's `computeNatalChartLocal` exactly (incl. DST)
+  when given an IANA zone. Forward geocoding doesn't always return a zone, so the
+  chart was silently falling back to the *device* zone. Fix: `PlaceGeocoder.search`
+  reverse-geocodes the resolved point to fill the zone when missing, and "Your
+  rhythm" now shows the birthplace's zone + offset (flagging a device-zone
+  fallback) so it's never a silent guess. 32 unit + 3 UI green.
 - **Birthplace search.** The birth place is no longer "here only": a geocoded
   search (`PlaceGeocoder`, CoreLocation) resolves any place name to its coordinate
   AND its IANA time zone, so the natal chart reads the birth time in the
