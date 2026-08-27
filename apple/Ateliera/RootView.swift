@@ -189,21 +189,44 @@ private struct NoteEditorSheet: View {
     !noteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private func fieldLabel(_ text: String) -> some View {
+    Text(text.uppercased())
+      .font(StudioFont.eyebrow)
+      .tracking(1.6)
+      .foregroundStyle(Studio.inkFaint)
+  }
+
   var body: some View {
     NavigationStack {
       ScrollView {
-        VStack(alignment: .leading, spacing: 16) {
-          TextField("Title (optional)", text: $noteTitle)
-            .font(StudioFont.cardTitle)
-            .foregroundStyle(Studio.inkStrong)
-            .accessibilityIdentifier("note-title-field")
+        VStack(alignment: .leading, spacing: 22) {
+          VStack(alignment: .leading, spacing: 6) {
+            fieldLabel("Title")
+            TextField("A short name (optional)", text: $noteTitle)
+              .font(StudioFont.cardTitle)
+              .foregroundStyle(Studio.inkStrong)
+              .accessibilityIdentifier("note-title-field")
+          }
           Divider().overlay(Studio.line)
-          TextEditor(text: $noteText)
-            .font(StudioFont.pageSubtitle)
-            .foregroundStyle(Studio.inkStrong)
-            .scrollContentBackground(.hidden)
-            .frame(minHeight: 220)
-            .accessibilityIdentifier("note-body-editor")
+          VStack(alignment: .leading, spacing: 6) {
+            fieldLabel("Reflection")
+            ZStack(alignment: .topLeading) {
+              if noteText.isEmpty {
+                Text("Write what you're noticing…")
+                  .font(StudioFont.pageSubtitle)
+                  .foregroundStyle(Studio.inkFaint)
+                  .padding(.top, 8)
+                  .padding(.leading, 5)
+                  .allowsHitTesting(false)
+              }
+              TextEditor(text: $noteText)
+                .font(StudioFont.pageSubtitle)
+                .foregroundStyle(Studio.inkStrong)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 200)
+                .accessibilityIdentifier("note-body-editor")
+            }
+          }
           Text("Notice what is changing. Fifteen minutes still counts.")
             .font(StudioFont.meta)
             .foregroundStyle(Studio.inkFaint)
@@ -211,8 +234,14 @@ private struct NoteEditorSheet: View {
         .padding(24)
       }
       .background(Studio.canvas)
-      .navigationTitle(heading)
       .toolbar {
+        // A styled principal title instead of `.navigationTitle`, so the heading
+        // is always high-contrast ink rather than a faint system default.
+        ToolbarItem(placement: .principal) {
+          Text(heading)
+            .font(StudioFont.control)
+            .foregroundStyle(Studio.inkStrong)
+        }
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { onClose() }
         }
