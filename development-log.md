@@ -1,5 +1,30 @@
 # Development log
 
+## 2026-08-27 — Native Apple app, Phase N4b: HealthKit drives the cycle layer
+
+- The almanac's cycle is now fed by HealthKit. A pure `CycleDeriver`
+  (`apple/Ateliera/Rhythm/CycleDeriver.swift`) turns the days a person logged
+  menstrual flow into a `CycleProfile` — groups consecutive flow days into periods
+  (a >10-day gap starts a new one, so a missing day doesn't split a period), takes
+  the most recent period's start, and averages the spacing between period starts
+  (clamped 21–35, default 28 with < 2 periods). 7 unit tests.
+- `HealthCycleSource` (iOS-only; a stub on macOS since HealthKit isn't there)
+  requests read access to `menstrualFlow`, queries ~400 days of samples, maps
+  bleeding days to local day-strings, and hands them to the deriver. Read-only,
+  on-device; the almanac simply omits the cycle when there's no permission or data
+  — no error surfaced, no pressure. Skips the request under `ATELIERA_UITEST` so UI
+  automation never hits the permission sheet.
+- Config: `NSHealthShareUsageDescription` (required before authorization) via an
+  INFOPLIST_KEY; the `com.apple.developer.healthkit` entitlement scoped to the iOS
+  SDKs (`CODE_SIGN_ENTITLEMENTS[sdk=iphone*]`) so the macOS build stays clean.
+- Verified: iOS + macOS both build; the **device build signs with the HealthKit
+  entitlement** (automatic provisioning added the capability to the App ID); on the
+  unsigned simulator the request errors and the almanac degrades gracefully with no
+  crash (`artifacts/ios/native-n4b-almanac.png`); 29 unit + 2 UI tests green. The
+  live read (grant permission → logged flow → cycle line) is verifiable on-device
+  with real Health data — this settles the N4 gate (cycle driven by Health;
+  almanac native).
+
 ## 2026-08-27 — Native Apple app, Phase N4a: native rhythm engine + Today's almanac
 
 - Ported `@studio/rhythm`'s `rhythm.ts` to Swift (`apple/Ateliera/Rhythm/Rhythm.swift`):
