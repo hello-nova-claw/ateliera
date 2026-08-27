@@ -12,8 +12,15 @@
 - Also this session: a native **Reflection Garden room** reading real notes via the
   Rust core, with a native `.fileImporter` folder picker + bookmark persistence
   (`artifacts/ios/native-n1-room.png`).
-- Next: the Markdown **parser** (the round-trip's other half) + broaden the golden
-  fixtures (optional fields, `landscape_anchor`, resurface keys, richer extra keys).
+- **Parser added** (`apple/Ateliera/Note/NoteParser.swift`): a dependency-free
+  block-YAML reader splits frontmatter/body, reads recognised keys into the model,
+  and keeps unknown keys in order as `extraFrontmatter`. Two more passing tests:
+  parse extracts the known fields + preserves unknown keys, and **parse→serialize
+  round-trips byte-for-byte**. Phase N2 gate met — Markdown → model → Markdown is
+  byte-identical with unknown-key survival, so both apps share one vault.
+- Next: broaden golden fixtures (optional fields — `landscape_anchor`, `source`
+  object, resurface keys — quoting, `\r\n`); device-verify the picker; add device +
+  macOS XCFramework slices; then grow the rooms (capture + more of the MVP).
 
 ## 2026-08-27 — Native Apple app, Phase N1: reads the vault via the Rust core (UniFFI)
 
