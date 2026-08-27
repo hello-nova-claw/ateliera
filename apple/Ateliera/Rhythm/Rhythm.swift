@@ -31,6 +31,14 @@ enum CyclePhase: String, Equatable {
   case menstrual, follicular, ovulation, luteal
 }
 
+enum ResurfaceKind: String, CaseIterable, Equatable {
+  case evidence, reframe, wish, dream
+}
+
+enum RhythmOrientation: String, Equatable {
+  case inward, outward
+}
+
 struct MicroSeason: Equatable {
   let term: String
   let gloss: String
@@ -212,6 +220,37 @@ enum Rhythm {
       day = mod == 0 ? avg : mod
     }
     return CycleState(day: day, phase: cyclePhaseForDay(day, avgLengthDays: avg))
+  }
+
+  // MARK: Orientation (from resurfacing.ts's preferredKinds)
+
+  static func preferredKinds(_ ctx: RhythmContext) -> [ResurfaceKind] {
+    var weight: [ResurfaceKind: Int] = [.evidence: 0, .reframe: 0, .wish: 0, .dream: 0]
+    // Season: deep winter closes inward (proof); spring opens outward (wishes).
+    if ctx.season == .winter || ctx.season == .autumn { weight[.evidence]! += 2 }
+    if ctx.season == .spring || ctx.season == .summer { weight[.wish]! += 2 }
+    // Cycle: late luteal/menstrual ask for proof; follicular/ovulation for intention.
+    if let phase = ctx.cycle?.phase {
+      if phase == .luteal || phase == .menstrual { weight[.evidence]! += 2 }
+      if phase == .follicular || phase == .ovulation { weight[.wish]! += 2 }
+    }
+    // Moon: full = what's gathered (evidence); new = intention (wish).
+    if ctx.moon.phase == .full || ctx.moon.phase == .waningGibbous { weight[.evidence]! += 3 }
+    if ctx.moon.phase == .new || ctx.moon.phase == .waxingCrescent { weight[.wish]! += 3 }
+
+    let all = ResurfaceKind.allCases
+    return all.sorted { a, b in
+      weight[a]! != weight[b]!
+        ? weight[a]! > weight[b]!
+        : all.firstIndex(of: a)! < all.firstIndex(of: b)!
+    }
+  }
+
+  /// Today's lean: gathering (inward) vs opening (outward), from the top
+  /// preferred kind — matches the web almanac.
+  static func orientation(_ ctx: RhythmContext) -> RhythmOrientation {
+    let top = preferredKinds(ctx).first
+    return top == .wish || top == .dream ? .outward : .inward
   }
 
   static func computeContext(profile: RhythmProfile, date: String) -> RhythmContext {

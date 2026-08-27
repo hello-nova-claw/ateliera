@@ -75,6 +75,21 @@ final class RhythmTests: XCTestCase {
     }
   }
 
+  func testOrientationMatchesTheWebEngine() {
+    let cases: [(String, Hemisphere, CycleProfile?, RhythmOrientation)] = [
+      ("2026-01-10", .north, CycleProfile(lastPeriodStart: "2026-01-01", avgLengthDays: 28), .inward),
+      ("2026-06-21", .south, nil, .inward),
+      ("2026-04-18", .north, nil, .outward),
+      ("2026-01-18", .north, nil, .outward),
+      ("2026-07-01", .north, CycleProfile(lastPeriodStart: "2026-06-20", avgLengthDays: 28), .outward),
+    ]
+    for (date, hemisphere, cycle, expected) in cases {
+      let ctx = Rhythm.computeContext(
+        profile: RhythmProfile(hemisphere: hemisphere, cycle: cycle), date: date)
+      XCTAssertEqual(Rhythm.orientation(ctx), expected, date)
+    }
+  }
+
   func testComputeContextMatchesTheWebEngine() {
     let north = RhythmProfile(
       hemisphere: .north, cycle: CycleProfile(lastPeriodStart: "2026-01-01", avgLengthDays: 28))
