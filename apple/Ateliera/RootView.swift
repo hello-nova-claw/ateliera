@@ -22,9 +22,25 @@ struct RootView: View {
     }
   }
 
+  // Today's rhythm. Hemisphere defaults to southern (Anna's) until a saved
+  // rhythm profile / location wires it in; the cycle arrives from HealthKit
+  // (Phase N4b). Moon and felt season need no profile.
+  private var almanacContext: RhythmContext {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.timeZone = .current
+    formatter.dateFormat = "yyyy-MM-dd"
+    let today = formatter.string(from: Date())
+    return Rhythm.computeContext(
+      profile: RhythmProfile(hemisphere: .south, cycle: nil), date: today)
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 28) {
+        AlmanacView(context: almanacContext)
+        Divider().overlay(Studio.line)
+
         RoomHeading(
           eyebrow: "notice what is changing",
           title: "Reflection Garden",
