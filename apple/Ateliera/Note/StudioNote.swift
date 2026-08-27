@@ -17,6 +17,12 @@ struct NotePrivacy: Equatable {
   var aiAccess: String
 }
 
+struct NoteSource: Equatable {
+  var title: String?
+  var creator: String?
+  var url: String?
+}
+
 // A minimal YAML value covering the note schema + common extra-frontmatter shapes.
 indirect enum YamlNode: Equatable {
   case scalar(String)
@@ -52,7 +58,7 @@ struct StudioNote {
   var tags: [String]
   var created: String
   var updated: String
-  var source: String?
+  var source: NoteSource?
   var sourceNoteIds: [String]?
   var resurfaceKind: String?
   var resurfaceDue: String?
@@ -79,7 +85,13 @@ struct StudioNote {
     pairs.append(("tags", .list(tags)))
     pairs.append(("created", .scalar(created)))
     pairs.append(("updated", .scalar(updated)))
-    if let source { pairs.append(("source", .scalar(source))) }
+    if let source {
+      var sourcePairs: [(String, YamlNode)] = []
+      if let title = source.title { sourcePairs.append(("title", .scalar(title))) }
+      if let creator = source.creator { sourcePairs.append(("creator", .scalar(creator))) }
+      if let url = source.url { sourcePairs.append(("url", .scalar(url))) }
+      pairs.append(("source", .map(sourcePairs)))
+    }
     if let sourceNoteIds { pairs.append(("source_notes", .list(sourceNoteIds))) }
     if let resurfaceKind { pairs.append(("resurface_kind", .scalar(resurfaceKind))) }
     if let resurfaceDue { pairs.append(("resurface_due", .scalar(resurfaceDue))) }
