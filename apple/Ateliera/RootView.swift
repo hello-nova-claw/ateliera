@@ -42,6 +42,7 @@ struct RootView: View {
             .foregroundStyle(Studio.link)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("capture-button")
 
         if let error = store.error {
           Text(error).font(StudioFont.meta).foregroundStyle(Studio.celebration)
@@ -195,12 +196,14 @@ private struct NoteEditorSheet: View {
           TextField("Title (optional)", text: $noteTitle)
             .font(StudioFont.cardTitle)
             .foregroundStyle(Studio.inkStrong)
+            .accessibilityIdentifier("note-title-field")
           Divider().overlay(Studio.line)
           TextEditor(text: $noteText)
             .font(StudioFont.pageSubtitle)
             .foregroundStyle(Studio.inkStrong)
             .scrollContentBackground(.hidden)
             .frame(minHeight: 220)
+            .accessibilityIdentifier("note-body-editor")
           Text("Notice what is changing. Fifteen minutes still counts.")
             .font(StudioFont.meta)
             .foregroundStyle(Studio.inkFaint)
@@ -218,6 +221,7 @@ private struct NoteEditorSheet: View {
             if onSave(noteTitle, noteText) { onClose() }
           }
           .disabled(!canConfirm)
+          .accessibilityIdentifier("note-save-button")
         }
       }
     }

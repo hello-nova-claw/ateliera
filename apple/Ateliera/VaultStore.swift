@@ -32,9 +32,23 @@ final class VaultStore {
   @ObservationIgnored private let bookmarkKey = "ateliera.vault.bookmark"
 
   init() {
+    // UI tests drive the real capture/edit flow against a fresh, empty vault in
+    // the app's own sandbox, so the room starts known-empty and deterministic.
+    if let url = Self.uitestVaultURL() {
+      try? openVault(at: url)
+      return
+    }
     if !openFromPersistedBookmark() {
       openFixture()
     }
+  }
+
+  private static func uitestVaultURL() -> URL? {
+    guard ProcessInfo.processInfo.environment["ATELIERA_UITEST"] == "1" else { return nil }
+    let url = URL(fileURLWithPath: NSTemporaryDirectory())
+      .appendingPathComponent("uitest-\(UUID().uuidString)", isDirectory: true)
+    try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    return url
   }
 
   /// Called from `.fileImporter` when the user picks a folder.
