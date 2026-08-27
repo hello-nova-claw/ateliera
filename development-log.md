@@ -1,5 +1,29 @@
 # Development log
 
+## 2026-08-27 — Native Apple app, Phase N4 loose ends: real profile + natal chart
+
+- **Hemisphere from location.** `LocationHemisphere` (CoreLocation, one-shot,
+  when-in-use) resolves the device latitude to N/S and persists it, replacing the
+  hardcoded southern default in the almanac. Graceful: no permission → keeps the
+  persisted/`.north` value; skipped under `ATELIERA_UITEST`. Added
+  `NSLocationWhenInUseUsageDescription`; no entitlement needed (works on iOS + macOS).
+- **Natal chart, ported.** `apple/Ateliera/Rhythm/NatalChart.swift` reproduces
+  `@studio/rhythm`'s natal computation without `astronomia`: Meeus solar longitude
+  (ch. 25), lunar longitude (ch. 47, principal terms), and the ascendant from
+  apparent sidereal time (ch. 12). The product surface is the zodiac SIGN, so it's
+  golden-tested to **sign-level parity** — sun/moon/rising match the TS engine
+  across 5 births — with the same honest degradation (date→sun, +time→moon,
+  +location→rising).
+- **"Your rhythm" settings** (`RhythmSettings.swift`): enter birth date, optional
+  time (interpreted in the device zone → UTC), and place ("Use my location" or
+  cleared), see the live natal chart, and it's persisted to UserDefaults. Reached
+  from a "Your rhythm ›" link under the almanac.
+- 31 unit + 3 UI tests green (a new UI test opens the rhythm sheet and confirms the
+  chart renders). Both platforms build; `artifacts/ios/native-n4-rhythm-room.png`.
+  Remaining: the almanac hemisphere still needs an on-device location grant to flip
+  from the default; timezone handling for birth time is device-zone (a birthplace
+  timezone is a later refinement).
+
 ## 2026-08-27 — Native Apple app, Phase N4b: HealthKit drives the cycle layer
 
 - The almanac's cycle is now fed by HealthKit. A pure `CycleDeriver`
