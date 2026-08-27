@@ -10,7 +10,7 @@ import Foundation
 final class LocationHemisphere: NSObject, CLLocationManagerDelegate {
   private static let key = "ateliera.hemisphere"
   private let manager = CLLocationManager()
-  private var continuation: CheckedContinuation<Hemisphere?, Never>?
+  private var continuation: CheckedContinuation<CLLocationCoordinate2D?, Never>?
 
   /// The last hemisphere we resolved, if any — safe to read synchronously at
   /// launch so the first render isn't wrong while a fresh fix is pending.
@@ -18,10 +18,8 @@ final class LocationHemisphere: NSObject, CLLocationManagerDelegate {
     UserDefaults.standard.string(forKey: key).flatMap(Hemisphere.init(rawValue:))
   }
 
-  /// Request a one-shot location and map its latitude to a hemisphere, persisting
-  /// it. Returns nil when Location is unavailable or declined (the caller keeps
-  /// the persisted/default hemisphere).
-  func resolve() async -> Hemisphere? {
+  /// One-shot device coordinate, or nil when Location is unavailable/declined.
+  func resolveCoordinate() async -> CLLocationCoordinate2D? {
     // UI tests must not trip the Location permission sheet.
     if ProcessInfo.processInfo.environment["ATELIERA_UITEST"] == "1" { return nil }
     let status = manager.authorizationStatus
@@ -37,11 +35,16 @@ final class LocationHemisphere: NSObject, CLLocationManagerDelegate {
     }
   }
 
-  private func finish(_ hemisphere: Hemisphere?) {
-    if let hemisphere {
-      UserDefaults.standard.set(hemisphere.rawValue, forKey: Self.key)
-    }
-    continuation?.resume(returning: hemisphere)
+  /// Resolve the hemisphere from a fresh fix and persist it.
+  func resolve() async -> Hemisphere? {
+    guard let coordinate = await resolveCoordinate() else { return nil }
+    let hemisphere: Hemisphere = coordinate.latitude >= 0 ? .north : .south
+    UserDefaults.standard.set(hemisphere.rawValue, forKey: Self.key)
+    return hemisphere
+  }
+
+  private func finish(_ coordinate: CLLocationCoordinate2D?) {
+    continuation?.resume(returning: coordinate)
     continuation = nil
   }
 
@@ -61,10 +64,8 @@ final class LocationHemisphere: NSObject, CLLocationManagerDelegate {
   nonisolated func locationManager(
     _ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]
   ) {
-    let latitude = locations.last?.coordinate.latitude
-    Task { @MainActor in
-      finish(latitude.map { $0 >= 0 ? .north : .south })
-    }
+    let coordinate = locations.last?.coordinate
+    Task { @MainActor in finish(coordinate) }
   }
 
   nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {

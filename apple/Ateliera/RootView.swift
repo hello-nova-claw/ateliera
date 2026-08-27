@@ -12,16 +12,19 @@ struct RootView: View {
   @State private var cycle: CycleProfile?
   @State private var location = LocationHemisphere()
   @State private var hemisphere: Hemisphere = LocationHemisphere.persisted ?? .north
+  @State private var profileStore = RhythmProfileStore()
 
-  // One sheet at a time: a fresh capture, or an edit of an existing note.
+  // One sheet at a time: a fresh capture, an edit, or the rhythm profile.
   private enum ActiveSheet: Identifiable {
     case capture
     case edit(EditableNote)
+    case rhythm
 
     var id: String {
       switch self {
       case .capture: return "capture"
       case .edit(let editable): return "edit:\(editable.id)"
+      case .rhythm: return "rhythm"
       }
     }
   }
@@ -42,6 +45,15 @@ struct RootView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 28) {
         AlmanacView(context: almanacContext)
+        Button {
+          activeSheet = .rhythm
+        } label: {
+          Text("Your rhythm ›")
+            .font(StudioFont.control)
+            .foregroundStyle(Studio.link)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("rhythm-button")
         Divider().overlay(Studio.line)
 
         RoomHeading(
@@ -110,6 +122,9 @@ struct RootView: View {
           initialTitle: editable.note.title ?? "", initialBody: editable.note.body,
           onSave: { title, body in store.saveEdit(editable, title: title, body: body) },
           onClose: { activeSheet = nil })
+      case .rhythm:
+        RhythmSettingsView(
+          store: profileStore, isPresented: Binding(get: { activeSheet != nil }, set: { if !$0 { activeSheet = nil } }))
       }
     }
   }

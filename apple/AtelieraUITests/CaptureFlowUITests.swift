@@ -42,6 +42,17 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["A found moment"].waitForExistence(timeout: 5))
   }
 
+  func testRhythmSheetShowsTheChart() {
+    let app = launchEmptyApp()
+    let rhythm = app.buttons["rhythm-button"]
+    XCTAssertTrue(rhythm.waitForExistence(timeout: 10))
+    rhythm.tap()
+    // The natal chart card renders (computed on-device, no crash).
+    XCTAssertTrue(app.staticTexts["Your chart"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["SUN"].exists)
+    app.buttons["Cancel"].tap()
+  }
+
   func testEditingANoteUpdatesTheRoom() {
     let app = launchEmptyApp()
 
