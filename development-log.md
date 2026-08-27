@@ -1,5 +1,29 @@
 # Development log
 
+## 2026-08-27 — Native Apple app, Phase N4a: native rhythm engine + Today's almanac
+
+- Ported `@studio/rhythm`'s `rhythm.ts` to Swift (`apple/Ateliera/Rhythm/Rhythm.swift`):
+  felt season (hemisphere-flipped), the 24 solar micro-seasons (with the southern
+  six-month shift), moon phase + illumination (Meeus, Astronomical Algorithms
+  ch. 47–48), the menstrual cycle day/phase, and the inward/outward orientation
+  (from resurfacing's `preferredKinds`). Pure, offline, deterministic — reproduced
+  arithmetic-for-arithmetic. UTC day math uses Hinnant's days-from-civil to match
+  JS `Date.UTC` exactly. `astronomia` isn't needed here (only the natal chart uses
+  it — a later slice).
+- **Golden parity**: 6 XCTest cases assert against values captured from the TS
+  engine — season (both hemispheres), micro-season boundaries + southern shift,
+  moon phase + illumination (matching to **1e-12**), cycle first-cycle + wrap,
+  orientation, and the full context. Swift's libm and JS `Math` agree bit-for-bit
+  on the moon math.
+- **Native almanac** (`AlmanacView`, wired to the top of the room): "Today's
+  rhythm" — micro-season term + gloss, an inward/outward orientation line, and the
+  felt season, moon (phase + % lit), and cycle when known — mirroring the web Foyer
+  strip's copy. Verified on the simulator (`artifacts/ios/native-n4-almanac.png`);
+  the southern-hemisphere shift renders live (an August date reads February's "Rain
+  Water"). Hemisphere is a temporary southern default until a rhythm profile /
+  location wires it; the cycle arrives from HealthKit next (N4b).
+- 22 unit + 2 UI tests green on the simulator.
+
 ## 2026-08-27 — Native Apple app: running on a real iPhone (device install + on-device capture)
 
 - Ran the app on a physical **iPhone 15 Pro Max** (iOS 26.5.2). Signed with Anna's
