@@ -7,7 +7,20 @@ import UniformTypeIdentifiers
 struct RootView: View {
   @State private var store = VaultStore()
   @State private var picking = false
-  @State private var capturing = false
+  @State private var activeSheet: ActiveSheet?
+
+  // One sheet at a time: a fresh capture, or an edit of an existing note.
+  private enum ActiveSheet: Identifiable {
+    case capture
+    case edit(EditableNote)
+
+    var id: String {
+      switch self {
+      case .capture: return "capture"
+      case .edit(let editable): return "edit:\(editable.id)"
+      }
+    }
+  }
 
   var body: some View {
     ScrollView {
@@ -22,7 +35,7 @@ struct RootView: View {
         studioBar
 
         Button {
-          capturing = true
+          activeSheet = .capture
         } label: {
           Label("Add a reflection", systemImage: "plus.circle.fill")
             .font(StudioFont.control)
@@ -36,7 +49,12 @@ struct RootView: View {
 
         VStack(spacing: 0) {
           ForEach(store.notes) { note in
-            noteRow(note)
+            Button {
+              if let editable = store.beginEdit(path: note.id) { activeSheet = .edit(editable) }
+            } label: {
+              noteRow(note)
+            }
+            .buttonStyle(.plain)
             Divider().overlay(Studio.line)
           }
         }
@@ -52,8 +70,20 @@ struct RootView: View {
         store.open(url: url)
       }
     }
-    .sheet(isPresented: $capturing) {
-      CaptureSheet(store: store, isPresented: $capturing)
+    .sheet(item: $activeSheet) { sheet in
+      switch sheet {
+      case .capture:
+        NoteEditorSheet(
+          heading: "Capture", confirmLabel: "Keep", initialTitle: "", initialBody: "",
+          onSave: { title, body in store.capture(title: title, body: body) },
+          onClose: { activeSheet = nil })
+      case .edit(let editable):
+        NoteEditorSheet(
+          heading: "Edit", confirmLabel: "Save",
+          initialTitle: editable.note.title ?? "", initialBody: editable.note.body,
+          onSave: { title, body in store.saveEdit(editable, title: title, body: body) },
+          onClose: { activeSheet = nil })
+      }
     }
   }
 
@@ -130,15 +160,31 @@ private struct RoomHeading: View {
   }
 }
 
-// A quick capture: an optional title and the reflection itself. "Keep" writes a
-// new note to the vault through the Rust core (VaultStore.capture) and dismisses.
-private struct CaptureSheet: View {
-  let store: VaultStore
-  @Binding var isPresented: Bool
-  @State private var noteTitle = ""
-  @State private var noteText = ""
+// The note composer, shared by capture (a new note) and edit (an existing one):
+// an optional title and the note body. The confirm button calls `onSave` and
+// dismisses only when it returns true, so a write conflict or empty note keeps the
+// sheet open with the error shown in the room behind it.
+private struct NoteEditorSheet: View {
+  let heading: String
+  let confirmLabel: String
+  let onSave: (_ title: String, _ body: String) -> Bool
+  let onClose: () -> Void
+  @State private var noteTitle: String
+  @State private var noteText: String
 
-  private var canKeep: Bool {
+  init(
+    heading: String, confirmLabel: String, initialTitle: String, initialBody: String,
+    onSave: @escaping (_ title: String, _ body: String) -> Bool, onClose: @escaping () -> Void
+  ) {
+    self.heading = heading
+    self.confirmLabel = confirmLabel
+    self.onSave = onSave
+    self.onClose = onClose
+    _noteTitle = State(initialValue: initialTitle)
+    _noteText = State(initialValue: initialBody)
+  }
+
+  private var canConfirm: Bool {
     !noteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
@@ -162,16 +208,16 @@ private struct CaptureSheet: View {
         .padding(24)
       }
       .background(Studio.canvas)
-      .navigationTitle("Capture")
+      .navigationTitle(heading)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
-          Button("Cancel") { isPresented = false }
+          Button("Cancel") { onClose() }
         }
         ToolbarItem(placement: .confirmationAction) {
-          Button("Keep") {
-            if store.capture(title: noteTitle, body: noteText) { isPresented = false }
+          Button(confirmLabel) {
+            if onSave(noteTitle, noteText) { onClose() }
           }
-          .disabled(!canKeep)
+          .disabled(!canConfirm)
         }
       }
     }

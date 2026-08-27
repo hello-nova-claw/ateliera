@@ -9,6 +9,16 @@ struct NoteSummary: Identifiable {
   let meaning: String
 }
 
+// A note opened for editing: its path, the content hash it was read at (for
+// optimistic-concurrency writes), and the parsed model. `id` = path so it can
+// drive a SwiftUI sheet.
+struct EditableNote: Identifiable {
+  var id: String { path }
+  let path: String
+  let baseHash: String
+  let note: StudioNote
+}
+
 // Opens a Studio vault (a user-picked, security-scoped iCloud folder — or a seeded
 // fixture for the demo) via the reused Rust core, and lists its notes. Persists an
 // iOS security-scoped bookmark so relaunch re-opens without re-picking.
@@ -87,6 +97,60 @@ final class VaultStore {
     do {
       _ = try vault.writeText(
         path: path, text: note.serialize(), expectedHash: nil, createNew: true)
+      try reload()
+      error = nil
+      return true
+    } catch {
+      self.error = "\(error)"
+      return false
+    }
+  }
+
+  /// Read a note fresh from the vault and parse it for editing, capturing the
+  /// content hash so the save can detect a conflicting change. Returns nil (with
+  /// `error` set) if there's no vault or the note can't be parsed.
+  func beginEdit(path: String) -> EditableNote? {
+    guard let vault else {
+      error = "Choose a Studio folder first."
+      return nil
+    }
+    do {
+      let read = try vault.readText(path: path)
+      guard let note = NoteParser.parse(read.text) else {
+        error = "This note couldn't be read for editing."
+        return nil
+      }
+      return EditableNote(path: path, baseHash: read.hash, note: note)
+    } catch {
+      self.error = "\(error)"
+      return nil
+    }
+  }
+
+  /// Save an edit: apply the new title/body, bump `updated`, and write the note
+  /// back atomically, only if the file still matches the hash it was read at
+  /// (`expectedHash`). Everything else — including unknown frontmatter keys — is
+  /// preserved by re-serializing the parsed model.
+  @discardableResult
+  func saveEdit(_ editable: EditableNote, title: String?, body: String) -> Bool {
+    guard let vault else {
+      error = "Choose a Studio folder first."
+      return false
+    }
+    let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedBody.isEmpty else {
+      error = "A note can't be empty."
+      return false
+    }
+    var updated = editable.note
+    let trimmedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+    updated.title = (trimmedTitle?.isEmpty ?? true) ? nil : trimmedTitle
+    updated.body = trimmedBody
+    updated.updated = NoteFactory.isoTimestamp()
+    do {
+      _ = try vault.writeText(
+        path: editable.path, text: updated.serialize(), expectedHash: editable.baseHash,
+        createNew: false)
       try reload()
       error = nil
       return true
