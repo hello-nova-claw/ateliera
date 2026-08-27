@@ -7,6 +7,9 @@ struct NoteSummary: Identifiable {
   let title: String
   let snippet: String
   let meaning: String
+  // `updated` (falling back to `created`) as an ISO string, used to order the
+  // room newest-first. Empty when the note carries no timestamp.
+  let timestamp: String
 }
 
 // A note opened for editing: its path, the content hash it was read at (for
@@ -182,13 +185,19 @@ final class VaultStore {
       let read = try vault.readText(path: entry.path)
       summaries.append(Self.parse(path: entry.path, text: read.text))
     }
-    self.notes = summaries.sorted { $0.title < $1.title }
+    // Newest first: by `updated`/`created` (ISO strings sort chronologically),
+    // then title as a stable tiebreaker for notes without a timestamp.
+    self.notes = summaries.sorted {
+      $0.timestamp != $1.timestamp ? $0.timestamp > $1.timestamp : $0.title < $1.title
+    }
   }
 
   // Minimal frontmatter read for the list — Phase N2 does the real round-trip.
   static func parse(path: String, text: String) -> NoteSummary {
     var title = (path as NSString).lastPathComponent.replacingOccurrences(of: ".md", with: "")
     var meaning = "reflection"
+    var created = ""
+    var updated = ""
     var body: [String] = []
     var section = 0  // 0 before frontmatter, 1 inside, 2 after
     for line in text.components(separatedBy: "\n") {
@@ -201,12 +210,18 @@ final class VaultStore {
           title = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
         } else if line.hasPrefix("card_type:") {
           meaning = String(line.dropFirst(10)).trimmingCharacters(in: .whitespaces)
+        } else if line.hasPrefix("created:") {
+          created = String(line.dropFirst(8)).trimmingCharacters(in: .whitespaces)
+        } else if line.hasPrefix("updated:") {
+          updated = String(line.dropFirst(8)).trimmingCharacters(in: .whitespaces)
         }
       } else if !line.trimmingCharacters(in: .whitespaces).isEmpty {
         body.append(line)
       }
     }
-    return NoteSummary(id: path, title: title, snippet: body.first ?? "", meaning: meaning)
+    return NoteSummary(
+      id: path, title: title, snippet: body.first ?? "", meaning: meaning,
+      timestamp: updated.isEmpty ? created : updated)
   }
 
   // Seed a small Reflection Garden so the room has content in the simulator.
