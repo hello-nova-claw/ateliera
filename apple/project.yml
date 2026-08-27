@@ -50,6 +50,10 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: au.com.annamcphee.ateliera.native.tests
         GENERATE_INFOPLIST_FILE: YES
+        # xcodegen auto-sets TEST_HOST to the iOS bundle layout
+        # (Ateliera.app/Ateliera); on macOS the host binary lives under
+        # Contents/MacOS, so override it there to run the suite natively on Mac.
+        "TEST_HOST[sdk=macosx*]": "$(BUILT_PRODUCTS_DIR)/Ateliera.app/Contents/MacOS/Ateliera"
 schemes:
   Ateliera:
     build:
