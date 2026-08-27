@@ -1,5 +1,24 @@
 # Development log
 
+## 2026-08-27 — Native Apple app: running on a real iPhone (device install + on-device capture)
+
+- Ran the app on a physical **iPhone 15 Pro Max** (iOS 26.5.2). Signed with Anna's
+  Apple Development identity / team `W2UCHS9WV3` via automatic provisioning
+  (`-allowProvisioningUpdates`, team passed on the xcodebuild command line so it
+  isn't baked into the committed project), installed and launched with `devicectl`.
+  The Reflection Garden renders natively with the real fonts, and **capturing and
+  saving a reflection through the sheet works on-device** — the full capture →
+  Rust-core atomic write → reload loop, confirmed on real hardware. This settles
+  the earlier "do we actually have a functional iOS app?": yes.
+- Polish from that session (both green across 16 unit + 2 UI tests):
+  - The room now orders **newest-first** (by `updated`, then `created`; ISO strings
+    sort chronologically) instead of alphabetically by title.
+  - The capture/edit sheet is clearer: a high-contrast **principal title** in Studio
+    ink (the old `.navigationTitle` read faint), explicit **"TITLE" / "REFLECTION"**
+    field labels, and a placeholder in the otherwise-blank body editor.
+- Device-only paths still open: pointing at a real **iCloud** vault and confirming
+  cross-device visibility with the web app (this run used the seeded demo vault).
+
 ## 2026-08-27 — Native Apple app: UI tests drive the real capture/edit flow
 
 - Closed the last N3 verification gap. The write path was proven at the FFI/unit
