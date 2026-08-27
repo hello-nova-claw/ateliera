@@ -18,7 +18,15 @@ enum PlaceGeocoder {
     guard let placemarks = try? await CLGeocoder().geocodeAddressString(trimmed),
       let placemark = placemarks.first, let location = placemark.location
     else { return nil }
-    return place(from: placemark, coordinate: location.coordinate)
+    let resolved = place(from: placemark, coordinate: location.coordinate)
+    // Forward geocoding doesn't always include the time zone; without it the chart
+    // would silently fall back to the device zone. Reverse-geocode the point to
+    // fill it in — the birthplace zone is essential for the rising sign.
+    guard resolved.timeZoneId == nil else { return resolved }
+    let byPoint = await reverse(latitude: resolved.latitude, longitude: resolved.longitude)
+    return ResolvedPlace(
+      name: resolved.name, latitude: resolved.latitude, longitude: resolved.longitude,
+      timeZoneId: byPoint.timeZoneId)
   }
 
   static func reverse(latitude: Double, longitude: Double) async -> ResolvedPlace {

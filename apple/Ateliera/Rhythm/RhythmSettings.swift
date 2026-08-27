@@ -141,6 +141,41 @@ struct RhythmSettingsView: View {
     RhythmProfileStore.chart(from: draft)
   }
 
+  // The zone the birth time is read in, with its offset at the birth date, so a
+  // wrong or unresolved zone is visible rather than a silent device-zone guess.
+  private var zoneDisplay: String {
+    let reference = zoneReferenceInstant()
+    if let id = timeZoneId, let zone = TimeZone(identifier: id) {
+      return "\(id) · \(Self.offsetLabel(zone.secondsFromGMT(for: reference)))"
+    }
+    return "Zone not found — using this device (\(Self.offsetLabel(TimeZone.current.secondsFromGMT(for: reference)))). Search the place again."
+  }
+
+  private func zoneReferenceInstant() -> Date {
+    let zone = timeZoneId.flatMap(TimeZone.init(identifier:)) ?? .current
+    let d = Self.iso(date).split(separator: "-").compactMap { Int($0) }
+    let t = knowsTime ? Self.hhmm(time).split(separator: ":").compactMap { Int($0) } : [12, 0]
+    guard d.count == 3 else { return Date() }
+    var components = DateComponents()
+    components.year = d[0]
+    components.month = d[1]
+    components.day = d[2]
+    components.hour = t.first ?? 12
+    components.minute = t.count > 1 ? t[1] : 0
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = zone
+    return calendar.date(from: components) ?? Date()
+  }
+
+  private static func offsetLabel(_ seconds: Int) -> String {
+    let sign = seconds >= 0 ? "+" : "-"
+    let magnitude = abs(seconds)
+    let hours = magnitude / 3600
+    let minutes = (magnitude % 3600) / 60
+    return minutes == 0
+      ? "UTC\(sign)\(hours)" : "UTC\(sign)\(hours):\(String(format: "%02d", minutes))"
+  }
+
   var body: some View {
     NavigationStack {
       ScrollView {
@@ -169,9 +204,13 @@ struct RhythmSettingsView: View {
               if let placeName {
                 Text(placeName)
                   .font(StudioFont.control).foregroundStyle(Studio.inkStrong)
+                Text(zoneDisplay)
+                  .font(StudioFont.meta).foregroundStyle(Studio.inkFaint)
               } else if let coordinate {
                 Text(PlaceGeocoder.coordinateLabel(coordinate.latitude, coordinate.longitude))
                   .font(StudioFont.control).foregroundStyle(Studio.inkStrong)
+                Text(zoneDisplay)
+                  .font(StudioFont.meta).foregroundStyle(Studio.inkFaint)
               } else {
                 Text("Where you were born — adds your rising sign, and sets the zone for your birth time.")
                   .font(StudioFont.meta).foregroundStyle(Studio.inkFaint)
