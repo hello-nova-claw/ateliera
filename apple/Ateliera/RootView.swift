@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 struct RootView: View {
   @State private var store = VaultStore()
   @State private var picking = false
+  @State private var capturing = false
 
   var body: some View {
     ScrollView {
@@ -19,6 +20,15 @@ struct RootView: View {
         )
 
         studioBar
+
+        Button {
+          capturing = true
+        } label: {
+          Label("Add a reflection", systemImage: "plus.circle.fill")
+            .font(StudioFont.control)
+            .foregroundStyle(Studio.link)
+        }
+        .buttonStyle(.plain)
 
         if let error = store.error {
           Text(error).font(StudioFont.meta).foregroundStyle(Studio.celebration)
@@ -41,6 +51,9 @@ struct RootView: View {
       if case .success(let urls) = result, let url = urls.first {
         store.open(url: url)
       }
+    }
+    .sheet(isPresented: $capturing) {
+      CaptureSheet(store: store, isPresented: $capturing)
     }
   }
 
@@ -113,6 +126,54 @@ private struct RoomHeading: View {
         .font(StudioFont.pageSubtitle)
         .foregroundStyle(Studio.inkMuted)
         .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+}
+
+// A quick capture: an optional title and the reflection itself. "Keep" writes a
+// new note to the vault through the Rust core (VaultStore.capture) and dismisses.
+private struct CaptureSheet: View {
+  let store: VaultStore
+  @Binding var isPresented: Bool
+  @State private var noteTitle = ""
+  @State private var noteText = ""
+
+  private var canKeep: Bool {
+    !noteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  var body: some View {
+    NavigationStack {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 16) {
+          TextField("Title (optional)", text: $noteTitle)
+            .font(StudioFont.cardTitle)
+            .foregroundStyle(Studio.inkStrong)
+          Divider().overlay(Studio.line)
+          TextEditor(text: $noteText)
+            .font(StudioFont.pageSubtitle)
+            .foregroundStyle(Studio.inkStrong)
+            .scrollContentBackground(.hidden)
+            .frame(minHeight: 220)
+          Text("Notice what is changing. Fifteen minutes still counts.")
+            .font(StudioFont.meta)
+            .foregroundStyle(Studio.inkFaint)
+        }
+        .padding(24)
+      }
+      .background(Studio.canvas)
+      .navigationTitle("Capture")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { isPresented = false }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Keep") {
+            if store.capture(title: noteTitle, body: noteText) { isPresented = false }
+          }
+          .disabled(!canKeep)
+        }
+      }
     }
   }
 }
