@@ -145,9 +145,72 @@ struct StudioNote {
     return out
   }
 
-  // Plain scalars, matching the yaml library's default (unquoted when safe).
+  // Emit a scalar the way the `yaml` library's `stringify` does: plain (unquoted)
+  // when safe, otherwise double-quoted. The rules below are derived empirically
+  // from `yaml`'s output (see NoteFixturesTests) so a value that needs quoting is
+  // byte-identical to the web serializer.
   private static func scalar(_ value: String) -> String {
-    value
+    needsQuoting(value) ? doubleQuote(value) : value
+  }
+
+  private static func needsQuoting(_ value: String) -> Bool {
+    if value.isEmpty { return true }
+    if value.hasPrefix(" ") || value.hasSuffix(" ") { return true }
+    if value.contains(": ") || value.hasSuffix(":") { return true }
+    if value.contains(" #") { return true }
+    if resolvesAsNonString(value) { return true }
+    if let first = value.first, leadingIndicators.contains(first) {
+      // `-`, `?`, `:` only force quoting when alone or followed by a space; the
+      // rest (`,#&*!|>%@` backtick brackets braces quotes) always do.
+      if first == "-" || first == "?" || first == ":" {
+        return value.count == 1 || value.dropFirst().hasPrefix(" ")
+      }
+      return true
+    }
+    return false
+  }
+
+  private static let leadingIndicators: Set<Character> = [
+    "-", "?", ":", ",", "#", "&", "*", "!", "|", ">", "%", "@", "`", "\"", "'", "[",
+    "]", "{", "}",
+  ]
+
+  // Would the plain scalar be resolved by YAML's core schema as a bool, null, or
+  // number rather than a string? Matches the `yaml` library: case-insensitive
+  // true/false/null and `~`, and decimal/hex/octal/float/inf/nan literals.
+  private static func resolvesAsNonString(_ value: String) -> Bool {
+    let lower = value.lowercased()
+    if lower == "true" || lower == "false" || lower == "null" || value == "~" {
+      return true
+    }
+    for pattern in numberPatterns where matches(value, pattern) { return true }
+    return false
+  }
+
+  private static let numberPatterns = [
+    "^[-+]?[0-9]+$",  // decimal int
+    "^0x[0-9a-fA-F]+$",  // hex
+    "^0o[0-7]+$",  // octal
+    "^[-+]?(?:\\.[0-9]+|[0-9]+(?:\\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?$",  // float / exp
+    "^[-+]?\\.(?:inf|Inf|INF)$",  // infinity
+    "^\\.(?:nan|NaN|NAN)$",  // not-a-number
+  ]
+
+  private static func matches(_ value: String, _ pattern: String) -> Bool {
+    value.range(of: pattern, options: .regularExpression) != nil
+  }
+
+  private static func doubleQuote(_ value: String) -> String {
+    var out = "\""
+    for ch in value {
+      switch ch {
+      case "\\": out += "\\\\"
+      case "\"": out += "\\\""
+      default: out.append(ch)
+      }
+    }
+    out += "\""
+    return out
   }
 }
 

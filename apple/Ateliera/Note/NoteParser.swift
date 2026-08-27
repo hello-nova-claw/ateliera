@@ -14,13 +14,21 @@ enum NoteParser {
   ]
 
   static func parse(_ text: String) -> StudioNote? {
+    // Detect the document's line ending from its first terminator, matching
+    // `@studio/content`'s splitDocument (which keys off the opening `---` break),
+    // then normalise to `\n` for parsing and restore the ending on the body.
+    let lineEnding = detectLineEnding(text)
     let normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
     let lines = normalized.components(separatedBy: "\n")
     guard lines.first == "---",
       let close = lines.dropFirst().firstIndex(of: "---")
     else { return nil }
     let frontLines = Array(lines[1..<close])
-    let body = lines[(close + 1)...].joined(separator: "\n")
+    let normalizedBody = lines[(close + 1)...].joined(separator: "\n")
+    let body =
+      lineEnding == "\r\n"
+      ? normalizedBody.replacingOccurrences(of: "\n", with: "\r\n")
+      : normalizedBody
 
     var index = 0
     let pairs = parseBlock(frontLines, &index, indent: 0)
@@ -93,7 +101,7 @@ enum NoteParser {
         aiAccess: mapValue(privacyPairs, "ai_access") ?? "ask"),
       extraFrontmatter: extra,
       body: body,
-      lineEnding: "\n"
+      lineEnding: lineEnding
     )
     if known["source"] != nil {
       let sourcePairs = map("source")
@@ -159,6 +167,16 @@ enum NoteParser {
       }
     }
     return pairs
+  }
+
+  // Work at the unicode-scalar level: Swift treats "\r\n" as a single Character,
+  // so Character-based searches for "\n" never match a CRLF terminator.
+  private static func detectLineEnding(_ text: String) -> String {
+    let scalars = Array(text.unicodeScalars)
+    for (i, scalar) in scalars.enumerated() where scalar == "\n" {
+      return i > 0 && scalars[i - 1] == "\r" ? "\r\n" : "\n"
+    }
+    return "\n"
   }
 
   private static func leadingSpaces(_ line: String) -> Int {
