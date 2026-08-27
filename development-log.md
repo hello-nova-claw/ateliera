@@ -1,5 +1,25 @@
 # Development log
 
+## 2026-08-27 — Native Apple app: multi-slice vault core (device + Mac) and macOS-hosted tests
+
+- The vault-core XCFramework was simulator-only, which blocked device and Mac
+  builds. `AtelieraVaultCore/build.sh` now builds four Rust static libs and packs
+  three XCFramework slices: **iOS device** (`aarch64-apple-ios`), a **universal iOS
+  simulator** slice (`aarch64` + `x86_64` fused with `lipo`, so it runs on Apple-
+  Silicon and Intel Macs), and **macOS** (`aarch64-apple-darwin`). The write
+  primitive's `renameatx_np` was already gated `any(macos, ios)`, so every slice
+  compiles unchanged. (A universal macOS slice needs `x86_64-apple-darwin` added to
+  the hermetic toolchain — a follow-up.)
+- Fixed the test host for macOS: xcodegen hardcodes `TEST_HOST` to the iOS bundle
+  layout (`Ateliera.app/Ateliera`), but the macOS host binary lives under
+  `Contents/MacOS`. Added a `TEST_HOST[sdk=macosx*]` override in `project.yml` so
+  the suite runs natively on Mac.
+- Verified all three: the **full 16-case XCTest suite passes natively on macOS**
+  (arm64 — the Rust core's `flock`/`renameatx_np`/`fsync` exercised on real macOS,
+  not the sim), the app **links and builds for a generic iOS device**, and the sim
+  suite still passes on the new universal slice. Device install/run itself still
+  needs signing + hardware.
+
 ## 2026-08-27 — Native Apple app, Phase N3: capture writes a note back to the vault
 
 - The native app now CREATES notes, not just reads them. Added a single-note
