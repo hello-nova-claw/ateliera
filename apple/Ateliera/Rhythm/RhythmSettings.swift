@@ -6,10 +6,12 @@ import SwiftUI
 // optional; the chart honestly degrades (date → sun, + time → moon, + location →
 // rising) rather than guessing.
 struct BirthData: Codable, Equatable {
-  var date: String  // YYYY-MM-DD, local wall-clock
-  var time: String?  // HH:MM local, when known
+  var date: String  // YYYY-MM-DD, wall-clock at the birthplace
+  var time: String?  // HH:MM at the birthplace, when known
   var latitude: Double?
   var longitude: Double?
+  var placeName: String?  // display label for the birthplace
+  var timeZoneId: String?  // IANA zone of the birthplace, for the time→UTC step
 }
 
 @Observable
@@ -39,12 +41,13 @@ final class RhythmProfileStore {
     birth.map(Self.chart(from:))
   }
 
-  // A birth time is entered as local wall-clock; convert date+time in the device's
-  // current zone to UTC for the engine. Without a time, the date passes straight
-  // through (sun only), matching the web.
+  // A birth time is wall-clock at the birthplace; convert date+time in the
+  // birthplace's zone (falling back to the device's) to UTC for the engine.
+  // Without a time, the date passes straight through (sun only), matching the web.
   static func chart(from birth: BirthData) -> NatalChart {
+    let zone = birth.timeZoneId.flatMap(TimeZone.init(identifier:)) ?? .current
     guard let time = birth.time,
-      let instant = localInstant(date: birth.date, time: time)
+      let instant = localInstant(date: birth.date, time: time, zone: zone)
     else {
       return Natal.compute(
         birthDate: birth.date, birthTimeUTC: nil, birthLat: birth.latitude,
@@ -62,7 +65,7 @@ final class RhythmProfileStore {
       birthLon: birth.longitude)
   }
 
-  private static func localInstant(date: String, time: String) -> Date? {
+  private static func localInstant(date: String, time: String, zone: TimeZone) -> Date? {
     let d = date.split(separator: "-").compactMap { Int($0) }
     let t = time.split(separator: ":").compactMap { Int($0) }
     guard d.count == 3, t.count == 2 else { return nil }
@@ -73,7 +76,7 @@ final class RhythmProfileStore {
     components.hour = t[0]
     components.minute = t[1]
     var calendar = Calendar(identifier: .gregorian)
-    calendar.timeZone = .current
+    calendar.timeZone = zone
     return calendar.date(from: components)
   }
 }
@@ -89,7 +92,11 @@ struct RhythmSettingsView: View {
   @State private var knowsTime: Bool
   @State private var time: Date
   @State private var coordinate: CLLocationCoordinate2D?
+  @State private var placeName: String?
+  @State private var timeZoneId: String?
+  @State private var query = ""
   @State private var locating = false
+  @State private var searching = false
 
   init(store: RhythmProfileStore, isPresented: Binding<Bool>) {
     self.store = store
@@ -101,12 +108,33 @@ struct RhythmSettingsView: View {
     _coordinate = State(
       initialValue: birth?.latitude != nil && birth?.longitude != nil
         ? CLLocationCoordinate2D(latitude: birth!.latitude!, longitude: birth!.longitude!) : nil)
+    _placeName = State(initialValue: birth?.placeName)
+    _timeZoneId = State(initialValue: birth?.timeZoneId)
   }
 
   private var draft: BirthData {
     BirthData(
       date: Self.iso(date), time: knowsTime ? Self.hhmm(time) : nil,
-      latitude: coordinate?.latitude, longitude: coordinate?.longitude)
+      latitude: coordinate?.latitude, longitude: coordinate?.longitude,
+      placeName: placeName, timeZoneId: timeZoneId)
+  }
+
+  private func apply(_ place: ResolvedPlace) {
+    coordinate = CLLocationCoordinate2D(latitude: place.latitude, longitude: place.longitude)
+    placeName = place.name
+    timeZoneId = place.timeZoneId
+  }
+
+  private func runSearch() {
+    let text = query
+    Task {
+      searching = true
+      if let place = await PlaceGeocoder.search(text) {
+        apply(place)
+        query = ""
+      }
+      searching = false
+    }
   }
 
   private var chart: NatalChart {
@@ -130,32 +158,53 @@ struct RhythmSettingsView: View {
               if knowsTime {
                 DatePicker("", selection: $time, displayedComponents: .hourAndMinute)
                   .labelsHidden()
-                Text("Interpreted in this device's time zone. Adds your moon sign.")
+                Text("Read in your birthplace's time zone once you set a place. Adds your moon sign.")
                   .font(StudioFont.meta).foregroundStyle(Studio.inkFaint)
+                  .fixedSize(horizontal: false, vertical: true)
               }
             }
           }
           field("Birth place") {
             VStack(alignment: .leading, spacing: 8) {
-              if let coordinate {
-                Text(Self.coordinateLabel(coordinate))
+              if let placeName {
+                Text(placeName)
+                  .font(StudioFont.control).foregroundStyle(Studio.inkStrong)
+              } else if let coordinate {
+                Text(PlaceGeocoder.coordinateLabel(coordinate.latitude, coordinate.longitude))
                   .font(StudioFont.control).foregroundStyle(Studio.inkStrong)
               } else {
-                Text("Not set — adds your rising sign when you know your time.")
+                Text("Where you were born — adds your rising sign, and sets the zone for your birth time.")
                   .font(StudioFont.meta).foregroundStyle(Studio.inkFaint)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+              HStack(spacing: 8) {
+                TextField("Search a place", text: $query)
+                  .textFieldStyle(.roundedBorder)
+                  .font(StudioFont.control)
+                  .onSubmit(runSearch)
+                Button(searching ? "…" : "Find", action: runSearch)
+                  .disabled(searching || query.trimmingCharacters(in: .whitespaces).isEmpty)
+                  .font(StudioFont.control).foregroundStyle(Studio.link)
               }
               HStack(spacing: 16) {
                 Button(locating ? "Locating…" : "Use my location") {
                   Task {
                     locating = true
-                    coordinate = await location.resolveCoordinate() ?? coordinate
+                    if let coordinate = await location.resolveCoordinate() {
+                      apply(await PlaceGeocoder.reverse(
+                        latitude: coordinate.latitude, longitude: coordinate.longitude))
+                    }
                     locating = false
                   }
                 }
                 .disabled(locating)
                 if coordinate != nil {
-                  Button("Clear") { coordinate = nil }
-                    .foregroundStyle(Studio.inkMuted)
+                  Button("Clear") {
+                    coordinate = nil
+                    placeName = nil
+                    timeZoneId = nil
+                  }
+                  .foregroundStyle(Studio.inkMuted)
                 }
               }
               .font(StudioFont.control)
@@ -250,10 +299,5 @@ struct RhythmSettingsView: View {
     f.timeZone = .current
     f.dateFormat = "HH:mm"
     return f.date(from: hhmm)
-  }
-  private static func coordinateLabel(_ c: CLLocationCoordinate2D) -> String {
-    let lat = String(format: "%.2f°%@", abs(c.latitude), c.latitude >= 0 ? "N" : "S")
-    let lon = String(format: "%.2f°%@", abs(c.longitude), c.longitude >= 0 ? "E" : "W")
-    return "\(lat), \(lon)"
   }
 }
