@@ -10,6 +10,8 @@ struct RootView: View {
   @State private var activeSheet: ActiveSheet?
   @State private var health = HealthCycleSource()
   @State private var cycle: CycleProfile?
+  @State private var location = LocationHemisphere()
+  @State private var hemisphere: Hemisphere = LocationHemisphere.persisted ?? .north
 
   // One sheet at a time: a fresh capture, or an edit of an existing note.
   private enum ActiveSheet: Identifiable {
@@ -24,9 +26,8 @@ struct RootView: View {
     }
   }
 
-  // Today's rhythm. Hemisphere defaults to southern (Anna's) until a saved
-  // rhythm profile / location wires it in; the cycle arrives from HealthKit
-  // (Phase N4b). Moon and felt season need no profile.
+  // Today's rhythm. Hemisphere comes from the device's location (persisted across
+  // launches); the cycle from HealthKit. Moon and felt season need neither.
   private var almanacContext: RhythmContext {
     let formatter = DateFormatter()
     formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -34,7 +35,7 @@ struct RootView: View {
     formatter.dateFormat = "yyyy-MM-dd"
     let today = formatter.string(from: Date())
     return Rhythm.computeContext(
-      profile: RhythmProfile(hemisphere: .south, cycle: cycle), date: today)
+      profile: RhythmProfile(hemisphere: hemisphere, cycle: cycle), date: today)
   }
 
   var body: some View {
@@ -90,9 +91,10 @@ struct RootView: View {
       }
     }
     .task {
-      // Ask HealthKit for the cycle basis once on appear; the almanac adds the
-      // cycle line if permission is granted and flow is logged, and stays quiet
-      // otherwise.
+      // Resolve hemisphere from location first, then the cycle from HealthKit —
+      // sequentially so the two permission prompts don't stack. Both refine the
+      // almanac and both degrade quietly when unavailable.
+      if let resolved = await location.resolve() { hemisphere = resolved }
       cycle = await health.loadCycle()
     }
     .sheet(item: $activeSheet) { sheet in

@@ -40,6 +40,7 @@ targets:
         # required before requesting authorization; the entitlement is scoped to
         # the iOS SDKs so the macOS build/sign stays clean.
         INFOPLIST_KEY_NSHealthShareUsageDescription: "Ateliera reads your menstrual cycle from Health, on your device, to place today's rhythm. It never writes to Health."
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Ateliera uses your location once to tell which hemisphere you're in, so the season and micro-season are right. It stays on your device."
         "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": Ateliera.entitlements
         "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": Ateliera.entitlements
   AtelieraTests:
