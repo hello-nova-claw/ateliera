@@ -1,5 +1,36 @@
 # Development log
 
+## 2026-08-27 — Native Apple app, Phase N3: capture writes a note back to the vault
+
+- The native app now CREATES notes, not just reads them. Added a single-note
+  **atomic write surface** to the Rust core (`apple/AtelieraVaultCore/src/lib.rs`),
+  ported from the Tauri crate's `write_atomic`: an in-process mutex + advisory
+  `flock` on `.studio-write.lock`, a temp file created with `O_EXCL`, `sync_all`,
+  a monotonic `.studio-revision` bump written atomically, and an atomic rename —
+  `RENAME_EXCL` (`renameatx_np`) when creating so a concurrent writer can't be
+  clobbered. Gated on `any(macos, ios)` (the Tauri original was macOS-only) so it
+  works on device. Path-contained + symlink-refusing via the existing guard;
+  `open_parent` now creates intermediate dirs. Exposed over UniFFI as
+  `write_text(path, text, expected_hash, create_new) -> WriteOutcome{hash, revision}`.
+  5 Rust unit tests (create + read-back, create-new conflict, expected-hash
+  overwrite/stale-reject, path-escape, monotonic revision) pass via `cargo test`.
+- Native **quick capture** (`apple/Ateliera/Note/NoteFactory.swift`,
+  `VaultStore.capture`, a `CaptureSheet` in `RootView`): builds the web app's
+  default Inbox note (`card_type: capture`, `rooms: [inbox]`, `status: draft`),
+  serializes it byte-identically, and writes it to `Inbox/<date>--<slug>--<id>.md`.
+  Ported `createNoteId` (base-32 ULID-ish), `slugify`, and `suggestFilename` from
+  `@studio/content` so ids/paths match the web app.
+- 5 new XCTest cases exercise the **real FFI write** (not a stub): a capture note
+  written through `Vault.write_text` reads back byte-identical, its SHA matches the
+  Rust hash, revision advances to 1, the round trip reconstructs the capture
+  defaults, duplicate create is refused, path escapes are rejected, and the
+  filename/slug/id conventions match. 14 XCTest cases green on the iPhone 17 sim;
+  the "Add a reflection" affordance renders (`artifacts/ios/native-n3-room.png`).
+- Next: device-verify the capture sheet writing to a real iCloud folder (the
+  in-app sheet tap, like the `.fileImporter`, is the one path only checkable on
+  device); classify captures into rooms beyond Inbox; add device + macOS slices to
+  build.sh/XCFramework.
+
 ## 2026-08-27 — Native Apple app, Phase N2: broadened golden fixtures (optional fields, quoting, CRLF)
 
 - Locked in the optional note fields the parser/serializer touch but the base
