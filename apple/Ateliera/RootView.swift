@@ -8,6 +8,8 @@ struct RootView: View {
   @State private var store = VaultStore()
   @State private var picking = false
   @State private var activeSheet: ActiveSheet?
+  @State private var health = HealthCycleSource()
+  @State private var cycle: CycleProfile?
 
   // One sheet at a time: a fresh capture, or an edit of an existing note.
   private enum ActiveSheet: Identifiable {
@@ -32,7 +34,7 @@ struct RootView: View {
     formatter.dateFormat = "yyyy-MM-dd"
     let today = formatter.string(from: Date())
     return Rhythm.computeContext(
-      profile: RhythmProfile(hemisphere: .south, cycle: nil), date: today)
+      profile: RhythmProfile(hemisphere: .south, cycle: cycle), date: today)
   }
 
   var body: some View {
@@ -86,6 +88,12 @@ struct RootView: View {
       if case .success(let urls) = result, let url = urls.first {
         store.open(url: url)
       }
+    }
+    .task {
+      // Ask HealthKit for the cycle basis once on appear; the almanac adds the
+      // cycle line if permission is granted and flow is logged, and stays quiet
+      // otherwise.
+      cycle = await health.loadCycle()
     }
     .sheet(item: $activeSheet) { sheet in
       switch sheet {
