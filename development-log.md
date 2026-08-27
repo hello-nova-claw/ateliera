@@ -20,10 +20,11 @@
 - Verified: iOS + macOS both build; the **device build signs with the HealthKit
   entitlement** (automatic provisioning added the capability to the App ID); on the
   unsigned simulator the request errors and the almanac degrades gracefully with no
-  crash (`artifacts/ios/native-n4b-almanac.png`); 29 unit + 2 UI tests green. The
-  live read (grant permission → logged flow → cycle line) is verifiable on-device
-  with real Health data — this settles the N4 gate (cycle driven by Health;
-  almanac native).
+  crash (`artifacts/ios/native-n4b-almanac.png`); 29 unit + 2 UI tests green.
+- **Verified on Anna's iPhone (device):** installed the signed HealthKit build,
+  granted Cycle Tracking read access, and the almanac showed the cycle line from
+  her real Health data. The N4 gate is met end-to-end — the cycle layer is driven
+  by Health, the almanac renders natively.
 
 ## 2026-08-27 — Native Apple app, Phase N4a: native rhythm engine + Today's almanac
 
