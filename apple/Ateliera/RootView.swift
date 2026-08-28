@@ -44,59 +44,50 @@ struct RootView: View {
   }
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 28) {
-        AlmanacView(context: almanacContext)
-        Button {
-          activeSheet = .rhythm
-        } label: {
-          Text("Your rhythm ›")
-            .font(StudioFont.control)
-            .foregroundStyle(Studio.link)
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("rhythm-button")
-        Divider().overlay(Studio.line)
-
-        RoomHeading(
-          eyebrow: "notice what is changing",
-          title: "Reflection Garden",
-          intro:
-            "Gather what you're learning and celebrating, so the Studio remembers with you."
-        )
-
-        studioBar
-
-        Button {
-          activeSheet = .capture
-        } label: {
-          Label("Add a reflection", systemImage: "plus.circle.fill")
-            .font(StudioFont.control)
-            .foregroundStyle(Studio.link)
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("capture-button")
-
-        if let error = store.error {
-          Text(error).font(StudioFont.meta).foregroundStyle(Studio.celebration)
-        }
-
-        VStack(spacing: 0) {
-          ForEach(store.notes) { note in
-            Button {
-              if let editable = store.beginEdit(path: note.id) { activeSheet = .edit(editable) }
-            } label: {
-              noteRow(note)
-            }
-            .buttonStyle(.plain)
-            Divider().overlay(Studio.line)
+    NavigationStack {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 28) {
+          AlmanacView(context: almanacContext)
+          Button {
+            activeSheet = .rhythm
+          } label: {
+            Text("Your rhythm ›")
+              .font(StudioFont.control)
+              .foregroundStyle(Studio.link)
           }
+          .buttonStyle(.plain)
+          .accessibilityIdentifier("rhythm-button")
+          Divider().overlay(Studio.line)
+
+          RoomHeading(
+            eyebrow: "welcome back",
+            title: "The Foyer",
+            intro: "Today's rhythm, your rooms, and what you've been noticing.")
+
+          studioBar
+
+          Button {
+            activeSheet = .capture
+          } label: {
+            Label("Add a reflection", systemImage: "plus.circle.fill")
+              .font(StudioFont.control)
+              .foregroundStyle(Studio.link)
+          }
+          .buttonStyle(.plain)
+          .accessibilityIdentifier("capture-button")
+
+          if let error = store.error {
+            Text(error).font(StudioFont.meta).foregroundStyle(Studio.celebration)
+          }
+
+          roomsSection
+          recentlySection
         }
+        .padding(28)
+        .frame(maxWidth: .infinity, alignment: .leading)
       }
-      .padding(28)
-      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Studio.canvas)
     }
-    .background(Studio.canvas)
     .fileImporter(
       isPresented: $picking, allowedContentTypes: [.folder], allowsMultipleSelection: false
     ) { result in
@@ -138,6 +129,54 @@ struct RootView: View {
     }
   }
 
+  private func openEdit(_ note: NoteSummary) {
+    if let editable = store.beginEdit(path: note.id) { activeSheet = .edit(editable) }
+  }
+
+  // The rooms you can step into, each with how many notes it holds.
+  private var roomsSection: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      Text("ROOMS")
+        .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(Studio.inkFaint)
+        .padding(.bottom, 8)
+      ForEach(Room.all) { room in
+        NavigationLink {
+          RoomView(room: room, store: store, onOpen: openEdit)
+        } label: {
+          HStack(spacing: 10) {
+            Text(room.title).font(StudioFont.cardTitle).foregroundStyle(Studio.inkStrong)
+            Spacer(minLength: 0)
+            let count = store.notes.filter { $0.rooms.contains(room.id) }.count
+            if count > 0 {
+              Text("\(count)").font(StudioFont.meta).foregroundStyle(Studio.inkMuted)
+            }
+            Image(systemName: "chevron.right")
+              .font(.system(size: 12)).foregroundStyle(Studio.inkFaint)
+          }
+          .padding(.vertical, 14)
+        }
+        .accessibilityIdentifier("room-\(room.id)")
+        Divider().overlay(Studio.line)
+      }
+    }
+  }
+
+  // Everything you've captured, newest first, whatever room it's in.
+  private var recentlySection: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      if !store.notes.isEmpty {
+        Text("RECENTLY")
+          .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(Studio.inkFaint)
+          .padding(.bottom, 8)
+      }
+      ForEach(store.notes) { note in
+        Button { openEdit(note) } label: { NoteRow(note: note) }
+          .buttonStyle(.plain)
+        Divider().overlay(Studio.line)
+      }
+    }
+  }
+
   private var studioBar: some View {
     HStack {
       HStack(spacing: 6) {
@@ -162,8 +201,13 @@ struct RootView: View {
     .padding(.bottom, 4)
     .overlay(alignment: .bottom) { Divider().overlay(Studio.line) }
   }
+}
 
-  private func noteRow(_ note: NoteSummary) -> some View {
+// A note as it appears in a list: a meaning-coloured mark, title, and snippet.
+private struct NoteRow: View {
+  let note: NoteSummary
+
+  var body: some View {
     HStack(alignment: .top, spacing: 14) {
       Image(systemName: "heart.fill")
         .font(.system(size: 12))
@@ -184,16 +228,49 @@ struct RootView: View {
     }
     .padding(.vertical, 14)
   }
+}
 
-  private func meaningColour(_ meaning: String) -> Color {
-    switch meaning {
-    case "foundation", "foundations": return Studio.foundation
-    case "vision": return Studio.vision
-    case "growth": return Studio.growth
-    case "celebration": return Studio.celebration
-    case "uncharted": return Studio.uncharted
-    default: return Studio.reflection
+// A single room: its heading and the notes tagged to it, tap to edit.
+private struct RoomView: View {
+  let room: Room
+  let store: VaultStore
+  let onOpen: (NoteSummary) -> Void
+
+  private var notes: [NoteSummary] { store.notes.filter { $0.rooms.contains(room.id) } }
+
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 24) {
+        RoomHeading(eyebrow: room.eyebrow, title: room.title, intro: room.intro)
+        if notes.isEmpty {
+          Text("Nothing here yet.")
+            .font(StudioFont.meta).foregroundStyle(Studio.inkFaint)
+        } else {
+          VStack(spacing: 0) {
+            ForEach(notes) { note in
+              Button { onOpen(note) } label: { NoteRow(note: note) }
+                .buttonStyle(.plain)
+              Divider().overlay(Studio.line)
+            }
+          }
+        }
+      }
+      .padding(28)
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
+    .background(Studio.canvas)
+    .navigationTitle(room.title)
+  }
+}
+
+private func meaningColour(_ meaning: String) -> Color {
+  switch meaning {
+  case "foundation", "foundations": return Studio.foundation
+  case "vision": return Studio.vision
+  case "growth": return Studio.growth
+  case "celebration": return Studio.celebration
+  case "uncharted": return Studio.uncharted
+  default: return Studio.reflection
   }
 }
 

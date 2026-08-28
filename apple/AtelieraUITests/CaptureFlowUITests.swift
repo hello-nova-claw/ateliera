@@ -53,6 +53,31 @@ final class CaptureFlowUITests: XCTestCase {
     app.buttons["Cancel"].tap()
   }
 
+  func testCapturedNoteAppearsInItsRoom() {
+    let app = launchEmptyApp()
+    // A quick capture lands in the Inbox room.
+    app.buttons["capture-button"].tap()
+    let title = app.textFields["note-title-field"]
+    XCTAssertTrue(title.waitForExistence(timeout: 5))
+    title.tap()
+    title.typeText("A found moment")
+    let editor = app.textViews["note-body-editor"]
+    editor.tap()
+    editor.typeText("caught for later")
+    app.buttons["note-save-button"].tap()
+    XCTAssertTrue(app.staticTexts["A found moment"].waitForExistence(timeout: 5))
+
+    // Step into the Inbox room (confirmed by its unique intro) and find the note.
+    let inbox = app.buttons["room-inbox"]
+    XCTAssertTrue(inbox.waitForExistence(timeout: 5))
+    if !inbox.isHittable { app.swipeUp() }
+    inbox.tap()
+    XCTAssertTrue(
+      app.staticTexts["Quick captures, waiting here until they find their room."]
+        .waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["A found moment"].exists)
+  }
+
   func testSearchFindsACapturedNoteByBody() {
     let app = launchEmptyApp()
     // Capture a note whose distinctive word lives in the body, not the title.

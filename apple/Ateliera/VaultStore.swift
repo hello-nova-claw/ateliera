@@ -10,6 +10,8 @@ struct NoteSummary: Identifiable {
   // `updated` (falling back to `created`) as an ISO string, used to order the
   // room newest-first. Empty when the note carries no timestamp.
   let timestamp: String
+  // The `rooms` the note belongs to (frontmatter list), for room filtering.
+  let rooms: [String]
 }
 
 // A note opened for editing: its path, the content hash it was read at (for
@@ -224,6 +226,8 @@ final class VaultStore {
     var meaning = "reflection"
     var created = ""
     var updated = ""
+    var rooms: [String] = []
+    var inRoomsBlock = false
     var body: [String] = []
     var section = 0  // 0 before frontmatter, 1 inside, 2 after
     for line in text.components(separatedBy: "\n") {
@@ -232,6 +236,14 @@ final class VaultStore {
         continue
       }
       if section == 1 {
+        // Collect a `rooms:` block-list (`  - key`) until the next key.
+        if inRoomsBlock {
+          if line.hasPrefix("  - ") {
+            rooms.append(String(line.dropFirst(4)).trimmingCharacters(in: .whitespaces))
+            continue
+          }
+          inRoomsBlock = false
+        }
         if line.hasPrefix("title:") {
           title = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
         } else if line.hasPrefix("card_type:") {
@@ -240,6 +252,18 @@ final class VaultStore {
           created = String(line.dropFirst(8)).trimmingCharacters(in: .whitespaces)
         } else if line.hasPrefix("updated:") {
           updated = String(line.dropFirst(8)).trimmingCharacters(in: .whitespaces)
+        } else if line == "rooms:" {
+          inRoomsBlock = true
+        } else if line.hasPrefix("rooms:") {
+          // Inline form: `rooms: []` or `rooms: [a, b]`.
+          let rest = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
+          if rest.hasPrefix("[") && rest.hasSuffix("]") {
+            let inner = String(rest.dropFirst().dropLast()).trimmingCharacters(in: .whitespaces)
+            rooms =
+              inner.isEmpty
+              ? []
+              : inner.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+          }
         }
       } else if !line.trimmingCharacters(in: .whitespaces).isEmpty {
         body.append(line)
@@ -247,7 +271,7 @@ final class VaultStore {
     }
     return NoteSummary(
       id: path, title: title, snippet: body.first ?? "", meaning: meaning,
-      timestamp: updated.isEmpty ? created : updated)
+      timestamp: updated.isEmpty ? created : updated, rooms: rooms)
   }
 
   // Seed a small Reflection Garden so the room has content in the simulator.
@@ -266,7 +290,8 @@ final class VaultStore {
       try fm.createDirectory(at: room, withIntermediateDirectories: true)
       for (slug, title, meaning) in notes {
         let body = "\n\(title). Fifteen minutes still counted.\n"
-        let md = "---\ntitle: \(title)\ncard_type: \(meaning)\n---\n\(body)"
+        let md =
+          "---\ntitle: \(title)\ncard_type: \(meaning)\nrooms:\n  - reflection-garden\n---\n\(body)"
         try md.data(using: .utf8)!.write(to: room.appendingPathComponent("\(slug).md"))
       }
       try "1".data(using: .utf8)!
