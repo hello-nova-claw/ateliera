@@ -23,7 +23,14 @@
   to Inbox. `StudioNote.capture`/`VaultStore.capture` gained a `room` parameter.
   Unit tests (factory tags the room, folder names) + a UI test (step into Wisdom
   Garden, capture there, see it land). 43 unit + 6 UI tests green.
-- N5 remaining: the ecosystem slice (Widgets / Shortcuts / Handoff).
+- **Ecosystem (start): Siri / Shortcuts.** A `TodaysRhythmIntent` (App Intents,
+  no extension target needed) speaks/returns a one-line almanac —
+  `RhythmSummary.line` over the pure rhythm engine, hemisphere from the last
+  location fix — exposed via an `AppShortcutsProvider` with Siri phrases ("Today's
+  rhythm in Ateliera"). `LocationHemisphere.persisted` made `nonisolated` so the
+  intent can read it off the main actor. 2 unit tests for the summary line. 45 unit
+  + 6 UI tests green.
+- N5 remaining: Widgets and Handoff (Handoff is cross-app, the named N5 gate item).
 
 ## 2026-08-28 — Native Apple app, Phase N5 (start): native search
 
