@@ -1030,3 +1030,15 @@ atomic path; golden-matched to `@studio/application` projections + `@studio/doma
 - **Compiler note**: cross-file `if case` matching on the `indirect enum` YamlNode
   trips a spurious "circular reference"; fixed by keeping all YamlNode case access in
   StudioNote.swift (new `frontmatterScalar/Bool/List` accessors) and calling those.
+
+## 2026-08-29 — Native parity P4 repair panel (deferred slice)
+
+Closed the P4 follow-up: `LinkEditor` (editable WIKI links with UTF-16 offsets +
+`rewrite`, golden-matched to link-edit.ts — offsets/remove/relink verified against
+node), `RepairQueue` (broken/ambiguous links via the link graph + duplicate-id
+metadata, ordered path→kind→occurrence), `VaultStore.repairQueue()`/`repairLink()`
+on the atomic rail, and a `Search/RepairView` reached from Settings → Repair links.
+Markdown/reference-link repair (needs mdast offsets) stays a documented follow-up;
+wiki links are the form Ateliera writes. 14 pure + 2 integration unit tests + 1
+XCUITest. Gotcha: a row-level `.accessibilityIdentifier` overrides child ids in
+XCUITest — put ids on the leaf controls, not the container.
