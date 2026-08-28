@@ -13,8 +13,9 @@ final class LocationHemisphere: NSObject, CLLocationManagerDelegate {
   private var continuation: CheckedContinuation<CLLocationCoordinate2D?, Never>?
 
   /// The last hemisphere we resolved, if any — safe to read synchronously at
-  /// launch so the first render isn't wrong while a fresh fix is pending.
-  static var persisted: Hemisphere? {
+  /// launch so the first render isn't wrong while a fresh fix is pending. A pure
+  /// UserDefaults read, so it's usable off the main actor (e.g. from an intent).
+  nonisolated static var persisted: Hemisphere? {
     UserDefaults.standard.string(forKey: key).flatMap(Hemisphere.init(rawValue:))
   }
 
