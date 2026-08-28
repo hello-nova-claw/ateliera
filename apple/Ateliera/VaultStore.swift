@@ -292,6 +292,68 @@ final class VaultStore {
     return saveEdit(editable, updatedNote: updated)
   }
 
+  /// Read an arbitrary vault file (config / view-state JSON), or nil if it's absent
+  /// or the vault is closed. Used by the Landscape/Identity stores for `.studio/`
+  /// state that isn't a note.
+  func readRawFile(path: String) -> (text: String, hash: String)? {
+    guard let vault else { return nil }
+    guard let read = try? vault.readText(path: path) else { return nil }
+    return (read.text, read.hash)
+  }
+
+  /// Write an arbitrary vault file atomically (optimistic-concurrency when
+  /// `expectedHash` is given). Returns the new content hash, or nil on failure
+  /// (with `error` set). Does NOT reload the note list — callers refresh what they own.
+  @discardableResult
+  func writeRawFile(path: String, text: String, expectedHash: String?, createNew: Bool) -> String? {
+    guard let vault else {
+      error = "Choose a Studio folder first."
+      return nil
+    }
+    do {
+      let outcome = try vault.writeText(
+        path: path, text: text, expectedHash: expectedHash, createNew: createNew)
+      error = nil
+      return outcome.hash
+    } catch {
+      self.error = "\(error)"
+      return nil
+    }
+  }
+
+  /// Capture a new note with an explicit card type + semantic type + room (e.g. an
+  /// Identity Studio truth). Like `capture`, but not forced to the Inbox capture
+  /// defaults. Writes to the room's folder and reloads.
+  @discardableResult
+  func capture(
+    title: String?, body: String, room: String, cardType: String, semanticType: String,
+    status: String = "active"
+  ) -> Bool {
+    guard vault != nil else {
+      error = "Choose a Studio folder first."
+      return false
+    }
+    let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedBody.isEmpty else {
+      error = "Write something to remember first."
+      return false
+    }
+    let id = NoteFactory.createNoteId()
+    let created = NoteFactory.isoTimestamp()
+    var note = StudioNote.capture(title: title, body: trimmedBody, id: id, created: created, room: room)
+    note.cardType = cardType
+    note.semanticType = semanticType
+    note.status = status
+    let filename = NoteFactory.suggestFilename(
+      created: created, title: note.title, cardType: note.cardType, id: id)
+    let path = "\(Room.folderName(for: room))/\(filename)"
+    if writeRawFile(path: path, text: note.serialize(), expectedHash: nil, createNew: true) == nil {
+      return false
+    }
+    try? reload()
+    return true
+  }
+
   func reload() throws {
     guard let vault else { return }
     let entries = try vault.list(prefix: nil)
