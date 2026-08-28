@@ -10,7 +10,7 @@ struct TodaysRhythmIntent: AppIntent {
     "The felt season, micro-season, and moon for today.")
 
   func perform() async throws -> some IntentResult & ProvidesDialog & ReturnsValue<String> {
-    let hemisphere = LocationHemisphere.persisted ?? .north
+    let hemisphere = SharedStore.bestHemisphere
     let context = Rhythm.computeContext(
       profile: RhythmProfile(hemisphere: hemisphere, cycle: nil), date: Self.today())
     let line = RhythmSummary.line(for: context)

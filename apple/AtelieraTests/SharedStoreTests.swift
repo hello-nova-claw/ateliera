@@ -12,4 +12,19 @@ final class SharedStoreTests: XCTestCase {
     SharedStore.hemisphere = nil
     XCTAssertNil(SharedStore.hemisphere)
   }
+
+  func testRegionHemisphere() {
+    XCTAssertEqual(RegionHemisphere.hemisphere(forRegion: "AU"), .south)
+    XCTAssertEqual(RegionHemisphere.hemisphere(forRegion: "nz"), .south)  // case-insensitive
+    XCTAssertEqual(RegionHemisphere.hemisphere(forRegion: "US"), .north)
+    XCTAssertEqual(RegionHemisphere.hemisphere(forRegion: "GB"), .north)
+    XCTAssertEqual(RegionHemisphere.hemisphere(forRegion: ""), .north)
+  }
+
+  func testBestHemispherePrefersStoredValue() {
+    SharedStore.hemisphere = .south
+    XCTAssertEqual(SharedStore.bestHemisphere, .south)
+    SharedStore.hemisphere = nil
+    XCTAssertEqual(SharedStore.bestHemisphere, RegionHemisphere.current)
+  }
 }

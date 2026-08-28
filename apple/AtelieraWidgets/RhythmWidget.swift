@@ -15,7 +15,7 @@ struct RhythmEntry: TimelineEntry {
 
 enum RhythmWidgetData {
   static func entry(for date: Date = Date()) -> RhythmEntry {
-    let hemisphere = SharedStore.hemisphere ?? .north
+    let hemisphere = SharedStore.bestHemisphere
     let formatter = DateFormatter()
     formatter.locale = Locale(identifier: "en_US_POSIX")
     formatter.timeZone = .current

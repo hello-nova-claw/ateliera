@@ -67,7 +67,6 @@ targets:
         PRODUCT_NAME: AtelieraWidgets
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: AtelieraWidgets/Info.plist
-        CODE_SIGN_ENTITLEMENTS: AtelieraWidgets.entitlements
         SKIP_INSTALL: YES
 
   AtelieraTests:

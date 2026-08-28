@@ -17,6 +17,22 @@ final class CaptureFlowUITests: XCTestCase {
     return app
   }
 
+  // Robust typing: focus the field and wait for the software keyboard before
+  // typing. On a cold simulator the keyboard can lag a tap, which otherwise fails
+  // with "no keyboard focus" — flaky, not a real defect.
+  private func type(
+    _ text: String, into element: XCUIElement, in app: XCUIApplication,
+    file: StaticString = #filePath, line: UInt = #line
+  ) {
+    XCTAssertTrue(element.waitForExistence(timeout: 5), "field missing", file: file, line: line)
+    element.tap()
+    if !app.keyboards.firstMatch.waitForExistence(timeout: 5) {
+      element.tap()  // one more nudge if the keyboard didn't attach
+      _ = app.keyboards.firstMatch.waitForExistence(timeout: 5)
+    }
+    element.typeText(text)
+  }
+
   func testCapturingANoteShowsItInTheRoom() {
     let app = launchEmptyApp()
 
@@ -29,12 +45,10 @@ final class CaptureFlowUITests: XCTestCase {
 
     let title = app.textFields["note-title-field"]
     XCTAssertTrue(title.waitForExistence(timeout: 5))
-    title.tap()
-    title.typeText("A found moment")
+    type("A found moment", into: title, in: app)
 
     let editor = app.textViews["note-body-editor"]
-    editor.tap()
-    editor.typeText("Fifteen minutes still counted.")
+    type("Fifteen minutes still counted.", into: editor, in: app)
 
     app.buttons["note-save-button"].tap()
 
@@ -59,11 +73,9 @@ final class CaptureFlowUITests: XCTestCase {
     app.buttons["capture-button"].tap()
     let title = app.textFields["note-title-field"]
     XCTAssertTrue(title.waitForExistence(timeout: 5))
-    title.tap()
-    title.typeText("A found moment")
+    type("A found moment", into: title, in: app)
     let editor = app.textViews["note-body-editor"]
-    editor.tap()
-    editor.typeText("caught for later")
+    type("caught for later", into: editor, in: app)
     app.buttons["note-save-button"].tap()
     XCTAssertTrue(app.staticTexts["A found moment"].waitForExistence(timeout: 5))
 
@@ -91,11 +103,9 @@ final class CaptureFlowUITests: XCTestCase {
     add.tap()
     let title = app.textFields["note-title-field"]
     XCTAssertTrue(title.waitForExistence(timeout: 5))
-    title.tap()
-    title.typeText("A kept truth")
+    type("A kept truth", into: title, in: app)
     let editor = app.textViews["note-body-editor"]
-    editor.tap()
-    editor.typeText("worth remembering")
+    type("worth remembering", into: editor, in: app)
     app.buttons["note-save-button"].tap()
 
     // It lands in the Wisdom Garden room we're standing in.
@@ -108,11 +118,9 @@ final class CaptureFlowUITests: XCTestCase {
     app.buttons["capture-button"].tap()
     let title = app.textFields["note-title-field"]
     XCTAssertTrue(title.waitForExistence(timeout: 5))
-    title.tap()
-    title.typeText("A found moment")
+    type("A found moment", into: title, in: app)
     let editor = app.textViews["note-body-editor"]
-    editor.tap()
-    editor.typeText("something worth keeping")
+    type("something worth keeping", into: editor, in: app)
     app.buttons["note-save-button"].tap()
     XCTAssertTrue(app.staticTexts["A found moment"].waitForExistence(timeout: 5))
 
@@ -120,8 +128,7 @@ final class CaptureFlowUITests: XCTestCase {
     app.buttons["search-button"].tap()
     let field = app.textFields["search-field"]
     XCTAssertTrue(field.waitForExistence(timeout: 5))
-    field.tap()
-    field.typeText("keeping")
+    type("keeping", into: field, in: app)
     XCTAssertTrue(app.staticTexts["A found moment"].waitForExistence(timeout: 5))
   }
 
@@ -132,11 +139,9 @@ final class CaptureFlowUITests: XCTestCase {
     app.buttons["capture-button"].tap()
     let title = app.textFields["note-title-field"]
     XCTAssertTrue(title.waitForExistence(timeout: 5))
-    title.tap()
-    title.typeText("A found moment")
+    type("A found moment", into: title, in: app)
     let editor = app.textViews["note-body-editor"]
-    editor.tap()
-    editor.typeText("One quiet line.")
+    type("One quiet line.", into: editor, in: app)
     app.buttons["note-save-button"].tap()
 
     let row = app.staticTexts["A found moment"]
@@ -146,8 +151,7 @@ final class CaptureFlowUITests: XCTestCase {
     row.tap()
     let editTitle = app.textFields["note-title-field"]
     XCTAssertTrue(editTitle.waitForExistence(timeout: 5))
-    editTitle.tap()
-    editTitle.typeText(" again")
+    type(" again", into: editTitle, in: app)
     app.buttons["note-save-button"].tap()
 
     XCTAssertTrue(app.staticTexts["A found moment again"].waitForExistence(timeout: 5))

@@ -11,7 +11,7 @@ struct RootView: View {
   @State private var health = HealthCycleSource()
   @State private var cycle: CycleProfile?
   @State private var location = LocationHemisphere()
-  @State private var hemisphere: Hemisphere = LocationHemisphere.persisted ?? .north
+  @State private var hemisphere: Hemisphere = SharedStore.bestHemisphere
   @State private var profileStore = RhythmProfileStore()
 
   // One sheet at a time: a fresh capture, an edit, or the rhythm profile.
