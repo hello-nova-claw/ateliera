@@ -1002,3 +1002,31 @@ path-contained, expected-hash rail; every phase is TDD'd (unit + XCUITest).
 - **Deferred (next slices):** P4's repair panel (needs editable-link offsets +
   `rewrite` + `RepairQueue`), then P5–P9 (rooms depth, capture classification,
   conflict-merge/export, Foyer richness).
+
+## 2026-08-28 — Native parity P5: Life Landscape + Identity Studio
+
+Two centerpiece rooms, built pure-core-first then wired serially (all writes on the
+atomic path; golden-matched to `@studio/application` projections + `@studio/domain`).
+
+- **Types** (`LandscapeTypes`/`IdentityTypes`): extend P1's `LandscapeAnchor` with
+  labels/prompts/semantic mapping; `DecisionHorizon`, `LifeArea(Preference)`,
+  identity sections. `Identity.sectionForCardType` reproduces the *web* function
+  (find-by-cardType then shared-card table) — the P5 spec's looser table was wrong;
+  section-id-style card types correctly return nil.
+- **Pure cores**: `LandscapeProjector`/`IdentityProjector` (ported
+  `projectLandscapeBoard`/`projectIdentityStudioRoom` incl. `visible()` draft-inbox
+  clause, `fallbackCompare`, manual-order overlay, featured promotion, evidence
+  linking, currently-becoming); `LifeAreaConfig` + `ViewState` codecs byte-identical
+  to the web JSON (`id,title,hidden,order` key order; `%3A` view paths — both
+  captured from node, the spec's alphabetical claim was wrong). `decision_horizon`/
+  `related_notes` read from `extraFrontmatter` (P1 shim). 37 unit tests.
+- **Stores**: `LandscapeStore` (config load, board projection, move card to anchor,
+  reorder, add/rename/hide areas) + `IdentityStore` (project, add card, promote,
+  reorder) over new `VaultStore` raw-file + typed-capture helpers. 7 integration tests.
+- **Rooms**: `LandscapeRoomView` (focus view — area chips, 5 anchor sections, a
+  keyboard-accessible Move menu, area manager) + `IdentityRoomView` (currently-
+  becoming hero, 7 sections, add form, promote), added to `Room.all` and wired into
+  the Foyer. 2 XCUITests (seeded via `ATELIERA_UITEST_P5`).
+- **Compiler note**: cross-file `if case` matching on the `indirect enum` YamlNode
+  trips a spurious "circular reference"; fixed by keeping all YamlNode case access in
+  StudioNote.swift (new `frontmatterScalar/Bool/List` accessors) and calling those.
