@@ -971,3 +971,34 @@
   (10 new: 6 for `searchPlaces`, plus birthplace-picker cases in the Settings
   suite), the production build with the startup-entry budget intact, and the
   full Playwright suite at 172 passed / 32 intentional skips.
+
+## 2026-08-28 — Native parity: P1–P4 (metadata depth, themes, the Gift, faceted search)
+
+The SwiftUI app (`apple/`) advanced from ~30% toward full web parity along the
+accepted P1–P9 roadmap (`docs/superpowers/plans/2026-08-28-ateliera-native-parity.md`,
+with per-phase specs + a shared BUILD-PLAN under `docs/superpowers/plans/parity/`).
+Pure algorithm cores for P2/P3/P4 were built in parallel (cost-tuned subagents),
+each golden-matched to the corresponding `@studio/*` package, then integrated
+serially into the shared Swift files. All writes stay on the one atomic,
+path-contained, expected-hash rail; every phase is TDD'd (unit + XCUITest).
+
+- **P1 — note depth (already on main):** the full `StudioNote` metadata editor,
+  `[[wikilink]]` parsing/navigation, and a body preview, all round-tripping
+  byte-identically with unknown frontmatter surviving.
+- **P2 — themes:** all seven palettes (`StudioTheme`, hex from `tokens.css`) live
+  via a single `@Environment(\.studioTheme)` mechanism; a Settings switcher persists
+  the choice (`ThemeStore` → `UserDefaults`) and recolours the app instantly.
+- **P3 — the Gift:** the SM-2 resurfacing engine (golden-matched to
+  `resurfacing.ts`, incl. the interval table and UTC `addDaysISO`), a resurface
+  pool over the loaded vault, and a Foyer "Today's Gift" card. Grading (Not now/
+  Keep/This landed deeply → quality 2/4/5) files a keepsake copy for a passing
+  grade and advances the source note's `resurface_due`/`interval_days` through the
+  write rail — the "learns" loop, closed. No streaks or counts.
+- **P4 — faceted search + links:** a disposable in-memory `SearchIndex` +
+  `LinkGraph` rebuilt on every `reload()`. Prefix ranking, snippet highlight
+  ranges, match reasons, and seven facet groups; wikilink/markdown/`studio://note`
+  backlinks + forward-links (resolved/broken/ambiguous) surfaced in the note
+  editor's Links screen. Replaced the old substring `NoteSearch`.
+- **Deferred (next slices):** P4's repair panel (needs editable-link offsets +
+  `rewrite` + `RepairQueue`), then P5–P9 (rooms depth, capture classification,
+  conflict-merge/export, Foyer richness).
