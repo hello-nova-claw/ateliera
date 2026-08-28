@@ -1,5 +1,20 @@
 # Development log
 
+## 2026-08-28 — Native Apple app, Phase N5 (start): native search
+
+- First N5 slice: search across the vault. `NoteSearch` (`apple/Ateliera/Search/`) is
+  a pure, offline ranker — matches every query token in a note's title or body,
+  weights title hits above body hits, orders by score (title A→Z tiebreak). Not an
+  interop contract (the web's index is disposable), so it's a native ranker, not a
+  port. 5 unit tests.
+- `VaultStore` builds search docs (id + title + body) on each reload and exposes
+  `search(query)`; a `SearchView` (magnifying-glass in the studio bar) offers a live
+  search field + results, and tapping a result opens it for editing. A UI test
+  captures a note and finds it by a body-only word. 37 unit + 4 UI tests green; both
+  platforms build.
+- Next in N5: grow beyond the single room (navigation + room views), then the
+  ecosystem bits (Widgets / Shortcuts / Handoff).
+
 ## 2026-08-28 — "One vault, two apps" verified across iCloud (iPhone ↔ web engine)
 
 - Proved the ADR-012 interop end to end with a real iCloud vault. Created a shared
