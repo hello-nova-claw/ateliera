@@ -1,5 +1,25 @@
 # Development log
 
+## 2026-08-28 — Native Apple app, Phase N5: grow the rooms (Foyer + room navigation)
+
+- The app is no longer a single screen. The home is now a **Foyer** — the almanac,
+  "Your rhythm", a **ROOMS** section, and a **RECENTLY** list of all notes — inside a
+  `NavigationStack`. Rooms (Reflection Garden, Inbox, Wisdom Garden) are data-driven
+  views that filter the vault by a note's `rooms` frontmatter; tapping one pushes a
+  `RoomView` with that room's heading + notes, tap-to-edit.
+- The minimal list parser now reads the `rooms` block (and inline/empty forms); the
+  seeded demo notes carry `rooms: [reflection-garden]`. `NoteRow` extracted so the
+  Foyer and room views share it.
+- Tests: `RoomsTests` (parse a block list / empty / missing; membership filtering)
+  and a UI test that captures a note, steps into the Inbox room, and confirms it's
+  there (using the room's unique intro as the presence signal). Note: value-based
+  `NavigationLink` + `navigationDestination` didn't register taps reliably under
+  XCUITest in a ScrollView — switched to the **direct-destination** `NavigationLink`
+  form, which does. 41 unit + 5 UI tests green; both platforms build
+  (`artifacts/ios/native-n5-foyer.png`).
+- N5 remaining: more rooms/room-specific capture, and the ecosystem slice
+  (Widgets / Shortcuts / Handoff).
+
 ## 2026-08-28 — Native Apple app, Phase N5 (start): native search
 
 - First N5 slice: search across the vault. `NoteSearch` (`apple/Ateliera/Search/`) is
