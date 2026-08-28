@@ -177,9 +177,7 @@ struct RootView: View {
         .padding(.bottom, 8)
       ForEach(Room.all) { room in
         NavigationLink {
-          RoomView(
-            room: room, store: store, onOpen: openEdit,
-            onCapture: { activeSheet = .capture(room: room.id) })
+          roomDestination(room)
         } label: {
           HStack(spacing: 10) {
             Text(room.title).font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
@@ -197,6 +195,26 @@ struct RootView: View {
         Divider().overlay(theme.line)
       }
     }
+  }
+
+  // Life Landscape and Identity Studio are projected rooms with their own stores;
+  // every other room is the generic note-list RoomView.
+  @ViewBuilder
+  private func roomDestination(_ room: Room) -> some View {
+    switch room.id {
+    case "landscape":
+      LandscapeRoomView(store: store, onOpen: openPath)
+    case "identity-studio":
+      IdentityRoomView(store: store, onOpen: openPath)
+    default:
+      RoomView(
+        room: room, store: store, onOpen: openEdit,
+        onCapture: { activeSheet = .capture(room: room.id) })
+    }
+  }
+
+  private func openPath(_ path: String) {
+    if let editable = store.beginEdit(path: path) { activeSheet = .edit(editable) }
   }
 
   // Everything you've captured, newest first, whatever room it's in.

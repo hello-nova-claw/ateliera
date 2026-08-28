@@ -142,6 +142,47 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.navigationBars["Details"].waitForExistence(timeout: 5))
   }
 
+  private func launchWith(_ extra: [String: String]) -> XCUIApplication {
+    let app = XCUIApplication()
+    app.launchEnvironment["ATELIERA_UITEST"] = "1"
+    for (key, value) in extra { app.launchEnvironment[key] = value }
+    app.launch()
+    return app
+  }
+
+  func testLandscapeRoomShowsAnchorsAndAddsArea() {
+    let app = launchWith(["ATELIERA_UITEST_P5": "1"])
+    let room = app.buttons["room-landscape"]
+    XCTAssertTrue(room.waitForExistence(timeout: 8))
+    room.tap()
+    XCTAssertTrue(app.navigationBars["Life Landscape"].waitForExistence(timeout: 5))
+    // Focus view shows the anchors and the seeded family/vision card (a tappable row).
+    XCTAssertTrue(app.buttons["A calm morning"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["VISION"].exists)
+    XCTAssertTrue(app.staticTexts["DECISIONS"].exists)
+    // Add a new life area via the manager.
+    app.buttons["manage-areas-button"].tap()
+    type("Body & energy", into: app.textFields["new-area-field"], in: app)
+    app.buttons["add-area-button"].tap()
+    app.buttons["Done"].tap()
+    XCTAssertTrue(app.buttons["area-body-energy"].waitForExistence(timeout: 5))
+  }
+
+  func testIdentityRoomSectionsAndPromote() {
+    let app = launchWith(["ATELIERA_UITEST_P5": "1"])
+    let room = app.buttons["room-identity-studio"]
+    XCTAssertTrue(room.waitForExistence(timeout: 8))
+    room.tap()
+    XCTAssertTrue(app.navigationBars["Identity Studio"].waitForExistence(timeout: 5), "did not navigate")
+    // All seven sections render; the seeded practicing-now card is visible.
+    XCTAssertTrue(app.staticTexts["Already true"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["Practicing now"].exists)
+    XCTAssertTrue(app.staticTexts["Practicing patience"].exists)
+    // Promote it → the "currently becoming" hero appears.
+    app.buttons["Make current"].firstMatch.tap()
+    XCTAssertTrue(app.staticTexts["CURRENTLY BECOMING"].waitForExistence(timeout: 5))
+  }
+
   func testSettingsSwitchesTheme() {
     let app = launchEmptyApp()
     let settings = app.buttons["settings-button"]

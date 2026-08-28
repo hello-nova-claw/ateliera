@@ -114,7 +114,39 @@ final class VaultStore {
     if ProcessInfo.processInfo.environment["ATELIERA_UITEST_GIFT"] == "1" {
       seedGiftFixture(at: url)
     }
+    if ProcessInfo.processInfo.environment["ATELIERA_UITEST_P5"] == "1" {
+      seedP5Fixture(at: url)
+    }
     return url
+  }
+
+  // One Life Landscape card (family / vision) + one Identity Studio practicing-now
+  // card, so the two projected rooms have real content to drive in UI tests.
+  private static func seedP5Fixture(at root: URL) {
+    var landscape = StudioNote.capture(
+      title: "A calm morning", body: "\nAn ordinary Tuesday that already feels true.\n",
+      id: NoteFactory.createNoteId(), created: NoteFactory.isoTimestamp(), room: "landscape")
+    landscape.status = "active"
+    landscape.lifeAreas = ["family"]
+    landscape.landscapeAnchor = "vision"
+    landscape.cardType = "vision"
+    landscape.semanticType = "vision"
+
+    var identity = StudioNote.capture(
+      title: "Practicing patience", body: "\nThe quality I'm growing this season.\n",
+      id: NoteFactory.createNoteId(), created: NoteFactory.isoTimestamp(), room: "identity-studio")
+    identity.status = "active"
+    identity.cardType = "identity-emerging"
+    identity.semanticType = "growth"
+
+    write(landscape, to: root, folder: "Life Landscape", file: "a-calm-morning.md")
+    write(identity, to: root, folder: "Identity Studio", file: "practicing-patience.md")
+  }
+
+  private static func write(_ note: StudioNote, to root: URL, folder: String, file: String) {
+    let dir = root.appendingPathComponent(folder, isDirectory: true)
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    try? note.serialize().data(using: .utf8)?.write(to: dir.appendingPathComponent(file))
   }
 
   // A single due Reflection Garden wish note (due date far in the past → always

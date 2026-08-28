@@ -29,5 +29,13 @@ struct Room: Identifiable, Hashable {
       id: "wisdom-garden", title: "Wisdom Garden",
       eyebrow: "what you want to keep",
       intro: "Lessons, lines, and truths worth returning to."),
+    Room(
+      id: "landscape", title: "Life Landscape",
+      eyebrow: "the shape of a life",
+      intro: "Your life areas across vision, identity, decisions, practices, and structure."),
+    Room(
+      id: "identity-studio", title: "Identity Studio",
+      eyebrow: "who you are becoming",
+      intro: "What's already true, what you're practicing, and the shifts along the way."),
   ]
 }
