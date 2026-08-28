@@ -1,5 +1,31 @@
 # Development log
 
+## 2026-08-28 — Native parity Phase P1: note depth (metadata editing + wikilinks)
+
+- First parity phase, per `docs/superpowers/plans/parity/`. **The spine everything
+  else builds on.** Shipped:
+  - `NoteMetadata.swift` — the single typed vocabulary (SemanticType, NoteStatus,
+    Sensitivity, AiAccess, LandscapeAnchor, defaultLifeAreas, knownCardTypes),
+    golden-matched to `@studio/domain`. Later phases import, never redeclare.
+  - `VaultStore.saveEdit(_:updatedNote:)` — the one canonical full-note write rail
+    (atomic, expected-hash, whole-model re-serialize so unknown keys survive);
+    the title/body editor is now a thin wrapper over it. `NoteSummary` extended
+    (status/semanticType/tags/lifeAreas/landscapeAnchor/featured/noteId) and a
+    `parsedNotes: [StudioNote]` cache added to `reload()` for later room projections.
+  - `MetadataEditorView` — a Form editing every field (type/status, rooms, tags,
+    life-areas, seasons, landscape anchor, source, privacy, display); reached via a
+    "Details" screen from the redesigned `NoteEditView`.
+  - `WikilinkParser` (golden-matched to `links.ts`: same regex, code-span/fence
+    skipping, dedup by lower-cased target) + `WikilinkNavigator` (title / studio://
+    note/id → path) + a `BodyPreviewView` with tappable link pills and a Preview
+    toggle in the edit sheet; tapping a link opens the target note (or a "not found"
+    alert).
+- Every metadata field round-trips byte-identically (unknown keys preserved).
+  **77 unit + 9 UI tests green; both platforms build.** (The multi-agent
+  BUILD-PLAN's contracts held: one write rail, one vocabulary source, one summary.)
+- Next on the serial spine: P4-core (index/link graph), then P5. Parallel-safe:
+  P2 themes, P3 the Gift.
+
 ## 2026-08-28 — Native Apple app, Phase N5: grow the rooms (Foyer + room navigation)
 
 - The app is no longer a single screen. The home is now a **Foyer** — the almanac,
