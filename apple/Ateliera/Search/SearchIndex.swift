@@ -28,17 +28,22 @@ struct IndexedNote: Equatable {
   let seasons: [String]
   let tags: [String]
   let sourceText: String  // source title/creator/url joined, for match context
+  // The raw Markdown body, used to extract the link graph (wikilinks + markdown
+  // links live in the raw source, not the plain-text `body`). Defaults to `body`
+  // when a caller doesn't distinguish them.
+  let rawBody: String
 
   init(
     id: String, path: String, title: String, body: String,
     cardType: String, semanticType: String, status: String, updated: String,
     rooms: [String] = [], lifeAreas: [String] = [], seasons: [String] = [],
-    tags: [String] = [], sourceText: String = ""
+    tags: [String] = [], sourceText: String = "", rawBody: String? = nil
   ) {
     self.id = id
     self.path = path
     self.title = title
     self.body = body
+    self.rawBody = rawBody ?? body
     self.cardType = cardType
     self.semanticType = semanticType
     self.status = status
@@ -143,7 +148,7 @@ final class SearchIndex {
 
   func rebuild(_ notes: [IndexedNote]) {
     docs = notes
-    graph = LinkGraph(notes.map { (id: $0.id, path: $0.path, title: $0.title, body: $0.body) })
+    graph = LinkGraph(notes.map { (id: $0.id, path: $0.path, title: $0.title, body: $0.rawBody) })
   }
 
   // MARK: - Search

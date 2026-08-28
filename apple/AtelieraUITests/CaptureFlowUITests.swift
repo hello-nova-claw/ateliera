@@ -92,13 +92,45 @@ final class CaptureFlowUITests: XCTestCase {
 
   // Capture a titled note with a body, then open it for editing.
   private func captureAndOpen(_ app: XCUIApplication, title: String, body: String) {
+    captureOnly(app, title: title, body: body)
+    let row = app.staticTexts[title]
+    XCTAssertTrue(row.waitForExistence(timeout: 5))
+    row.tap()
+  }
+
+  // Capture a note and return to the Foyer (without opening it).
+  private func captureOnly(_ app: XCUIApplication, title: String, body: String) {
     app.buttons["capture-button"].tap()
     type(title, into: app.textFields["note-title-field"], in: app)
     type(body, into: app.textViews["note-body-editor"], in: app)
     app.buttons["note-save-button"].tap()
-    let row = app.staticTexts[title]
-    XCTAssertTrue(row.waitForExistence(timeout: 5))
-    row.tap()
+    XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 5))
+  }
+
+  func testSearchShowsResultAndFacetIsOperable() {
+    let app = launchEmptyApp()
+    captureOnly(app, title: "Seaside", body: "waves over the shore at dawn")
+    app.buttons["search-button"].tap()
+    type("shore", into: app.textFields["search-field"], in: app)
+    XCTAssertTrue(app.staticTexts["Seaside"].waitForExistence(timeout: 5))
+    // The Inbox facet chip is present and keeps the matching result when toggled.
+    let inboxFacet = app.buttons["facet-inbox"]
+    XCTAssertTrue(inboxFacet.waitForExistence(timeout: 5))
+    inboxFacet.tap()
+    XCTAssertTrue(app.staticTexts["Seaside"].waitForExistence(timeout: 5))
+  }
+
+  func testBacklinksShowTheLinkingNote() {
+    let app = launchEmptyApp()
+    captureOnly(app, title: "Anchor note", body: "the anchor place")
+    captureOnly(app, title: "Pointer note", body: "See [[Anchor note]] here.")
+    // Open the anchor and step into its Links screen.
+    app.staticTexts["Anchor note"].tap()
+    let links = app.buttons["note-links-button"]
+    XCTAssertTrue(links.waitForExistence(timeout: 5))
+    links.tap()
+    // The note that links to it appears under "Linked from".
+    XCTAssertTrue(app.staticTexts["Pointer note"].waitForExistence(timeout: 5))
   }
 
   func testMetadataDetailsScreenOpens() {

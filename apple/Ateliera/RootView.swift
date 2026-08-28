@@ -134,15 +134,18 @@ struct RootView: View {
       case .edit(let editable):
         NoteEditView(
           store: store, editable: editable, onClose: { activeSheet = nil },
-          onNavigate: { target in navigateWikilink(target) })
+          onNavigate: { target in navigateWikilink(target) },
+          onOpenPath: { path in
+            if let next = store.beginEdit(path: path) { activeSheet = .edit(next) }
+          })
       case .rhythm:
         RhythmSettingsView(
           store: profileStore, isPresented: Binding(get: { activeSheet != nil }, set: { if !$0 { activeSheet = nil } }))
       case .search:
         SearchView(
           store: store,
-          onOpen: { note in
-            if let editable = store.beginEdit(path: note.id) { activeSheet = .edit(editable) }
+          onOpen: { path in
+            if let editable = store.beginEdit(path: path) { activeSheet = .edit(editable) }
           },
           onClose: { activeSheet = nil })
       case .settings:
@@ -455,6 +458,7 @@ private struct NoteEditView: View {
   let editable: EditableNote
   let onClose: () -> Void
   let onNavigate: (String) -> Bool  // wikilink target → true if it navigated away
+  let onOpenPath: (String) -> Void  // open another note by its vault path (backlinks)
   @State private var note: StudioNote
   @State private var titleText: String
   @State private var showingPreview = false
@@ -462,12 +466,13 @@ private struct NoteEditView: View {
 
   init(
     store: VaultStore, editable: EditableNote, onClose: @escaping () -> Void,
-    onNavigate: @escaping (String) -> Bool
+    onNavigate: @escaping (String) -> Bool, onOpenPath: @escaping (String) -> Void
   ) {
     self.store = store
     self.editable = editable
     self.onClose = onClose
     self.onNavigate = onNavigate
+    self.onOpenPath = onOpenPath
     _note = State(initialValue: editable.note)
     _titleText = State(initialValue: editable.note.title ?? "")
   }
@@ -515,6 +520,13 @@ private struct NoteEditView: View {
               .font(StudioFont.control).foregroundStyle(theme.link)
           }
           .accessibilityIdentifier("note-details-button")
+          NavigationLink {
+            BacklinksView(store: store, sourcePath: editable.path, onNavigate: onOpenPath)
+          } label: {
+            Label("Links", systemImage: "link")
+              .font(StudioFont.control).foregroundStyle(theme.link)
+          }
+          .accessibilityIdentifier("note-links-button")
         }
         .padding(24)
       }
@@ -551,83 +563,7 @@ private struct NoteEditView: View {
 }
 
 // Search the vault by title or body text. Tapping a result opens it for editing.
-private struct SearchView: View {
-  @Environment(\.studioTheme) private var theme
-  let store: VaultStore
-  let onOpen: (NoteSummary) -> Void
-  let onClose: () -> Void
-  @State private var query = ""
-  @FocusState private var focused: Bool
-
-  private var results: [NoteSummary] { store.search(query) }
-  private var trimmed: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
-
-  var body: some View {
-    NavigationStack {
-      VStack(alignment: .leading, spacing: 0) {
-        HStack(spacing: 8) {
-          Image(systemName: "magnifyingglass").foregroundStyle(theme.inkFaint)
-          TextField("Search your notes", text: $query)
-            .font(StudioFont.control)
-            .foregroundStyle(theme.inkStrong)
-            .focused($focused)
-            .submitLabel(.search)
-            .accessibilityIdentifier("search-field")
-        }
-        .padding(14)
-        .overlay(alignment: .bottom) { Divider().overlay(theme.line) }
-
-        ScrollView {
-          VStack(alignment: .leading, spacing: 0) {
-            if trimmed.isEmpty {
-              hint("Find a note by its title or words inside it.")
-            } else if results.isEmpty {
-              hint("Nothing found for “\(trimmed)”.")
-            } else {
-              ForEach(results) { note in
-                Button { onOpen(note) } label: { resultRow(note) }
-                  .buttonStyle(.plain)
-                Divider().overlay(theme.line)
-              }
-            }
-          }
-          .padding(.horizontal, 20)
-        }
-      }
-      .background(theme.canvas)
-      .toolbar {
-        ToolbarItem(placement: .principal) {
-          Text("Search").font(StudioFont.control).foregroundStyle(theme.inkStrong)
-        }
-        ToolbarItem(placement: .cancellationAction) {
-          Button("Done") { onClose() }
-        }
-      }
-    }
-    .onAppear { focused = true }
-  }
-
-  private func hint(_ text: String) -> some View {
-    Text(text)
-      .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
-      .padding(.vertical, 20)
-  }
-
-  private func resultRow(_ note: NoteSummary) -> some View {
-    VStack(alignment: .leading, spacing: 4) {
-      Text(note.title)
-        .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
-      if !note.snippet.isEmpty {
-        Text(note.snippet)
-          .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
-          .lineLimit(2)
-          .fixedSize(horizontal: false, vertical: true)
-      }
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .padding(.vertical, 14)
-  }
-}
+// SearchView now lives in Search/SearchView.swift (faceted, over the P4 index).
 
 // Settings: for now, the theme picker. Choosing a palette persists it and recolors
 // the whole app live (the selection re-renders the environment above RootView).

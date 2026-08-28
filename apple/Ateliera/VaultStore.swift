@@ -44,9 +44,9 @@ final class VaultStore {
 
   @ObservationIgnored private var vault: Vault?
   @ObservationIgnored private let bookmarkKey = "ateliera.vault.bookmark"
-  // Full-text search docs (id = path), rebuilt on every reload. Kept out of
-  // observation since search reads them on demand rather than rendering them.
-  @ObservationIgnored private var searchDocs: [SearchDoc] = []
+  // The disposable, in-memory search + link index (P4), rebuilt wholesale on every
+  // reload. Kept out of observation since callers query it on demand.
+  @ObservationIgnored private let index = SearchIndex()
   @ObservationIgnored private var summariesByPath: [String: NoteSummary] = [:]
   // The full parsed model for every note the schema accepts — the shared source
   // for room projections (P5/P6) and the Foyer (P9). Rebuilt on each reload.
@@ -55,9 +55,41 @@ final class VaultStore {
   // can map each note back to its `sourcePath`. Rebuilt on each reload.
   @ObservationIgnored private(set) var parsedNotesByPath: [(path: String, note: StudioNote)] = []
 
-  /// Notes matching `query`, best first (see NoteSearch). Empty for a blank query.
-  func search(_ query: String) -> [NoteSummary] {
-    NoteSearch.rank(searchDocs, query: query).compactMap { summariesByPath[$0.id] }
+  /// Search hits for `query` under optional `filters`, ranked (P4 index): title/body
+  /// prefix match, snippet with highlight ranges, match reason. Empty for a blank
+  /// query.
+  func searchHits(_ query: String, filters: SearchFilters = SearchFilters()) -> [SearchHit] {
+    index.search(query, filters: filters)
+  }
+
+  /// Facet counts (rooms / meaning / life areas / seasons / status / tags / card
+  /// type) for `query` + `filters`, for the search facet rail.
+  func facets(_ query: String, filters: SearchFilters = SearchFilters()) -> SearchFacets {
+    index.facets(query, filters: filters)
+  }
+
+  /// Canonical notes that link to the note at `path` (backlinks), and this note's
+  /// outbound links tagged resolved/broken/ambiguous (forward links). Empty when the
+  /// path isn't a parsed note.
+  func backlinks(path: String) -> [Backlink] {
+    guard let id = noteId(forPath: path) else { return [] }
+    return index.backlinks(id)
+  }
+
+  func forwardLinks(path: String) -> [ForwardLink] {
+    guard let id = noteId(forPath: path) else { return [] }
+    return index.forwardLinks(id)
+  }
+
+  private func noteId(forPath path: String) -> String? {
+    let id = summariesByPath[path]?.noteId ?? ""
+    return id.isEmpty ? nil : id
+  }
+
+  /// The vault path of the note with `noteId`, if one is loaded — used to open a
+  /// resolved forward link. First match wins (duplicate ids are a repair concern).
+  func path(forNoteId noteId: String) -> String? {
+    parsedNotesByPath.first { $0.note.id == noteId }?.path
   }
 
   init() {
@@ -264,10 +296,10 @@ final class VaultStore {
     guard let vault else { return }
     let entries = try vault.list(prefix: nil)
     var summaries: [NoteSummary] = []
-    var docs: [SearchDoc] = []
     var byPath: [String: NoteSummary] = [:]
     var parsed: [StudioNote] = []
     var parsedPairs: [(path: String, note: StudioNote)] = []
+    var indexed: [IndexedNote] = []
     for entry in entries where !entry.isDirectory && entry.path.hasSuffix(".md") {
       let read = try vault.readText(path: entry.path)
       // Prefer the full model (all metadata fields); fall back to the lenient
@@ -276,24 +308,56 @@ final class VaultStore {
       if let note = NoteParser.parse(read.text) {
         parsed.append(note)
         parsedPairs.append((entry.path, note))
+        indexed.append(Self.indexedNote(from: note, path: entry.path))
         summary = Self.summary(from: note, path: entry.path)
       } else {
         summary = Self.parse(path: entry.path, text: read.text)
       }
       summaries.append(summary)
       byPath[entry.path] = summary
-      docs.append(
-        SearchDoc(id: entry.path, title: summary.title, body: Self.plainBody(read.text)))
     }
     self.parsedNotes = parsed
     self.parsedNotesByPath = parsedPairs
+    index.rebuild(indexed)
     // Newest first: by `updated`/`created` (ISO strings sort chronologically),
     // then title as a stable tiebreaker for notes without a timestamp.
     self.notes = summaries.sorted {
       $0.timestamp != $1.timestamp ? $0.timestamp > $1.timestamp : $0.title < $1.title
     }
-    self.searchDocs = docs
     self.summariesByPath = byPath
+  }
+
+  // Project a parsed note into an index document: plain-text `body` for search +
+  // snippets, `rawBody` (the Markdown) for link extraction, and the frontmatter
+  // facets. `sourceText` joins the citation fields for match context.
+  static func indexedNote(from note: StudioNote, path: String) -> IndexedNote {
+    let fallbackTitle = (path as NSString).lastPathComponent.replacingOccurrences(
+      of: ".md", with: "")
+    let sourceText = [note.source?.title, note.source?.creator, note.source?.url]
+      .compactMap { $0 }.joined(separator: " ")
+    return IndexedNote(
+      id: note.id, path: path, title: note.title ?? fallbackTitle,
+      body: searchText(note.body), cardType: note.cardType, semanticType: note.semanticType,
+      status: note.status, updated: note.updated.isEmpty ? note.created : note.updated,
+      rooms: note.rooms, lifeAreas: note.lifeAreas, seasons: note.seasons, tags: note.tags,
+      sourceText: sourceText, rawBody: note.body)
+  }
+
+  // A light Markdown-to-plain reduction for the search body/snippet (display-only,
+  // not an interop contract). Wikilink targets are kept as words so `[[a note]]`
+  // stays findable; markers and fences are dropped.
+  static func searchText(_ body: String) -> String {
+    let withoutFences = body.components(separatedBy: "\n")
+      .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("```") }
+      .joined(separator: " ")
+    var stripped = withoutFences
+    for token in ["[[", "]]", "**", "__", "`", "#", ">", "*", "_"] {
+      stripped = stripped.replacingOccurrences(of: token, with: " ")
+    }
+    return stripped
+      .split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "\t" })
+      .joined(separator: " ")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   // Rich summary projection from a fully-parsed note.
