@@ -206,6 +206,8 @@ struct RootView: View {
       LandscapeRoomView(store: store, onOpen: openPath)
     case "identity-studio":
       IdentityRoomView(store: store, onOpen: openPath)
+    case "uncharted":
+      UnchartedView(store: store, onOpen: openPath)
     default:
       RoomView(
         room: room, store: store, onOpen: openEdit,

@@ -37,5 +37,9 @@ struct Room: Identifiable, Hashable {
       id: "identity-studio", title: "Identity Studio",
       eyebrow: "who you are becoming",
       intro: "What's already true, what you're practicing, and the shifts along the way."),
+    Room(
+      id: "uncharted", title: "Uncharted",
+      eyebrow: "leave room for possibility",
+      intro: "Keep possibilities that don't need a plan yet."),
   ]
 }

@@ -202,6 +202,24 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["CURRENTLY BECOMING"].waitForExistence(timeout: 5))
   }
 
+  func testUnchartedKeepsNearAndBeyondPossibilities() {
+    let app = launchEmptyApp()
+    let room = app.buttons["room-uncharted"]
+    XCTAssertTrue(room.waitForExistence(timeout: 8))
+    room.tap()
+    XCTAssertTrue(app.navigationBars["Uncharted"].waitForExistence(timeout: 5))
+    // Keep a near possibility (the editor autocapitalises the first letter).
+    type("A smaller life closer to the sea", into: app.textViews["uncharted-editor"], in: app)
+    app.buttons["uncharted-keep"].tap()
+    XCTAssertTrue(
+      app.staticTexts["A smaller life closer to the sea"].firstMatch.waitForExistence(timeout: 5))
+    // Keep one beyond the gate.
+    app.switches["beyond-toggle"].tap()
+    type("Learning to sail", into: app.textViews["uncharted-editor"], in: app)
+    app.buttons["uncharted-keep"].tap()
+    XCTAssertTrue(app.staticTexts["Learning to sail"].firstMatch.waitForExistence(timeout: 5))
+  }
+
   func testSettingsSwitchesTheme() {
     let app = launchEmptyApp()
     let settings = app.buttons["settings-button"]

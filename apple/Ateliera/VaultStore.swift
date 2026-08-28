@@ -379,7 +379,7 @@ final class VaultStore {
   @discardableResult
   func capture(
     title: String?, body: String, room: String, cardType: String, semanticType: String,
-    status: String = "active"
+    status: String = "active", extraFrontmatter: [(String, YamlNode)] = []
   ) -> Bool {
     guard vault != nil else {
       error = "Choose a Studio folder first."
@@ -396,6 +396,7 @@ final class VaultStore {
     note.cardType = cardType
     note.semanticType = semanticType
     note.status = status
+    note.extraFrontmatter = extraFrontmatter
     let filename = NoteFactory.suggestFilename(
       created: created, title: note.title, cardType: note.cardType, id: id)
     let path = "\(Room.folderName(for: room))/\(filename)"
