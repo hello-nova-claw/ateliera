@@ -2,16 +2,24 @@ import Foundation
 import Observation
 
 // The note summaries a room shows, read from the vault through the Rust core.
+// The lightweight projection the lists/filters query; the full model lives in
+// `VaultStore.parsedNotes` and is loaded fresh for editing via `beginEdit`.
 struct NoteSummary: Identifiable {
   let id: String
   let title: String
   let snippet: String
-  let meaning: String
+  let meaning: String  // cardType, drives the meaning colour
   // `updated` (falling back to `created`) as an ISO string, used to order the
   // room newest-first. Empty when the note carries no timestamp.
   let timestamp: String
-  // The `rooms` the note belongs to (frontmatter list), for room filtering.
+  // Frontmatter projections used by room/status filters and (P4) search facets.
   let rooms: [String]
+  var status: String = ""
+  var semanticType: String = ""
+  var tags: [String] = []
+  var lifeAreas: [String] = []
+  var landscapeAnchor: String? = nil
+  var featured: Bool = false
 }
 
 // A note opened for editing: its path, the content hash it was read at (for
@@ -39,6 +47,9 @@ final class VaultStore {
   // observation since search reads them on demand rather than rendering them.
   @ObservationIgnored private var searchDocs: [SearchDoc] = []
   @ObservationIgnored private var summariesByPath: [String: NoteSummary] = [:]
+  // The full parsed model for every note the schema accepts — the shared source
+  // for room projections (P5/P6) and the Foyer (P9). Rebuilt on each reload.
+  @ObservationIgnored private(set) var parsedNotes: [StudioNote] = []
 
   /// Notes matching `query`, best first (see NoteSearch). Empty for a blank query.
   func search(_ query: String) -> [NoteSummary] {
@@ -156,25 +167,18 @@ final class VaultStore {
     }
   }
 
-  /// Save an edit: apply the new title/body, bump `updated`, and write the note
-  /// back atomically, only if the file still matches the hash it was read at
-  /// (`expectedHash`). Everything else — including unknown frontmatter keys — is
-  /// preserved by re-serializing the parsed model.
+  /// The canonical full-note save (the one write rail every metadata edit routes
+  /// through). Bumps `updated`, re-serializes the whole model so unknown
+  /// frontmatter survives, and writes atomically only if the file still matches
+  /// the hash it was read at (optimistic concurrency). On a conflicting change the
+  /// file is NOT overwritten — the error is surfaced for a merge choice.
   @discardableResult
-  func saveEdit(_ editable: EditableNote, title: String?, body: String) -> Bool {
+  func saveEdit(_ editable: EditableNote, updatedNote: StudioNote) -> Bool {
     guard let vault else {
       error = "Choose a Studio folder first."
       return false
     }
-    let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmedBody.isEmpty else {
-      error = "A note can't be empty."
-      return false
-    }
-    var updated = editable.note
-    let trimmedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
-    updated.title = (trimmedTitle?.isEmpty ?? true) ? nil : trimmedTitle
-    updated.body = trimmedBody
+    var updated = updatedNote
     updated.updated = NoteFactory.isoTimestamp()
     do {
       _ = try vault.writeText(
@@ -189,20 +193,46 @@ final class VaultStore {
     }
   }
 
+  /// Convenience for the plain title+body editor: mutate those two fields on the
+  /// note and route through `saveEdit(_:updatedNote:)`.
+  @discardableResult
+  func saveEdit(_ editable: EditableNote, title: String?, body: String) -> Bool {
+    let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedBody.isEmpty else {
+      error = "A note can't be empty."
+      return false
+    }
+    var updated = editable.note
+    let trimmedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+    updated.title = (trimmedTitle?.isEmpty ?? true) ? nil : trimmedTitle
+    updated.body = trimmedBody
+    return saveEdit(editable, updatedNote: updated)
+  }
+
   func reload() throws {
     guard let vault else { return }
     let entries = try vault.list(prefix: nil)
     var summaries: [NoteSummary] = []
     var docs: [SearchDoc] = []
     var byPath: [String: NoteSummary] = [:]
+    var parsed: [StudioNote] = []
     for entry in entries where !entry.isDirectory && entry.path.hasSuffix(".md") {
       let read = try vault.readText(path: entry.path)
-      let summary = Self.parse(path: entry.path, text: read.text)
+      // Prefer the full model (all metadata fields); fall back to the lenient
+      // line reader for notes the schema rejects (e.g. seeded demo notes).
+      let summary: NoteSummary
+      if let note = NoteParser.parse(read.text) {
+        parsed.append(note)
+        summary = Self.summary(from: note, path: entry.path)
+      } else {
+        summary = Self.parse(path: entry.path, text: read.text)
+      }
       summaries.append(summary)
       byPath[entry.path] = summary
       docs.append(
         SearchDoc(id: entry.path, title: summary.title, body: Self.plainBody(read.text)))
     }
+    self.parsedNotes = parsed
     // Newest first: by `updated`/`created` (ISO strings sort chronologically),
     // then title as a stable tiebreaker for notes without a timestamp.
     self.notes = summaries.sorted {
@@ -210,6 +240,21 @@ final class VaultStore {
     }
     self.searchDocs = docs
     self.summariesByPath = byPath
+  }
+
+  // Rich summary projection from a fully-parsed note.
+  static func summary(from note: StudioNote, path: String) -> NoteSummary {
+    let fallbackTitle = (path as NSString).lastPathComponent.replacingOccurrences(
+      of: ".md", with: "")
+    let snippet =
+      note.body.components(separatedBy: "\n").first { !$0.trimmingCharacters(in: .whitespaces).isEmpty
+      } ?? ""
+    return NoteSummary(
+      id: path, title: note.title ?? fallbackTitle, snippet: snippet, meaning: note.cardType,
+      timestamp: note.updated.isEmpty ? note.created : note.updated, rooms: note.rooms,
+      status: note.status, semanticType: note.semanticType, tags: note.tags,
+      lifeAreas: note.lifeAreas, landscapeAnchor: note.landscapeAnchor,
+      featured: note.display.featured)
   }
 
   // The note body (everything after the frontmatter), for full-text search.
@@ -272,7 +317,9 @@ final class VaultStore {
     }
     return NoteSummary(
       id: path, title: title, snippet: body.first ?? "", meaning: meaning,
-      timestamp: updated.isEmpty ? created : updated, rooms: rooms)
+      timestamp: updated.isEmpty ? created : updated, rooms: rooms,
+      status: "", semanticType: "", tags: [], lifeAreas: [], landscapeAnchor: nil,
+      featured: false)
   }
 
   // Seed a small Reflection Garden so the room has content in the simulator.
