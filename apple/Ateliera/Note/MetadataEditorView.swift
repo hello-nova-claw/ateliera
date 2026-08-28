@@ -6,6 +6,7 @@ import SwiftUI
 // change round-trips byte-identically.
 struct MetadataEditorView: View {
   @Binding var note: StudioNote
+  @Environment(\.studioTheme) private var theme
 
   var body: some View {
     Form {
@@ -99,10 +100,10 @@ struct MetadataEditorView: View {
           }
         } label: {
           HStack {
-            Text(option.label).foregroundStyle(Studio.inkStrong)
+            Text(option.label).foregroundStyle(theme.inkStrong)
             Spacer()
             if selection.wrappedValue.contains(option.id) {
-              Image(systemName: "checkmark").foregroundStyle(Studio.link)
+              Image(systemName: "checkmark").foregroundStyle(theme.link)
             }
           }
         }

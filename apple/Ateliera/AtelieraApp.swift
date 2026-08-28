@@ -3,13 +3,16 @@ import SwiftUI
 
 @main
 struct AtelieraApp: App {
+  @State private var themeStore = ThemeStore()
+
   init() {
     Self.registerBrandFonts()
   }
 
   var body: some Scene {
     WindowGroup {
-      RootView()
+      RootView(themeStore: themeStore)
+        .studioTheme(themeStore.current)
     }
   }
 

@@ -5,6 +5,8 @@ import UniformTypeIdentifiers
 // the Rust core (VaultStore). The Studio folder is a user-picked, security-scoped
 // iCloud folder via the native `.fileImporter`, or a seeded fixture in the sim.
 struct RootView: View {
+  var themeStore = ThemeStore()
+  @Environment(\.studioTheme) private var theme
   @State private var store = VaultStore()
   @State private var picking = false
   @State private var activeSheet: ActiveSheet?
@@ -20,6 +22,7 @@ struct RootView: View {
     case edit(EditableNote)
     case rhythm
     case search
+    case settings
 
     var id: String {
       switch self {
@@ -27,6 +30,7 @@ struct RootView: View {
       case .edit(let editable): return "edit:\(editable.id)"
       case .rhythm: return "rhythm"
       case .search: return "search"
+      case .settings: return "settings"
       }
     }
   }
@@ -53,11 +57,11 @@ struct RootView: View {
           } label: {
             Text("Your rhythm ›")
               .font(StudioFont.control)
-              .foregroundStyle(Studio.link)
+              .foregroundStyle(theme.link)
           }
           .buttonStyle(.plain)
           .accessibilityIdentifier("rhythm-button")
-          Divider().overlay(Studio.line)
+          Divider().overlay(theme.line)
 
           RoomHeading(
             eyebrow: "welcome back",
@@ -71,13 +75,13 @@ struct RootView: View {
           } label: {
             Label("Add a reflection", systemImage: "plus.circle.fill")
               .font(StudioFont.control)
-              .foregroundStyle(Studio.link)
+              .foregroundStyle(theme.link)
           }
           .buttonStyle(.plain)
           .accessibilityIdentifier("capture-button")
 
           if let error = store.error {
-            Text(error).font(StudioFont.meta).foregroundStyle(Studio.celebration)
+            Text(error).font(StudioFont.meta).foregroundStyle(theme.celebration)
           }
 
           roomsSection
@@ -86,7 +90,7 @@ struct RootView: View {
         .padding(28)
         .frame(maxWidth: .infinity, alignment: .leading)
       }
-      .background(Studio.canvas)
+      .background(theme.canvas)
     }
     .fileImporter(
       isPresented: $picking, allowedContentTypes: [.folder], allowsMultipleSelection: false
@@ -123,6 +127,9 @@ struct RootView: View {
             if let editable = store.beginEdit(path: note.id) { activeSheet = .edit(editable) }
           },
           onClose: { activeSheet = nil })
+      case .settings:
+        SettingsView(themeStore: themeStore, onClose: { activeSheet = nil })
+          .studioTheme(themeStore.current)
       }
     }
   }
@@ -145,7 +152,7 @@ struct RootView: View {
   private var roomsSection: some View {
     VStack(alignment: .leading, spacing: 0) {
       Text("ROOMS")
-        .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(Studio.inkFaint)
+        .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
         .padding(.bottom, 8)
       ForEach(Room.all) { room in
         NavigationLink {
@@ -154,19 +161,19 @@ struct RootView: View {
             onCapture: { activeSheet = .capture(room: room.id) })
         } label: {
           HStack(spacing: 10) {
-            Text(room.title).font(StudioFont.cardTitle).foregroundStyle(Studio.inkStrong)
+            Text(room.title).font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
             Spacer(minLength: 0)
             let count = store.notes.filter { $0.rooms.contains(room.id) }.count
             if count > 0 {
-              Text("\(count)").font(StudioFont.meta).foregroundStyle(Studio.inkMuted)
+              Text("\(count)").font(StudioFont.meta).foregroundStyle(theme.inkMuted)
             }
             Image(systemName: "chevron.right")
-              .font(.system(size: 12)).foregroundStyle(Studio.inkFaint)
+              .font(.system(size: 12)).foregroundStyle(theme.inkFaint)
           }
           .padding(.vertical, 14)
         }
         .accessibilityIdentifier("room-\(room.id)")
-        Divider().overlay(Studio.line)
+        Divider().overlay(theme.line)
       }
     }
   }
@@ -176,13 +183,13 @@ struct RootView: View {
     VStack(alignment: .leading, spacing: 0) {
       if !store.notes.isEmpty {
         Text("RECENTLY")
-          .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(Studio.inkFaint)
+          .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
           .padding(.bottom, 8)
       }
       ForEach(store.notes) { note in
         Button { openEdit(note) } label: { NoteRow(note: note) }
           .buttonStyle(.plain)
-        Divider().overlay(Studio.line)
+        Divider().overlay(theme.line)
       }
     }
   }
@@ -191,9 +198,9 @@ struct RootView: View {
     HStack {
       HStack(spacing: 6) {
         Text("STUDIO")
-          .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(Studio.inkFaint)
+          .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
         Text(store.vaultName)
-          .font(StudioFont.control).foregroundStyle(Studio.inkMuted)
+          .font(StudioFont.control).foregroundStyle(theme.inkMuted)
       }
       Spacer()
       Button {
@@ -201,36 +208,45 @@ struct RootView: View {
       } label: {
         Image(systemName: "magnifyingglass").font(StudioFont.control)
       }
-      .foregroundStyle(Studio.link)
+      .foregroundStyle(theme.link)
       .accessibilityIdentifier("search-button")
       .accessibilityLabel("Search")
+      Button {
+        activeSheet = .settings
+      } label: {
+        Image(systemName: "gearshape").font(StudioFont.control)
+      }
+      .foregroundStyle(theme.link)
+      .accessibilityIdentifier("settings-button")
+      .accessibilityLabel("Settings")
       Button("Choose folder…") { picking = true }
         .font(StudioFont.control)
-        .foregroundStyle(Studio.link)
+        .foregroundStyle(theme.link)
     }
     .padding(.bottom, 4)
-    .overlay(alignment: .bottom) { Divider().overlay(Studio.line) }
+    .overlay(alignment: .bottom) { Divider().overlay(theme.line) }
   }
 }
 
 // A note as it appears in a list: a meaning-coloured mark, title, and snippet.
 private struct NoteRow: View {
+  @Environment(\.studioTheme) private var theme
   let note: NoteSummary
 
   var body: some View {
     HStack(alignment: .top, spacing: 14) {
       Image(systemName: "heart.fill")
         .font(.system(size: 12))
-        .foregroundStyle(meaningColour(note.meaning))
+        .foregroundStyle(meaningColour(note.meaning, theme: theme))
         .padding(.top, 5)
       VStack(alignment: .leading, spacing: 4) {
         Text(note.title)
           .font(StudioFont.cardTitle)
-          .foregroundStyle(Studio.inkStrong)
+          .foregroundStyle(theme.inkStrong)
         if !note.snippet.isEmpty {
           Text(note.snippet)
             .font(StudioFont.meta)
-            .foregroundStyle(Studio.inkMuted)
+            .foregroundStyle(theme.inkMuted)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
@@ -242,6 +258,7 @@ private struct NoteRow: View {
 
 // A single room: its heading and the notes tagged to it, tap to edit.
 private struct RoomView: View {
+  @Environment(\.studioTheme) private var theme
   let room: Room
   let store: VaultStore
   let onOpen: (NoteSummary) -> Void
@@ -256,19 +273,19 @@ private struct RoomView: View {
         Button(action: onCapture) {
           Label("Add to \(room.title)", systemImage: "plus.circle.fill")
             .font(StudioFont.control)
-            .foregroundStyle(Studio.link)
+            .foregroundStyle(theme.link)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("room-capture-button")
         if notes.isEmpty {
           Text("Nothing here yet.")
-            .font(StudioFont.meta).foregroundStyle(Studio.inkFaint)
+            .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
         } else {
           VStack(spacing: 0) {
             ForEach(notes) { note in
               Button { onOpen(note) } label: { NoteRow(note: note) }
                 .buttonStyle(.plain)
-              Divider().overlay(Studio.line)
+              Divider().overlay(theme.line)
             }
           }
         }
@@ -276,23 +293,24 @@ private struct RoomView: View {
       .padding(28)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .background(Studio.canvas)
+    .background(theme.canvas)
     .navigationTitle(room.title)
   }
 }
 
-private func meaningColour(_ meaning: String) -> Color {
+private func meaningColour(_ meaning: String, theme: StudioTheme) -> Color {
   switch meaning {
-  case "foundation", "foundations": return Studio.foundation
-  case "vision": return Studio.vision
-  case "growth": return Studio.growth
-  case "celebration": return Studio.celebration
-  case "uncharted": return Studio.uncharted
-  default: return Studio.reflection
+  case "foundation", "foundations": return theme.foundation
+  case "vision": return theme.vision
+  case "growth": return theme.growth
+  case "celebration": return theme.celebration
+  case "uncharted": return theme.uncharted
+  default: return theme.reflection
   }
 }
 
 private struct RoomHeading: View {
+  @Environment(\.studioTheme) private var theme
   let eyebrow: String
   let title: String
   let intro: String
@@ -301,14 +319,14 @@ private struct RoomHeading: View {
     VStack(alignment: .leading, spacing: 10) {
       Text(eyebrow)
         .font(StudioFont.greeting)
-        .foregroundStyle(Studio.vision)
+        .foregroundStyle(theme.vision)
       Text(title)
         .font(StudioFont.roomTitle)
         .tracking(-0.5)
-        .foregroundStyle(Studio.inkStrong)
+        .foregroundStyle(theme.inkStrong)
       Text(intro)
         .font(StudioFont.pageSubtitle)
-        .foregroundStyle(Studio.inkMuted)
+        .foregroundStyle(theme.inkMuted)
         .fixedSize(horizontal: false, vertical: true)
     }
   }
@@ -319,6 +337,7 @@ private struct RoomHeading: View {
 // dismisses only when it returns true, so a write conflict or empty note keeps the
 // sheet open with the error shown in the room behind it.
 private struct NoteEditorSheet: View {
+  @Environment(\.studioTheme) private var theme
   let heading: String
   let confirmLabel: String
   let onSave: (_ title: String, _ body: String) -> Bool
@@ -346,7 +365,7 @@ private struct NoteEditorSheet: View {
     Text(text.uppercased())
       .font(StudioFont.eyebrow)
       .tracking(1.6)
-      .foregroundStyle(Studio.inkFaint)
+      .foregroundStyle(theme.inkFaint)
   }
 
   var body: some View {
@@ -357,24 +376,24 @@ private struct NoteEditorSheet: View {
             fieldLabel("Title")
             TextField("A short name (optional)", text: $noteTitle)
               .font(StudioFont.cardTitle)
-              .foregroundStyle(Studio.inkStrong)
+              .foregroundStyle(theme.inkStrong)
               .accessibilityIdentifier("note-title-field")
           }
-          Divider().overlay(Studio.line)
+          Divider().overlay(theme.line)
           VStack(alignment: .leading, spacing: 6) {
             fieldLabel("Reflection")
             ZStack(alignment: .topLeading) {
               if noteText.isEmpty {
                 Text("Write what you're noticing…")
                   .font(StudioFont.pageSubtitle)
-                  .foregroundStyle(Studio.inkFaint)
+                  .foregroundStyle(theme.inkFaint)
                   .padding(.top, 8)
                   .padding(.leading, 5)
                   .allowsHitTesting(false)
               }
               TextEditor(text: $noteText)
                 .font(StudioFont.pageSubtitle)
-                .foregroundStyle(Studio.inkStrong)
+                .foregroundStyle(theme.inkStrong)
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 200)
                 .accessibilityIdentifier("note-body-editor")
@@ -382,18 +401,18 @@ private struct NoteEditorSheet: View {
           }
           Text("Notice what is changing. Fifteen minutes still counts.")
             .font(StudioFont.meta)
-            .foregroundStyle(Studio.inkFaint)
+            .foregroundStyle(theme.inkFaint)
         }
         .padding(24)
       }
-      .background(Studio.canvas)
+      .background(theme.canvas)
       .toolbar {
         // A styled principal title instead of `.navigationTitle`, so the heading
         // is always high-contrast ink rather than a faint system default.
         ToolbarItem(placement: .principal) {
           Text(heading)
             .font(StudioFont.control)
-            .foregroundStyle(Studio.inkStrong)
+            .foregroundStyle(theme.inkStrong)
         }
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { onClose() }
@@ -413,6 +432,7 @@ private struct NoteEditorSheet: View {
 // Editing an existing note: title + body, plus a "Details" screen for all
 // metadata. Holds the full StudioNote and saves it through the one write rail.
 private struct NoteEditView: View {
+  @Environment(\.studioTheme) private var theme
   let store: VaultStore
   let editable: EditableNote
   let onClose: () -> Void
@@ -445,16 +465,16 @@ private struct NoteEditView: View {
           VStack(alignment: .leading, spacing: 6) {
             fieldLabel("Title")
             TextField("A short name (optional)", text: $titleText)
-              .font(StudioFont.cardTitle).foregroundStyle(Studio.inkStrong)
+              .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
               .accessibilityIdentifier("note-title-field")
           }
-          Divider().overlay(Studio.line)
+          Divider().overlay(theme.line)
           VStack(alignment: .leading, spacing: 6) {
             HStack {
               fieldLabel("Reflection")
               Spacer()
               Button(showingPreview ? "Edit" : "Preview") { showingPreview.toggle() }
-                .font(StudioFont.meta).foregroundStyle(Studio.link)
+                .font(StudioFont.meta).foregroundStyle(theme.link)
                 .accessibilityIdentifier("preview-toggle")
             }
             if showingPreview {
@@ -463,27 +483,27 @@ private struct NoteEditView: View {
               }
             } else {
               TextEditor(text: $note.body)
-                .font(StudioFont.pageSubtitle).foregroundStyle(Studio.inkStrong)
+                .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkStrong)
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 180)
                 .accessibilityIdentifier("note-body-editor")
             }
           }
-          Divider().overlay(Studio.line)
+          Divider().overlay(theme.line)
           NavigationLink {
             MetadataEditorView(note: $note)
           } label: {
             Label("Details", systemImage: "slider.horizontal.3")
-              .font(StudioFont.control).foregroundStyle(Studio.link)
+              .font(StudioFont.control).foregroundStyle(theme.link)
           }
           .accessibilityIdentifier("note-details-button")
         }
         .padding(24)
       }
-      .background(Studio.canvas)
+      .background(theme.canvas)
       .toolbar {
         ToolbarItem(placement: .principal) {
-          Text("Edit").font(StudioFont.control).foregroundStyle(Studio.inkStrong)
+          Text("Edit").font(StudioFont.control).foregroundStyle(theme.inkStrong)
         }
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { onClose() }
@@ -508,12 +528,13 @@ private struct NoteEditView: View {
 
   private func fieldLabel(_ text: String) -> some View {
     Text(text.uppercased())
-      .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(Studio.inkFaint)
+      .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
   }
 }
 
 // Search the vault by title or body text. Tapping a result opens it for editing.
 private struct SearchView: View {
+  @Environment(\.studioTheme) private var theme
   let store: VaultStore
   let onOpen: (NoteSummary) -> Void
   let onClose: () -> Void
@@ -527,16 +548,16 @@ private struct SearchView: View {
     NavigationStack {
       VStack(alignment: .leading, spacing: 0) {
         HStack(spacing: 8) {
-          Image(systemName: "magnifyingglass").foregroundStyle(Studio.inkFaint)
+          Image(systemName: "magnifyingglass").foregroundStyle(theme.inkFaint)
           TextField("Search your notes", text: $query)
             .font(StudioFont.control)
-            .foregroundStyle(Studio.inkStrong)
+            .foregroundStyle(theme.inkStrong)
             .focused($focused)
             .submitLabel(.search)
             .accessibilityIdentifier("search-field")
         }
         .padding(14)
-        .overlay(alignment: .bottom) { Divider().overlay(Studio.line) }
+        .overlay(alignment: .bottom) { Divider().overlay(theme.line) }
 
         ScrollView {
           VStack(alignment: .leading, spacing: 0) {
@@ -548,17 +569,17 @@ private struct SearchView: View {
               ForEach(results) { note in
                 Button { onOpen(note) } label: { resultRow(note) }
                   .buttonStyle(.plain)
-                Divider().overlay(Studio.line)
+                Divider().overlay(theme.line)
               }
             }
           }
           .padding(.horizontal, 20)
         }
       }
-      .background(Studio.canvas)
+      .background(theme.canvas)
       .toolbar {
         ToolbarItem(placement: .principal) {
-          Text("Search").font(StudioFont.control).foregroundStyle(Studio.inkStrong)
+          Text("Search").font(StudioFont.control).foregroundStyle(theme.inkStrong)
         }
         ToolbarItem(placement: .cancellationAction) {
           Button("Done") { onClose() }
@@ -570,23 +591,95 @@ private struct SearchView: View {
 
   private func hint(_ text: String) -> some View {
     Text(text)
-      .font(StudioFont.meta).foregroundStyle(Studio.inkFaint)
+      .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
       .padding(.vertical, 20)
   }
 
   private func resultRow(_ note: NoteSummary) -> some View {
     VStack(alignment: .leading, spacing: 4) {
       Text(note.title)
-        .font(StudioFont.cardTitle).foregroundStyle(Studio.inkStrong)
+        .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
       if !note.snippet.isEmpty {
         Text(note.snippet)
-          .font(StudioFont.meta).foregroundStyle(Studio.inkMuted)
+          .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
           .lineLimit(2)
           .fixedSize(horizontal: false, vertical: true)
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(.vertical, 14)
+  }
+}
+
+// Settings: for now, the theme picker. Choosing a palette persists it and recolors
+// the whole app live (the selection re-renders the environment above RootView).
+private struct SettingsView: View {
+  @Environment(\.studioTheme) private var theme
+  let themeStore: ThemeStore
+  let onClose: () -> Void
+
+  var body: some View {
+    NavigationStack {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 0) {
+          Text("THEME")
+            .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
+            .padding(.bottom, 8)
+          ForEach(StudioTheme.all, id: \.id) { palette in
+            Button {
+              themeStore.selectedId = palette.id
+            } label: {
+              themeRow(palette)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("theme-\(palette.id)")
+            Divider().overlay(theme.line)
+          }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .background(theme.canvas)
+      .toolbar {
+        ToolbarItem(placement: .principal) {
+          Text("Settings").font(StudioFont.control).foregroundStyle(theme.inkStrong)
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Done") { onClose() }
+        }
+      }
+    }
+  }
+
+  private func themeRow(_ palette: StudioTheme) -> some View {
+    HStack(spacing: 14) {
+      swatches(palette)
+      Text(palette.name)
+        .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
+      Spacer(minLength: 0)
+      if palette.id == themeStore.selectedId {
+        Image(systemName: "checkmark")
+          .font(.system(size: 14, weight: .semibold)).foregroundStyle(theme.link)
+      }
+    }
+    .padding(.vertical, 14)
+    .contentShape(Rectangle())
+  }
+
+  // A little cluster of the palette's canvas + meaning colours, so the choice is
+  // legible at a glance without applying it.
+  private func swatches(_ palette: StudioTheme) -> some View {
+    HStack(spacing: 3) {
+      ForEach(
+        Array([palette.canvas, palette.vision, palette.growth, palette.reflection].enumerated()),
+        id: \.offset
+      ) { _, colour in
+        RoundedRectangle(cornerRadius: 3)
+          .fill(colour)
+          .frame(width: 14, height: 22)
+      }
+    }
+    .overlay(RoundedRectangle(cornerRadius: 3).stroke(theme.line, lineWidth: 1))
   }
 }
 

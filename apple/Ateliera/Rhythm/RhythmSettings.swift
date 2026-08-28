@@ -86,6 +86,7 @@ final class RhythmProfileStore {
 struct RhythmSettingsView: View {
   let store: RhythmProfileStore
   @Binding var isPresented: Bool
+  @Environment(\.studioTheme) private var theme
   @State private var location = LocationHemisphere()
 
   @State private var date: Date
@@ -189,12 +190,12 @@ struct RhythmSettingsView: View {
           field("Birth time") {
             VStack(alignment: .leading, spacing: 8) {
               Toggle("I know my birth time", isOn: $knowsTime)
-                .font(StudioFont.control).foregroundStyle(Studio.inkStrong)
+                .font(StudioFont.control).foregroundStyle(theme.inkStrong)
               if knowsTime {
                 DatePicker("", selection: $time, displayedComponents: .hourAndMinute)
                   .labelsHidden()
                 Text("Read in your birthplace's time zone once you set a place. Adds your moon sign.")
-                  .font(StudioFont.meta).foregroundStyle(Studio.inkFaint)
+                  .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
                   .fixedSize(horizontal: false, vertical: true)
               }
             }
@@ -203,17 +204,17 @@ struct RhythmSettingsView: View {
             VStack(alignment: .leading, spacing: 8) {
               if let placeName {
                 Text(placeName)
-                  .font(StudioFont.control).foregroundStyle(Studio.inkStrong)
+                  .font(StudioFont.control).foregroundStyle(theme.inkStrong)
                 Text(zoneDisplay)
-                  .font(StudioFont.meta).foregroundStyle(Studio.inkFaint)
+                  .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
               } else if let coordinate {
                 Text(PlaceGeocoder.coordinateLabel(coordinate.latitude, coordinate.longitude))
-                  .font(StudioFont.control).foregroundStyle(Studio.inkStrong)
+                  .font(StudioFont.control).foregroundStyle(theme.inkStrong)
                 Text(zoneDisplay)
-                  .font(StudioFont.meta).foregroundStyle(Studio.inkFaint)
+                  .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
               } else {
                 Text("Where you were born — adds your rising sign, and sets the zone for your birth time.")
-                  .font(StudioFont.meta).foregroundStyle(Studio.inkFaint)
+                  .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
                   .fixedSize(horizontal: false, vertical: true)
               }
               HStack(spacing: 8) {
@@ -223,7 +224,7 @@ struct RhythmSettingsView: View {
                   .onSubmit(runSearch)
                 Button(searching ? "…" : "Find", action: runSearch)
                   .disabled(searching || query.trimmingCharacters(in: .whitespaces).isEmpty)
-                  .font(StudioFont.control).foregroundStyle(Studio.link)
+                  .font(StudioFont.control).foregroundStyle(theme.link)
               }
               HStack(spacing: 16) {
                 Button(locating ? "Locating…" : "Use my location") {
@@ -243,20 +244,20 @@ struct RhythmSettingsView: View {
                     placeName = nil
                     timeZoneId = nil
                   }
-                  .foregroundStyle(Studio.inkMuted)
+                  .foregroundStyle(theme.inkMuted)
                 }
               }
               .font(StudioFont.control)
-              .foregroundStyle(Studio.link)
+              .foregroundStyle(theme.link)
             }
           }
         }
         .padding(24)
       }
-      .background(Studio.canvas)
+      .background(theme.canvas)
       .toolbar {
         ToolbarItem(placement: .principal) {
-          Text("Your rhythm").font(StudioFont.control).foregroundStyle(Studio.inkStrong)
+          Text("Your rhythm").font(StudioFont.control).foregroundStyle(theme.inkStrong)
         }
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { isPresented = false }
@@ -274,14 +275,14 @@ struct RhythmSettingsView: View {
   private var chartCard: some View {
     VStack(alignment: .leading, spacing: 10) {
       Text("Your chart")
-        .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(Studio.inkFaint)
+        .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
       HStack(alignment: .top, spacing: 28) {
         placement("Sun", chart.sun)
         placement("Moon", chart.moon.isEmpty ? "—" : chart.moon)
         placement("Rising", chart.rising ?? "—")
       }
       Text(hint)
-        .font(StudioFont.meta).foregroundStyle(Studio.inkFaint)
+        .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
         .fixedSize(horizontal: false, vertical: true)
     }
   }
@@ -295,17 +296,17 @@ struct RhythmSettingsView: View {
   private func placement(_ label: String, _ value: String) -> some View {
     VStack(alignment: .leading, spacing: 3) {
       Text(label.uppercased())
-        .font(StudioFont.eyebrow).tracking(1.4).foregroundStyle(Studio.inkFaint)
-      Text(value).font(StudioFont.cardTitle).foregroundStyle(Studio.inkStrong)
+        .font(StudioFont.eyebrow).tracking(1.4).foregroundStyle(theme.inkFaint)
+      Text(value).font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
     }
   }
 
   private func field(_ label: String, @ViewBuilder _ content: () -> some View) -> some View {
     VStack(alignment: .leading, spacing: 8) {
       Text(label.uppercased())
-        .font(StudioFont.eyebrow).tracking(1.4).foregroundStyle(Studio.inkFaint)
+        .font(StudioFont.eyebrow).tracking(1.4).foregroundStyle(theme.inkFaint)
       content()
-      Divider().overlay(Studio.line)
+      Divider().overlay(theme.line)
     }
   }
 

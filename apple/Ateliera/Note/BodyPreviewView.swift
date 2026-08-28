@@ -8,6 +8,7 @@ import SwiftUI
 struct BodyPreviewView: View {
   let bodyText: String
   let onWikilinkTap: (String) -> Void
+  @Environment(\.studioTheme) private var theme
 
   private var links: [ParsedWikilink] { WikilinkParser.parse(bodyText) }
 
@@ -15,18 +16,18 @@ struct BodyPreviewView: View {
     VStack(alignment: .leading, spacing: 16) {
       Text(rendered)
         .font(StudioFont.pageSubtitle)
-        .foregroundStyle(Studio.inkStrong)
+        .foregroundStyle(theme.inkStrong)
         .textSelection(.enabled)
         .fixedSize(horizontal: false, vertical: true)
 
       if !links.isEmpty {
         VStack(alignment: .leading, spacing: 8) {
           Text("LINKS")
-            .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(Studio.inkFaint)
+            .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
           ForEach(links, id: \.target) { link in
             Button { onWikilinkTap(link.target) } label: {
               Label(link.label, systemImage: "link")
-                .font(StudioFont.control).foregroundStyle(Studio.link)
+                .font(StudioFont.control).foregroundStyle(theme.link)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("wikilink-\(link.target)")

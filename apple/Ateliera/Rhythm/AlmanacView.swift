@@ -6,6 +6,7 @@ import SwiftUI
 // engine; no profile is required for moon + season, so it shows for everyone.
 struct AlmanacView: View {
   let context: RhythmContext
+  @Environment(\.studioTheme) private var theme
 
   private var orientationCopy: String {
     switch Rhythm.orientation(context) {
@@ -18,17 +19,17 @@ struct AlmanacView: View {
     VStack(alignment: .leading, spacing: 10) {
       Text("Today's rhythm")
         .font(StudioFont.eyebrow).tracking(1.6)
-        .foregroundStyle(Studio.inkFaint)
+        .foregroundStyle(theme.inkFaint)
       Text(context.microSeason.term)
         .font(StudioFont.roomTitle).tracking(-0.5)
-        .foregroundStyle(Studio.inkStrong)
+        .foregroundStyle(theme.inkStrong)
       Text(context.microSeason.gloss)
         .font(StudioFont.pageSubtitle)
-        .foregroundStyle(Studio.inkMuted)
+        .foregroundStyle(theme.inkMuted)
         .fixedSize(horizontal: false, vertical: true)
       Text(orientationCopy)
         .font(StudioFont.meta)
-        .foregroundStyle(Studio.vision)
+        .foregroundStyle(theme.vision)
         .fixedSize(horizontal: false, vertical: true)
       HStack(alignment: .top, spacing: 28) {
         fact("Season", Self.sentenceCase(context.season.rawValue))
@@ -48,10 +49,10 @@ struct AlmanacView: View {
     VStack(alignment: .leading, spacing: 3) {
       Text(label.uppercased())
         .font(StudioFont.eyebrow).tracking(1.4)
-        .foregroundStyle(Studio.inkFaint)
+        .foregroundStyle(theme.inkFaint)
       Text(value)
         .font(StudioFont.control)
-        .foregroundStyle(Studio.inkStrong)
+        .foregroundStyle(theme.inkStrong)
     }
   }
 

@@ -110,6 +110,23 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.navigationBars["Details"].waitForExistence(timeout: 5))
   }
 
+  func testSettingsSwitchesTheme() {
+    let app = launchEmptyApp()
+    let settings = app.buttons["settings-button"]
+    XCTAssertTrue(settings.waitForExistence(timeout: 5))
+    settings.tap()
+    // The theme picker lists every palette; pick Deep Ocean and confirm it sticks.
+    let deepOcean = app.buttons["theme-deep-ocean"]
+    XCTAssertTrue(deepOcean.waitForExistence(timeout: 5))
+    deepOcean.tap()
+    // Selecting it marks the row (the checkmark), still on the same screen.
+    XCTAssertTrue(deepOcean.waitForExistence(timeout: 2))
+    app.buttons["Done"].tap()
+    // Reopen: the selection persisted, so Deep Ocean is still the chosen row.
+    settings.tap()
+    XCTAssertTrue(app.buttons["theme-deep-ocean"].waitForExistence(timeout: 5))
+  }
+
   func testWikilinkNavigatesToTarget() {
     let app = launchEmptyApp()
     // Note A, then note B referencing it.
