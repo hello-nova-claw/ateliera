@@ -90,6 +90,55 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["A found moment"].exists)
   }
 
+  // Capture a titled note with a body, then open it for editing.
+  private func captureAndOpen(_ app: XCUIApplication, title: String, body: String) {
+    app.buttons["capture-button"].tap()
+    type(title, into: app.textFields["note-title-field"], in: app)
+    type(body, into: app.textViews["note-body-editor"], in: app)
+    app.buttons["note-save-button"].tap()
+    let row = app.staticTexts[title]
+    XCTAssertTrue(row.waitForExistence(timeout: 5))
+    row.tap()
+  }
+
+  func testMetadataDetailsScreenOpens() {
+    let app = launchEmptyApp()
+    captureAndOpen(app, title: "A note", body: "body text")
+    let details = app.buttons["note-details-button"]
+    XCTAssertTrue(details.waitForExistence(timeout: 5))
+    details.tap()
+    XCTAssertTrue(app.navigationBars["Details"].waitForExistence(timeout: 5))
+  }
+
+  func testWikilinkNavigatesToTarget() {
+    let app = launchEmptyApp()
+    // Note A, then note B referencing it.
+    app.buttons["capture-button"].tap()
+    type("A quiet morning", into: app.textFields["note-title-field"], in: app)
+    type("alpha", into: app.textViews["note-body-editor"], in: app)
+    app.buttons["note-save-button"].tap()
+    XCTAssertTrue(app.staticTexts["A quiet morning"].waitForExistence(timeout: 5))
+
+    captureAndOpen(app, title: "The link note", body: "See [[A quiet morning]] now.")
+    app.buttons["preview-toggle"].tap()
+    let pill = app.buttons["wikilink-A quiet morning"]
+    XCTAssertTrue(pill.waitForExistence(timeout: 5))
+    pill.tap()
+
+    // We're now editing A — its title populates the field.
+    let title = app.textFields["note-title-field"]
+    XCTAssertTrue(title.waitForExistence(timeout: 5))
+    XCTAssertEqual(title.value as? String, "A quiet morning")
+  }
+
+  func testUnresolvedWikilinkShowsAlert() {
+    let app = launchEmptyApp()
+    captureAndOpen(app, title: "Ghost link", body: "See [[Nonexistent]].")
+    app.buttons["preview-toggle"].tap()
+    app.buttons["wikilink-Nonexistent"].tap()
+    XCTAssertTrue(app.staticTexts["Note not found"].waitForExistence(timeout: 5))
+  }
+
   func testCaptureIntoASpecificRoom() {
     let app = launchEmptyApp()
     // Step into Wisdom Garden and capture there.

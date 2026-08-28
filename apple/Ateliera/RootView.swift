@@ -110,11 +110,9 @@ struct RootView: View {
           onSave: { title, body in store.capture(title: title, body: body, room: room ?? "inbox") },
           onClose: { activeSheet = nil })
       case .edit(let editable):
-        NoteEditorSheet(
-          heading: "Edit", confirmLabel: "Save",
-          initialTitle: editable.note.title ?? "", initialBody: editable.note.body,
-          onSave: { title, body in store.saveEdit(editable, title: title, body: body) },
-          onClose: { activeSheet = nil })
+        NoteEditView(
+          store: store, editable: editable, onClose: { activeSheet = nil },
+          onNavigate: { target in navigateWikilink(target) })
       case .rhythm:
         RhythmSettingsView(
           store: profileStore, isPresented: Binding(get: { activeSheet != nil }, set: { if !$0 { activeSheet = nil } }))
@@ -131,6 +129,16 @@ struct RootView: View {
 
   private func openEdit(_ note: NoteSummary) {
     if let editable = store.beginEdit(path: note.id) { activeSheet = .edit(editable) }
+  }
+
+  // Resolve a wikilink target to a note and open it; returns false (caller shows
+  // "not found") when it can't be resolved.
+  private func navigateWikilink(_ target: String) -> Bool {
+    guard let path = WikilinkNavigator.resolvePath(target: target, in: store.notes),
+      let editable = store.beginEdit(path: path)
+    else { return false }
+    activeSheet = .edit(editable)
+    return true
   }
 
   // The rooms you can step into, each with how many notes it holds.
@@ -399,6 +407,108 @@ private struct NoteEditorSheet: View {
         }
       }
     }
+  }
+}
+
+// Editing an existing note: title + body, plus a "Details" screen for all
+// metadata. Holds the full StudioNote and saves it through the one write rail.
+private struct NoteEditView: View {
+  let store: VaultStore
+  let editable: EditableNote
+  let onClose: () -> Void
+  let onNavigate: (String) -> Bool  // wikilink target → true if it navigated away
+  @State private var note: StudioNote
+  @State private var titleText: String
+  @State private var showingPreview = false
+  @State private var notFound = false
+
+  init(
+    store: VaultStore, editable: EditableNote, onClose: @escaping () -> Void,
+    onNavigate: @escaping (String) -> Bool
+  ) {
+    self.store = store
+    self.editable = editable
+    self.onClose = onClose
+    self.onNavigate = onNavigate
+    _note = State(initialValue: editable.note)
+    _titleText = State(initialValue: editable.note.title ?? "")
+  }
+
+  private var canSave: Bool {
+    !note.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
+  var body: some View {
+    NavigationStack {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 22) {
+          VStack(alignment: .leading, spacing: 6) {
+            fieldLabel("Title")
+            TextField("A short name (optional)", text: $titleText)
+              .font(StudioFont.cardTitle).foregroundStyle(Studio.inkStrong)
+              .accessibilityIdentifier("note-title-field")
+          }
+          Divider().overlay(Studio.line)
+          VStack(alignment: .leading, spacing: 6) {
+            HStack {
+              fieldLabel("Reflection")
+              Spacer()
+              Button(showingPreview ? "Edit" : "Preview") { showingPreview.toggle() }
+                .font(StudioFont.meta).foregroundStyle(Studio.link)
+                .accessibilityIdentifier("preview-toggle")
+            }
+            if showingPreview {
+              BodyPreviewView(bodyText: note.body) { target in
+                if !onNavigate(target) { notFound = true }
+              }
+            } else {
+              TextEditor(text: $note.body)
+                .font(StudioFont.pageSubtitle).foregroundStyle(Studio.inkStrong)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 180)
+                .accessibilityIdentifier("note-body-editor")
+            }
+          }
+          Divider().overlay(Studio.line)
+          NavigationLink {
+            MetadataEditorView(note: $note)
+          } label: {
+            Label("Details", systemImage: "slider.horizontal.3")
+              .font(StudioFont.control).foregroundStyle(Studio.link)
+          }
+          .accessibilityIdentifier("note-details-button")
+        }
+        .padding(24)
+      }
+      .background(Studio.canvas)
+      .toolbar {
+        ToolbarItem(placement: .principal) {
+          Text("Edit").font(StudioFont.control).foregroundStyle(Studio.inkStrong)
+        }
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { onClose() }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Save") {
+            let trimmed = titleText.trimmingCharacters(in: .whitespacesAndNewlines)
+            note.title = trimmed.isEmpty ? nil : trimmed
+            if store.saveEdit(editable, updatedNote: note) { onClose() }
+          }
+          .disabled(!canSave)
+          .accessibilityIdentifier("note-save-button")
+        }
+      }
+      .alert("Note not found", isPresented: $notFound) {
+        Button("OK", role: .cancel) {}
+      } message: {
+        Text("That link doesn't point to a note in this Studio yet.")
+      }
+    }
+  }
+
+  private func fieldLabel(_ text: String) -> some View {
+    Text(text.uppercased())
+      .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(Studio.inkFaint)
   }
 }
 

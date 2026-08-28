@@ -5,7 +5,8 @@ import Observation
 // The lightweight projection the lists/filters query; the full model lives in
 // `VaultStore.parsedNotes` and is loaded fresh for editing via `beginEdit`.
 struct NoteSummary: Identifiable {
-  let id: String
+  let id: String  // the vault file PATH (stable list identity)
+  var noteId: String = ""  // the StudioNote.id, for studio://note/<id> resolution
   let title: String
   let snippet: String
   let meaning: String  // cardType, drives the meaning colour
@@ -250,9 +251,9 @@ final class VaultStore {
       note.body.components(separatedBy: "\n").first { !$0.trimmingCharacters(in: .whitespaces).isEmpty
       } ?? ""
     return NoteSummary(
-      id: path, title: note.title ?? fallbackTitle, snippet: snippet, meaning: note.cardType,
-      timestamp: note.updated.isEmpty ? note.created : note.updated, rooms: note.rooms,
-      status: note.status, semanticType: note.semanticType, tags: note.tags,
+      id: path, noteId: note.id, title: note.title ?? fallbackTitle, snippet: snippet,
+      meaning: note.cardType, timestamp: note.updated.isEmpty ? note.created : note.updated,
+      rooms: note.rooms, status: note.status, semanticType: note.semanticType, tags: note.tags,
       lifeAreas: note.lifeAreas, landscapeAnchor: note.landscapeAnchor,
       featured: note.display.featured)
   }
