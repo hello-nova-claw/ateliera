@@ -53,6 +53,29 @@ final class CaptureFlowUITests: XCTestCase {
     app.buttons["Cancel"].tap()
   }
 
+  func testSearchFindsACapturedNoteByBody() {
+    let app = launchEmptyApp()
+    // Capture a note whose distinctive word lives in the body, not the title.
+    app.buttons["capture-button"].tap()
+    let title = app.textFields["note-title-field"]
+    XCTAssertTrue(title.waitForExistence(timeout: 5))
+    title.tap()
+    title.typeText("A found moment")
+    let editor = app.textViews["note-body-editor"]
+    editor.tap()
+    editor.typeText("something worth keeping")
+    app.buttons["note-save-button"].tap()
+    XCTAssertTrue(app.staticTexts["A found moment"].waitForExistence(timeout: 5))
+
+    // Search by a body word and find it.
+    app.buttons["search-button"].tap()
+    let field = app.textFields["search-field"]
+    XCTAssertTrue(field.waitForExistence(timeout: 5))
+    field.tap()
+    field.typeText("keeping")
+    XCTAssertTrue(app.staticTexts["A found moment"].waitForExistence(timeout: 5))
+  }
+
   func testEditingANoteUpdatesTheRoom() {
     let app = launchEmptyApp()
 

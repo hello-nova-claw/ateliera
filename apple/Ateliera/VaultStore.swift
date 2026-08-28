@@ -33,6 +33,15 @@ final class VaultStore {
 
   @ObservationIgnored private var vault: Vault?
   @ObservationIgnored private let bookmarkKey = "ateliera.vault.bookmark"
+  // Full-text search docs (id = path), rebuilt on every reload. Kept out of
+  // observation since search reads them on demand rather than rendering them.
+  @ObservationIgnored private var searchDocs: [SearchDoc] = []
+  @ObservationIgnored private var summariesByPath: [String: NoteSummary] = [:]
+
+  /// Notes matching `query`, best first (see NoteSearch). Empty for a blank query.
+  func search(_ query: String) -> [NoteSummary] {
+    NoteSearch.rank(searchDocs, query: query).compactMap { summariesByPath[$0.id] }
+  }
 
   init() {
     // UI tests drive the real capture/edit flow against a fresh, empty vault in
@@ -181,15 +190,32 @@ final class VaultStore {
     guard let vault else { return }
     let entries = try vault.list(prefix: nil)
     var summaries: [NoteSummary] = []
+    var docs: [SearchDoc] = []
+    var byPath: [String: NoteSummary] = [:]
     for entry in entries where !entry.isDirectory && entry.path.hasSuffix(".md") {
       let read = try vault.readText(path: entry.path)
-      summaries.append(Self.parse(path: entry.path, text: read.text))
+      let summary = Self.parse(path: entry.path, text: read.text)
+      summaries.append(summary)
+      byPath[entry.path] = summary
+      docs.append(
+        SearchDoc(id: entry.path, title: summary.title, body: Self.plainBody(read.text)))
     }
     // Newest first: by `updated`/`created` (ISO strings sort chronologically),
     // then title as a stable tiebreaker for notes without a timestamp.
     self.notes = summaries.sorted {
       $0.timestamp != $1.timestamp ? $0.timestamp > $1.timestamp : $0.title < $1.title
     }
+    self.searchDocs = docs
+    self.summariesByPath = byPath
+  }
+
+  // The note body (everything after the frontmatter), for full-text search.
+  static func plainBody(_ text: String) -> String {
+    let lines = text.components(separatedBy: "\n")
+    guard lines.first == "---", let close = lines.dropFirst().firstIndex(of: "---") else {
+      return text
+    }
+    return lines[(close + 1)...].joined(separator: "\n")
   }
 
   // Minimal frontmatter read for the list — Phase N2 does the real round-trip.

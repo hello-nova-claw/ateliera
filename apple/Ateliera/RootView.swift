@@ -19,12 +19,14 @@ struct RootView: View {
     case capture
     case edit(EditableNote)
     case rhythm
+    case search
 
     var id: String {
       switch self {
       case .capture: return "capture"
       case .edit(let editable): return "edit:\(editable.id)"
       case .rhythm: return "rhythm"
+      case .search: return "search"
       }
     }
   }
@@ -125,6 +127,13 @@ struct RootView: View {
       case .rhythm:
         RhythmSettingsView(
           store: profileStore, isPresented: Binding(get: { activeSheet != nil }, set: { if !$0 { activeSheet = nil } }))
+      case .search:
+        SearchView(
+          store: store,
+          onOpen: { note in
+            if let editable = store.beginEdit(path: note.id) { activeSheet = .edit(editable) }
+          },
+          onClose: { activeSheet = nil })
       }
     }
   }
@@ -138,6 +147,14 @@ struct RootView: View {
           .font(StudioFont.control).foregroundStyle(Studio.inkMuted)
       }
       Spacer()
+      Button {
+        activeSheet = .search
+      } label: {
+        Image(systemName: "magnifyingglass").font(StudioFont.control)
+      }
+      .foregroundStyle(Studio.link)
+      .accessibilityIdentifier("search-button")
+      .accessibilityLabel("Search")
       Button("Choose folder…") { picking = true }
         .font(StudioFont.control)
         .foregroundStyle(Studio.link)
@@ -295,6 +312,84 @@ private struct NoteEditorSheet: View {
         }
       }
     }
+  }
+}
+
+// Search the vault by title or body text. Tapping a result opens it for editing.
+private struct SearchView: View {
+  let store: VaultStore
+  let onOpen: (NoteSummary) -> Void
+  let onClose: () -> Void
+  @State private var query = ""
+  @FocusState private var focused: Bool
+
+  private var results: [NoteSummary] { store.search(query) }
+  private var trimmed: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+  var body: some View {
+    NavigationStack {
+      VStack(alignment: .leading, spacing: 0) {
+        HStack(spacing: 8) {
+          Image(systemName: "magnifyingglass").foregroundStyle(Studio.inkFaint)
+          TextField("Search your notes", text: $query)
+            .font(StudioFont.control)
+            .foregroundStyle(Studio.inkStrong)
+            .focused($focused)
+            .submitLabel(.search)
+            .accessibilityIdentifier("search-field")
+        }
+        .padding(14)
+        .overlay(alignment: .bottom) { Divider().overlay(Studio.line) }
+
+        ScrollView {
+          VStack(alignment: .leading, spacing: 0) {
+            if trimmed.isEmpty {
+              hint("Find a note by its title or words inside it.")
+            } else if results.isEmpty {
+              hint("Nothing found for “\(trimmed)”.")
+            } else {
+              ForEach(results) { note in
+                Button { onOpen(note) } label: { resultRow(note) }
+                  .buttonStyle(.plain)
+                Divider().overlay(Studio.line)
+              }
+            }
+          }
+          .padding(.horizontal, 20)
+        }
+      }
+      .background(Studio.canvas)
+      .toolbar {
+        ToolbarItem(placement: .principal) {
+          Text("Search").font(StudioFont.control).foregroundStyle(Studio.inkStrong)
+        }
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Done") { onClose() }
+        }
+      }
+    }
+    .onAppear { focused = true }
+  }
+
+  private func hint(_ text: String) -> some View {
+    Text(text)
+      .font(StudioFont.meta).foregroundStyle(Studio.inkFaint)
+      .padding(.vertical, 20)
+  }
+
+  private func resultRow(_ note: NoteSummary) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+      Text(note.title)
+        .font(StudioFont.cardTitle).foregroundStyle(Studio.inkStrong)
+      if !note.snippet.isEmpty {
+        Text(note.snippet)
+          .font(StudioFont.meta).foregroundStyle(Studio.inkMuted)
+          .lineLimit(2)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .padding(.vertical, 14)
   }
 }
 
