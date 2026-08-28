@@ -17,8 +17,13 @@
   XCUITest in a ScrollView — switched to the **direct-destination** `NavigationLink`
   form, which does. 41 unit + 5 UI tests green; both platforms build
   (`artifacts/ios/native-n5-foyer.png`).
-- N5 remaining: more rooms/room-specific capture, and the ecosystem slice
-  (Widgets / Shortcuts / Handoff).
+- **Room-specific capture.** Each `RoomView` now has an "Add to <room>" button; it
+  captures a note tagged to that room (`rooms: [<room>]`) and writes it into the
+  room's folder (`Room.folderName(for:)`), while the Foyer's capture still defaults
+  to Inbox. `StudioNote.capture`/`VaultStore.capture` gained a `room` parameter.
+  Unit tests (factory tags the room, folder names) + a UI test (step into Wisdom
+  Garden, capture there, see it land). 43 unit + 6 UI tests green.
+- N5 remaining: the ecosystem slice (Widgets / Shortcuts / Handoff).
 
 ## 2026-08-28 — Native Apple app, Phase N5 (start): native search
 
