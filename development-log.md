@@ -1,5 +1,24 @@
 # Development log
 
+## 2026-08-28 — "One vault, two apps" verified across iCloud (iPhone ↔ web engine)
+
+- Proved the ADR-012 interop end to end with a real iCloud vault. Created a shared
+  vault in iCloud Drive (`Ateliera-Shared`, with the `.studio-space` marker) and a
+  Mac-authored `welcome.md`; the native iPhone app, pointed at that folder via the
+  `.fileImporter` picker, **read the welcome note** (Mac → phone).
+- Captured a note on the iPhone; it synced back and landed at
+  `Inbox/2026-08-28--a-new-note-from-anna--bn9hxx.md` — the web app's exact filename
+  convention (ULID id, date--slug--id6). Parsed through `@studio/content`'s real
+  `parseNote`: **ok, 0 warnings, and `serializeNote(parsed) === fileBytes`** — the
+  Swift-written note is **byte-identical** to what the TypeScript web app would
+  write (phone → web).
+- So the two apps are genuinely separate codebases sharing one Markdown vault, and
+  a note written by either is indistinguishable to the other. Gotchas surfaced:
+  iCloud sync phone→Mac can lag minutes; leftover phantom "Ateliera"/"Ateleira"
+  folders from earlier test sessions made folder-picking ambiguous (fixed by a
+  unique folder name + an in-app welcome note as a positive "right vault" signal);
+  "On My iPhone" folders never sync — must be an iCloud Drive folder.
+
 ## 2026-08-27 — Native Apple app, Phase N4 loose ends: real profile + natal chart
 
 - **Hemisphere from location.** `LocationHemisphere` (CoreLocation, one-shot,
