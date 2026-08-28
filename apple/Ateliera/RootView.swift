@@ -149,7 +149,7 @@ struct RootView: View {
           },
           onClose: { activeSheet = nil })
       case .settings:
-        SettingsView(themeStore: themeStore, onClose: { activeSheet = nil })
+        SettingsView(themeStore: themeStore, store: store, onClose: { activeSheet = nil })
           .studioTheme(themeStore.current)
       }
     }
@@ -588,6 +588,7 @@ private struct NoteEditView: View {
 private struct SettingsView: View {
   @Environment(\.studioTheme) private var theme
   let themeStore: ThemeStore
+  let store: VaultStore
   let onClose: () -> Void
 
   var body: some View {
@@ -607,6 +608,21 @@ private struct SettingsView: View {
             .accessibilityIdentifier("theme-\(palette.id)")
             Divider().overlay(theme.line)
           }
+
+          Text("MAINTENANCE")
+            .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
+            .padding(.top, 24).padding(.bottom, 8)
+          NavigationLink {
+            RepairView(store: store)
+          } label: {
+            HStack {
+              Text("Repair links").font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
+              Spacer()
+              Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(theme.inkFaint)
+            }
+            .padding(.vertical, 14)
+          }
+          .accessibilityIdentifier("repair-links-button")
         }
         .padding(24)
         .frame(maxWidth: .infinity, alignment: .leading)

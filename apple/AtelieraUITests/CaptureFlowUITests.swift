@@ -133,6 +133,25 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["Pointer note"].waitForExistence(timeout: 5))
   }
 
+  func testRepairPanelFixesABrokenLink() {
+    let app = launchEmptyApp()
+    // A note linking to a title that doesn't exist → a broken link.
+    captureOnly(app, title: "Pointer", body: "See [[Nowhere]] here.")
+    // Open Settings → Repair links.
+    app.buttons["settings-button"].tap()
+    let repair = app.buttons["repair-links-button"]
+    XCTAssertTrue(repair.waitForExistence(timeout: 5))
+    repair.tap()
+    XCTAssertTrue(app.navigationBars["Repair"].waitForExistence(timeout: 5))
+    // The broken link is listed; removing it unwraps the link through the write path.
+    let remove = app.buttons["remove-button-0"]
+    XCTAssertTrue(remove.waitForExistence(timeout: 5))
+    remove.tap()
+    // The queue clears — nothing left to repair.
+    XCTAssertTrue(
+      app.staticTexts["Nothing to repair — every link resolves."].waitForExistence(timeout: 5))
+  }
+
   func testMetadataDetailsScreenOpens() {
     let app = launchEmptyApp()
     captureAndOpen(app, title: "A note", body: "body text")

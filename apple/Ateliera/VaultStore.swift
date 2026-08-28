@@ -81,6 +81,26 @@ final class VaultStore {
     return index.forwardLinks(id)
   }
 
+  /// The repair queue over the loaded notes (duplicate ids + broken/ambiguous links).
+  func repairQueue() -> [RepairItem] {
+    RepairQueue.build(notes: parsedNotesByPath)
+  }
+
+  /// Repair one link occurrence in a note — relink or remove — through the one write
+  /// rail (re-reads for a fresh hash, rewrites the body, writes atomically, reloads).
+  @discardableResult
+  func repairLink(path: String, occurrence: Int, edit: LinkEdit) -> Bool {
+    guard let editable = beginEdit(path: path) else { return false }
+    do {
+      var note = editable.note
+      note.body = try LinkEditor.rewrite(note.body, occurrence: occurrence, edit)
+      return saveEdit(editable, updatedNote: note)
+    } catch {
+      self.error = "\(error)"
+      return false
+    }
+  }
+
   private func noteId(forPath path: String) -> String? {
     let id = summariesByPath[path]?.noteId ?? ""
     return id.isEmpty ? nil : id

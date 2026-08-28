@@ -282,7 +282,10 @@ enum LinkExtractor {
   // Blank fenced code blocks and inline code spans with equal-length spaces so
   // links inside them don't match (mirrors links.ts skipping code nodes) while
   // keeping every character index aligned with the original body.
-  private static func maskCode(_ body: String) -> String {
+  // Blank fenced + inline code with equal-length spaces (UTF-16 length preserved,
+  // so offsets are stable) so links inside code are ignored. Internal so the link
+  // editor can share the same code-skipping.
+  static func maskCode(_ body: String) -> String {
     let masked = NSMutableString(string: body)
     let length = (body as NSString).length
     for pattern in [#"```[\s\S]*?```"#, "`[^`\\n]*`"] {
