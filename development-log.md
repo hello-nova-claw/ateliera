@@ -1042,3 +1042,24 @@ Markdown/reference-link repair (needs mdast offsets) stays a documented follow-u
 wiki links are the form Ateliera writes. 14 pure + 2 integration unit tests + 1
 XCUITest. Gotcha: a row-level `.accessibilityIdentifier` overrides child ids in
 XCUITest — put ids on the leaf controls, not the container.
+
+## 2026-08-29 — Native parity P6 (partial): Uncharted + Wisdom Garden
+
+Building P6's four rooms in the spec's order (Uncharted → Wisdom → Reflection →
+Season), each a shippable slice. Two done:
+
+- **Uncharted**: `UnchartedProjection` (near/beyond split by `beyond_gate`
+  extraFrontmatter, golden-matched to projectUnchartedRoom) + `UnchartedStore`
+  (keep near/beyond) + `UnchartedView` (composer + two grids). New `createNote`
+  helper on VaultStore (used by Wisdom too) and a `capture(…extraFrontmatter:)`
+  overload for the `beyond_gate` flag. Season-invitation deferred to the Season room.
+- **Wisdom Garden**: `WisdomDomain` (7 kinds, `semanticTypeForWisdomKind`, 13 default
+  themes — golden), `WisdomProjection` (cards + theme counts, port of
+  projectWisdomGardenRoom), `WisdomStore` (add-idea with kind/themes/source,
+  synthesize N notes → a `synthesis` card carrying `source_notes`), `WisdomView`
+  (theme filter, add-idea sheet, card list with select, synthesis sheet). Theme-editor
+  config + "make it mine" are documented follow-ups.
+
+12 unit tests + 2 XCUITests; full suite green. Still open in P6: Reflection rich
+views (4 tabs + evidence resolution) and the Season wizard (9-step state machine +
+note mapper + close transaction) — the largest remaining slice.
