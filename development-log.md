@@ -30,7 +30,25 @@
   rhythm in Ateliera"). `LocationHemisphere.persisted` made `nonisolated` so the
   intent can read it off the main actor. 2 unit tests for the summary line. 45 unit
   + 6 UI tests green.
-- N5 remaining: Widgets and Handoff (Handoff is cross-app, the named N5 gate item).
+- **Ecosystem: home-screen Widget.** A WidgetKit extension (`AtelieraWidgets`,
+  multiplatform so the Mac app embeds it too) with a "Today's rhythm" widget —
+  micro-season, felt season, moon (phase + % lit) — reusing the pure rhythm engine
+  via shared source files, refreshing daily at midnight. Hemisphere comes from
+  `SharedStore.bestHemisphere`: the app's stored location fix, else a device-region
+  fallback (`RegionHemisphere`, e.g. AU → southern), so the widget is right for
+  Anna without needing an App Group. (First tried an App Group for cross-process
+  sharing, but `-allowProvisioningUpdates` won't auto-register a new group;
+  dropped it for the offline region fallback, which also improves the app's default
+  hemisphere before a location grant.) Info.plist + target wired in xcodegen; builds
+  on iOS, macOS, and device.
+- Also this pass: **keyboard-robust UI tests** — a `type(_:into:in:)` helper that
+  waits for the software keyboard before typing, after a corrupted simulator
+  (repeated `simctl` reboots left the hardware keyboard connected + a blank-render
+  state) produced spurious failures. Erasing the sim to factory restored it; the
+  app renders correctly (`artifacts/ios/native-n5-clean-sim.png`). 48 unit + 6 UI
+  tests green on a clean sim.
+- N5 remaining: Handoff (cross-app, the named N5 gate item — needs the web/Tauri
+  app to advertise activities too).
 
 ## 2026-08-28 — Native Apple app, Phase N5 (start): native search
 
