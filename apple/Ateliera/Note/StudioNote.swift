@@ -42,6 +42,29 @@ indirect enum YamlNode: Equatable {
     default: return false
     }
   }
+
+  var scalarValue: String? { if case .scalar(let s) = self { return s }; return nil }
+  var boolValue: Bool? { if case .bool(let b) = self { return b }; return nil }
+  var listValue: [String]? { if case .list(let l) = self { return l }; return nil }
+}
+
+// Typed reads of unknown (`extraFrontmatter`) keys. These live in the same file as
+// `YamlNode` on purpose: cross-file access to this `indirect enum`'s members trips a
+// spurious "circular reference" in the Swift frontend, so other files call these
+// StudioNote methods instead of matching YamlNode cases directly.
+extension StudioNote {
+  func frontmatterScalar(_ key: String) -> String? {
+    for (k, v) in extraFrontmatter where k == key { if let s = v.scalarValue { return s } }
+    return nil
+  }
+  func frontmatterBool(_ key: String) -> Bool {
+    for (k, v) in extraFrontmatter where k == key { if let b = v.boolValue { return b } }
+    return false
+  }
+  func frontmatterList(_ key: String) -> [String] {
+    for (k, v) in extraFrontmatter where k == key { if let l = v.listValue { return l } }
+    return []
+  }
 }
 
 struct StudioNote {
