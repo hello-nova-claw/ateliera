@@ -31,6 +31,24 @@ final class RoomsTests: XCTestCase {
     XCTAssertEqual(VaultStore.parse(path: "a.md", text: md).rooms, [])
   }
 
+  func testCaptureFactoryTagsTheChosenRoom() {
+    let note = StudioNote.capture(
+      title: "Kept", body: "y", id: "01ID000000000000000000000A",
+      created: "2026-08-28T00:00:00Z", room: "wisdom-garden")
+    XCTAssertEqual(note.rooms, ["wisdom-garden"])
+    // Default stays Inbox.
+    let inbox = StudioNote.capture(
+      title: "x", body: "y", id: "01ID000000000000000000000B", created: "2026-08-28T00:00:00Z")
+    XCTAssertEqual(inbox.rooms, ["inbox"])
+  }
+
+  func testRoomFolderNames() {
+    XCTAssertEqual(Room.folderName(for: "inbox"), "Inbox")
+    XCTAssertEqual(Room.folderName(for: "reflection-garden"), "Reflection Garden")
+    XCTAssertEqual(Room.folderName(for: "wisdom-garden"), "Wisdom Garden")
+    XCTAssertEqual(Room.folderName(for: "nonexistent"), "Inbox")  // safe default
+  }
+
   func testFilteringByRoomMembership() {
     let notes = [
       NoteSummary(id: "1", title: "In inbox", snippet: "", meaning: "reflection", timestamp: "", rooms: ["inbox"]),

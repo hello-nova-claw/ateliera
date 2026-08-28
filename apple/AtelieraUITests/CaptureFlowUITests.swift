@@ -78,6 +78,30 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["A found moment"].exists)
   }
 
+  func testCaptureIntoASpecificRoom() {
+    let app = launchEmptyApp()
+    // Step into Wisdom Garden and capture there.
+    let wisdom = app.buttons["room-wisdom-garden"]
+    XCTAssertTrue(wisdom.waitForExistence(timeout: 5))
+    if !wisdom.isHittable { app.swipeUp() }
+    wisdom.tap()
+
+    let add = app.buttons["room-capture-button"]
+    XCTAssertTrue(add.waitForExistence(timeout: 5))
+    add.tap()
+    let title = app.textFields["note-title-field"]
+    XCTAssertTrue(title.waitForExistence(timeout: 5))
+    title.tap()
+    title.typeText("A kept truth")
+    let editor = app.textViews["note-body-editor"]
+    editor.tap()
+    editor.typeText("worth remembering")
+    app.buttons["note-save-button"].tap()
+
+    // It lands in the Wisdom Garden room we're standing in.
+    XCTAssertTrue(app.staticTexts["A kept truth"].waitForExistence(timeout: 5))
+  }
+
   func testSearchFindsACapturedNoteByBody() {
     let app = launchEmptyApp()
     // Capture a note whose distinctive word lives in the body, not the title.

@@ -101,12 +101,12 @@ final class VaultStore {
     try reload()
   }
 
-  /// Create a new note from a quick capture: build the default Inbox note,
-  /// serialize it byte-identically to the web app, and write it atomically
-  /// through the Rust core. Returns false (with `error` set) if there's no vault
-  /// or nothing was written. The note appears in the list on success.
+  /// Create a new note from a quick capture: build the note tagged to `room`
+  /// (Inbox by default), serialize it byte-identically to the web app, and write
+  /// it atomically through the Rust core into the room's folder. Returns false
+  /// (with `error` set) if there's no vault or nothing was written.
   @discardableResult
-  func capture(title: String?, body: String) -> Bool {
+  func capture(title: String?, body: String, room: String = "inbox") -> Bool {
     guard let vault else {
       error = "Choose a Studio folder first."
       return false
@@ -118,10 +118,11 @@ final class VaultStore {
     }
     let id = NoteFactory.createNoteId()
     let created = NoteFactory.isoTimestamp()
-    let note = StudioNote.capture(title: title, body: trimmedBody, id: id, created: created)
+    let note = StudioNote.capture(
+      title: title, body: trimmedBody, id: id, created: created, room: room)
     let filename = NoteFactory.suggestFilename(
       created: created, title: note.title, cardType: note.cardType, id: id)
-    let path = "Inbox/\(filename)"
+    let path = "\(Room.folderName(for: room))/\(filename)"
     do {
       _ = try vault.writeText(
         path: path, text: note.serialize(), expectedHash: nil, createNew: true)

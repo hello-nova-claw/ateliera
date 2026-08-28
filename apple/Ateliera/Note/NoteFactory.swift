@@ -87,7 +87,9 @@ extension StudioNote {
   /// The default note a quick capture produces (the web app's unclassified
   /// "Inbox" capture): a draft `capture` card in the `inbox` room. Body is stored
   /// verbatim (the caller trims); title is only set when non-empty.
-  static func capture(title: String?, body: String, id: String, created: String) -> StudioNote {
+  static func capture(
+    title: String?, body: String, id: String, created: String, room: String = "inbox"
+  ) -> StudioNote {
     let trimmedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
     return StudioNote(
       schemaVersion: 1,
@@ -96,7 +98,7 @@ extension StudioNote {
       cardType: "capture",
       semanticType: "reflection",
       status: "draft",
-      rooms: ["inbox"],
+      rooms: [room],
       lifeAreas: [],
       landscapeAnchor: nil,
       seasons: [],

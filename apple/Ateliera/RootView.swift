@@ -16,14 +16,14 @@ struct RootView: View {
 
   // One sheet at a time: a fresh capture, an edit, or the rhythm profile.
   private enum ActiveSheet: Identifiable {
-    case capture
+    case capture(room: String?)
     case edit(EditableNote)
     case rhythm
     case search
 
     var id: String {
       switch self {
-      case .capture: return "capture"
+      case .capture(let room): return "capture:\(room ?? "inbox")"
       case .edit(let editable): return "edit:\(editable.id)"
       case .rhythm: return "rhythm"
       case .search: return "search"
@@ -67,7 +67,7 @@ struct RootView: View {
           studioBar
 
           Button {
-            activeSheet = .capture
+            activeSheet = .capture(room: nil)
           } label: {
             Label("Add a reflection", systemImage: "plus.circle.fill")
               .font(StudioFont.control)
@@ -104,10 +104,10 @@ struct RootView: View {
     }
     .sheet(item: $activeSheet) { sheet in
       switch sheet {
-      case .capture:
+      case .capture(let room):
         NoteEditorSheet(
           heading: "Capture", confirmLabel: "Keep", initialTitle: "", initialBody: "",
-          onSave: { title, body in store.capture(title: title, body: body) },
+          onSave: { title, body in store.capture(title: title, body: body, room: room ?? "inbox") },
           onClose: { activeSheet = nil })
       case .edit(let editable):
         NoteEditorSheet(
@@ -141,7 +141,9 @@ struct RootView: View {
         .padding(.bottom, 8)
       ForEach(Room.all) { room in
         NavigationLink {
-          RoomView(room: room, store: store, onOpen: openEdit)
+          RoomView(
+            room: room, store: store, onOpen: openEdit,
+            onCapture: { activeSheet = .capture(room: room.id) })
         } label: {
           HStack(spacing: 10) {
             Text(room.title).font(StudioFont.cardTitle).foregroundStyle(Studio.inkStrong)
@@ -235,6 +237,7 @@ private struct RoomView: View {
   let room: Room
   let store: VaultStore
   let onOpen: (NoteSummary) -> Void
+  let onCapture: () -> Void
 
   private var notes: [NoteSummary] { store.notes.filter { $0.rooms.contains(room.id) } }
 
@@ -242,6 +245,13 @@ private struct RoomView: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 24) {
         RoomHeading(eyebrow: room.eyebrow, title: room.title, intro: room.intro)
+        Button(action: onCapture) {
+          Label("Add to \(room.title)", systemImage: "plus.circle.fill")
+            .font(StudioFont.control)
+            .foregroundStyle(Studio.link)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("room-capture-button")
         if notes.isEmpty {
           Text("Nothing here yet.")
             .font(StudioFont.meta).foregroundStyle(Studio.inkFaint)

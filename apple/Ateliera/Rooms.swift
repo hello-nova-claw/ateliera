@@ -9,6 +9,13 @@ struct Room: Identifiable, Hashable {
   let eyebrow: String
   let intro: String
 
+  /// The vault folder a capture for `roomKey` is written into (the room's title,
+  /// or "Inbox" for anything unrecognised). The web app reads notes by their
+  /// `rooms` frontmatter regardless of folder; this just keeps paths readable.
+  static func folderName(for roomKey: String) -> String {
+    all.first { $0.id == roomKey }?.title ?? "Inbox"
+  }
+
   static let all: [Room] = [
     Room(
       id: "reflection-garden", title: "Reflection Garden",
