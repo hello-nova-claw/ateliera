@@ -8,15 +8,14 @@ import Foundation
 // and still works if permission is later declined. No location → no change.
 @MainActor
 final class LocationHemisphere: NSObject, CLLocationManagerDelegate {
-  private static let key = "ateliera.hemisphere"
   private let manager = CLLocationManager()
   private var continuation: CheckedContinuation<CLLocationCoordinate2D?, Never>?
 
   /// The last hemisphere we resolved, if any — safe to read synchronously at
-  /// launch so the first render isn't wrong while a fresh fix is pending. A pure
-  /// UserDefaults read, so it's usable off the main actor (e.g. from an intent).
+  /// launch so the first render isn't wrong while a fresh fix is pending. Shared
+  /// with the widget (App Group); usable off the main actor (e.g. from an intent).
   nonisolated static var persisted: Hemisphere? {
-    UserDefaults.standard.string(forKey: key).flatMap(Hemisphere.init(rawValue:))
+    SharedStore.hemisphere
   }
 
   /// One-shot device coordinate, or nil when Location is unavailable/declined.
@@ -36,11 +35,11 @@ final class LocationHemisphere: NSObject, CLLocationManagerDelegate {
     }
   }
 
-  /// Resolve the hemisphere from a fresh fix and persist it.
+  /// Resolve the hemisphere from a fresh fix and persist it (shared with the widget).
   func resolve() async -> Hemisphere? {
     guard let coordinate = await resolveCoordinate() else { return nil }
     let hemisphere: Hemisphere = coordinate.latitude >= 0 ? .north : .south
-    UserDefaults.standard.set(hemisphere.rawValue, forKey: Self.key)
+    SharedStore.hemisphere = hemisphere
     return hemisphere
   }
 

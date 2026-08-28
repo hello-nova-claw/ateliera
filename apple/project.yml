@@ -26,6 +26,8 @@ targets:
       - framework: AtelieraVaultCore/VaultCore.xcframework
         embed: false
         codeSign: false
+      - target: AtelieraWidgets
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: au.com.annamcphee.ateliera.native
@@ -43,6 +45,31 @@ targets:
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Ateliera uses your location once to tell which hemisphere you're in, so the season and micro-season are right. It stays on your device."
         "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": Ateliera.entitlements
         "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": Ateliera.entitlements
+  # WidgetKit extension: a home-screen "Today's rhythm" almanac. Reuses the pure
+  # rhythm engine + the App Group hemisphere; multiplatform so the Mac app can
+  # embed it too.
+  AtelieraWidgets:
+    type: app-extension
+    supportedDestinations: [iOS, macOS]
+    deploymentTarget:
+      iOS: "17.0"
+      macOS: "14.0"
+    sources:
+      - path: AtelieraWidgets
+        excludes:
+          - Info.plist
+      - path: Ateliera/Rhythm/Rhythm.swift
+      - path: Ateliera/Intents/RhythmSummary.swift
+      - path: Ateliera/Shared/SharedStore.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: au.com.annamcphee.ateliera.native.widgets
+        PRODUCT_NAME: AtelieraWidgets
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: AtelieraWidgets/Info.plist
+        CODE_SIGN_ENTITLEMENTS: AtelieraWidgets.entitlements
+        SKIP_INSTALL: YES
+
   AtelieraTests:
     type: bundle.unit-test
     supportedDestinations: [iOS, macOS]
