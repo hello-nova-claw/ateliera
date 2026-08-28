@@ -261,6 +261,25 @@ final class VaultStore {
     }
   }
 
+  /// Write a fully-formed new note into `room`'s folder (atomic create) and reload.
+  /// The caller builds the `StudioNote` (setting card/semantic type, tags, source,
+  /// etc.); this handles the filename convention + write + refresh.
+  @discardableResult
+  func createNote(_ note: StudioNote, room: String) -> Bool {
+    guard vault != nil else {
+      error = "Choose a Studio folder first."
+      return false
+    }
+    let filename = NoteFactory.suggestFilename(
+      created: note.created, title: note.title, cardType: note.cardType, id: note.id)
+    let path = "\(Room.folderName(for: room))/\(filename)"
+    if writeRawFile(path: path, text: note.serialize(), expectedHash: nil, createNew: true) == nil {
+      return false
+    }
+    try? reload()
+    return true
+  }
+
   /// Read a note fresh from the vault and parse it for editing, capturing the
   /// content hash so the save can detect a conflicting change. Returns nil (with
   /// `error` set) if there's no vault or the note can't be parsed.

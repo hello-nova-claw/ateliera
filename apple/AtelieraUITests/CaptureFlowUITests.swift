@@ -220,6 +220,19 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["Learning to sail"].firstMatch.waitForExistence(timeout: 5))
   }
 
+  func testWisdomAddIdeaAppearsInGarden() {
+    let app = launchEmptyApp()
+    let room = app.buttons["room-wisdom-garden"]
+    XCTAssertTrue(room.waitForExistence(timeout: 8))
+    room.tap()
+    XCTAssertTrue(app.navigationBars["Wisdom Garden"].waitForExistence(timeout: 5))
+    app.buttons["add-idea-button"].tap()
+    type("Keep going", into: app.textFields["wisdom-title-field"], in: app)
+    type("The obstacle is the way.", into: app.textViews["wisdom-body-editor"], in: app)
+    app.buttons["wisdom-keep"].tap()
+    XCTAssertTrue(app.staticTexts["Keep going"].firstMatch.waitForExistence(timeout: 5))
+  }
+
   func testSettingsSwitchesTheme() {
     let app = launchEmptyApp()
     let settings = app.buttons["settings-button"]
