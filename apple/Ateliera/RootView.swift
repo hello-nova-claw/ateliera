@@ -5,10 +5,21 @@ import UniformTypeIdentifiers
 // the Rust core (VaultStore). The Studio folder is a user-picked, security-scoped
 // iCloud folder via the native `.fileImporter`, or a seeded fixture in the sim.
 struct RootView: View {
-  var themeStore = ThemeStore()
+  let themeStore: ThemeStore
   @Environment(\.studioTheme) private var theme
-  @State private var store = VaultStore()
+  @State private var store: VaultStore
+  @State private var giftStore: GiftStore
   @State private var picking = false
+
+  init(themeStore: ThemeStore = ThemeStore()) {
+    self.themeStore = themeStore
+    // One VaultStore, shared by the room lists and the Foyer's Gift, so a graded
+    // card's write is reflected in both without a second load.
+    let vault = VaultStore()
+    _store = State(initialValue: vault)
+    _giftStore = State(initialValue: GiftStore(store: vault))
+  }
+
   @State private var activeSheet: ActiveSheet?
   @State private var health = HealthCycleSource()
   @State private var cycle: CycleProfile?
@@ -52,6 +63,9 @@ struct RootView: View {
       ScrollView {
         VStack(alignment: .leading, spacing: 28) {
           AlmanacView(context: almanacContext)
+          TodaysGiftView(store: giftStore) { quality in
+            giftStore.grade(quality, today: almanacContext.date)
+          }
           Button {
             activeSheet = .rhythm
           } label: {
@@ -105,6 +119,10 @@ struct RootView: View {
       // almanac and both degrade quietly when unavailable.
       if let resolved = await location.resolve() { hemisphere = resolved }
       cycle = await health.loadCycle()
+      giftStore.refresh(ctx: almanacContext, today: almanacContext.date)
+    }
+    .onChange(of: almanacContext.date) {
+      giftStore.refresh(ctx: almanacContext, today: almanacContext.date)
     }
     .sheet(item: $activeSheet) { sheet in
       switch sheet {

@@ -51,6 +51,9 @@ final class VaultStore {
   // The full parsed model for every note the schema accepts — the shared source
   // for room projections (P5/P6) and the Foyer (P9). Rebuilt on each reload.
   @ObservationIgnored private(set) var parsedNotes: [StudioNote] = []
+  // The same parsed notes keyed by their vault path, so the resurface pool (P3)
+  // can map each note back to its `sourcePath`. Rebuilt on each reload.
+  @ObservationIgnored private(set) var parsedNotesByPath: [(path: String, note: StudioNote)] = []
 
   /// Notes matching `query`, best first (see NoteSearch). Empty for a blank query.
   func search(_ query: String) -> [NoteSummary] {
@@ -74,7 +77,28 @@ final class VaultStore {
     let url = URL(fileURLWithPath: NSTemporaryDirectory())
       .appendingPathComponent("uitest-\(UUID().uuidString)", isDirectory: true)
     try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    // For the Gift flow test, seed one due wish card so the Foyer shows a real
+    // resurfaced card to grade rather than the calm fallback line.
+    if ProcessInfo.processInfo.environment["ATELIERA_UITEST_GIFT"] == "1" {
+      seedGiftFixture(at: url)
+    }
     return url
+  }
+
+  // A single due Reflection Garden wish note (due date far in the past → always
+  // due), written through the real byte-identical serializer.
+  private static func seedGiftFixture(at root: URL) {
+    var note = StudioNote.capture(
+      title: "A wish worth keeping", body: "\nRemember the shape of this wish.\n",
+      id: NoteFactory.createNoteId(), created: NoteFactory.isoTimestamp(),
+      room: "reflection-garden")
+    note.resurfaceKind = "wish"
+    note.resurfaceDue = "2020-01-01"
+    note.resurfaceIntervalDays = 6
+    let dir = root.appendingPathComponent("Reflection Garden", isDirectory: true)
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    try? note.serialize().data(using: .utf8)?
+      .write(to: dir.appendingPathComponent("a-wish.md"))
   }
 
   /// Called from `.fileImporter` when the user picks a folder.
@@ -112,6 +136,12 @@ final class VaultStore {
     self.vaultName = url.lastPathComponent
     try reload()
   }
+
+  #if DEBUG
+    /// Test hook: open a vault directly at a path, skipping the security-scoped
+    /// bookmark persistence used by the real `.fileImporter` flow.
+    func openForTesting(at url: URL) throws { try openVault(at: url) }
+  #endif
 
   /// Create a new note from a quick capture: build the note tagged to `room`
   /// (Inbox by default), serialize it byte-identically to the web app, and write
@@ -210,6 +240,26 @@ final class VaultStore {
     return saveEdit(editable, updatedNote: updated)
   }
 
+  /// The resurface pool over the currently-loaded notes: every Reflection Garden
+  /// or Uncharted note carrying all three `resurface_*` fields, mapped to a card
+  /// (P3, the Gift). Scans the already-parsed notes — no separate index (that's P4).
+  func resurfacePool() -> [ResurfaceCard] {
+    Resurfacing.resurfacePool(from: parsedNotesByPath)
+  }
+
+  /// Advance a resurface card's schedule after grading: write the new
+  /// `resurface_due` / `resurface_interval_days` back through the one write rail
+  /// (`saveEdit`), which bumps `updated`, preserves unknown frontmatter, and honours
+  /// optimistic concurrency. `resurface_kind` is left untouched so the card stays in
+  /// the pool and returns on its new schedule — matching the web `keep`.
+  @discardableResult
+  func saveResurfaceSchedule(_ editable: EditableNote, due: String, intervalDays: Int) -> Bool {
+    var updated = editable.note
+    updated.resurfaceDue = due
+    updated.resurfaceIntervalDays = intervalDays
+    return saveEdit(editable, updatedNote: updated)
+  }
+
   func reload() throws {
     guard let vault else { return }
     let entries = try vault.list(prefix: nil)
@@ -217,6 +267,7 @@ final class VaultStore {
     var docs: [SearchDoc] = []
     var byPath: [String: NoteSummary] = [:]
     var parsed: [StudioNote] = []
+    var parsedPairs: [(path: String, note: StudioNote)] = []
     for entry in entries where !entry.isDirectory && entry.path.hasSuffix(".md") {
       let read = try vault.readText(path: entry.path)
       // Prefer the full model (all metadata fields); fall back to the lenient
@@ -224,6 +275,7 @@ final class VaultStore {
       let summary: NoteSummary
       if let note = NoteParser.parse(read.text) {
         parsed.append(note)
+        parsedPairs.append((entry.path, note))
         summary = Self.summary(from: note, path: entry.path)
       } else {
         summary = Self.parse(path: entry.path, text: read.text)
@@ -234,6 +286,7 @@ final class VaultStore {
         SearchDoc(id: entry.path, title: summary.title, body: Self.plainBody(read.text)))
     }
     self.parsedNotes = parsed
+    self.parsedNotesByPath = parsedPairs
     // Newest first: by `updated`/`created` (ISO strings sort chronologically),
     // then title as a stable tiebreaker for notes without a timestamp.
     self.notes = summaries.sorted {
