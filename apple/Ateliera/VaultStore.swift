@@ -51,6 +51,8 @@ final class VaultStore {
   var vaultName: String = ""
   var error: String?
   var conflict: ConflictState?
+  // A stable identifier for the open vault, used to scope per-note draft recovery.
+  @ObservationIgnored private(set) var studioId: String = ""
 
   @ObservationIgnored private var vault: Vault?
   @ObservationIgnored private let bookmarkKey = "ateliera.vault.bookmark"
@@ -228,6 +230,7 @@ final class VaultStore {
     let handle = try Vault.open(path: url.path)
     self.vault = handle
     self.vaultName = url.lastPathComponent
+    self.studioId = url.path  // stable per-vault id, for draft-recovery keys
     try reload()
   }
 
@@ -395,11 +398,13 @@ final class VaultStore {
       return true
     } catch let error as VaultError {
       if case .Conflict = error {
-        // The note changed under us (a concurrent write). Rather than silently lose
-        // the edit, surface a merge choice: keep the stored version, overwrite, or
-        // save the draft as a new note.
+        // The note changed under us (a concurrent write). Set both: `error` so any
+        // non-editor caller (the Gift, a Landscape move) still surfaces the failure,
+        // and `conflict` so the note editor can offer a merge choice. The editor
+        // clears any stale conflict on open so this never leaks across flows.
         let storedText = (try? vault.readText(path: editable.path))?.text ?? ""
         conflict = ConflictState(path: editable.path, draft: updatedNote, storedText: storedText)
+        self.error = "This note changed on another device."
         return false
       }
       self.error = "\(error)"
@@ -439,6 +444,7 @@ final class VaultStore {
   /// Dismiss the conflict, keeping the stored version and discarding the draft.
   func dismissConflict() {
     conflict = nil
+    error = nil
   }
 
   /// Convenience for the plain title+body editor: mutate those two fields on the

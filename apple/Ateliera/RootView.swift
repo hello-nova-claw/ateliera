@@ -506,6 +506,8 @@ private struct NoteEditView: View {
   @State private var notFound = false
   @State private var coverItem: PhotosPickerItem?
   @State private var coverImage: UIImage?
+  @State private var recoverableDraft: DraftRecord?
+  private let recovery = DraftRecovery()
 
   init(
     store: VaultStore, editable: EditableNote, onClose: @escaping () -> Void,
@@ -528,6 +530,9 @@ private struct NoteEditView: View {
     NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: 22) {
+          if let draft = recoverableDraft {
+            draftBanner(draft)
+          }
           VStack(alignment: .leading, spacing: 6) {
             fieldLabel("Title")
             TextField("A short name (optional)", text: $titleText)
@@ -586,7 +591,10 @@ private struct NoteEditView: View {
           Button("Save") {
             let trimmed = titleText.trimmingCharacters(in: .whitespacesAndNewlines)
             note.title = trimmed.isEmpty ? nil : trimmed
-            if store.saveEdit(editable, updatedNote: note) { onClose() }
+            if store.saveEdit(editable, updatedNote: note) {
+              recovery.remove(studioId: store.studioId, path: editable.path)
+              onClose()
+            }
           }
           .disabled(!canSave)
           .accessibilityIdentifier("note-save-button")
@@ -598,8 +606,14 @@ private struct NoteEditView: View {
         Text("That link doesn't point to a note in this Studio yet.")
       }
     }
-    .task { loadExistingCover() }
+    .task {
+      store.dismissConflict()  // never inherit a conflict left by another flow
+      loadExistingCover()
+      checkForDraft()
+    }
     .onChange(of: coverItem) { importPickedCover() }
+    .onChange(of: note.body) { autosaveDraft() }
+    .onChange(of: titleText) { autosaveDraft() }
     .sheet(
       item: Binding(get: { store.conflict }, set: { if $0 == nil { store.dismissConflict() } })
     ) { conflict in
@@ -643,6 +657,55 @@ private struct NoteEditView: View {
       let cover = store.readCover(reference: reference, forNotePath: editable.path)
     else { return }
     coverImage = UIImage(data: cover.data)
+  }
+
+  // A banner offering to restore an autosaved draft that differs from the stored note.
+  private func draftBanner(_ draft: DraftRecord) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("You have an unsaved draft of this note.")
+        .font(StudioFont.meta).foregroundStyle(theme.inkStrong)
+      HStack(spacing: 18) {
+        Button("Restore draft") {
+          note.body = draft.body
+          titleText = draft.title ?? ""
+          recoverableDraft = nil
+        }
+        .font(StudioFont.control).foregroundStyle(theme.link)
+        .accessibilityIdentifier("restore-draft")
+        Button("Discard") {
+          recovery.remove(studioId: store.studioId, path: editable.path)
+          recoverableDraft = nil
+        }
+        .font(StudioFont.control).foregroundStyle(theme.inkMuted)
+        .accessibilityIdentifier("discard-draft")
+      }
+    }
+    .padding(12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(RoundedRectangle(cornerRadius: 10).fill(theme.accentSoft))
+  }
+
+  private func checkForDraft() {
+    guard
+      case .recoverable(let draft) = recovery.readForDurable(
+        studioId: store.studioId, path: editable.path, durableHash: editable.baseHash),
+      draft.body != editable.note.body || draft.title != editable.note.title
+    else { return }
+    recoverableDraft = draft
+  }
+
+  // Autosave the in-progress edit (only once it diverges from the stored note).
+  private func autosaveDraft() {
+    let trimmed = titleText.trimmingCharacters(in: .whitespacesAndNewlines)
+    let title = trimmed.isEmpty ? nil : trimmed
+    guard note.body != editable.note.body || title != editable.note.title else {
+      recovery.remove(studioId: store.studioId, path: editable.path)
+      return
+    }
+    recovery.write(
+      DraftRecord(
+        studioId: store.studioId, path: editable.path, title: title, body: note.body,
+        expectedHash: editable.baseHash, updatedAt: NoteFactory.isoTimestamp()))
   }
 
   private func importPickedCover() {

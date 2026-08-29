@@ -291,6 +291,21 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["Becoming steadier"].firstMatch.waitForExistence(timeout: 5))
   }
 
+  func testDraftRecoveryRestoresUnsavedEdit() {
+    let app = launchEmptyApp()
+    captureAndOpen(app, title: "Draft note", body: "First body")
+    // Edit the body but cancel without saving — the draft is autosaved.
+    type(" and more", into: app.textViews["note-body-editor"], in: app)
+    app.buttons["Cancel"].tap()
+    // Reopen the note; the recovery banner offers the unsaved draft back.
+    app.staticTexts["Draft note"].tap()
+    let restore = app.buttons["restore-draft"]
+    XCTAssertTrue(restore.waitForExistence(timeout: 5))
+    restore.tap()
+    let value = app.textViews["note-body-editor"].value as? String ?? ""
+    XCTAssertTrue(value.contains("and more"), "restored body was \(value)")
+  }
+
   func testSettingsSwitchesTheme() {
     let app = launchEmptyApp()
     let settings = app.buttons["settings-button"]
