@@ -58,6 +58,7 @@ enum NoteParser {
     func mapValue(_ pairs: [(String, YamlNode)], _ key: String) -> String? {
       for (k, node) in pairs where k == key {
         if case .scalar(let value) = node { return value }
+        if case .bool(let value) = node { return value ? "true" : "false" }
       }
       return nil
     }
@@ -136,14 +137,38 @@ enum NoteParser {
         if i < lines.count && leadingSpaces(lines[i]) == indent + 2
           && lines[i].dropFirst(indent + 2).hasPrefix("- ")
         {
-          var items: [String] = []
-          while i < lines.count && leadingSpaces(lines[i]) == indent + 2
-            && lines[i].dropFirst(indent + 2).hasPrefix("- ")
-          {
-            items.append(unquote(String(lines[i].dropFirst(indent + 4))))
-            i += 1
+          // A block sequence. Each item is either a scalar (`- value`) or a map
+          // (`- key: value` with continuation lines) — the web quotes any scalar
+          // containing `: `, so an unquoted `key: value` after `- ` is a map.
+          let firstItem = String(lines[i].dropFirst(indent + 4))
+          if firstItem.contains(": ") && !firstItem.hasPrefix("\"") {
+            var maps: [[(String, YamlNode)]] = []
+            while i < lines.count && leadingSpaces(lines[i]) == indent + 2
+              && lines[i].dropFirst(indent + 2).hasPrefix("- ")
+            {
+              var itemPairs: [(String, YamlNode)] = []
+              let head = String(lines[i].dropFirst(indent + 4))
+              if let colon = head.firstIndex(of: ":") {
+                let k = String(head[..<colon]).trimmingCharacters(in: .whitespaces)
+                let v = String(head[head.index(after: colon)...]).trimmingCharacters(
+                  in: .whitespaces)
+                itemPairs.append((k, .scalar(unquote(v))))
+              }
+              i += 1
+              itemPairs.append(contentsOf: parseBlock(lines, &i, indent: indent + 4))
+              maps.append(itemPairs)
+            }
+            pairs.append((key, .mapSeq(maps)))
+          } else {
+            var items: [String] = []
+            while i < lines.count && leadingSpaces(lines[i]) == indent + 2
+              && lines[i].dropFirst(indent + 2).hasPrefix("- ")
+            {
+              items.append(unquote(String(lines[i].dropFirst(indent + 4))))
+              i += 1
+            }
+            pairs.append((key, .list(items)))
           }
-          pairs.append((key, .list(items)))
         } else {
           let sub = parseBlock(lines, &i, indent: indent + 2)
           pairs.append((key, .map(sub)))
@@ -160,6 +185,11 @@ enum NoteParser {
             unquote($0.trimmingCharacters(in: .whitespaces))
           }
         pairs.append((key, .list(items)))
+        i += 1
+      } else if rest == "true" || rest == "false" {
+        // An unquoted boolean (the web quotes a bool-like string, so bare true/false
+        // is a real boolean) — keep it as .bool so it re-serializes unquoted.
+        pairs.append((key, .bool(rest == "true")))
         i += 1
       } else {
         pairs.append((key, .scalar(unquote(rest))))

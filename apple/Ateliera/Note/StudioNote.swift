@@ -30,6 +30,8 @@ indirect enum YamlNode: Equatable {
   case bool(Bool)
   case list([String])
   case map([(String, YamlNode)])
+  // A block sequence of maps (e.g. season_workflow.decisions).
+  case mapSeq([[(String, YamlNode)]])
 
   static func == (lhs: YamlNode, rhs: YamlNode) -> Bool {
     switch (lhs, rhs) {
@@ -39,6 +41,12 @@ indirect enum YamlNode: Equatable {
     case (.list(let a), .list(let b)): return a == b
     case (.map(let a), .map(let b)):
       return a.count == b.count && zip(a, b).allSatisfy { $0.0 == $1.0 && $0.1 == $1.1 }
+    case (.mapSeq(let a), .mapSeq(let b)):
+      return a.count == b.count
+        && zip(a, b).allSatisfy { left, right in
+          left.count == right.count
+            && zip(left, right).allSatisfy { $0.0 == $1.0 && $0.1 == $1.1 }
+        }
     default: return false
     }
   }
@@ -46,6 +54,8 @@ indirect enum YamlNode: Equatable {
   var scalarValue: String? { if case .scalar(let s) = self { return s }; return nil }
   var boolValue: Bool? { if case .bool(let b) = self { return b }; return nil }
   var listValue: [String]? { if case .list(let l) = self { return l }; return nil }
+  var mapValue: [(String, YamlNode)]? { if case .map(let m) = self { return m }; return nil }
+  var mapSeqValue: [[(String, YamlNode)]]? { if case .mapSeq(let s) = self { return s }; return nil }
 }
 
 // Typed reads of unknown (`extraFrontmatter`) keys. These live in the same file as
@@ -64,6 +74,65 @@ extension StudioNote {
   func frontmatterList(_ key: String) -> [String] {
     for (k, v) in extraFrontmatter where k == key { if let l = v.listValue { return l } }
     return []
+  }
+
+  // Readers for a nested map under an unknown key (e.g. season_workflow.*). Kept
+  // here so all YamlNode case access stays in this file.
+  private func nestedMap(_ outerKey: String) -> [(String, YamlNode)]? {
+    for (k, v) in extraFrontmatter where k == outerKey { return v.mapValue }
+    return nil
+  }
+  func nestedScalar(_ outerKey: String, _ innerKey: String) -> String? {
+    nestedMap(outerKey)?.first { $0.0 == innerKey }?.1.scalarValue
+  }
+  func nestedBool(_ outerKey: String, _ innerKey: String) -> Bool {
+    nestedMap(outerKey)?.first { $0.0 == innerKey }?.1.boolValue ?? false
+  }
+  func nestedList(_ outerKey: String, _ innerKey: String) -> [String] {
+    nestedMap(outerKey)?.first { $0.0 == innerKey }?.1.listValue ?? []
+  }
+  // A nested list-of-maps flattened to scalar (key,value) pairs (e.g. decisions).
+  func nestedMapSeq(_ outerKey: String, _ innerKey: String) -> [[(String, String)]] {
+    guard let seq = nestedMap(outerKey)?.first(where: { $0.0 == innerKey })?.1.mapSeqValue
+    else { return [] }
+    return seq.map { entry in entry.compactMap { pair in pair.1.scalarValue.map { (pair.0, $0) } } }
+  }
+
+  // Build the season note's managed frontmatter from plain values. All YamlNode
+  // construction stays in this file — cross-file YamlNode use trips a compiler cycle.
+  mutating func applySeasonFrontmatter(
+    seasonId: String, dateStart: String?, dateEnd: String?, priorities: [String],
+    statement: String, priorReflection: String, skippedPriorReflection: Bool, feelings: [String],
+    decisions: [[(String, String)]], practices: [String], supports: [String], constraints: [String],
+    enough: String, notNow: [String], midSeasonNotes: [String], completedSteps: [String]
+  ) {
+    let managed: Set<String> = ["season_id", "date_start", "date_end", "priorities", "season_workflow"]
+    var extra = extraFrontmatter.filter { !managed.contains($0.0) }
+    extra.append(("season_id", .scalar(seasonId)))
+    if let dateStart { extra.append(("date_start", .scalar(dateStart))) }
+    if let dateEnd { extra.append(("date_end", .scalar(dateEnd))) }
+    extra.append(("priorities", .list(priorities)))
+    let decisionMaps: [[(String, YamlNode)]] = decisions.map { entry in
+      entry.map { ($0.0, YamlNode.scalar($0.1)) }
+    }
+    extra.append(
+      (
+        "season_workflow",
+        .map([
+          ("statement", .scalar(statement)),
+          ("prior_reflection", .scalar(priorReflection)),
+          ("skipped_prior_reflection", .bool(skippedPriorReflection)),
+          ("feelings", .list(feelings)),
+          ("decisions", .mapSeq(decisionMaps)),
+          ("practices", .list(practices)),
+          ("supports", .list(supports)),
+          ("constraints", .list(constraints)),
+          ("enough", .scalar(enough)),
+          ("not_now", .list(notNow)),
+          ("mid_season_notes", .list(midSeasonNotes)),
+          ("completed_steps", .list(completedSteps)),
+        ])))
+    extraFrontmatter = extra
   }
 }
 
@@ -163,6 +232,25 @@ struct StudioNote {
       case .map(let sub):
         out += "\(pad)\(key):\n"
         out += emit(sub, indent: indent + 2)
+      case .mapSeq(let maps):
+        if maps.isEmpty {
+          out += "\(pad)\(key): []\n"
+        } else {
+          out += "\(pad)\(key):\n"
+          let itemPad = pad + "  "
+          for entry in maps {
+            for (idx, pair) in entry.enumerated() {
+              let prefix = idx == 0 ? "\(itemPad)- " : "\(itemPad)  "
+              if case .int(let value) = pair.1 {
+                out += "\(prefix)\(pair.0): \(value)\n"
+              } else if case .bool(let value) = pair.1 {
+                out += "\(prefix)\(pair.0): \(value ? "true" : "false")\n"
+              } else if case .scalar(let value) = pair.1 {
+                out += "\(prefix)\(pair.0): \(scalar(value))\n"
+              }
+            }
+          }
+        }
       }
     }
     return out
