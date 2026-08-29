@@ -1167,3 +1167,28 @@ Full suite green. Remaining P8 (each its own focused slice): diagnostics recorde
 parse-error repair queue (no Rust), then export/import ZIP + revision history — which
 need new Rust FFI (`write_batch_atomic`, `remove`, `move_file`) and a byte-exact ZIP32
 writer/reader matching the web `zip32.ts`. Then P9 (onboarding + rich Foyer).
+
+## 2026-08-29 — Native parity P8 (cont.): diagnostics/repair + export/import
+
+Two more P8 slices, taking data-management to near-complete.
+
+- **Diagnostics + parse-error repair**: `DiagnosticsRecorder` (thread-safe ring
+  buffer, cap 10,000, newest-first) wired into `saveEdit` (success/conflict/failure);
+  a `DiagnosticsView` reached from Settings. `VaultStore` now tracks `unparsedPaths`
+  (notes the full parser rejects) and surfaces them in the repair queue as
+  metadata items, so the existing Repair panel shows them. 4 unit + 1 XCUITest.
+- **Export / import (with the requested Rust batch-write)**: a new Rust
+  `write_batch_atomic` FFI — many files written under one lock, guarded by the vault
+  revision (rejects a concurrent change), temps first then renames, one revision bump
+  (2 cargo tests: multi-create + stale-revision rejection); rebuilt the XCFramework.
+  Swift side: a byte-exact `Zip32` writer/reader matching `zip32.ts` (CRC-32, store-
+  only), `PortableManifest` (golden JSON + `exportDisposition` + `portablePathKey`),
+  `VaultExporter` (list → classify → SHA-256 → manifest → ZIP) shared from Settings,
+  and `VaultImporter` (parse → classify create/overwrite → apply via the atomic
+  batch). Golden ZIP/SHA/manifest bytes captured from node (the P8 spec's SHA and
+  folder examples were wrong; used the real values). 12 unit tests incl. a full
+  export→import round-trip into a fresh vault. Per-item import conflict UI + revision
+  history snapshots are the remaining P8 follow-ups.
+
+Full suite green. **P8 now: conflict merge ✓, draft recovery ✓, diagnostics ✓,
+parse-error repair ✓, export ✓, import ✓.** Remaining: revision history. Then P9.
