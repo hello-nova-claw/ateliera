@@ -36,6 +36,7 @@ struct RootView: View {
     case search
     case settings
     case placement
+    case tour
 
     var id: String {
       switch self {
@@ -45,6 +46,7 @@ struct RootView: View {
       case .search: return "search"
       case .settings: return "settings"
       case .placement: return "placement"
+      case .tour: return "tour"
       }
     }
   }
@@ -136,6 +138,11 @@ struct RootView: View {
       if let resolved = await location.resolve() { hemisphere = resolved }
       cycle = await health.loadCycle()
       giftStore.refresh(ctx: almanacContext, today: almanacContext.date)
+      if store.seededNewStudio, !OnboardingStore().hasSeenTour(studioId: store.studioId),
+        activeSheet == nil
+      {
+        activeSheet = .tour
+      }
     }
     .onChange(of: almanacContext.date) {
       giftStore.refresh(ctx: almanacContext, today: almanacContext.date)
@@ -165,10 +172,18 @@ struct RootView: View {
           },
           onClose: { activeSheet = nil })
       case .settings:
-        SettingsView(themeStore: themeStore, store: store, onClose: { activeSheet = nil })
-          .studioTheme(themeStore.current)
+        SettingsView(
+          themeStore: themeStore, store: store, onClose: { activeSheet = nil },
+          onReplayTour: { activeSheet = .tour }
+        )
+        .studioTheme(themeStore.current)
       case .placement:
         ClassifiedCaptureSheet(store: store, onClose: { activeSheet = nil })
+      case .tour:
+        FirstVisitGuide(onFinish: {
+          OnboardingStore().markTourSeen(studioId: store.studioId)
+          activeSheet = nil
+        })
       }
     }
   }
@@ -740,14 +755,28 @@ private struct SettingsView: View {
   let themeStore: ThemeStore
   let store: VaultStore
   let onClose: () -> Void
+  let onReplayTour: () -> Void
 
   var body: some View {
     NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: 0) {
+          Button {
+            onReplayTour()
+          } label: {
+            HStack {
+              Text("Take the tour").font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
+              Spacer()
+              Image(systemName: "sparkles").font(.system(size: 12)).foregroundStyle(theme.inkFaint)
+            }
+            .padding(.vertical, 14)
+          }
+          .accessibilityIdentifier("take-tour-button")
+          Divider().overlay(theme.line)
+
           Text("ROOMS")
             .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
-            .padding(.bottom, 8)
+            .padding(.top, 24).padding(.bottom, 8)
           Text("Reveal rooms as you're ready for them.")
             .font(StudioFont.meta).foregroundStyle(theme.inkFaint).padding(.bottom, 8)
           ForEach(Room.all.filter { !Preferences.coreRooms.contains($0.id) }) { room in

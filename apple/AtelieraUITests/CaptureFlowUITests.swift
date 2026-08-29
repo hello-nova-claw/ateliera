@@ -347,6 +347,21 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertFalse(app.staticTexts["Today's rhythm"].exists)
   }
 
+  func testTourFromSettingsStepsAndLeaves() {
+    let app = launchEmptyApp()
+    app.buttons["settings-button"].tap()
+    let take = app.buttons["take-tour-button"]
+    XCTAssertTrue(take.waitForExistence(timeout: 5))
+    take.tap()
+    // Step 1 (Foyer), advance to step 2 (Landscape), then leave.
+    XCTAssertTrue(app.staticTexts["The Foyer"].waitForExistence(timeout: 5))
+    app.buttons["tour-next"].tap()
+    XCTAssertTrue(app.staticTexts["Life Landscape"].waitForExistence(timeout: 5))
+    app.buttons["tour-leave"].tap()
+    // Back to the Foyer.
+    XCTAssertTrue(app.buttons["capture-button"].waitForExistence(timeout: 5))
+  }
+
   func testRoomVisibilityToggleHidesRoom() {
     let app = launchEmptyApp()
     XCTAssertTrue(app.buttons["room-uncharted"].waitForExistence(timeout: 8))

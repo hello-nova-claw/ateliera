@@ -56,6 +56,8 @@ final class VaultStore {
   // A stable identifier for the open vault, used to scope per-note draft recovery.
   @ObservationIgnored private(set) var studioId: String = ""
   @ObservationIgnored private let preferencesStore = PreferencesStore()
+  // True on the open that first seeded a brand-new Studio — the cue to offer the tour.
+  @ObservationIgnored private(set) var seededNewStudio = false
 
   @ObservationIgnored private var vault: Vault?
   @ObservationIgnored private let bookmarkKey = "ateliera.vault.bookmark"
@@ -298,6 +300,7 @@ final class VaultStore {
     } else if parsedNotesByPath.isEmpty && !isUITest {
       preferences = .newStudio
       preferencesStore.save(preferences, studioId: studioId)
+      seededNewStudio = true
     } else {
       preferences = StoredStudioPreferences()
     }
