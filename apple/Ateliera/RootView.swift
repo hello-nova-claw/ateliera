@@ -212,6 +212,8 @@ struct RootView: View {
       WisdomView(store: store, onOpen: openPath)
     case "reflection-garden":
       ReflectionView(store: store, onOpen: openPath)
+    case "current-season":
+      SeasonView(store: store, onOpen: openPath)
     default:
       RoomView(
         room: room, store: store, onOpen: openEdit,

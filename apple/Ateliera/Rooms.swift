@@ -41,5 +41,9 @@ struct Room: Identifiable, Hashable {
       id: "uncharted", title: "Uncharted",
       eyebrow: "leave room for possibility",
       intro: "Keep possibilities that don't need a plan yet."),
+    Room(
+      id: "current-season", title: "Current Season",
+      eyebrow: "a humane present focus",
+      intro: "Name what matters now as a gentle chapter."),
   ]
 }

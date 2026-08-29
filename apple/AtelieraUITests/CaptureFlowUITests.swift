@@ -253,6 +253,30 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["Celebration beta"].firstMatch.waitForExistence(timeout: 5))
   }
 
+  func testSeasonWizardBeginsAndActivates() {
+    let app = launchEmptyApp()
+    let room = app.buttons["room-current-season"]
+    XCTAssertTrue(room.waitForExistence(timeout: 8))
+    room.tap()
+    XCTAssertTrue(app.navigationBars["Current Season"].waitForExistence(timeout: 5))
+    // Begin a season.
+    type("Spring", into: app.textFields["season-title-field"], in: app)
+    app.buttons["season-begin"].tap()
+    // Prior reflection: skip it.
+    let skip = app.switches["season-skip-reflection"]
+    XCTAssertTrue(skip.waitForExistence(timeout: 5))
+    skip.tap()
+    // Continue through the remaining eight steps (the last one begins the season).
+    for _ in 0..<8 {
+      let cont = app.buttons["season-continue"]
+      XCTAssertTrue(cont.waitForExistence(timeout: 5))
+      cont.tap()
+    }
+    // The active season view shows the title.
+    XCTAssertTrue(app.staticTexts["Spring"].firstMatch.waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["season-close"].waitForExistence(timeout: 5))
+  }
+
   func testSettingsSwitchesTheme() {
     let app = launchEmptyApp()
     let settings = app.buttons["settings-button"]
