@@ -1208,3 +1208,35 @@ snapshots (needs a `remove` FFI) is a documented follow-up; snapshots accumulate
 export, import (atomic Rust batch), and revision history.** Native parity now spans
 P1–P8. Remaining: **P9** — onboarding + progressive disclosure + a richer Foyer — the
 final roadmap phase.
+
+## 2026-08-29 — Native parity P9 complete: onboarding + progressive disclosure + rich Foyer
+
+The final phase. Four slices:
+- **Progressive disclosure**: `StudioPreferences` (rooms/foyerSections/rhythm),
+  `isRoomVisible`/`isFoyerSectionVisible` resolvers, UserDefaults persistence per
+  vault; a new Studio starts small (optional rooms + feelings/principles/season
+  hidden), an existing one shows everything. Room toggles in Settings gate the Foyer
+  room list.
+- **Rich Foyer**: `FoyerRichView` surfaces the Identity Studio's currently-becoming
+  card + up to three desired-feeling and values-&-principles cards, gated by section
+  visibility; the almanac hides when every rhythm layer is off.
+- **Section + rhythm toggles**: Foyer-section and moon/micro-season/cycle switches in
+  Settings.
+- **First-visit tour**: a calm 5-step guide (`FirstVisitGuide` + `OnboardingState`),
+  auto-shown once for a brand-new Studio and replayable from Settings.
+
+19 unit + 4 XCUITests. Full suite green.
+
+## Native parity milestone — P1 through P9 complete
+
+The SwiftUI app (`apple/`) now reaches full feature parity with the web Studio across
+all nine roadmap phases: note depth + wikilinks (P1), seven themes (P2), the SM-2
+Gift (P3), faceted search + backlinks + link repair (P4), Life Landscape + Identity
+Studio (P5), Current Season + Uncharted + Wisdom + Reflection (P6), classified capture
++ cover-image media (P7), data management — conflict merge, draft recovery,
+diagnostics, parse-error repair, export/import with an atomic Rust batch write, and
+revision history (P8), and onboarding + progressive disclosure + a rich Foyer (P9).
+Every shared format/algorithm is golden-matched to the `@studio/*` packages; all
+writes are atomic + path-contained; each phase is TDD'd (unit + XCUITest) and shipped
+as its own atomic commit. The native app shares one Markdown/iCloud vault with the web
+app, byte-identically.
