@@ -101,6 +101,24 @@ final class VaultStore {
     return index.forwardLinks(id)
   }
 
+  /// The Identity board projected for the Foyer's becoming / feelings / principles
+  /// sections (loads the same manual orders the Identity Studio room uses).
+  func foyerIdentity() -> IdentityBoardModel {
+    var sectionOrders: [IdentitySection: [String]] = [:]
+    for section in IdentitySection.allCases {
+      let ids = loadViewOrder("identity:\(section.rawValue)")
+      if !ids.isEmpty { sectionOrders[section] = ids }
+    }
+    return IdentityProjector.project(
+      notes: parsedNotesByPath, sectionOrders: sectionOrders,
+      currentlyBecomingOrder: loadViewOrder("identity:currently-becoming"))
+  }
+
+  private func loadViewOrder(_ key: String) -> [String] {
+    guard let path = ViewState.path(key), let raw = readRawFile(path: path) else { return [] }
+    return ViewState.parse(raw.text)
+  }
+
   /// The repair queue over the loaded notes (parse errors + duplicate ids +
   /// broken/ambiguous links).
   func repairQueue() -> [RepairItem] {
@@ -158,7 +176,34 @@ final class VaultStore {
     if ProcessInfo.processInfo.environment["ATELIERA_UITEST_P5"] == "1" {
       seedP5Fixture(at: url)
     }
+    if ProcessInfo.processInfo.environment["ATELIERA_UITEST_FOYER"] == "1" {
+      seedFoyerFixture(at: url)
+    }
     return url
+  }
+
+  // A promoted "becoming" + a desired feeling + a guiding principle, so the rich
+  // Foyer sections have content to render.
+  private static func seedFoyerFixture(at root: URL) {
+    func identity(_ id: String, _ title: String, _ cardType: String, _ file: String) {
+      var note = StudioNote.capture(
+        title: title, body: "\(title).", id: id, created: NoteFactory.isoTimestamp(),
+        room: "identity-studio")
+      note.status = "active"
+      note.cardType = cardType
+      note.semanticType = "growth"
+      write(note, to: root, folder: "Identity Studio", file: file)
+    }
+    identity("BECOMING0000000000000000AA", "Someone who rests", "identity-emerging", "becoming.md")
+    identity("FEELING00000000000000000BB", "Unhurried", "feeling", "feeling.md")
+    identity("PRINCIPLE0000000000000000CC", "Depth over breadth", "principle", "principle.md")
+    // Promote the becoming via the identity:currently-becoming view state.
+    let viewsDir = root.appendingPathComponent(".studio/views", isDirectory: true)
+    try? FileManager.default.createDirectory(at: viewsDir, withIntermediateDirectories: true)
+    if let path = ViewState.path("identity:currently-becoming") {
+      let file = root.appendingPathComponent(path)
+      try? ViewState.serialize(["BECOMING0000000000000000AA"]).data(using: .utf8)?.write(to: file)
+    }
   }
 
   // One Life Landscape card (family / vision) + one Identity Studio practicing-now

@@ -65,10 +65,13 @@ struct RootView: View {
     NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: 28) {
-          AlmanacView(context: almanacContext)
+          if Preferences.isFoyerSectionVisible("almanac", store.preferences) {
+            AlmanacView(context: almanacContext)
+          }
           TodaysGiftView(store: giftStore) { quality in
             giftStore.grade(quality, today: almanacContext.date)
           }
+          FoyerRichView(store: store, onOpen: openPath)
           Button {
             activeSheet = .rhythm
           } label: {

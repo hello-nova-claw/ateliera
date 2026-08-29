@@ -321,6 +321,17 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["save"].firstMatch.waitForExistence(timeout: 5))
   }
 
+  func testRichFoyerShowsIdentitySections() {
+    let app = launchWith(["ATELIERA_UITEST_FOYER": "1"])
+    // The promoted becoming, a desired feeling, and a principle all surface.
+    let becoming = app.buttons["foyer-becoming"]
+    XCTAssertTrue(becoming.waitForExistence(timeout: 8))
+    XCTAssertTrue(becoming.label.contains("Someone who rests"))
+    XCTAssertTrue(app.staticTexts["HOW I WANT TO FEEL"].exists)
+    XCTAssertTrue(app.staticTexts["Unhurried"].firstMatch.exists)
+    XCTAssertTrue(app.staticTexts["Depth over breadth"].firstMatch.exists)
+  }
+
   func testRoomVisibilityToggleHidesRoom() {
     let app = launchEmptyApp()
     XCTAssertTrue(app.buttons["room-uncharted"].waitForExistence(timeout: 8))
