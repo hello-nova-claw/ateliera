@@ -190,7 +190,7 @@ struct RootView: View {
       Text("ROOMS")
         .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
         .padding(.bottom, 8)
-      ForEach(Room.all) { room in
+      ForEach(Room.all.filter { Preferences.isRoomVisible($0.id, store.preferences) }) { room in
         NavigationLink {
           roomDestination(room)
         } label: {
@@ -742,9 +742,27 @@ private struct SettingsView: View {
     NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: 0) {
-          Text("THEME")
+          Text("ROOMS")
             .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
             .padding(.bottom, 8)
+          Text("Reveal rooms as you're ready for them.")
+            .font(StudioFont.meta).foregroundStyle(theme.inkFaint).padding(.bottom, 8)
+          ForEach(Room.all.filter { !Preferences.coreRooms.contains($0.id) }) { room in
+            Toggle(
+              room.title,
+              isOn: Binding(
+                get: { Preferences.isRoomVisible(room.id, store.preferences) },
+                set: { store.setRoomVisible(room.id, $0) })
+            )
+            .font(StudioFont.body).foregroundStyle(theme.inkStrong)
+            .padding(.vertical, 8)
+            .accessibilityIdentifier("room-toggle-\(room.id)")
+            Divider().overlay(theme.line)
+          }
+
+          Text("THEME")
+            .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
+            .padding(.top, 24).padding(.bottom, 8)
           ForEach(StudioTheme.all, id: \.id) { palette in
             Button {
               themeStore.selectedId = palette.id

@@ -51,8 +51,11 @@ final class VaultStore {
   var vaultName: String = ""
   var error: String?
   var conflict: ConflictState?
+  // Progressive-disclosure preferences (which rooms/sections/rhythm layers show).
+  var preferences = StoredStudioPreferences()
   // A stable identifier for the open vault, used to scope per-note draft recovery.
   @ObservationIgnored private(set) var studioId: String = ""
+  @ObservationIgnored private let preferencesStore = PreferencesStore()
 
   @ObservationIgnored private var vault: Vault?
   @ObservationIgnored private let bookmarkKey = "ateliera.vault.bookmark"
@@ -238,6 +241,36 @@ final class VaultStore {
     self.vaultName = url.lastPathComponent
     self.studioId = url.path  // stable per-vault id, for draft-recovery keys
     try reload()
+    loadPreferences()
+  }
+
+  // Load this vault's preferences; a fresh (empty) vault is seeded to start small,
+  // while an existing vault with no stored prefs shows everything.
+  private func loadPreferences() {
+    let isUITest = ProcessInfo.processInfo.environment["ATELIERA_UITEST"] == "1"
+    if let stored = preferencesStore.load(studioId: studioId) {
+      preferences = stored
+    } else if parsedNotesByPath.isEmpty && !isUITest {
+      preferences = .newStudio
+      preferencesStore.save(preferences, studioId: studioId)
+    } else {
+      preferences = StoredStudioPreferences()
+    }
+  }
+
+  func setRoomVisible(_ id: String, _ visible: Bool) {
+    preferences.rooms[id] = visible ? nil : "off"
+    preferencesStore.save(preferences, studioId: studioId)
+  }
+
+  func setFoyerSectionVisible(_ id: String, _ visible: Bool) {
+    preferences.foyerSections[id] = visible ? nil : "off"
+    preferencesStore.save(preferences, studioId: studioId)
+  }
+
+  func setRhythmLayers(moon: Bool, microSeason: Bool, cycle: Bool) {
+    preferences.rhythm = .init(moon: moon, microSeason: microSeason, cycle: cycle)
+    preferencesStore.save(preferences, studioId: studioId)
   }
 
   #if DEBUG

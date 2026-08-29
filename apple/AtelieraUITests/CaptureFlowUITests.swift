@@ -321,6 +321,19 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["save"].firstMatch.waitForExistence(timeout: 5))
   }
 
+  func testRoomVisibilityToggleHidesRoom() {
+    let app = launchEmptyApp()
+    XCTAssertTrue(app.buttons["room-uncharted"].waitForExistence(timeout: 8))
+    // Turn the Uncharted room off in Settings.
+    app.buttons["settings-button"].tap()
+    let toggle = app.switches["room-toggle-uncharted"]
+    XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+    toggle.tap()
+    app.buttons["Done"].tap()
+    // It's gone from the Foyer's room list.
+    XCTAssertFalse(app.buttons["room-uncharted"].exists)
+  }
+
   func testSettingsSwitchesTheme() {
     let app = launchEmptyApp()
     let settings = app.buttons["settings-button"]
