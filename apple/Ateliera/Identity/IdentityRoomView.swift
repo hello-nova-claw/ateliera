@@ -18,19 +18,22 @@ struct IdentityRoomView: View {
   }
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 26) {
-        header
+    VStack(alignment: .leading, spacing: 20) {
+      header
+        .padding(.horizontal, 24)
+        .padding(.top, 24)
+      List {
         if let becoming = identity.model.currentlyBecoming {
           currentlyBecoming(becoming)
+            .studioRoomRow(EdgeInsets(top: 8, leading: 24, bottom: 8, trailing: 24))
         }
         ForEach(IdentitySection.allCases, id: \.self) { section in
           sectionView(section)
         }
       }
-      .padding(24)
-      .frame(maxWidth: .infinity, alignment: .leading)
+      .studioRoomList(theme.canvas)
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
     .background(theme.canvas)
     .navigationTitle("Identity Studio")
     .sheet(item: $addingSection) { section in
@@ -68,18 +71,24 @@ struct IdentityRoomView: View {
     .accessibilityIdentifier("currently-becoming")
   }
 
+  @ViewBuilder
   private func sectionView(_ section: IdentitySection) -> some View {
     let cards = identity.model.sections[section] ?? []
-    return VStack(alignment: .leading, spacing: 10) {
-      VStack(alignment: .leading, spacing: 3) {
-        Text(section.label).font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
-        Text(section.prompt)
-          .font(StudioFont.meta).foregroundStyle(theme.inkSoft)
-          .fixedSize(horizontal: false, vertical: true)
-      }
-      .accessibilityIdentifier("section-\(section.rawValue)")
+    Section {
       ForEach(cards) { card in
         cardRow(card, section: section)
+          .studioRoomRow()
+          .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+              _ = store.setNoteStatus(path: card.path, status: "trashed")
+              identity.refresh()
+            } label: { Label("Delete", systemImage: "trash") }
+            Button {
+              _ = store.setNoteStatus(path: card.path, status: "archived")
+              identity.refresh()
+            } label: { Label("Archive", systemImage: "archivebox") }
+            .tint(theme.inkMuted)
+          }
       }
       Button {
         addingSection = section
@@ -88,7 +97,17 @@ struct IdentityRoomView: View {
       }
       .buttonStyle(.plain)
       .accessibilityIdentifier("add-\(section.rawValue)")
-      Divider().overlay(theme.line)
+      .studioRoomRow()
+    } header: {
+      VStack(alignment: .leading, spacing: 3) {
+        Text(section.label).font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
+        Text(section.prompt)
+          .font(StudioFont.meta).foregroundStyle(theme.inkSoft)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .textCase(nil)
+      .accessibilityIdentifier("section-\(section.rawValue)")
+      .studioRoomRow(EdgeInsets(top: 16, leading: 24, bottom: 4, trailing: 24))
     }
   }
 
