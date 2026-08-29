@@ -27,6 +27,7 @@ struct RootView: View {
   @State private var location = LocationHemisphere()
   @State private var hemisphere: Hemisphere = SharedStore.bestHemisphere
   @State private var profileStore = RhythmProfileStore()
+  @State private var showToday = false  // the atmosphere panel starts tucked away
 
   // One sheet at a time: a fresh capture, an edit, or the rhythm profile.
   private enum ActiveSheet: Identifiable {
@@ -67,30 +68,18 @@ struct RootView: View {
     NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: 28) {
-          if Preferences.isFoyerSectionVisible("almanac", store.preferences) {
-            AlmanacView(context: almanacContext)
-          }
-          TodaysGiftView(store: giftStore) { quality in
-            giftStore.grade(quality, today: almanacContext.date)
-          }
-          FoyerRichView(store: store, onOpen: openPath)
-          Button {
-            activeSheet = .rhythm
-          } label: {
-            Text("Your rhythm ›")
-              .font(StudioFont.control)
-              .foregroundStyle(theme.link)
-          }
-          .buttonStyle(.plain)
-          .accessibilityIdentifier("rhythm-button")
-          Divider().overlay(theme.line)
+          studioBar
 
           RoomHeading(
             eyebrow: "welcome back",
             title: "The Foyer",
-            intro: "Today's rhythm, your rooms, and what you've been noticing.")
+            intro: "A calm place to begin — your rooms and what you've been noticing.")
 
-          studioBar
+          todaySection
+
+          TodaysGiftView(store: giftStore) { quality in
+            giftStore.grade(quality, today: almanacContext.date)
+          }
 
           Button {
             activeSheet = .capture(room: nil)
@@ -200,6 +189,47 @@ struct RootView: View {
     else { return false }
     activeSheet = .edit(editable)
     return true
+  }
+
+  // A tuck-away "Today" panel: the day's rhythm almanac, who you're becoming, the
+  // feelings and principles you're holding, and the rhythm setup link. Collapsed by
+  // default so the Foyer stays calm; one tap slides it open.
+  @ViewBuilder
+  private var todaySection: some View {
+    VStack(alignment: .leading, spacing: 18) {
+      Button {
+        withAnimation(.easeInOut(duration: 0.25)) { showToday.toggle() }
+      } label: {
+        HStack {
+          Text("Today's rhythm & intentions")
+            .font(StudioFont.control).foregroundStyle(theme.inkStrong)
+          Spacer()
+          Image(systemName: showToday ? "chevron.up" : "chevron.down")
+            .font(.system(size: 12)).foregroundStyle(theme.inkFaint)
+        }
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityIdentifier("today-panel-toggle")
+
+      if showToday {
+        if Preferences.isFoyerSectionVisible("almanac", store.preferences) {
+          AlmanacView(context: almanacContext)
+        }
+        FoyerRichView(store: store, onOpen: openPath)
+        Button {
+          activeSheet = .rhythm
+        } label: {
+          Text("Your rhythm ›").font(StudioFont.control).foregroundStyle(theme.link)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("rhythm-button")
+      }
+    }
+    .padding(16)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(RoundedRectangle(cornerRadius: 12).fill(theme.surface))
+    .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.line, lineWidth: 1))
   }
 
   // The rooms you can step into, each with how many notes it holds.

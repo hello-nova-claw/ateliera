@@ -58,8 +58,12 @@ final class CaptureFlowUITests: XCTestCase {
 
   func testRhythmSheetShowsTheChart() {
     let app = launchEmptyApp()
+    // Rhythm lives in the tucked-away "Today" panel — open it first.
+    let today = app.buttons["today-panel-toggle"]
+    XCTAssertTrue(today.waitForExistence(timeout: 10))
+    today.tap()
     let rhythm = app.buttons["rhythm-button"]
-    XCTAssertTrue(rhythm.waitForExistence(timeout: 10))
+    XCTAssertTrue(rhythm.waitForExistence(timeout: 5))
     rhythm.tap()
     // The natal chart card renders (computed on-device, no crash).
     XCTAssertTrue(app.staticTexts["Your chart"].waitForExistence(timeout: 5))
@@ -336,6 +340,10 @@ final class CaptureFlowUITests: XCTestCase {
 
   func testRichFoyerShowsIdentitySections() {
     let app = launchWith(["ATELIERA_UITEST_FOYER": "1"])
+    // The identity surfacing lives in the tucked-away "Today" panel — open it first.
+    let today = app.buttons["today-panel-toggle"]
+    XCTAssertTrue(today.waitForExistence(timeout: 8))
+    today.tap()
     // The promoted becoming, a desired feeling, and a principle all surface.
     let becoming = app.buttons["foyer-becoming"]
     XCTAssertTrue(becoming.waitForExistence(timeout: 8))
@@ -347,6 +355,10 @@ final class CaptureFlowUITests: XCTestCase {
 
   func testRhythmLayersGateHidesAlmanac() {
     let app = launchEmptyApp()
+    // The almanac lives in the tucked-away "Today" panel — open it first.
+    let today = app.buttons["today-panel-toggle"]
+    XCTAssertTrue(today.waitForExistence(timeout: 8))
+    today.tap()
     XCTAssertTrue(app.staticTexts["Today's rhythm"].waitForExistence(timeout: 8))
     app.buttons["settings-button"].tap()
     // Turn every rhythm layer off.
