@@ -43,14 +43,14 @@ final class CaptureFlowUITests: XCTestCase {
 
     capture.tap()
 
-    let title = app.textFields["note-title-field"]
+    let title = app.textFields["classified-title"]
     XCTAssertTrue(title.waitForExistence(timeout: 5))
     type("A found moment", into: title, in: app)
 
-    let editor = app.textViews["note-body-editor"]
+    let editor = app.textViews["classified-body"]
     type("Fifteen minutes still counted.", into: editor, in: app)
 
-    app.buttons["note-save-button"].tap()
+    app.buttons["classified-keep"].tap()
 
     // The captured note is now a row in the room.
     XCTAssertTrue(app.staticTexts["A found moment"].waitForExistence(timeout: 5))
@@ -75,12 +75,12 @@ final class CaptureFlowUITests: XCTestCase {
     let app = launchEmptyApp()
     // A quick capture lands in the Inbox room.
     app.buttons["capture-button"].tap()
-    let title = app.textFields["note-title-field"]
+    let title = app.textFields["classified-title"]
     XCTAssertTrue(title.waitForExistence(timeout: 5))
     type("A found moment", into: title, in: app)
-    let editor = app.textViews["note-body-editor"]
+    let editor = app.textViews["classified-body"]
     type("caught for later", into: editor, in: app)
-    app.buttons["note-save-button"].tap()
+    app.buttons["classified-keep"].tap()
     XCTAssertTrue(app.staticTexts["A found moment"].waitForExistence(timeout: 5))
 
     // Step into the Inbox room (confirmed by its unique intro) and find the note.
@@ -102,12 +102,13 @@ final class CaptureFlowUITests: XCTestCase {
     row.tap()
   }
 
-  // Capture a note and return to the Foyer (without opening it).
+  // Capture a note and return to the Foyer (without opening it). The Foyer capture
+  // button opens the placement sheet, defaulting to a quick note.
   private func captureOnly(_ app: XCUIApplication, title: String, body: String) {
     app.buttons["capture-button"].tap()
-    type(title, into: app.textFields["note-title-field"], in: app)
-    type(body, into: app.textViews["note-body-editor"], in: app)
-    app.buttons["note-save-button"].tap()
+    type(title, into: app.textFields["classified-title"], in: app)
+    type(body, into: app.textViews["classified-body"], in: app)
+    app.buttons["classified-keep"].tap()
     XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 5))
   }
 
@@ -296,7 +297,8 @@ final class CaptureFlowUITests: XCTestCase {
 
   func testPlaceAFoyerCard() {
     let app = launchEmptyApp()
-    let place = app.buttons["placement-button"]
+    // The single capture button opens the placement sheet.
+    let place = app.buttons["capture-button"]
     XCTAssertTrue(place.waitForExistence(timeout: 8))
     place.tap()
     // Choose the "Becoming" placement, then keep a titled card.
@@ -421,9 +423,9 @@ final class CaptureFlowUITests: XCTestCase {
     let app = launchEmptyApp()
     // Note A, then note B referencing it.
     app.buttons["capture-button"].tap()
-    type("A quiet morning", into: app.textFields["note-title-field"], in: app)
-    type("alpha", into: app.textViews["note-body-editor"], in: app)
-    app.buttons["note-save-button"].tap()
+    type("A quiet morning", into: app.textFields["classified-title"], in: app)
+    type("alpha", into: app.textViews["classified-body"], in: app)
+    app.buttons["classified-keep"].tap()
     XCTAssertTrue(app.staticTexts["A quiet morning"].waitForExistence(timeout: 5))
 
     captureAndOpen(app, title: "The link note", body: "See [[A quiet morning]] now.")
@@ -448,11 +450,11 @@ final class CaptureFlowUITests: XCTestCase {
 
   func testCaptureIntoASpecificRoom() {
     let app = launchEmptyApp()
-    // Step into Wisdom Garden and capture there.
-    let wisdom = app.buttons["room-wisdom-garden"]
-    XCTAssertTrue(wisdom.waitForExistence(timeout: 5))
-    if !wisdom.isHittable { app.swipeUp() }
-    wisdom.tap()
+    // Step into the Inbox (the generic room scaffold) and capture there.
+    let inbox = app.buttons["room-inbox"]
+    XCTAssertTrue(inbox.waitForExistence(timeout: 5))
+    if !inbox.isHittable { app.swipeUp() }
+    inbox.tap()
 
     let add = app.buttons["room-capture-button"]
     XCTAssertTrue(add.waitForExistence(timeout: 5))
@@ -464,7 +466,7 @@ final class CaptureFlowUITests: XCTestCase {
     type("worth remembering", into: editor, in: app)
     app.buttons["note-save-button"].tap()
 
-    // It lands in the Wisdom Garden room we're standing in.
+    // It lands in the Inbox room we're standing in.
     XCTAssertTrue(app.staticTexts["A kept truth"].waitForExistence(timeout: 5))
   }
 
@@ -472,12 +474,12 @@ final class CaptureFlowUITests: XCTestCase {
     let app = launchEmptyApp()
     // Capture a note whose distinctive word lives in the body, not the title.
     app.buttons["capture-button"].tap()
-    let title = app.textFields["note-title-field"]
+    let title = app.textFields["classified-title"]
     XCTAssertTrue(title.waitForExistence(timeout: 5))
     type("A found moment", into: title, in: app)
-    let editor = app.textViews["note-body-editor"]
+    let editor = app.textViews["classified-body"]
     type("something worth keeping", into: editor, in: app)
-    app.buttons["note-save-button"].tap()
+    app.buttons["classified-keep"].tap()
     XCTAssertTrue(app.staticTexts["A found moment"].waitForExistence(timeout: 5))
 
     // Search by a body word and find it.
@@ -493,12 +495,12 @@ final class CaptureFlowUITests: XCTestCase {
 
     // First capture a note to edit.
     app.buttons["capture-button"].tap()
-    let title = app.textFields["note-title-field"]
+    let title = app.textFields["classified-title"]
     XCTAssertTrue(title.waitForExistence(timeout: 5))
     type("A found moment", into: title, in: app)
-    let editor = app.textViews["note-body-editor"]
+    let editor = app.textViews["classified-body"]
     type("One quiet line.", into: editor, in: app)
-    app.buttons["note-save-button"].tap()
+    app.buttons["classified-keep"].tap()
 
     let row = app.staticTexts["A found moment"]
     XCTAssertTrue(row.waitForExistence(timeout: 5))

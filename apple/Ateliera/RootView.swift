@@ -81,25 +81,17 @@ struct RootView: View {
             giftStore.grade(quality, today: almanacContext.date)
           }
 
+          // One capture entry: a quick note by default, or place it as a Foyer card
+          // (becoming / feeling / principle) from the same sheet.
           Button {
-            activeSheet = .capture(room: nil)
+            activeSheet = .placement
           } label: {
-            Label("Add a reflection", systemImage: "plus.circle.fill")
+            Label("Capture", systemImage: "plus.circle.fill")
               .font(StudioFont.control)
               .foregroundStyle(theme.link)
           }
           .buttonStyle(.plain)
           .accessibilityIdentifier("capture-button")
-
-          Button {
-            activeSheet = .placement
-          } label: {
-            Label("Place a card", systemImage: "square.on.square")
-              .font(StudioFont.control)
-              .foregroundStyle(theme.link)
-          }
-          .buttonStyle(.plain)
-          .accessibilityIdentifier("placement-button")
 
           if let error = store.error {
             Text(error).font(StudioFont.meta).foregroundStyle(theme.celebration)
