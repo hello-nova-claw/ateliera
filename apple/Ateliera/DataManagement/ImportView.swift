@@ -8,6 +8,7 @@ struct ImportView: View {
   let store: VaultStore
   @State private var picking = false
   @State private var plan: ImportPlan?
+  @State private var resolutions: [String: ImportAction] = [:]
   @State private var status: String?
   @State private var error: String?
 
@@ -23,17 +24,7 @@ struct ImportView: View {
           .accessibilityIdentifier("import-choose")
 
         if let plan {
-          VStack(alignment: .leading, spacing: 6) {
-            Text("\(plan.createCount) new · \(plan.overwriteCount) replaced")
-              .font(StudioFont.body).foregroundStyle(theme.inkStrong)
-            Button("Apply backup") { apply(plan) }
-              .font(StudioFont.control).foregroundStyle(theme.link)
-              .accessibilityIdentifier("import-apply")
-          }
-          .padding(14)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .background(RoundedRectangle(cornerRadius: 10).fill(theme.surface))
-          .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(theme.line, lineWidth: 1))
+          planCard(plan)
         }
         if let status {
           Text(status).font(StudioFont.meta).foregroundStyle(theme.growth)
@@ -53,12 +44,58 @@ struct ImportView: View {
     }
   }
 
+  @ViewBuilder
+  private func planCard(_ plan: ImportPlan) -> some View {
+    let tally = plan.counts(resolutions: resolutions)
+    let overwrites = plan.items.filter { $0.action == .overwrite }
+    VStack(alignment: .leading, spacing: 10) {
+      Text("\(tally.created) new · \(tally.replaced) replaced · \(tally.skipped) skipped")
+        .font(StudioFont.body).foregroundStyle(theme.inkStrong)
+
+      if !overwrites.isEmpty {
+        Text("These paths already exist — keep each replacement, or skip it.")
+          .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
+          .fixedSize(horizontal: false, vertical: true)
+        ForEach(Array(overwrites.enumerated()), id: \.element.id) { index, item in
+          overwriteRow(item, index: index)
+        }
+      }
+
+      Button("Apply backup") { apply(plan) }
+        .font(StudioFont.control).foregroundStyle(theme.link)
+        .accessibilityIdentifier("import-apply")
+    }
+    .padding(14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(RoundedRectangle(cornerRadius: 10).fill(theme.surface))
+    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(theme.line, lineWidth: 1))
+  }
+
+  @ViewBuilder
+  private func overwriteRow(_ item: ImportItem, index: Int) -> some View {
+    let binding = Binding(
+      get: { resolutions[item.path] == .skip ? ImportAction.skip : .overwrite },
+      set: { resolutions[item.path] = $0 })
+    VStack(alignment: .leading, spacing: 4) {
+      Text(item.path)
+        .font(StudioFont.meta).foregroundStyle(theme.inkStrong)
+        .lineLimit(1).truncationMode(.middle)
+      Picker("Resolution", selection: binding) {
+        Text("Replace").tag(ImportAction.overwrite)
+        Text("Skip").tag(ImportAction.skip)
+      }
+      .pickerStyle(.segmented)
+      .accessibilityIdentifier("import-resolution-\(index)")
+    }
+  }
+
   private func loadPlan(from url: URL) {
     let accessing = url.startAccessingSecurityScopedResource()
     defer { if accessing { url.stopAccessingSecurityScopedResource() } }
     do {
       let data = try Data(contentsOf: url)
       plan = try VaultImporter.prepare(archive: data, store: store)
+      resolutions = [:]
       status = nil
       error = nil
     } catch {
@@ -67,9 +104,11 @@ struct ImportView: View {
   }
 
   private func apply(_ plan: ImportPlan) {
-    if VaultImporter.apply(plan: plan, store: store) {
-      status = "Imported \(plan.items.count) file\(plan.items.count == 1 ? "" : "s")."
+    let tally = plan.counts(resolutions: resolutions)
+    if VaultImporter.apply(plan: plan, resolutions: resolutions, store: store) {
+      status = "Imported: \(tally.created) new, \(tally.replaced) replaced, \(tally.skipped) skipped."
       self.plan = nil
+      resolutions = [:]
     } else {
       error = store.error ?? "Import failed."
     }

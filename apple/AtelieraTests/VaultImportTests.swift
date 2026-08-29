@@ -50,6 +50,33 @@ final class VaultImportTests: XCTestCase {
     XCTAssertEqual(plan.overwriteCount, 1)
   }
 
+  func testPerItemSkipLeavesTheExistingFileUntouched() throws {
+    let (dir, store) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.capture(title: "Keep", body: "original", room: "inbox"))
+    let existingPath = try XCTUnwrap(store.parsedNotesByPath.first?.path)
+
+    let zip = try Zip32.create([
+      (path: existingPath, bytes: Data("replacement\n".utf8)),
+      (path: "Inbox/brand-new.md", bytes: Data("fresh\n".utf8)),
+      (path: PortableManifest.manifestPath, bytes: Data("{}".utf8)),
+    ])
+    let plan = try VaultImporter.prepare(archive: zip, store: store)
+
+    // Skip the overwrite; keep the create.
+    let resolutions: [String: ImportAction] = [existingPath: .skip]
+    let counts = plan.counts(resolutions: resolutions)
+    XCTAssertEqual(counts.created, 1)
+    XCTAssertEqual(counts.replaced, 0)
+    XCTAssertEqual(counts.skipped, 1)
+
+    XCTAssertTrue(VaultImporter.apply(plan: plan, resolutions: resolutions, store: store))
+    // The existing note kept its original body; the new file was still created.
+    let kept = try XCTUnwrap(store.parsedNotesByPath.first { $0.path == existingPath })
+    XCTAssertEqual(kept.note.body, "original")
+    XCTAssertTrue(store.listAllPaths().contains("Inbox/brand-new.md"))
+  }
+
   func testFullExportImportRoundTrip() throws {
     // Source vault with two notes → export → import into an empty vault → same notes.
     let (sourceDir, source) = try makeVault()
