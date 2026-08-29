@@ -28,7 +28,7 @@ struct WisdomView: View {
   }
 
   var body: some View {
-    ScrollView {
+    VStack(alignment: .leading, spacing: 22) {
       VStack(alignment: .leading, spacing: 22) {
         header
         themeFilter
@@ -43,21 +43,38 @@ struct WisdomView: View {
             .disabled(selected.count < 2)
             .accessibilityIdentifier("synthesize-button")
         }
+      }
+      .padding(.horizontal, 24)
+      .padding(.top, 22)
+
+      List {
         if cards.isEmpty {
           Text("Nothing kept here yet.").font(StudioFont.meta).foregroundStyle(theme.inkFaint)
+            .studioRoomRow()
         } else {
           ForEach(cards) { card in
             WisdomCardRow(
               card: card, selected: selected.contains(card.id),
               onOpen: { onOpen(card.path) },
               onToggleSelect: { toggle(card.id) })
-            Divider().overlay(theme.line)
+              .studioRoomRow()
+              .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                Button(role: .destructive) {
+                  _ = store.setNoteStatus(path: card.path, status: "trashed")
+                  wisdom.refresh()
+                } label: { Label("Delete", systemImage: "trash") }
+                Button {
+                  _ = store.setNoteStatus(path: card.path, status: "archived")
+                  wisdom.refresh()
+                } label: { Label("Archive", systemImage: "archivebox") }
+                .tint(theme.inkMuted)
+              }
           }
         }
       }
-      .padding(24)
-      .frame(maxWidth: .infinity, alignment: .leading)
+      .studioRoomList(theme.canvas)
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
     .background(theme.canvas)
     .navigationTitle("Wisdom Garden")
     .toolbar {

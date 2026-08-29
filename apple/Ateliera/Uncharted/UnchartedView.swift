@@ -18,18 +18,23 @@ struct UnchartedView: View {
   }
 
   var body: some View {
-    ScrollView {
+    VStack(alignment: .leading, spacing: 24) {
       VStack(alignment: .leading, spacing: 24) {
         header
         composer
+      }
+      .padding(.horizontal, 24)
+      .padding(.top, 24)
+
+      List {
         section("Near", cards: uncharted.near, empty: "Nothing stirring yet.")
         section(
           "Beyond the gate", cards: uncharted.beyond,
           empty: "Nothing left beyond the gate yet.")
       }
-      .padding(24)
-      .frame(maxWidth: .infinity, alignment: .leading)
+      .studioRoomList(theme.canvas)
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
     .background(theme.canvas)
     .navigationTitle("Uncharted")
   }
@@ -82,12 +87,12 @@ struct UnchartedView: View {
     .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.line, lineWidth: 1))
   }
 
+  @ViewBuilder
   private func section(_ title: String, cards: [UnchartedCard], empty: String) -> some View {
-    VStack(alignment: .leading, spacing: 10) {
-      Text(title.uppercased())
-        .font(StudioFont.eyebrow).tracking(1.4).foregroundStyle(theme.inkFaint)
+    Section {
       if cards.isEmpty {
         Text(empty).font(StudioFont.meta).foregroundStyle(theme.inkFaint)
+          .studioRoomRow()
       } else {
         ForEach(cards) { card in
           Button { onOpen(card.path) } label: {
@@ -99,12 +104,28 @@ struct UnchartedView: View {
               }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 12).contentShape(Rectangle())
+            .padding(.vertical, 6).contentShape(Rectangle())
           }
           .buttonStyle(.plain)
-          Divider().overlay(theme.line)
+          .studioRoomRow()
+          .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+              _ = store.setNoteStatus(path: card.path, status: "trashed")
+              uncharted.refresh()
+            } label: { Label("Delete", systemImage: "trash") }
+            Button {
+              _ = store.setNoteStatus(path: card.path, status: "archived")
+              uncharted.refresh()
+            } label: { Label("Archive", systemImage: "archivebox") }
+            .tint(theme.inkMuted)
+          }
         }
       }
+    } header: {
+      Text(title.uppercased())
+        .font(StudioFont.eyebrow).tracking(1.4).foregroundStyle(theme.inkFaint)
+        .textCase(nil)
+        .studioRoomRow(EdgeInsets(top: 12, leading: 24, bottom: 4, trailing: 24))
     }
   }
 }

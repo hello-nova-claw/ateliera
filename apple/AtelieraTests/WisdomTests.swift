@@ -147,6 +147,20 @@ final class WisdomTests: XCTestCase {
     XCTAssertEqual(card.themes, ["rest"])
   }
 
+  func testTrashingACardRemovesItFromTheProjection() throws {
+    let (dir, store) = try makeStore()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let wisdom = WisdomStore(store: store)
+    XCTAssertTrue(
+      wisdom.addIdea(kind: "quote", title: "Bye", body: "gone soon", themes: [], source: nil))
+    let path = try XCTUnwrap(wisdom.projection.cards.first?.path)
+
+    // The rooms' swipe "Delete" trashes the note; the projection then drops it.
+    XCTAssertTrue(store.setNoteStatus(path: path, status: "trashed"))
+    wisdom.refresh()
+    XCTAssertTrue(wisdom.projection.cards.isEmpty)
+  }
+
   func testSynthesizeCreatesSynthesisCardWithSources() throws {
     let (dir, store) = try makeStore()
     defer { try? FileManager.default.removeItem(at: dir) }

@@ -42,7 +42,7 @@ struct ReflectionView: View {
   }
 
   var body: some View {
-    ScrollView {
+    VStack(alignment: .leading, spacing: 20) {
       VStack(alignment: .leading, spacing: 20) {
         header
         composer
@@ -51,18 +51,18 @@ struct ReflectionView: View {
         }
         .pickerStyle(.segmented)
         .accessibilityIdentifier("reflection-tabs")
-
-        if tab == .themes {
-          themeFilter
-        }
-        if tab == .garden {
-          thenAndNow
-        }
-        cardList
       }
-      .padding(24)
-      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.horizontal, 24)
+      .padding(.top, 20)
+
+      List {
+        if tab == .themes { themeFilter.studioRoomRow() }
+        if tab == .garden { thenAndNow.studioRoomRow() }
+        entryRows
+      }
+      .studioRoomList(theme.canvas)
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
     .background(theme.canvas)
     .navigationTitle("Reflection Garden")
     .sheet(item: $connecting) { card in
@@ -189,11 +189,13 @@ struct ReflectionView: View {
   }
 
   @ViewBuilder
-  private var cardList: some View {
+  private var entryRows: some View {
     if tab == .themes && activeTheme == nil {
       Text("Pick a theme to filter.").font(StudioFont.meta).foregroundStyle(theme.inkFaint)
+        .studioRoomRow()
     } else if shownCards.isEmpty {
       Text("Nothing here yet.").font(StudioFont.meta).foregroundStyle(theme.inkFaint)
+        .studioRoomRow()
     } else {
       ForEach(shownCards) { card in
         EntryCard(
@@ -201,7 +203,18 @@ struct ReflectionView: View {
           onOpen: { onOpen(card.path) },
           onConnect: { connecting = card },
           onPair: { pairing = card })
-        Divider().overlay(theme.line)
+          .studioRoomRow()
+          .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+              _ = store.setNoteStatus(path: card.path, status: "trashed")
+              reflection.refresh()
+            } label: { Label("Delete", systemImage: "trash") }
+            Button {
+              _ = store.setNoteStatus(path: card.path, status: "archived")
+              reflection.refresh()
+            } label: { Label("Archive", systemImage: "archivebox") }
+            .tint(theme.inkMuted)
+          }
       }
     }
   }
