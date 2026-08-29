@@ -277,6 +277,20 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.buttons["season-close"].waitForExistence(timeout: 5))
   }
 
+  func testPlaceAFoyerCard() {
+    let app = launchEmptyApp()
+    let place = app.buttons["placement-button"]
+    XCTAssertTrue(place.waitForExistence(timeout: 8))
+    place.tap()
+    // Choose the "Becoming" placement, then keep a titled card.
+    app.segmentedControls["classified-placement"].buttons["Becoming"].tap()
+    type("Becoming steadier", into: app.textFields["classified-title"], in: app)
+    type("I rest before I'm depleted.", into: app.textViews["classified-body"], in: app)
+    app.buttons["classified-keep"].tap()
+    // It lands in the vault and shows in the Foyer's list.
+    XCTAssertTrue(app.staticTexts["Becoming steadier"].firstMatch.waitForExistence(timeout: 5))
+  }
+
   func testSettingsSwitchesTheme() {
     let app = launchEmptyApp()
     let settings = app.buttons["settings-button"]

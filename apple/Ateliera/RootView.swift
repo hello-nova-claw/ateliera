@@ -34,6 +34,7 @@ struct RootView: View {
     case rhythm
     case search
     case settings
+    case placement
 
     var id: String {
       switch self {
@@ -42,6 +43,7 @@ struct RootView: View {
       case .rhythm: return "rhythm"
       case .search: return "search"
       case .settings: return "settings"
+      case .placement: return "placement"
       }
     }
   }
@@ -93,6 +95,16 @@ struct RootView: View {
           }
           .buttonStyle(.plain)
           .accessibilityIdentifier("capture-button")
+
+          Button {
+            activeSheet = .placement
+          } label: {
+            Label("Place a card", systemImage: "square.on.square")
+              .font(StudioFont.control)
+              .foregroundStyle(theme.link)
+          }
+          .buttonStyle(.plain)
+          .accessibilityIdentifier("placement-button")
 
           if let error = store.error {
             Text(error).font(StudioFont.meta).foregroundStyle(theme.celebration)
@@ -151,6 +163,8 @@ struct RootView: View {
       case .settings:
         SettingsView(themeStore: themeStore, store: store, onClose: { activeSheet = nil })
           .studioTheme(themeStore.current)
+      case .placement:
+        ClassifiedCaptureSheet(store: store, onClose: { activeSheet = nil })
       }
     }
   }
