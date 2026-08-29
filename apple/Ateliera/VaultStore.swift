@@ -539,6 +539,18 @@ final class VaultStore {
     return (data, sniffed)
   }
 
+  /// Every file path in the vault (not directories), for export/backup.
+  func listAllPaths() -> [String] {
+    guard let vault, let entries = try? vault.list(prefix: nil) else { return [] }
+    return entries.filter { !$0.isDirectory }.map { $0.path }
+  }
+
+  /// Raw bytes for any vault file (for export), or nil if unreadable.
+  func readFileBytes(path: String) -> Data? {
+    guard let vault else { return nil }
+    return try? vault.readBinary(path: path)
+  }
+
   /// Read an arbitrary vault file (config / view-state JSON), or nil if it's absent
   /// or the vault is closed. Used by the Landscape/Identity stores for `.studio/`
   /// state that isn't a note.
