@@ -1080,3 +1080,25 @@ documented follow-ups. 7 unit + 1 XCUITest; full suite green.
 
 P6 now: Uncharted ✓, Wisdom ✓, Reflection ✓. Remaining: the Season wizard
 (9-step state machine + note mapper + close transaction) — the largest slice.
+
+## 2026-08-29 — Native parity P6 complete: the Season wizard
+
+The last and largest P6 room. `SeasonDomain` (`SeasonEngine`) ports the nine-step
+state machine from season.ts (createDraft/updateDraft/activate/close/progress,
+date + priority + reflection validation). `SeasonNoteMapper` is byte-identical to
+season-service.ts: `markdownForSeason`, `seasonLetterBody`, and the
+`season_workflow` nested map (with `decisions` as a block sequence of maps) — this
+required extending `YamlNode` with a `mapSeq` case (serializer + parser), plus
+teaching the parser to read unquoted `true`/`false` as booleans (else re-serializing
+`skipped_prior_reflection: false` quoted it). All cross-file YamlNode construction
+lives in StudioNote.swift (`applySeasonFrontmatter`) to dodge the indirect-enum
+compiler cycle. `SeasonStore` drives begin → save step → activate → close (files a
+reflection letter + archives), with multiple-active-season repair. `SeasonView` is
+the wizard (step N of 9), the active view, and the close sheet. Structured decision
+entry in the UI, and the per-disposition note side-effects, are documented follow-ups.
+
+Golden bytes captured from the web serializer; the full season note round-trips
+byte-identically and the existing note round-trip tests stay green. 18 unit + 1
+XCUITest for Season. **P6 done: Current Season, Uncharted, Wisdom, Reflection all
+shipped.** Remaining roadmap: P7 (structured/classified capture + media), P8 (data
+UI: export/import/revisions/conflict-merge), P9 (onboarding + rich Foyer).
