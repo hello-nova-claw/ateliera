@@ -81,6 +81,72 @@ final class WisdomTests: XCTestCase {
     XCTAssertEqual(wisdom.projection.themes.first { $0.id == "rest" }?.count, 1)
   }
 
+  // MARK: - Theme config codec
+
+  func testThemeConfigSerializeIsByteIdenticalToWeb() {
+    let themes = [
+      WisdomThemePreference(id: "alignment", title: "Alignment", hidden: false, order: 0),
+      WisdomThemePreference(id: "my-theme", title: "Möney & Rest", hidden: true, order: 1),
+    ]
+    let expected =
+      "{\n  \"version\": 1,\n  \"themes\": [\n    {\n      \"id\": \"alignment\",\n      \"title\": \"Alignment\",\n      \"hidden\": false,\n      \"order\": 0\n    },\n    {\n      \"id\": \"my-theme\",\n      \"title\": \"Möney & Rest\",\n      \"hidden\": true,\n      \"order\": 1\n    }\n  ]\n}\n"
+    XCTAssertEqual(WisdomThemeConfig.serialize(themes), expected)
+  }
+
+  func testThemeConfigRoundTrips() {
+    let themes = WisdomThemeConfig.defaults()
+    guard case .ok(let parsed) = WisdomThemeConfig.parse(WisdomThemeConfig.serialize(themes)) else {
+      return XCTFail("expected .ok")
+    }
+    XCTAssertEqual(parsed, themes)
+  }
+
+  func testThemeConfigRejectsUnknownVersionAndGarbage() {
+    XCTAssertEqual(WisdomThemeConfig.parse("{\"version\":2,\"themes\":[]}"), .unsupported(2))
+    XCTAssertEqual(WisdomThemeConfig.parse("not json"), .repair)
+    // Extra key → repair.
+    XCTAssertEqual(WisdomThemeConfig.parse("{\"version\":1,\"themes\":[],\"x\":1}"), .repair)
+  }
+
+  func testSafeThemeIdSlugifiesAndDedupes() {
+    let existing = [WisdomThemePreference(id: "rest", title: "Rest", hidden: false, order: 0)]
+    XCTAssertEqual(WisdomThemeConfig.safeThemeId(title: "Möney & Rest", existing: []), "money-rest")
+    XCTAssertEqual(WisdomThemeConfig.safeThemeId(title: "Rest", existing: existing), "rest-2")
+    XCTAssertEqual(WisdomThemeConfig.safeThemeId(title: "!!!", existing: []), "")
+  }
+
+  // MARK: - Store theme management
+
+  func testAddThemePersistsAndSurfacesInVisibleThemes() throws {
+    let (dir, store) = try makeStore()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let wisdom = WisdomStore(store: store)
+    XCTAssertTrue(wisdom.addTheme(title: "Sabbaticals"))
+    XCTAssertTrue(wisdom.visibleThemes.contains { $0.id == "sabbaticals" })
+    // Persisted: a fresh store reloads it from the config file.
+    let reloaded = WisdomStore(store: store)
+    XCTAssertTrue(reloaded.themePreferences.contains { $0.id == "sabbaticals" && $0.title == "Sabbaticals" })
+  }
+
+  func testHideThemeRemovesItFromVisibleThemes() throws {
+    let (dir, store) = try makeStore()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let wisdom = WisdomStore(store: store)
+    XCTAssertTrue(wisdom.setThemeHidden(id: "rest", hidden: true))
+    XCTAssertFalse(wisdom.visibleThemes.contains { $0.id == "rest" })
+  }
+
+  func testMakeItMineWritesAThemedInsight() throws {
+    let (dir, store) = try makeStore()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let wisdom = WisdomStore(store: store)
+    XCTAssertTrue(wisdom.makeItMine(themeId: "rest", body: "Rest is a right, not a reward."))
+    let card = try XCTUnwrap(wisdom.projection.cards.first)
+    XCTAssertEqual(card.kind, "insight")
+    XCTAssertEqual(card.title, "What I believe about Rest")
+    XCTAssertEqual(card.themes, ["rest"])
+  }
+
   func testSynthesizeCreatesSynthesisCardWithSources() throws {
     let (dir, store) = try makeStore()
     defer { try? FileManager.default.removeItem(at: dir) }

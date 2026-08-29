@@ -1,8 +1,8 @@
 import SwiftUI
 
-// The Wisdom Garden: keep ideas of seven kinds, theme them, filter by theme, and
-// synthesize several into a new synthesis card. (Theme editing + "make it mine" are
-// documented follow-ups.)
+// The Wisdom Garden: keep ideas of seven kinds, theme them (with a theme editor and a
+// "make it mine" composer), filter by theme, and synthesize several into a new
+// synthesis card.
 struct WisdomView: View {
   @Environment(\.studioTheme) private var theme
   let store: VaultStore
@@ -13,6 +13,8 @@ struct WisdomView: View {
   @State private var activeTheme: String?
   @State private var selected: Set<String> = []
   @State private var synthesizing = false
+  @State private var editingThemes = false
+  @State private var makingMine = false
 
   init(store: VaultStore, onOpen: @escaping (String) -> Void) {
     self.store = store
@@ -30,6 +32,11 @@ struct WisdomView: View {
       VStack(alignment: .leading, spacing: 22) {
         header
         themeFilter
+        if let active = activeTheme {
+          Button("Make “\(themeTitle(active))” mine") { makingMine = true }
+            .font(StudioFont.control).foregroundStyle(theme.link)
+            .accessibilityIdentifier("wisdom-make-mine")
+        }
         if !selected.isEmpty {
           Button("Synthesize \(selected.count)") { synthesizing = true }
             .font(StudioFont.control).foregroundStyle(theme.link)
@@ -57,10 +64,26 @@ struct WisdomView: View {
       ToolbarItem(placement: .primaryAction) {
         Button("Add") { adding = true }.accessibilityIdentifier("add-idea-button")
       }
+      ToolbarItem(placement: .secondaryAction) {
+        Button("Edit themes") { editingThemes = true }.accessibilityIdentifier("edit-themes-button")
+      }
     }
     .sheet(isPresented: $adding) {
       WisdomAddView(themes: wisdom.projection.themes, onSave: keepIdea, onClose: { adding = false })
         .studioTheme(theme)
+    }
+    .sheet(isPresented: $editingThemes) {
+      WisdomThemesView(wisdom: wisdom, onClose: { editingThemes = false })
+        .studioTheme(theme)
+    }
+    .sheet(isPresented: $makingMine) {
+      if let active = activeTheme {
+        WisdomMakeMineView(
+          themeTitle: themeTitle(active),
+          onSave: { body in wisdom.makeItMine(themeId: active, body: body) },
+          onClose: { makingMine = false })
+          .studioTheme(theme)
+      }
     }
     .sheet(isPresented: $synthesizing) {
       WisdomSynthesisView(
@@ -118,6 +141,10 @@ struct WisdomView: View {
 
   private func toggle(_ id: String) {
     if selected.contains(id) { selected.remove(id) } else { selected.insert(id) }
+  }
+
+  private func themeTitle(_ id: String) -> String {
+    wisdom.projection.themes.first { $0.id == id }?.title ?? WisdomDomain.titleForTheme(id)
   }
 
   private func keepIdea(_ input: WisdomAddView.Input) -> Bool {
@@ -263,6 +290,127 @@ private struct WisdomAddView: View {
           }
           .buttonStyle(.plain)
           .accessibilityIdentifier("wisdom-add-theme-\(theme.id)")
+        }
+      }
+    }
+  }
+}
+
+// The theme editor: rename or hide the configured themes, and add your own. Writes
+// through the store to .studio/config/wisdom-themes.json.
+private struct WisdomThemesView: View {
+  @Environment(\.studioTheme) private var theme
+  @Bindable var wisdom: WisdomStore
+  let onClose: () -> Void
+  @State private var newTheme = ""
+
+  var body: some View {
+    NavigationStack {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 14) {
+          Text("Name what you keep returning to. Hidden themes stay on your notes but leave the shelf.")
+            .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkMuted)
+            .fixedSize(horizontal: false, vertical: true)
+
+          ForEach(wisdom.themePreferences.sorted { $0.order < $1.order }) { pref in
+            WisdomThemeRow(
+              pref: pref,
+              onRename: { wisdom.renameTheme(id: pref.id, title: $0) },
+              onToggleHidden: { _ = wisdom.setThemeHidden(id: pref.id, hidden: !pref.hidden) })
+            Divider().overlay(theme.line)
+          }
+
+          HStack(spacing: 8) {
+            TextField("Add a theme", text: $newTheme)
+              .font(StudioFont.control).foregroundStyle(theme.inkStrong)
+              .accessibilityIdentifier("wisdom-new-theme-field")
+            Button("Add") {
+              if wisdom.addTheme(title: newTheme) { newTheme = "" }
+            }
+            .font(StudioFont.control).foregroundStyle(theme.link)
+            .disabled(newTheme.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityIdentifier("wisdom-add-theme")
+          }
+        }
+        .padding(24)
+      }
+      .background(theme.canvas)
+      .toolbar {
+        ToolbarItem(placement: .principal) {
+          Text("Themes").font(StudioFont.control).foregroundStyle(theme.inkStrong)
+        }
+        ToolbarItem(placement: .confirmationAction) { Button("Done") { onClose() } }
+      }
+    }
+  }
+
+}
+
+private struct WisdomThemeRow: View {
+  @Environment(\.studioTheme) private var theme
+  let pref: WisdomThemePreference
+  let onRename: (String) -> Bool
+  let onToggleHidden: () -> Void
+  @State private var draft: String
+
+  init(
+    pref: WisdomThemePreference, onRename: @escaping (String) -> Bool,
+    onToggleHidden: @escaping () -> Void
+  ) {
+    self.pref = pref
+    self.onRename = onRename
+    self.onToggleHidden = onToggleHidden
+    _draft = State(initialValue: pref.title)
+  }
+
+  var body: some View {
+    HStack(spacing: 10) {
+      TextField("Theme name", text: $draft)
+        .font(StudioFont.control).foregroundStyle(pref.hidden ? theme.inkFaint : theme.inkStrong)
+        .onSubmit { if !onRename(draft) { draft = pref.title } }
+        .accessibilityIdentifier("wisdom-theme-name-\(pref.id)")
+      Button(pref.hidden ? "Show" : "Hide") { onToggleHidden() }
+        .font(StudioFont.meta).foregroundStyle(theme.link)
+        .accessibilityIdentifier("wisdom-theme-toggle-\(pref.id)")
+    }
+    .padding(.vertical, 8)
+  }
+}
+
+// "Make it mine": capture a personal belief about the active theme as an insight.
+private struct WisdomMakeMineView: View {
+  @Environment(\.studioTheme) private var theme
+  let themeTitle: String
+  let onSave: (_ body: String) -> Bool
+  let onClose: () -> Void
+  @State private var noteBody = ""
+
+  var body: some View {
+    NavigationStack {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 14) {
+          Text("What do I believe about \(themeTitle)? What have I observed? How would this fit my actual life?")
+            .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkMuted)
+            .fixedSize(horizontal: false, vertical: true)
+          TextEditor(text: $noteBody)
+            .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkStrong)
+            .scrollContentBackground(.hidden).frame(minHeight: 160)
+            .accessibilityIdentifier("wisdom-mine-body")
+        }
+        .padding(24)
+      }
+      .background(theme.canvas)
+      .toolbar {
+        ToolbarItem(placement: .principal) {
+          Text("Make it mine").font(StudioFont.control).foregroundStyle(theme.inkStrong)
+        }
+        ToolbarItem(placement: .cancellationAction) { Button("Not now") { onClose() } }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Keep") {
+            if onSave(noteBody) { onClose() }
+          }
+          .disabled(noteBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+          .accessibilityIdentifier("wisdom-mine-keep")
         }
       }
     }

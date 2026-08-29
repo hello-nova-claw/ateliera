@@ -2,7 +2,8 @@ import Foundation
 
 // Pure projection of the Wisdom Garden — a port of `projectWisdomGardenRoom`. Cards
 // are notes in the wisdom-garden room, ordered by the shared fallback; themes are the
-// union of the default themes and every tag in use, each with its card count.
+// union of the configured themes (defaults when none are supplied) and every tag in
+// use, each with its card count.
 struct WisdomCard: Identifiable, Equatable {
   let id: String  // noteId
   let path: String
@@ -23,7 +24,9 @@ struct WisdomProjection: Equatable {
   let cards: [WisdomCard]
   let themes: [WisdomThemeCount]
 
-  static func project(notes: [Projection.Loaded], manual: [String] = []) -> WisdomProjection {
+  static func project(
+    notes: [Projection.Loaded], themes configured: [WisdomTheme]? = nil, manual: [String] = []
+  ) -> WisdomProjection {
     let candidates = notes.filter { $0.note.rooms.contains("wisdom-garden") }
     let ordered = Projection.ordered(candidates, viewKey: "room:wisdom-garden", manual: manual)
     let cards = ordered.map { loaded -> WisdomCard in
@@ -39,7 +42,8 @@ struct WisdomProjection: Equatable {
     for card in cards {
       for theme in card.themes { counts[theme, default: 0] += 1 }
     }
-    var known: [(id: String, title: String)] = WisdomDomain.defaultThemes.map { ($0.id, $0.title) }
+    let base = configured ?? WisdomDomain.defaultThemes
+    var known: [(id: String, title: String)] = base.map { ($0.id, $0.title) }
     let knownIds = Set(known.map { $0.id })
     for id in counts.keys where !knownIds.contains(id) {
       known.append((id, WisdomDomain.titleForTheme(id)))
