@@ -1102,3 +1102,24 @@ byte-identically and the existing note round-trip tests stay green. 18 unit + 1
 XCUITest for Season. **P6 done: Current Season, Uncharted, Wisdom, Reflection all
 shipped.** Remaining roadmap: P7 (structured/classified capture + media), P8 (data
 UI: export/import/revisions/conflict-merge), P9 (onboarding + rich Foyer).
+
+## 2026-08-29 — Native parity P7 (partial): classified capture
+
+Structured capture, consolidating the per-room composers into one golden-matched
+path. `CaptureDestination` (+ `FoyerSlot`, reusing the P5/P6 anchor/section enums)
+resolves each of the five structured destinations — Foyer placement, Life Landscape
+anchor (+ decision horizon), Identity section, Wisdom kind (+ themes/source), and
+Uncharted (+ beyond gate) — to the exact `card_type`/`semantic_type`/`rooms`/`status`/
+`life_areas`/`landscape_anchor`/`tags`/`source`/`extraFrontmatter`/folder the web
+writes, including a golden `portableLifeAreaFolder` (the spec's examples were wrong;
+bytes captured from the TS). `CaptureValidator` mirrors the pre-write checks (empty
+body, decision-horizon-only-on-Decisions, http(s) wisdom source, ≤40 themes).
+`VaultStore.capture(destination:)` writes with an 8-attempt collision retry.
+`ClassifiedCaptureSheet` (+ `CaptureGuidance`, copy verbatim from field-guidance.ts)
+is reachable from the Foyer's "Place a card" — place a becoming / feeling / principle
+as a featured Foyer card, or a quick note. 17 unit + 1 XCUITest; full suite green.
+
+Deferred (P7 remaining): cover-image media — needs a Rust core `write_binary`/
+`read_binary` extension (+ UniFFI regen), then `VaultMediaStore` (path guard + magic-
+byte sniff + 16 MB cap) and a `PhotosPicker`. Then P8 (export/import/revisions/
+conflict-merge) and P9 (onboarding + rich Foyer).
