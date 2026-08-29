@@ -180,10 +180,10 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(room.waitForExistence(timeout: 8))
     room.tap()
     XCTAssertTrue(app.navigationBars["Life Landscape"].waitForExistence(timeout: 5))
-    // Focus view shows the anchors and the seeded family/vision card (a tappable row).
+    // Focus view shows the anchor blocks and the seeded family/vision card.
     XCTAssertTrue(app.buttons["A calm morning"].waitForExistence(timeout: 5))
-    XCTAssertTrue(app.staticTexts["VISION"].exists)
-    XCTAssertTrue(app.staticTexts["DECISIONS"].exists)
+    XCTAssertTrue(app.buttons["add-card-vision"].exists)
+    XCTAssertTrue(app.buttons["add-card-decisions"].exists)
     // Add a new life area via the manager.
     app.buttons["manage-areas-button"].tap()
     type("Body & energy", into: app.textFields["new-area-field"], in: app)
@@ -207,6 +207,21 @@ final class CaptureFlowUITests: XCTestCase {
     app.buttons["landscape-card-keep"].tap()
     // The new card now appears under Vision.
     XCTAssertTrue(app.buttons["A slower morning"].waitForExistence(timeout: 5))
+  }
+
+  func testLandscapeSwipeDeletesACard() {
+    let app = launchWith(["ATELIERA_UITEST_P5": "1"])
+    let room = app.buttons["room-landscape"]
+    XCTAssertTrue(room.waitForExistence(timeout: 8))
+    room.tap()
+    // Swipe the seeded Vision card left to reveal the move/delete nudge bar, then delete.
+    let card = app.buttons["A calm morning"]
+    XCTAssertTrue(card.waitForExistence(timeout: 5))
+    card.swipeLeft()
+    let del = app.buttons["Delete"]
+    XCTAssertTrue(del.waitForExistence(timeout: 5))
+    del.tap()
+    XCTAssertFalse(app.buttons["A calm morning"].waitForExistence(timeout: 3))
   }
 
   func testIdentityRoomSectionsAndPromote() {

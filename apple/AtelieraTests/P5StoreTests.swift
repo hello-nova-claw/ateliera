@@ -129,6 +129,20 @@ final class P5StoreTests: XCTestCase {
     XCTAssertEqual(card.decisionHorizon, .d60)
   }
 
+  func testLandscapeDeleteCardRemovesItFromTheBoard() throws {
+    let (dir, store) = try makeStore([])
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let landscape = LandscapeStore(store: store)
+    let area = try XCTUnwrap(landscape.areas.first).id
+    XCTAssertTrue(
+      landscape.addCard(
+        lifeArea: area, anchor: .vision, horizon: nil, title: "A slower morning", body: "x"))
+    let card = try XCTUnwrap(landscape.board.cell(area: area, anchor: .vision)?.featured)
+
+    XCTAssertTrue(landscape.deleteCard(card))
+    XCTAssertNil(landscape.board.cell(area: area, anchor: .vision)?.featured)
+  }
+
   func testLandscapeReorderWritesViewState() throws {
     let (dir, store) = try makeStore([
       ("Life/a.md", landscapeNote(id: "A", lifeAreas: ["family"], anchor: "vision")),

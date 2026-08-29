@@ -125,6 +125,24 @@ import Observation
     return true
   }
 
+  /// Remove a card from the board by trashing its note (status → "trashed"). The file
+  /// survives, so it's reversible; the projection drops trashed notes.
+  @discardableResult
+  func deleteCard(_ card: LandscapeCardModel) -> Bool {
+    guard let editable = store.beginEdit(path: card.path) else {
+      error = store.error
+      return false
+    }
+    var note = editable.note
+    note.status = "trashed"
+    guard store.saveEdit(editable, updatedNote: note) else {
+      error = store.error
+      return false
+    }
+    refresh()
+    return true
+  }
+
   // MARK: - Area management
 
   @discardableResult

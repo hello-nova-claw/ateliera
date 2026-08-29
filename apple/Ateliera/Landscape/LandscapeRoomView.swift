@@ -1,9 +1,10 @@
 import SwiftUI
 
-// The Life Landscape room, Focus view: pick a life area, see its five anchors with the
-// cards filed under each, and add a card straight into an anchor. Moving a card to
-// another anchor is a plain Menu (fully keyboard/VoiceOver operable — no drag). The area
-// tools (add / rename / hide / remove) live behind the cogwheel's manager sheet.
+// The Life Landscape room, Focus view: pick a life area, then five anchor blocks. Each
+// block shows its featured card (tap to open · swipe-left for the move/delete nudge bar)
+// with a quiet "+N more" to expand the rest; tapping a block's heading adds a card there,
+// and an empty block invites the first. Area tools (add / rename / hide / remove) live
+// behind the cogwheel's manager sheet.
 struct LandscapeRoomView: View {
   @Environment(\.studioTheme) private var theme
   let store: VaultStore
@@ -13,6 +14,15 @@ struct LandscapeRoomView: View {
   @State private var selectedArea: String = ""
   @State private var managingAreas = false
   @State private var addingCard: LandscapeAnchor?
+  @State private var expanded: Set<String> = []
+  @State private var pendingMove: PendingMove?
+
+  // A card awaiting a "move to…" choice, raised by its swipe action.
+  private struct PendingMove: Identifiable {
+    let card: LandscapeCardModel
+    let from: LandscapeAnchor
+    var id: String { card.id }
+  }
 
   init(store: VaultStore, onOpen: @escaping (String) -> Void) {
     self.store = store
@@ -32,25 +42,32 @@ struct LandscapeRoomView: View {
   }
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 22) {
+    List {
+      Section {
         header
         areaPicker
-        if !currentArea.isEmpty {
-          ForEach(LandscapeAnchor.ordered, id: \.self) { anchor in
-            anchorSection(anchor)
-          }
-        } else {
-          Button { managingAreas = true } label: {
-            Label("Add a life area to begin", systemImage: "plus")
-              .font(StudioFont.control).foregroundStyle(theme.link)
-          }
-          .accessibilityIdentifier("add-area-empty")
+      }
+      .listRowSeparator(.hidden)
+      .listRowBackground(Color.clear)
+      .listRowInsets(EdgeInsets(top: 10, leading: 24, bottom: 6, trailing: 24))
+
+      if currentArea.isEmpty {
+        Button { managingAreas = true } label: {
+          Label("Add a life area to begin", systemImage: "plus")
+            .font(StudioFont.control).foregroundStyle(theme.link)
+        }
+        .accessibilityIdentifier("add-area-empty")
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 6, leading: 24, bottom: 6, trailing: 24))
+      } else {
+        ForEach(LandscapeAnchor.ordered) { anchor in
+          anchorSection(anchor)
         }
       }
-      .padding(24)
-      .frame(maxWidth: .infinity, alignment: .leading)
     }
+    .listStyle(.plain)
+    .scrollContentBackground(.hidden)
     .background(theme.canvas)
     .navigationTitle("Life Landscape")
     .toolbar {
@@ -73,6 +90,16 @@ struct LandscapeRoomView: View {
         },
         onClose: { addingCard = nil })
         .studioTheme(theme)
+    }
+    .confirmationDialog(
+      "Move to…",
+      isPresented: Binding(get: { pendingMove != nil }, set: { if !$0 { pendingMove = nil } }),
+      presenting: pendingMove
+    ) { move in
+      ForEach(LandscapeAnchor.ordered.filter { $0 != move.from }) { target in
+        Button(target.label) { _ = landscape.move(card: move.card, toAnchor: target) }
+      }
+      Button("Cancel", role: .cancel) {}
     }
   }
 
@@ -106,9 +133,54 @@ struct LandscapeRoomView: View {
     }
   }
 
+  // One anchor block: its heading (tap anywhere on it to add a card here), the featured
+  // card that fills the block (tap to edit · swipe-left to move or delete), and a quiet
+  // "+N more" that expands the rest. An empty block invites the first card.
+  @ViewBuilder
   private func anchorSection(_ anchor: LandscapeAnchor) -> some View {
     let cell = landscape.board.cell(area: currentArea, anchor: anchor)
-    return VStack(alignment: .leading, spacing: 10) {
+    Section {
+      if let featured = cell?.featured {
+        cardRow(featured, anchor: anchor)
+        if expanded.contains(anchor.rawValue) {
+          ForEach(Array((cell?.cards ?? []).dropFirst())) { card in
+            cardRow(card, anchor: anchor)
+          }
+        } else if let more = cell?.additionalCount, more > 0 {
+          Button { expanded.insert(anchor.rawValue) } label: {
+            Text("+\(more) more").font(StudioFont.meta).foregroundStyle(theme.inkFaint)
+          }
+          .buttonStyle(.plain)
+          .listRowSeparator(.hidden)
+          .listRowBackground(Color.clear)
+          .listRowInsets(EdgeInsets(top: 2, leading: 24, bottom: 6, trailing: 24))
+        }
+      } else {
+        Button { addingCard = anchor } label: {
+          Text("Tap to add a card")
+            .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .padding(.horizontal, 14)
+            .background(RoundedRectangle(cornerRadius: 10).fill(theme.sunken))
+            .overlay(
+              RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(theme.line, style: StrokeStyle(lineWidth: 1, dash: [3, 3])))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .listRowInsets(EdgeInsets(top: 4, leading: 24, bottom: 6, trailing: 24))
+      }
+    } header: {
+      anchorHeader(anchor)
+    }
+  }
+
+  // The block heading doubles as the "add a card here" target (the whole heading is
+  // tappable — no plus button needed).
+  private func anchorHeader(_ anchor: LandscapeAnchor) -> some View {
+    Button { addingCard = anchor } label: {
       VStack(alignment: .leading, spacing: 3) {
         Text(anchor.label.uppercased())
           .font(StudioFont.eyebrow).tracking(1.2).foregroundStyle(theme.inkFaint)
@@ -116,67 +188,49 @@ struct LandscapeRoomView: View {
           .font(StudioFont.meta).foregroundStyle(theme.inkSoft)
           .fixedSize(horizontal: false, vertical: true)
       }
-      if let cards = cell?.cards, !cards.isEmpty {
-        ForEach(cards) { card in
-          LandscapeCardView(
-            card: card, anchors: LandscapeAnchor.ordered.filter { $0 != anchor },
-            onOpen: { onOpen(card.path) },
-            onMove: { target in _ = landscape.move(card: card, toAnchor: target) })
-        }
-      } else {
-        Text("Nothing here yet.")
-          .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
-      }
-      Button { addingCard = anchor } label: {
-        Label("Add to \(anchor.label)", systemImage: "plus")
-          .font(StudioFont.meta).foregroundStyle(theme.link)
-      }
-      .buttonStyle(.plain)
-      .accessibilityIdentifier("add-card-\(anchor.rawValue)")
-      Divider().overlay(theme.line)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .contentShape(Rectangle())
     }
+    .buttonStyle(.plain)
+    .textCase(nil)
+    .listRowInsets(EdgeInsets(top: 14, leading: 24, bottom: 6, trailing: 24))
+    .accessibilityIdentifier("add-card-\(anchor.rawValue)")
+    .accessibilityLabel("Add to \(anchor.label)")
   }
-}
 
-// A single landscape card: title, optional decision-horizon badge, and a Move menu.
-private struct LandscapeCardView: View {
-  @Environment(\.studioTheme) private var theme
-  let card: LandscapeCardModel
-  let anchors: [LandscapeAnchor]
-  let onOpen: () -> Void
-  let onMove: (LandscapeAnchor) -> Void
-
-  var body: some View {
-    HStack(spacing: 10) {
-      Button(action: onOpen) {
-        VStack(alignment: .leading, spacing: 3) {
-          Text(card.title).font(StudioFont.body).foregroundStyle(theme.inkStrong)
-          if let horizon = card.decisionHorizon {
-            Text(horizon.label)
-              .font(StudioFont.eyebrow).tracking(0.6)
-              .padding(.horizontal, 7).padding(.vertical, 2)
-              .background(Capsule().fill(theme.sunken))
-              .foregroundStyle(theme.growth)
-          }
+  // A card that fills its block: tap to open, swipe-left for the move/delete nudge bar.
+  private func cardRow(_ card: LandscapeCardModel, anchor: LandscapeAnchor) -> some View {
+    Button { onOpen(card.path) } label: {
+      VStack(alignment: .leading, spacing: 4) {
+        Text(card.title).font(StudioFont.body).foregroundStyle(theme.inkStrong)
+        if let horizon = card.decisionHorizon {
+          Text(horizon.label)
+            .font(StudioFont.eyebrow).tracking(0.6)
+            .padding(.horizontal, 7).padding(.vertical, 2)
+            .background(Capsule().fill(theme.sunken))
+            .foregroundStyle(theme.growth)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
       }
-      .buttonStyle(.plain)
-      Menu {
-        ForEach(anchors, id: \.self) { anchor in
-          Button(anchor.label) { onMove(anchor) }
-            .accessibilityIdentifier("move-\(card.id)-\(anchor.rawValue)")
-        }
-      } label: {
-        Image(systemName: "arrow.left.arrow.right")
-          .font(.system(size: 14)).foregroundStyle(theme.link)
-          .padding(6)
-      }
-      .accessibilityIdentifier("card-menu-\(card.id)")
-      .accessibilityLabel("Move \(card.title)")
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(14)
+      .background(RoundedRectangle(cornerRadius: 10).fill(theme.surface))
+      .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(theme.line, lineWidth: 1))
+      .contentShape(Rectangle())
     }
-    .padding(.vertical, 8)
+    .buttonStyle(.plain)
+    .listRowSeparator(.hidden)
+    .listRowBackground(Color.clear)
+    .listRowInsets(EdgeInsets(top: 4, leading: 24, bottom: 4, trailing: 24))
+    .accessibilityIdentifier("landscape-card-\(card.id)")
+    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+      Button(role: .destructive) {
+        _ = landscape.deleteCard(card)
+      } label: { Label("Delete", systemImage: "trash") }
+      Button {
+        pendingMove = PendingMove(card: card, from: anchor)
+      } label: { Label("Move", systemImage: "arrow.left.arrow.right") }
+      .tint(theme.link)
+    }
   }
 }
 
