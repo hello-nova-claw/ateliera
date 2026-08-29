@@ -1063,3 +1063,20 @@ Season), each a shippable slice. Two done:
 12 unit tests + 2 XCUITests; full suite green. Still open in P6: Reflection rich
 views (4 tabs + evidence resolution) and the Season wizard (9-step state machine +
 note mapper + close transaction) — the largest remaining slice.
+
+## 2026-08-29 — Native parity P6 (cont.): Reflection Garden
+
+Third of P6's four rooms. `ReflectionProjection` ports `projectReflectionGardenRoom`
++ `reflectionEvidenceConnections`: a chronology (created desc, id asc) with each
+entry's evidence connections resolved — linked notes (available/archived/missing by
+target status), life areas (available, or archived when hidden), and seasons
+(matched by `season_id`, active→available / archived→archived / else missing) —
+plus theme tag-counts (count desc, name asc). `ReflectionStore` loads the configured
+life areas for resolution and captures reflection/celebration entries.
+`ReflectionView` gives four tabs (Garden · Reflection · Celebration · Themes), a
+capture bar with a kind selector, and entry cards showing colour-coded marks +
+evidence lines. Cover images, Then & Now, and the connect-evidence form are
+documented follow-ups. 7 unit + 1 XCUITest; full suite green.
+
+P6 now: Uncharted ✓, Wisdom ✓, Reflection ✓. Remaining: the Season wizard
+(9-step state machine + note mapper + close transaction) — the largest slice.
