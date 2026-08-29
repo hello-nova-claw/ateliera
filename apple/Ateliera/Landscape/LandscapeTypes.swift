@@ -52,6 +52,10 @@ extension LandscapeAnchor {
   var cardType: String { rawValue }
 }
 
+extension LandscapeAnchor: Identifiable {
+  var id: String { rawValue }
+}
+
 // A decision's time horizon (domain `decisionHorizons`). Read-only in P5 — shown as
 // a badge on decision cards; writing one at capture is a P7 concern.
 enum DecisionHorizon: String, CaseIterable {

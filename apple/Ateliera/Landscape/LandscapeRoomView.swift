@@ -1,10 +1,9 @@
 import SwiftUI
 
-// The Life Landscape room, Focus view: pick a life area, see its five anchors with
-// the cards filed under each. Moving a card to another anchor is a plain Menu (fully
-// keyboard/VoiceOver operable — no drag required). Areas are managed in place — an
-// "+ Area" pill adds one, and a per-area context menu (or the "Areas" sheet) renames,
-// hides, or removes them.
+// The Life Landscape room, Focus view: pick a life area, see its five anchors with the
+// cards filed under each, and add a card straight into an anchor. Moving a card to
+// another anchor is a plain Menu (fully keyboard/VoiceOver operable — no drag). The area
+// tools (add / rename / hide / remove) live behind the cogwheel's manager sheet.
 struct LandscapeRoomView: View {
   @Environment(\.studioTheme) private var theme
   let store: VaultStore
@@ -13,9 +12,7 @@ struct LandscapeRoomView: View {
   @State private var landscape: LandscapeStore
   @State private var selectedArea: String = ""
   @State private var managingAreas = false
-  @State private var addingArea = false
-  @State private var renamingArea: LifeArea?
-  @State private var removingArea: LifeArea?
+  @State private var addingCard: LandscapeAnchor?
 
   init(store: VaultStore, onOpen: @escaping (String) -> Void) {
     self.store = store
@@ -30,29 +27,8 @@ struct LandscapeRoomView: View {
     return landscape.areas.first?.id ?? ""
   }
 
-  private var currentAreaObject: LifeArea? {
-    landscape.areas.first { $0.id == currentArea }
-  }
-
-  // Always-visible controls for the selected area: rename, hide, remove — plus add.
-  // (Tapping a pill selects/filters; these act on that selection, so managing an area
-  // is right there rather than hidden behind a long-press.)
-  private func manageBar(_ area: LifeArea) -> some View {
-    HStack(spacing: 16) {
-      Button("Rename") { renamingArea = area }
-        .accessibilityIdentifier("rename-area-button")
-      Button("Hide") { _ = landscape.setHidden(id: area.id, hidden: true) }
-        .accessibilityIdentifier("hide-area-button")
-      Button("Remove") { removingArea = area }
-        .foregroundStyle(theme.celebration)
-        .accessibilityIdentifier("remove-area-button")
-      Spacer()
-      Button { addingArea = true } label: {
-        Label("Add area", systemImage: "plus")
-      }
-      .accessibilityIdentifier("add-area-pill")
-    }
-    .font(StudioFont.meta).foregroundStyle(theme.link)
+  private var currentAreaTitle: String {
+    landscape.areas.first { $0.id == currentArea }?.title ?? ""
   }
 
   var body: some View {
@@ -60,13 +36,12 @@ struct LandscapeRoomView: View {
       VStack(alignment: .leading, spacing: 22) {
         header
         areaPicker
-        if let area = currentAreaObject {
-          manageBar(area)
+        if !currentArea.isEmpty {
           ForEach(LandscapeAnchor.ordered, id: \.self) { anchor in
             anchorSection(anchor)
           }
         } else {
-          Button { addingArea = true } label: {
+          Button { managingAreas = true } label: {
             Label("Add a life area to begin", systemImage: "plus")
               .font(StudioFont.control).foregroundStyle(theme.link)
           }
@@ -80,40 +55,25 @@ struct LandscapeRoomView: View {
     .navigationTitle("Life Landscape")
     .toolbar {
       ToolbarItem(placement: .primaryAction) {
-        Button("Areas") { managingAreas = true }
+        Button { managingAreas = true } label: { Image(systemName: "gearshape") }
           .accessibilityIdentifier("manage-areas-button")
+          .accessibilityLabel("Manage life areas")
       }
     }
     .sheet(isPresented: $managingAreas) {
       LandscapeAreaManagerView(landscape: landscape, onClose: { managingAreas = false })
         .studioTheme(theme)
     }
-    .sheet(isPresented: $addingArea) {
-      AreaNameSheet(
-        title: "New area", initial: "", guidance: LandscapeGuidance.newArea,
-        onSave: { landscape.addArea(title: $0) }, onClose: { addingArea = false })
+    .sheet(item: $addingCard) { anchor in
+      LandscapeCardSheet(
+        areaTitle: currentAreaTitle, anchor: anchor,
+        onSave: { title, body, horizon in
+          landscape.addCard(
+            lifeArea: currentArea, anchor: anchor, horizon: horizon, title: title, body: body)
+        },
+        onClose: { addingCard = nil })
         .studioTheme(theme)
     }
-    .sheet(item: $renamingArea) { area in
-      AreaNameSheet(
-        title: "Rename area", initial: area.title, guidance: LandscapeGuidance.renameArea,
-        onSave: { landscape.renameArea(id: area.id, title: $0) }, onClose: { renamingArea = nil })
-        .studioTheme(theme)
-    }
-    .confirmationDialog(
-      "Remove “\(removingArea?.title ?? "")”?", isPresented: removeBinding, presenting: removingArea
-    ) { area in
-      Button("Remove area", role: .destructive) {
-        if landscape.removeArea(id: area.id), selectedArea == area.id { selectedArea = "" }
-      }
-      Button("Cancel", role: .cancel) {}
-    } message: { _ in
-      Text("It leaves the board. Cards keep their tag, so you can bring it back any time by adding it again.")
-    }
-  }
-
-  private var removeBinding: Binding<Bool> {
-    Binding(get: { removingArea != nil }, set: { if !$0 { removingArea = nil } })
   }
 
   private var header: some View {
@@ -141,15 +101,6 @@ struct LandscapeRoomView: View {
           .buttonStyle(.plain)
           .accessibilityIdentifier("area-\(area.id)")
           .accessibilityAddTraits(selected ? [.isSelected] : [])
-          .contextMenu {
-            Button { renamingArea = area } label: { Label("Rename", systemImage: "pencil") }
-            Button { _ = landscape.setHidden(id: area.id, hidden: true) } label: {
-              Label("Hide from board", systemImage: "eye.slash")
-            }
-            Button(role: .destructive) { removingArea = area } label: {
-              Label("Remove", systemImage: "trash")
-            }
-          }
         }
       }
     }
@@ -176,6 +127,12 @@ struct LandscapeRoomView: View {
         Text("Nothing here yet.")
           .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
       }
+      Button { addingCard = anchor } label: {
+        Label("Add to \(anchor.label)", systemImage: "plus")
+          .font(StudioFont.meta).foregroundStyle(theme.link)
+      }
+      .buttonStyle(.plain)
+      .accessibilityIdentifier("add-card-\(anchor.rawValue)")
       Divider().overlay(theme.line)
     }
   }
@@ -223,9 +180,9 @@ private struct LandscapeCardView: View {
   }
 }
 
-// Add / rename / show-hide / remove life areas — the discoverable CRUD surface behind
-// the "Areas" toolbar button (the board itself offers the same via an add pill and a
-// per-area context menu).
+// Add / rename / show-hide / remove life areas — the CRUD surface behind the
+// Landscape room's cogwheel. All area tools live here, keeping the board itself about
+// content (its cards), not configuration.
 private struct LandscapeAreaManagerView: View {
   @Environment(\.studioTheme) private var theme
   let landscape: LandscapeStore
@@ -361,6 +318,69 @@ private struct AreaNameSheet: View {
           Button("Save") { if onSave(trimmed) { onClose() } }
             .disabled(trimmed.isEmpty)
             .accessibilityIdentifier("area-name-save")
+        }
+      }
+    }
+  }
+}
+
+// Add a card into a life area under a given anchor. The anchor's own prompt is the
+// guidance; the decisions anchor also offers a 30/60/90 horizon.
+private struct LandscapeCardSheet: View {
+  @Environment(\.studioTheme) private var theme
+  let areaTitle: String
+  let anchor: LandscapeAnchor
+  let onSave: (_ title: String?, _ body: String, _ horizon: DecisionHorizon?) -> Bool
+  let onClose: () -> Void
+
+  @State private var title = ""
+  @State private var noteBody = ""
+  @State private var horizon: DecisionHorizon = .d30
+
+  private var canSave: Bool { !noteBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+  var body: some View {
+    NavigationStack {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 16) {
+          Text(anchor.prompt)
+            .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkMuted)
+            .fixedSize(horizontal: false, vertical: true)
+          TextField("A short name (optional)", text: $title)
+            .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
+            .accessibilityIdentifier("landscape-card-title")
+          GuidedEditor(
+            text: $noteBody, example: "Write it in your own words.", minHeight: 140,
+            accessibilityId: "landscape-card-body")
+          if anchor == .decisions {
+            Text("HORIZON")
+              .font(StudioFont.eyebrow).tracking(1.2).foregroundStyle(theme.inkFaint)
+            Picker("Horizon", selection: $horizon) {
+              ForEach([DecisionHorizon.d30, .d60, .d90], id: \.self) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("landscape-card-horizon")
+          }
+        }
+        .padding(24)
+      }
+      .background(theme.canvas)
+      .toolbar {
+        ToolbarItem(placement: .principal) {
+          Text("Add to \(areaTitle)").font(StudioFont.control).foregroundStyle(theme.inkStrong)
+        }
+        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { onClose() } }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Keep") {
+            let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            if onSave(
+              trimmed.isEmpty ? nil : trimmed, noteBody, anchor == .decisions ? horizon : nil)
+            {
+              onClose()
+            }
+          }
+          .disabled(!canSave)
+          .accessibilityIdentifier("landscape-card-keep")
         }
       }
     }

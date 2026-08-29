@@ -192,17 +192,21 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.buttons["area-body-energy"].waitForExistence(timeout: 5))
   }
 
-  func testLandscapeBoardAddPillAddsArea() {
+  func testLandscapeAddsACardToAnAnchor() {
     let app = launchWith(["ATELIERA_UITEST_P5": "1"])
     let room = app.buttons["room-landscape"]
     XCTAssertTrue(room.waitForExistence(timeout: 8))
     room.tap()
     XCTAssertTrue(app.navigationBars["Life Landscape"].waitForExistence(timeout: 5))
-    // Add an area directly from the board via the "+ Area" pill.
-    app.buttons["add-area-pill"].tap()
-    type("Rest & recovery", into: app.textFields["area-name-field"], in: app)
-    app.buttons["area-name-save"].tap()
-    XCTAssertTrue(app.buttons["area-rest-recovery"].waitForExistence(timeout: 5))
+    // Add a card straight into the Vision anchor of the current area.
+    let add = app.buttons["add-card-vision"]
+    XCTAssertTrue(add.waitForExistence(timeout: 5))
+    add.tap()
+    type("A slower morning", into: app.textFields["landscape-card-title"], in: app)
+    type("Coffee before screens.", into: app.textViews["landscape-card-body"], in: app)
+    app.buttons["landscape-card-keep"].tap()
+    // The new card now appears under Vision.
+    XCTAssertTrue(app.buttons["A slower morning"].waitForExistence(timeout: 5))
   }
 
   func testIdentityRoomSectionsAndPromote() {

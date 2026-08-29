@@ -103,6 +103,28 @@ import Observation
     return true
   }
 
+  // MARK: - Card content
+
+  /// Capture a new card straight into a life area under a chosen anchor (the decisions
+  /// anchor may carry a 30/60/90 horizon). Writes through the classified capture path,
+  /// then re-projects the board.
+  @discardableResult
+  func addCard(
+    lifeArea: String, anchor: LandscapeAnchor, horizon: DecisionHorizon?, title: String?,
+    body: String
+  ) -> Bool {
+    guard
+      store.capture(
+        title: title, body: body,
+        destination: .landscape(lifeArea: lifeArea, anchor: anchor, horizon: horizon))
+    else {
+      error = store.error
+      return false
+    }
+    refresh()
+    return true
+  }
+
   // MARK: - Area management
 
   @discardableResult

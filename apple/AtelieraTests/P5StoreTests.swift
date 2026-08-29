@@ -101,6 +101,34 @@ final class P5StoreTests: XCTestCase {
     XCTAssertFalse(landscape.removeArea(id: "body-energy"))  // already gone → no-op
   }
 
+  func testLandscapeAddCardAppearsInItsAnchorCell() throws {
+    let (dir, store) = try makeStore([])
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let landscape = LandscapeStore(store: store)
+    let area = try XCTUnwrap(landscape.areas.first).id
+
+    XCTAssertTrue(
+      landscape.addCard(
+        lifeArea: area, anchor: .vision, horizon: nil, title: "A slower morning",
+        body: "Coffee before screens."))
+    let cell = landscape.board.cell(area: area, anchor: .vision)
+    XCTAssertTrue(cell?.cards.contains { $0.title == "A slower morning" } ?? false)
+  }
+
+  func testLandscapeAddDecisionCardCarriesHorizon() throws {
+    let (dir, store) = try makeStore([])
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let landscape = LandscapeStore(store: store)
+    let area = try XCTUnwrap(landscape.areas.first).id
+
+    XCTAssertTrue(
+      landscape.addCard(
+        lifeArea: area, anchor: .decisions, horizon: .d60, title: "Try a 4-day week", body: "x"))
+    let card = try XCTUnwrap(
+      landscape.board.cell(area: area, anchor: .decisions)?.cards.first { $0.title == "Try a 4-day week" })
+    XCTAssertEqual(card.decisionHorizon, .d60)
+  }
+
   func testLandscapeReorderWritesViewState() throws {
     let (dir, store) = try makeStore([
       ("Life/a.md", landscapeNote(id: "A", lifeAreas: ["family"], anchor: "vision")),
