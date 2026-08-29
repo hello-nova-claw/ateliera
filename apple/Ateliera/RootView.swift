@@ -806,6 +806,18 @@ private struct SettingsView: View {
             .padding(.vertical, 14)
           }
           .accessibilityIdentifier("import-button")
+          Divider().overlay(theme.line)
+          NavigationLink {
+            RevisionHistoryView(store: store)
+          } label: {
+            HStack {
+              Text("Version history").font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
+              Spacer()
+              Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(theme.inkFaint)
+            }
+            .padding(.vertical, 14)
+          }
+          .accessibilityIdentifier("history-button")
         }
         .padding(24)
         .frame(maxWidth: .infinity, alignment: .leading)
