@@ -358,19 +358,21 @@ private struct NoteRow: View {
   }
 }
 
-// A single room: its heading and the notes tagged to it, tap to edit.
+// A single room: its heading and the notes tagged to it. Tap a note to edit; swipe it
+// left for the nudge bar (File to another room · Delete).
 private struct RoomView: View {
   @Environment(\.studioTheme) private var theme
   let room: Room
   let store: VaultStore
   let onOpen: (NoteSummary) -> Void
   let onCapture: () -> Void
+  @State private var filing: NoteSummary?
 
   private var notes: [NoteSummary] { store.notes.filter { $0.rooms.contains(room.id) } }
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 24) {
+    List {
+      Section {
         RoomHeading(eyebrow: room.eyebrow, title: room.title, intro: room.intro)
         Button(action: onCapture) {
           Label("Add to \(room.title)", systemImage: "plus.circle.fill")
@@ -379,24 +381,41 @@ private struct RoomView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("room-capture-button")
-        if notes.isEmpty {
-          Text("Nothing here yet.")
-            .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
-        } else {
-          VStack(spacing: 0) {
-            ForEach(notes) { note in
-              Button { onOpen(note) } label: { NoteRow(note: note) }
-                .buttonStyle(.plain)
-              Divider().overlay(theme.line)
+      }
+      .studioRoomRow(EdgeInsets(top: 12, leading: 28, bottom: 6, trailing: 28))
+
+      if notes.isEmpty {
+        Text("Nothing here yet.")
+          .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
+          .studioRoomRow(EdgeInsets(top: 6, leading: 28, bottom: 6, trailing: 28))
+      } else {
+        ForEach(notes) { note in
+          Button { onOpen(note) } label: { NoteRow(note: note) }
+            .buttonStyle(.plain)
+            .studioRoomRow(EdgeInsets(top: 2, leading: 28, bottom: 2, trailing: 28))
+            .accessibilityIdentifier("note-row-\(note.id)")
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+              Button(role: .destructive) {
+                _ = store.setNoteStatus(path: note.id, status: "trashed")
+              } label: { Label("Delete", systemImage: "trash") }
+              Button { filing = note } label: { Label("File…", systemImage: "tray.and.arrow.down") }
+                .tint(theme.link)
             }
-          }
         }
       }
-      .padding(28)
-      .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .background(theme.canvas)
+    .studioRoomList(theme.canvas)
     .navigationTitle(room.title)
+    .confirmationDialog(
+      "File to…",
+      isPresented: Binding(get: { filing != nil }, set: { if !$0 { filing = nil } }),
+      presenting: filing
+    ) { note in
+      ForEach(Room.all.filter { $0.id != room.id }) { target in
+        Button(target.title) { _ = store.fileNote(path: note.id, toRoom: target.id) }
+      }
+      Button("Cancel", role: .cancel) {}
+    }
   }
 }
 

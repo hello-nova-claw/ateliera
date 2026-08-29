@@ -506,6 +506,28 @@ final class VaultStore {
     }
   }
 
+  /// Set a note's status (e.g. "trashed" / "archived" / "active"). Reversible — the
+  /// file survives; the projections hide trashed/archived. Backs the rooms' swipe
+  /// "Delete" and "Archive" actions.
+  @discardableResult
+  func setNoteStatus(path: String, status: String) -> Bool {
+    guard let editable = beginEdit(path: path) else { return false }
+    var note = editable.note
+    note.status = status
+    return saveEdit(editable, updatedNote: note)
+  }
+
+  /// Re-file a captured note into a room (its primary room), promoting a still-draft
+  /// capture to active. Backs the Inbox's swipe "File…" action.
+  @discardableResult
+  func fileNote(path: String, toRoom room: String) -> Bool {
+    guard let editable = beginEdit(path: path) else { return false }
+    var note = editable.note
+    note.rooms = [room]
+    if note.status == "draft" { note.status = "active" }
+    return saveEdit(editable, updatedNote: note)
+  }
+
   /// Resolve a save conflict by overwriting the stored note with the draft (re-reads
   /// the current hash first, so it writes cleanly on top of the concurrent change).
   @discardableResult
