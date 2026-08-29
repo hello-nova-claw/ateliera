@@ -132,6 +132,16 @@ import Observation
     return saveConfig(next)
   }
 
+  /// Remove a life area from the configuration entirely. Notes keep their `life_areas`
+  /// tag (they simply stop showing on the board), so re-adding the same area restores
+  /// them — reversible, no content lost.
+  @discardableResult
+  func removeArea(id: String) -> Bool {
+    let next = preferences.filter { $0.id != id }
+    guard next.count != preferences.count else { return false }
+    return saveConfig(next)
+  }
+
   // MARK: - Persistence
 
   private func saveConfig(_ areas: [LifeAreaPreference]) -> Bool {

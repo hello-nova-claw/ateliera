@@ -84,6 +84,23 @@ final class P5StoreTests: XCTestCase {
     XCTAssertTrue(parsed.contains { $0.id == "body-energy" })
   }
 
+  func testLandscapeRenameAndRemoveArea() throws {
+    let (dir, store) = try makeStore([])
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let landscape = LandscapeStore(store: store)
+    XCTAssertTrue(landscape.addArea(title: "Body & energy"))
+
+    // Rename updates the title, keeping the id.
+    XCTAssertTrue(landscape.renameArea(id: "body-energy", title: "Body & vitality"))
+    XCTAssertTrue(
+      landscape.areas.contains { $0.id == "body-energy" && $0.title == "Body & vitality" })
+
+    // Remove drops it from the configuration entirely.
+    XCTAssertTrue(landscape.removeArea(id: "body-energy"))
+    XCTAssertFalse(landscape.preferences.contains { $0.id == "body-energy" })
+    XCTAssertFalse(landscape.removeArea(id: "body-energy"))  // already gone → no-op
+  }
+
   func testLandscapeReorderWritesViewState() throws {
     let (dir, store) = try makeStore([
       ("Life/a.md", landscapeNote(id: "A", lifeAreas: ["family"], anchor: "vision")),

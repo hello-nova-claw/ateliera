@@ -187,6 +187,19 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.buttons["area-body-energy"].waitForExistence(timeout: 5))
   }
 
+  func testLandscapeBoardAddPillAddsArea() {
+    let app = launchWith(["ATELIERA_UITEST_P5": "1"])
+    let room = app.buttons["room-landscape"]
+    XCTAssertTrue(room.waitForExistence(timeout: 8))
+    room.tap()
+    XCTAssertTrue(app.navigationBars["Life Landscape"].waitForExistence(timeout: 5))
+    // Add an area directly from the board via the "+ Area" pill.
+    app.buttons["add-area-pill"].tap()
+    type("Rest & recovery", into: app.textFields["area-name-field"], in: app)
+    app.buttons["area-name-save"].tap()
+    XCTAssertTrue(app.buttons["area-rest-recovery"].waitForExistence(timeout: 5))
+  }
+
   func testIdentityRoomSectionsAndPromote() {
     let app = launchWith(["ATELIERA_UITEST_P5": "1"])
     let room = app.buttons["room-identity-studio"]

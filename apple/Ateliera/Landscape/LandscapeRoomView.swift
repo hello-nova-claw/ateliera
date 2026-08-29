@@ -2,7 +2,9 @@ import SwiftUI
 
 // The Life Landscape room, Focus view: pick a life area, see its five anchors with
 // the cards filed under each. Moving a card to another anchor is a plain Menu (fully
-// keyboard/VoiceOver operable — no drag required). An area manager adds new areas.
+// keyboard/VoiceOver operable — no drag required). Areas are managed in place — an
+// "+ Area" pill adds one, and a per-area context menu (or the "Areas" sheet) renames,
+// hides, or removes them.
 struct LandscapeRoomView: View {
   @Environment(\.studioTheme) private var theme
   let store: VaultStore
@@ -11,6 +13,9 @@ struct LandscapeRoomView: View {
   @State private var landscape: LandscapeStore
   @State private var selectedArea: String = ""
   @State private var managingAreas = false
+  @State private var addingArea = false
+  @State private var renamingArea: LifeArea?
+  @State private var removingArea: LifeArea?
 
   init(store: VaultStore, onOpen: @escaping (String) -> Void) {
     self.store = store
@@ -54,6 +59,32 @@ struct LandscapeRoomView: View {
       LandscapeAreaManagerView(landscape: landscape, onClose: { managingAreas = false })
         .studioTheme(theme)
     }
+    .sheet(isPresented: $addingArea) {
+      AreaNameSheet(
+        title: "New area", initial: "", guidance: LandscapeGuidance.newArea,
+        onSave: { landscape.addArea(title: $0) }, onClose: { addingArea = false })
+        .studioTheme(theme)
+    }
+    .sheet(item: $renamingArea) { area in
+      AreaNameSheet(
+        title: "Rename area", initial: area.title, guidance: LandscapeGuidance.renameArea,
+        onSave: { landscape.renameArea(id: area.id, title: $0) }, onClose: { renamingArea = nil })
+        .studioTheme(theme)
+    }
+    .confirmationDialog(
+      "Remove “\(removingArea?.title ?? "")”?", isPresented: removeBinding, presenting: removingArea
+    ) { area in
+      Button("Remove area", role: .destructive) {
+        if landscape.removeArea(id: area.id), selectedArea == area.id { selectedArea = "" }
+      }
+      Button("Cancel", role: .cancel) {}
+    } message: { _ in
+      Text("It leaves the board. Cards keep their tag, so you can bring it back any time by adding it again.")
+    }
+  }
+
+  private var removeBinding: Binding<Bool> {
+    Binding(get: { removingArea != nil }, set: { if !$0 { removingArea = nil } })
   }
 
   private var header: some View {
@@ -81,7 +112,27 @@ struct LandscapeRoomView: View {
           .buttonStyle(.plain)
           .accessibilityIdentifier("area-\(area.id)")
           .accessibilityAddTraits(selected ? [.isSelected] : [])
+          .contextMenu {
+            Button { renamingArea = area } label: { Label("Rename", systemImage: "pencil") }
+            Button { _ = landscape.setHidden(id: area.id, hidden: true) } label: {
+              Label("Hide from board", systemImage: "eye.slash")
+            }
+            Button(role: .destructive) { removingArea = area } label: {
+              Label("Remove", systemImage: "trash")
+            }
+          }
         }
+        Button { addingArea = true } label: {
+          Label("Area", systemImage: "plus")
+            .font(StudioFont.control)
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(Capsule().fill(theme.sunken))
+            .overlay(Capsule().strokeBorder(theme.line, style: StrokeStyle(lineWidth: 1, dash: [3, 3])))
+            .foregroundStyle(theme.link)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("add-area-pill")
+        .accessibilityLabel("Add a life area")
       }
     }
   }
@@ -154,22 +205,24 @@ private struct LandscapeCardView: View {
   }
 }
 
-// Add / rename / hide life areas.
+// Add / rename / show-hide / remove life areas — the discoverable CRUD surface behind
+// the "Areas" toolbar button (the board itself offers the same via an add pill and a
+// per-area context menu).
 private struct LandscapeAreaManagerView: View {
   @Environment(\.studioTheme) private var theme
   let landscape: LandscapeStore
   let onClose: () -> Void
   @State private var newArea = ""
+  @State private var renaming: LifeAreaPreference?
+  @State private var removing: LifeAreaPreference?
 
   var body: some View {
     NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: 18) {
-          VStack(alignment: .leading, spacing: 8) {
-            Text("ADD AN AREA")
-              .font(StudioFont.eyebrow).tracking(1.4).foregroundStyle(theme.inkFaint)
+          GuidedField(label: "Add an area", description: LandscapeGuidance.newArea.description) {
             HStack(spacing: 8) {
-              TextField("Name a life area", text: $newArea)
+              TextField(LandscapeGuidance.newArea.example, text: $newArea)
                 .font(StudioFont.control).foregroundStyle(theme.inkStrong)
                 .accessibilityIdentifier("new-area-field")
               Button("Add") {
@@ -187,15 +240,26 @@ private struct LandscapeAreaManagerView: View {
               .font(StudioFont.eyebrow).tracking(1.4).foregroundStyle(theme.inkFaint)
               .padding(.bottom, 6)
             ForEach(landscape.preferences.sorted { $0.order < $1.order }) { area in
-              HStack {
-                Text(area.title)
-                  .font(StudioFont.body)
-                  .foregroundStyle(area.hidden ? theme.inkFaint : theme.inkStrong)
+              HStack(spacing: 14) {
+                Button { renaming = area } label: {
+                  Text(area.title)
+                    .font(StudioFont.body)
+                    .foregroundStyle(area.hidden ? theme.inkFaint : theme.inkStrong)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("area-row-\(area.id)")
                 Spacer()
                 Button(area.hidden ? "Show" : "Hide") {
                   _ = landscape.setHidden(id: area.id, hidden: !area.hidden)
                 }
                 .font(StudioFont.meta).foregroundStyle(theme.link)
+                .accessibilityIdentifier("area-hide-\(area.id)")
+                Button { removing = area } label: {
+                  Image(systemName: "trash").font(.system(size: 13))
+                }
+                .foregroundStyle(theme.inkFaint)
+                .accessibilityIdentifier("area-remove-\(area.id)")
+                .accessibilityLabel("Remove \(area.title)")
               }
               .padding(.vertical, 10)
               Divider().overlay(theme.line)
@@ -212,6 +276,73 @@ private struct LandscapeAreaManagerView: View {
         }
         ToolbarItem(placement: .confirmationAction) {
           Button("Done") { onClose() }
+        }
+      }
+      .sheet(item: $renaming) { area in
+        AreaNameSheet(
+          title: "Rename area", initial: area.title, guidance: LandscapeGuidance.renameArea,
+          onSave: { landscape.renameArea(id: area.id, title: $0) }, onClose: { renaming = nil })
+          .studioTheme(theme)
+      }
+      .confirmationDialog(
+        "Remove “\(removing?.title ?? "")”?",
+        isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
+        presenting: removing
+      ) { area in
+        Button("Remove area", role: .destructive) { _ = landscape.removeArea(id: area.id) }
+        Button("Cancel", role: .cancel) {}
+      } message: { _ in
+        Text("It leaves the board. Cards keep their tag, so you can bring it back any time.")
+      }
+    }
+  }
+}
+
+// A small sheet for naming a life area — shared by add and rename, showing the
+// matching field guidance (description + greyed example).
+private struct AreaNameSheet: View {
+  @Environment(\.studioTheme) private var theme
+  let title: String
+  let guidance: FieldGuidance
+  let onSave: (String) -> Bool
+  let onClose: () -> Void
+  @State private var text: String
+
+  init(
+    title: String, initial: String, guidance: FieldGuidance,
+    onSave: @escaping (String) -> Bool, onClose: @escaping () -> Void
+  ) {
+    self.title = title
+    self.guidance = guidance
+    self.onSave = onSave
+    self.onClose = onClose
+    _text = State(initialValue: initial)
+  }
+
+  private var trimmed: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+  var body: some View {
+    NavigationStack {
+      ScrollView {
+        GuidedField(description: guidance.description) {
+          TextField(guidance.example, text: $text)
+            .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
+            .padding(12)
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.line, lineWidth: 1))
+            .accessibilityIdentifier("area-name-field")
+        }
+        .padding(24)
+      }
+      .background(theme.canvas)
+      .toolbar {
+        ToolbarItem(placement: .principal) {
+          Text(title).font(StudioFont.control).foregroundStyle(theme.inkStrong)
+        }
+        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { onClose() } }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Save") { if onSave(trimmed) { onClose() } }
+            .disabled(trimmed.isEmpty)
+            .accessibilityIdentifier("area-name-save")
         }
       }
     }
