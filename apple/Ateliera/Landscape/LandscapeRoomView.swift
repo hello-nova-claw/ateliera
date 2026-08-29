@@ -30,18 +30,47 @@ struct LandscapeRoomView: View {
     return landscape.areas.first?.id ?? ""
   }
 
+  private var currentAreaObject: LifeArea? {
+    landscape.areas.first { $0.id == currentArea }
+  }
+
+  // Always-visible controls for the selected area: rename, hide, remove — plus add.
+  // (Tapping a pill selects/filters; these act on that selection, so managing an area
+  // is right there rather than hidden behind a long-press.)
+  private func manageBar(_ area: LifeArea) -> some View {
+    HStack(spacing: 16) {
+      Button("Rename") { renamingArea = area }
+        .accessibilityIdentifier("rename-area-button")
+      Button("Hide") { _ = landscape.setHidden(id: area.id, hidden: true) }
+        .accessibilityIdentifier("hide-area-button")
+      Button("Remove") { removingArea = area }
+        .foregroundStyle(theme.celebration)
+        .accessibilityIdentifier("remove-area-button")
+      Spacer()
+      Button { addingArea = true } label: {
+        Label("Add area", systemImage: "plus")
+      }
+      .accessibilityIdentifier("add-area-pill")
+    }
+    .font(StudioFont.meta).foregroundStyle(theme.link)
+  }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 22) {
         header
         areaPicker
-        if currentArea.isEmpty {
-          Text("Add a life area to begin.")
-            .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
-        } else {
+        if let area = currentAreaObject {
+          manageBar(area)
           ForEach(LandscapeAnchor.ordered, id: \.self) { anchor in
             anchorSection(anchor)
           }
+        } else {
+          Button { addingArea = true } label: {
+            Label("Add a life area to begin", systemImage: "plus")
+              .font(StudioFont.control).foregroundStyle(theme.link)
+          }
+          .accessibilityIdentifier("add-area-empty")
         }
       }
       .padding(24)
@@ -122,17 +151,6 @@ struct LandscapeRoomView: View {
             }
           }
         }
-        Button { addingArea = true } label: {
-          Label("Area", systemImage: "plus")
-            .font(StudioFont.control)
-            .padding(.horizontal, 12).padding(.vertical, 7)
-            .background(Capsule().fill(theme.sunken))
-            .overlay(Capsule().strokeBorder(theme.line, style: StrokeStyle(lineWidth: 1, dash: [3, 3])))
-            .foregroundStyle(theme.link)
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("add-area-pill")
-        .accessibilityLabel("Add a life area")
       }
     }
   }
