@@ -138,7 +138,10 @@ enum Natal {
     let ramc = norm360(lstHours * 15) * .pi / 180
     let phi = latitude * .pi / 180
     let epsRad = eps * .pi / 180
-    let asc = atan2(-cos(ramc), sin(ramc) * cos(epsRad) + tan(phi) * sin(epsRad))
+    // Ascendant: the ecliptic point rising on the eastern horizon. The two
+    // horizon/ecliptic intersections are 180° apart; this branch selects the rising
+    // one (the descendant form, atan2(-cos, D), was a 180° error).
+    let asc = atan2(cos(ramc), -(sin(ramc) * cos(epsRad) + tan(phi) * sin(epsRad)))
     return asc * 180 / .pi
   }
 

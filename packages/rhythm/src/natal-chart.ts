@@ -104,9 +104,12 @@ export async function computeNatalChart(
       const lstHours = gastHours + birthLon / 15;
       const ramcRad = (norm360(lstHours * 15) * Math.PI) / 180;
       const phi = (birthLat * Math.PI) / 180;
+      // Ascendant: the ecliptic point rising on the eastern horizon. The two
+      // horizon/ecliptic intersections are 180° apart; this branch selects the
+      // rising one (the descendant form, atan2(-cos, D), was a 180° error).
       const ascRad = Math.atan2(
-        -Math.cos(ramcRad),
-        Math.sin(ramcRad) * Math.cos(eps) + Math.tan(phi) * Math.sin(eps),
+        Math.cos(ramcRad),
+        -(Math.sin(ramcRad) * Math.cos(eps) + Math.tan(phi) * Math.sin(eps)),
       );
       rising = signFromLongitude((ascRad * 180) / Math.PI);
       placements.rising = rising;

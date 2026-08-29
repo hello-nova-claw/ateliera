@@ -28,12 +28,12 @@ final class NatalChartTests: XCTestCase {
   func testLocalZoneChartsMatchTheWebEngine() {
     let cases: [(String, String, String, Double, Double, String, String, String)] = [
       // date, time, zone, lat, lon, sun, moon, rising
-      ("1990-08-15", "14:30", "Australia/Melbourne", -37.81, 144.96, "Leo", "Gemini", "Cancer"),
-      ("1988-03-21", "06:00", "Europe/London", 51.51, -0.13, "Aries", "Taurus", "Virgo"),
-      ("2001-12-25", "23:15", "America/New_York", 40.71, -74.01, "Capricorn", "Taurus", "Pisces"),
-      ("1995-07-04", "09:45", "Asia/Tokyo", 35.68, 139.69, "Cancer", "Virgo", "Pisces"),
-      ("1979-11-02", "17:20", "Australia/Sydney", -33.87, 151.21, "Scorpio", "Aries", "Libra"),
-      ("1990-08-15", "00:30", "Australia/Melbourne", -37.81, 144.96, "Leo", "Gemini", "Scorpio"),
+      ("1990-08-15", "14:30", "Australia/Melbourne", -37.81, 144.96, "Leo", "Gemini", "Capricorn"),
+      ("1988-03-21", "06:00", "Europe/London", 51.51, -0.13, "Aries", "Taurus", "Pisces"),
+      ("2001-12-25", "23:15", "America/New_York", 40.71, -74.01, "Capricorn", "Taurus", "Virgo"),
+      ("1995-07-04", "09:45", "Asia/Tokyo", 35.68, 139.69, "Cancer", "Virgo", "Virgo"),
+      ("1979-11-02", "17:20", "Australia/Sydney", -33.87, 151.21, "Scorpio", "Aries", "Aries"),
+      ("1990-08-15", "00:30", "Australia/Melbourne", -37.81, 144.96, "Leo", "Gemini", "Taurus"),
     ]
     for (date, time, zone, lat, lon, sun, moon, rising) in cases {
       let chart = RhythmProfileStore.chart(
@@ -48,11 +48,11 @@ final class NatalChartTests: XCTestCase {
   func testFullChartsMatchTheWebEngine() {
     let cases: [(String, String, Double, Double, String, String, String)] = [
       // date, time, lat, lon, sun, moon, rising
-      ("1990-08-15", "14:30", -37.81, 144.96, "Leo", "Gemini", "Scorpio"),
-      ("1988-03-21", "06:00", 51.51, -0.13, "Aries", "Taurus", "Virgo"),
-      ("2001-12-25", "23:15", 40.71, -74.01, "Capricorn", "Taurus", "Capricorn"),
-      ("1995-07-04", "09:45", 35.68, 139.69, "Cancer", "Virgo", "Cancer"),
-      ("1979-11-02", "17:20", -33.87, 151.21, "Scorpio", "Aries", "Aries"),
+      ("1990-08-15", "14:30", -37.81, 144.96, "Leo", "Gemini", "Taurus"),
+      ("1988-03-21", "06:00", 51.51, -0.13, "Aries", "Taurus", "Pisces"),
+      ("2001-12-25", "23:15", 40.71, -74.01, "Capricorn", "Taurus", "Cancer"),
+      ("1995-07-04", "09:45", 35.68, 139.69, "Cancer", "Virgo", "Capricorn"),
+      ("1979-11-02", "17:20", -33.87, 151.21, "Scorpio", "Aries", "Libra"),
     ]
     for (date, time, lat, lon, sun, moon, rising) in cases {
       let chart = Natal.compute(birthDate: date, birthTimeUTC: time, birthLat: lat, birthLon: lon)
