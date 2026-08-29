@@ -176,7 +176,7 @@ struct RootView: View {
   // Resolve a wikilink target to a note and open it; returns false (caller shows
   // "not found") when it can't be resolved.
   private func navigateWikilink(_ target: String) -> Bool {
-    guard let path = WikilinkNavigator.resolvePath(target: target, in: store.notes),
+    guard let path = WikilinkNavigator.resolvePath(target: target, in: store.liveNotes),
       let editable = store.beginEdit(path: path)
     else { return false }
     activeSheet = .edit(editable)
@@ -237,7 +237,7 @@ struct RootView: View {
           HStack(spacing: 10) {
             Text(room.title).font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
             Spacer(minLength: 0)
-            let count = store.notes.filter { $0.rooms.contains(room.id) }.count
+            let count = store.liveNotes.filter { $0.rooms.contains(room.id) }.count
             if count > 0 {
               Text("\(count)").font(StudioFont.meta).foregroundStyle(theme.inkMuted)
             }
@@ -283,12 +283,12 @@ struct RootView: View {
   // Everything you've captured, newest first, whatever room it's in.
   private var recentlySection: some View {
     VStack(alignment: .leading, spacing: 0) {
-      if !store.notes.isEmpty {
+      if !store.liveNotes.isEmpty {
         Text("RECENTLY")
           .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
           .padding(.bottom, 8)
       }
-      ForEach(store.notes) { note in
+      ForEach(store.liveNotes) { note in
         Button { openEdit(note) } label: { NoteRow(note: note) }
           .buttonStyle(.plain)
         Divider().overlay(theme.line)
@@ -368,7 +368,7 @@ private struct RoomView: View {
   let onCapture: () -> Void
   @State private var filing: NoteSummary?
 
-  private var notes: [NoteSummary] { store.notes.filter { $0.rooms.contains(room.id) } }
+  private var notes: [NoteSummary] { store.liveNotes.filter { $0.rooms.contains(room.id) } }
 
   var body: some View {
     List {
@@ -566,6 +566,7 @@ private struct NoteEditView: View {
   @State private var coverItem: PhotosPickerItem?
   @State private var coverImage: UIImage?
   @State private var recoverableDraft: DraftRecord?
+  @State private var confirmingDelete = false
   private let recovery = DraftRecovery()
 
   init(
@@ -635,6 +636,13 @@ private struct NoteEditView: View {
           }
           .accessibilityIdentifier("note-links-button")
           coverSection
+          Divider().overlay(theme.line)
+          Button(role: .destructive) { confirmingDelete = true } label: {
+            Label("Delete", systemImage: "trash")
+              .font(StudioFont.control).foregroundStyle(theme.celebration)
+          }
+          .buttonStyle(.plain)
+          .accessibilityIdentifier("note-delete-button")
         }
         .padding(24)
       }
@@ -663,6 +671,19 @@ private struct NoteEditView: View {
         Button("OK", role: .cancel) {}
       } message: {
         Text("That link doesn't point to a note in this Studio yet.")
+      }
+      .confirmationDialog(
+        "Move this note to Trash?", isPresented: $confirmingDelete, titleVisibility: .visible
+      ) {
+        Button("Move to Trash", role: .destructive) {
+          if store.setNoteStatus(path: editable.path, status: "trashed") {
+            recovery.remove(studioId: store.studioId, path: editable.path)
+            onClose()
+          }
+        }
+        Button("Cancel", role: .cancel) {}
+      } message: {
+        Text("It leaves your rooms but isn't gone — the file stays in the vault.")
       }
     }
     .task {

@@ -48,6 +48,14 @@ struct ConflictState: Identifiable {
 @Observable
 final class VaultStore {
   var notes: [NoteSummary] = []
+
+  /// User-visible notes: everything except trashed/archived (which are set aside). The
+  /// room lists and the Foyer read this so a swipe/editor "Delete" actually removes the
+  /// note from view. The projection-based rooms filter equivalently via `Projection.visible`.
+  var liveNotes: [NoteSummary] {
+    notes.filter { $0.status != "trashed" && $0.status != "archived" }
+  }
+
   var vaultName: String = ""
   var error: String?
   var conflict: ConflictState?

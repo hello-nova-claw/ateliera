@@ -290,6 +290,20 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["Celebration beta"].firstMatch.waitForExistence(timeout: 5))
   }
 
+  func testEditorMovesNoteToTrash() {
+    let app = launchEmptyApp()
+    captureAndOpen(app, title: "To be trashed", body: "gone soon")
+    let del = app.buttons["note-delete-button"]
+    XCTAssertTrue(del.waitForExistence(timeout: 5))
+    if !del.isHittable { app.swipeUp() }
+    del.tap()
+    let confirm = app.buttons["Move to Trash"]
+    XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+    confirm.tap()
+    // Back on the Foyer, the note is gone from Recently.
+    XCTAssertFalse(app.staticTexts["To be trashed"].waitForExistence(timeout: 3))
+  }
+
   func testSeasonWizardBeginsAndActivates() {
     let app = launchEmptyApp()
     let room = app.buttons["room-current-season"]
