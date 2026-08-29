@@ -2,7 +2,8 @@ import SwiftUI
 
 // The Current Season room: begin a season, walk the nine-step wizard, then an active
 // view with a close flow (which files a reflection letter and archives the season).
-// List fields are one item per line. Structured decisions are a documented follow-up.
+// List fields are one item per line; decisions are structured (text + 30/60/90
+// horizon + decision/experiment kind).
 struct SeasonView: View {
   @Environment(\.studioTheme) private var theme
   let store: VaultStore

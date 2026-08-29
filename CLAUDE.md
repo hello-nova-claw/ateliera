@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Ateliera ("The Studio") is a private, offline-first, local-owned app for designing a life from the inside out. Markdown files and ordinary media in a user-owned **vault** are the authoritative source of truth; everything else (the SQLite index, in particular) is a disposable projection that can be rebuilt without semantic loss. Core behavior must work offline and without AI. It ships as both a PWA and a Tauri desktop app.
+Ateliera ("The Studio") is a private, offline-first, local-owned app for designing a life from the inside out. Markdown files and ordinary media in a user-owned **vault** are the authoritative source of truth; everything else (the SQLite index, in particular) is a disposable projection that can be rebuilt without semantic loss. Core behavior must work offline and without AI. It ships as a PWA and a Tauri desktop app (the `@studio/*` workspace), and as a native SwiftUI app for iPhone/iPad/Mac (`apple/`, ADR-012) — both operate on the same Markdown vault, with the file format (not shared code) as the contract between them.
 
 ## Authoritative sources — read before implementing
 
@@ -51,6 +51,10 @@ A pnpm workspace (`packages/*`, `apps/*`). The dependency graph is a strict laye
 - `apps/studio` (`@studio/app`) — the React 19 + Vite PWA / Tauri host. → **application and ui only.** Wires services (`src/app/studio-service-factory.ts`), routing (`src/app/router.tsx`, room-based), the search index Web Worker (`src/app/search-index-worker*.ts`), service worker, themes, and feature UIs under `src/features/*` (capture, foyer, identity, landscape, onboarding, reflection, search, season, settings, uncharted, wisdom). Rust/Tauri host lives in `apps/studio/src-tauri`.
 
 When adding cross-package code, respect the layer the ESLint config assigns — if you need an upward dependency, the design is wrong, not the lint rule.
+
+## Native Apple app (`apple/`)
+
+A native SwiftUI app for iPhone/iPad/Mac on the same Markdown vault (ADR-012). It does **not** share code with the web app — the vault file format is the contract. Every shared format/algorithm (note schema + Markdown round-trip, projections, SM-2 resurfacing, search + backlinks + link repair, ZIP export/import, rhythm calc) is **golden-matched** to the `@studio/*` packages, and the atomic/path-contained Rust vault core (`apple/AtelieraVaultCore`) is reused over UniFFI rather than reimplemented. Same invariants as the web app: writes atomic + path-contained + recoverable, unknown YAML keys survive round-trips, no gamification. It is at full P1–P9 parity. Build/test commands and layout are in [`apple/README.md`](apple/README.md); when capturing golden values for a Swift port, take them from node/vitest against the `@studio/*` source — never from spec prose. Tests are TDD'd (colocated unit + XCUITest); commits stay atomic, one-line, authored solely by Anna McPhee (no AI attribution), same as the rest of the repo.
 
 ## Working agreement (from AGENTS.md)
 

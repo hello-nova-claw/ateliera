@@ -1240,3 +1240,36 @@ Every shared format/algorithm is golden-matched to the `@studio/*` packages; all
 writes are atomic + path-contained; each phase is TDD'd (unit + XCUITest) and shipped
 as its own atomic commit. The native app shares one Markdown/iCloud vault with the web
 app, byte-identically.
+
+## 2026-08-29 — Native parity follow-ups: the deferred slices, closed out
+
+With P1–P9 complete, cleared the follow-ups each phase had left behind, one atomic
+commit each:
+
+- **Season decisions (P6)** — the wizard's decisions are now structured (text +
+  30/60/90 horizon + decision/experiment kind), round-tripped through the season
+  note's `season_workflow.decisions` mapSeq.
+- **Revision pruning (P8)** — a new Rust `remove` FFI (path-contained, symlink-refusing,
+  revision-bumping, 2 cargo tests) backs `RevisionStore.prune`: keep one snapshot per
+  day, drop anything past a 30-day window, run automatically after each snapshot.
+- **Per-item import resolution (P8)** — each overwrite in an import ZIP is individually
+  **Replace** or **Skip** (mirrors `import.ts`'s `conflicts` map); the preview tallies
+  new/replaced/skipped.
+- **Wisdom theme editor + "make it mine" (P6)** — a byte-identical
+  `.studio/config/wisdom-themes.json` codec (golden-matched to
+  `wisdom-theme-repository.ts`: 1–40 themes, slug ids, unique id/title/order), add/
+  rename/hide themes, and a "make it mine" composer that keeps a themed `insight`.
+- **Reflection cluster (P6)** — cover-image thumbnails on entry cards (via the existing
+  `readCover` media path), a Then-&-Now pairing section + picker (`then_note_id`), and a
+  connect-evidence form that union-merges notes/life-areas/seasons like
+  `linkReflectionEvidence`.
+- **Markdown/reference-link repair (P4)** — repair now covers inline
+  `[label](studio://note/…)` / `[label](path.md)` links plus reference/shortcut forms,
+  not just wiki links. `LinkExtractor.locatedMarkdownLinks` produces UTF-16 spans shared
+  by the graph and the repair editor; `RepairView` is kind-aware. Golden offsets captured
+  from `link-edit.ts` via vitest. (Fixed a latent bug the change surfaced: `[id]:`
+  definition lines were being emitted as shortcut links — dedup had been hiding it.)
+
+Full 300+ unit suite green after each; the Repair-panel XCUITest passes end-to-end.
+Docs refreshed: added `apple/README.md`, a native-app section to the top-level README,
+and a native-app section to CLAUDE.md.

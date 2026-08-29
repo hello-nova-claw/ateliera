@@ -1,9 +1,9 @@
 import Foundation
 
-// The repair queue: duplicate stable-note-ID metadata issues + broken/ambiguous
-// links across the vault, ordered like the web `repairQueue` (path, then kind, then
-// occurrence). Scoped to the link forms `LinkEditor` can rewrite (wiki links);
-// parse-error metadata repair is a follow-up. Pure over the parsed notes.
+// The repair queue: unreadable-note + duplicate stable-note-ID metadata issues, plus
+// broken/ambiguous links across the vault, ordered like the web `repairQueue` (path,
+// then kind, then occurrence). Covers every link form `LinkEditor` can rewrite — wiki
+// links and inline/reference Markdown links (id + path). Pure over the parsed notes.
 
 struct BrokenLinkItem: Equatable, Identifiable {
   let path: String
