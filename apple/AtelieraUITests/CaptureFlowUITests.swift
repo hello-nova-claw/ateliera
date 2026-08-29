@@ -332,6 +332,21 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["Depth over breadth"].firstMatch.exists)
   }
 
+  func testRhythmLayersGateHidesAlmanac() {
+    let app = launchEmptyApp()
+    XCTAssertTrue(app.staticTexts["Today's rhythm"].waitForExistence(timeout: 8))
+    app.buttons["settings-button"].tap()
+    // Turn every rhythm layer off.
+    for label in ["Moon", "Micro-season", "Cycle"] {
+      let toggle = app.switches["rhythm-toggle-\(label)"]
+      XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+      if (toggle.value as? String) == "1" { toggle.tap() }
+    }
+    app.buttons["Done"].tap()
+    // The almanac hides once no rhythm layer remains.
+    XCTAssertFalse(app.staticTexts["Today's rhythm"].exists)
+  }
+
   func testRoomVisibilityToggleHidesRoom() {
     let app = launchEmptyApp()
     XCTAssertTrue(app.buttons["room-uncharted"].waitForExistence(timeout: 8))

@@ -763,6 +763,32 @@ private struct SettingsView: View {
             Divider().overlay(theme.line)
           }
 
+          Text("FOYER")
+            .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
+            .padding(.top, 24).padding(.bottom, 8)
+          ForEach(
+            [("becoming", "Becoming"), ("feelings", "How I want to feel"), ("principles", "Principles")],
+            id: \.0
+          ) { id, label in
+            Toggle(
+              label,
+              isOn: Binding(
+                get: { Preferences.isFoyerSectionVisible(id, store.preferences) },
+                set: { store.setFoyerSectionVisible(id, $0) })
+            )
+            .font(StudioFont.body).foregroundStyle(theme.inkStrong)
+            .padding(.vertical, 8)
+            .accessibilityIdentifier("section-toggle-\(id)")
+            Divider().overlay(theme.line)
+          }
+
+          Text("RHYTHM")
+            .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
+            .padding(.top, 24).padding(.bottom, 8)
+          rhythmToggle("Moon", keyPath: \.moon)
+          rhythmToggle("Micro-season", keyPath: \.microSeason)
+          rhythmToggle("Cycle", keyPath: \.cycle)
+
           Text("THEME")
             .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
             .padding(.top, 24).padding(.bottom, 8)
@@ -853,6 +879,25 @@ private struct SettingsView: View {
         }
       }
     }
+  }
+
+  private func rhythmToggle(
+    _ label: String, keyPath: WritableKeyPath<StoredStudioPreferences.RhythmPreferences, Bool>
+  ) -> some View {
+    Toggle(
+      label,
+      isOn: Binding(
+        get: { store.preferences.rhythm[keyPath: keyPath] },
+        set: { newValue in
+          var rhythm = store.preferences.rhythm
+          rhythm[keyPath: keyPath] = newValue
+          store.setRhythmLayers(
+            moon: rhythm.moon, microSeason: rhythm.microSeason, cycle: rhythm.cycle)
+        })
+    )
+    .font(StudioFont.body).foregroundStyle(theme.inkStrong)
+    .padding(.vertical, 8)
+    .accessibilityIdentifier("rhythm-toggle-\(label)")
   }
 
   private func themeRow(_ palette: StudioTheme) -> some View {
