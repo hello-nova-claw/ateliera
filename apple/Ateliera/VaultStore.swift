@@ -261,6 +261,68 @@ final class VaultStore {
     }
   }
 
+  /// Classified capture: file a note to a structured destination (Foyer placement,
+  /// Life Landscape anchor, Identity section, Wisdom kind, or Uncharted), with the
+  /// exact frontmatter + folder the web writes. Validates before writing and retries
+  /// on an id collision (up to 8 attempts, matching the web's CAPTURE_ATTEMPTS).
+  @discardableResult
+  func capture(title: String?, body: String, destination: CaptureDestination) -> Bool {
+    guard let vault else {
+      error = "Choose a Studio folder first."
+      return false
+    }
+    do {
+      try CaptureValidator.validate(body: body, destination: destination)
+    } catch {
+      self.error = captureErrorMessage(error)
+      return false
+    }
+    let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
+    let meta = destination.metadata
+    var lastError: Error?
+    for _ in 0..<8 {
+      let id = NoteFactory.createNoteId()
+      let created = NoteFactory.isoTimestamp()
+      var note = StudioNote.capture(
+        title: title, body: trimmedBody, id: id, created: created, room: meta.rooms.first ?? "inbox")
+      note.cardType = meta.cardType
+      note.semanticType = meta.semanticType
+      note.status = meta.status
+      note.rooms = meta.rooms
+      note.lifeAreas = meta.lifeAreas
+      note.landscapeAnchor = meta.landscapeAnchor
+      note.tags = meta.tags
+      note.source = meta.source
+      note.sourceNoteIds = meta.sourceNoteIds
+      note.extraFrontmatter = meta.extraFrontmatter
+      note.display = NoteDisplay(cover: nil, featured: meta.featured)
+      let filename = NoteFactory.suggestFilename(
+        created: created, title: note.title, cardType: note.cardType, id: id)
+      let path = "\(meta.folder)/\(filename)"
+      do {
+        _ = try vault.writeText(path: path, text: note.serialize(), expectedHash: nil, createNew: true)
+        try reload()
+        error = nil
+        return true
+      } catch {
+        lastError = error  // most likely a name collision — retry with a fresh id
+      }
+    }
+    self.error = lastError.map { "\($0)" } ?? "Couldn't file this capture."
+    return false
+  }
+
+  private func captureErrorMessage(_ error: Error) -> String {
+    switch error as? CaptureValidationError {
+    case .emptyBody: return "Write something to remember first."
+    case .decisionHorizonOutsideDecisionsAnchor:
+      return "A decision horizon only applies to a Decisions card."
+    case .wisdomSourceURLScheme: return "A source link must start with http:// or https://."
+    case .wisdomTooManyThemes: return "That's too many themes."
+    case nil: return "\(error)"
+    }
+  }
+
   /// Write a fully-formed new note into `room`'s folder (atomic create) and reload.
   /// The caller builds the `StudioNote` (setting card/semantic type, tags, source,
   /// etc.); this handles the filename convention + write + refresh.
