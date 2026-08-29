@@ -1,8 +1,9 @@
 import SwiftUI
 
-// The repair panel: broken/ambiguous wiki links you can relink (to a valid title) or
-// remove, plus duplicate-id notices. Read from the disposable index; each fix routes
-// through the atomic write path and the queue refreshes.
+// The repair panel: broken/ambiguous links — wiki (by title), Markdown path (`*.md`),
+// or stable id (`studio://note/…`) — you can relink or remove, plus duplicate-id
+// notices. Read from the disposable index; each fix routes through the atomic write
+// path and the queue refreshes.
 struct RepairView: View {
   @Environment(\.studioTheme) private var theme
   let store: VaultStore
@@ -46,7 +47,7 @@ struct RepairView: View {
   private func brokenRow(_ broken: BrokenLinkItem) -> some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack(spacing: 8) {
-        Text("[[\(broken.target)]]")
+        Text(display(broken))
           .font(StudioFont.body).foregroundStyle(theme.inkStrong)
         Text(broken.isAmbiguous ? "ambiguous" : "broken")
           .font(StudioFont.eyebrow).tracking(0.6)
@@ -58,7 +59,7 @@ struct RepairView: View {
         .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
       HStack(spacing: 8) {
         TextField(
-          "Correct title",
+          fieldPrompt(broken.kind),
           text: Binding(
             get: { targets[broken.id] ?? broken.target },
             set: { targets[broken.id] = $0 }))
@@ -70,8 +71,10 @@ struct RepairView: View {
         Button("Relink") {
           let target = (targets[broken.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
           guard !target.isEmpty else { return }
+          // Repair the link in place, keeping its form (wiki title / path / id).
           _ = store.repairLink(
-            path: broken.path, occurrence: broken.occurrence, edit: .relink(kind: .wiki, target: target))
+            path: broken.path, occurrence: broken.occurrence,
+            edit: .relink(kind: broken.kind, target: target))
           refresh()
         }
         .font(StudioFont.control).foregroundStyle(theme.link)
@@ -94,6 +97,22 @@ struct RepairView: View {
         .fixedSize(horizontal: false, vertical: true)
     }
     .padding(.vertical, 10)
+  }
+
+  private func display(_ broken: BrokenLinkItem) -> String {
+    switch broken.kind {
+    case .wiki: return "[[\(broken.target)]]"
+    case .path: return "[\(broken.label)](\(broken.target))"
+    case .id: return "[\(broken.label)](studio://note/\(broken.target))"
+    }
+  }
+
+  private func fieldPrompt(_ kind: LinkKind) -> String {
+    switch kind {
+    case .wiki: return "Correct title"
+    case .path: return "Correct path (.md)"
+    case .id: return "Correct note id"
+    }
   }
 
   private func fileName(_ path: String) -> String {

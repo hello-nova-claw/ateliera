@@ -2,10 +2,11 @@ import Foundation
 
 // Editable links with source offsets, for the repair panel. This is the native
 // counterpart of `link-edit.ts` `editableMarkdownLinks` + `rewriteMarkdownLink`,
-// scoped to WIKI links (`[[target]]` / `[[target|label]]`) — the form Ateliera's own
-// UI writes and the one the repair gate exercises. Markdown/reference-link repair
-// (which needs a full mdast with offsets) is a documented follow-up; the link graph
-// and backlinks already cover those forms for display.
+// covering WIKI links (`[[target]]` / `[[target|label]]`) plus inline Markdown links
+// (`[label](studio://note/<id>)` / `[label](path.md)`) and their reference/shortcut
+// forms resolved through `[id]: url` definitions — the same forms the link graph and
+// backlinks surface. The Markdown span-finding is shared with `LinkExtractor` so the
+// occurrence order matches what the queue resolves.
 //
 // Offsets are UTF-16 (matching JS string indices) so a rewrite can splice by the
 // same boundaries the web uses.
@@ -33,14 +34,17 @@ enum LinkEditor {
   private static let unsafeIdPattern = try? NSRegularExpression(
     pattern: "[\\x{0000}-\\x{001f}\\x{007f}-\\x{009f}/\\\\?#]")
 
-  /// Wiki links in source order (code spans/fences skipped), each with its UTF-16
-  /// start/end offsets and occurrence index. Mirrors `wikiLinks` in link-edit.ts.
+  /// Every editable link in source order (code spans/fences skipped), each with its
+  /// UTF-16 start/end offsets and occurrence index: wiki links plus inline/reference
+  /// Markdown links. Mirrors `editableMarkdownLinks` in link-edit.ts.
   static func editableLinks(_ body: String) -> [EditableLink] {
+    var found: [(kind: LinkKind, target: String, label: String, start: Int, end: Int)] = []
+
+    // Wiki links via a direct UTF-16 scan of the code-masked body.
     let masked = LinkExtractor.maskCode(body) as NSString
     let original = body as NSString
     let bracket: unichar = 0x5B  // "["
     let length = masked.length
-    var found: [(kind: LinkKind, target: String, label: String, start: Int, end: Int)] = []
     var i = 0
     while i < length {
       guard masked.character(at: i) == bracket, i + 1 < length,
@@ -61,6 +65,13 @@ enum LinkEditor {
       }
       i = closing.location + 2
     }
+
+    // Inline + reference Markdown links, sharing LinkExtractor's golden-matched scanner.
+    for located in LinkExtractor.locatedMarkdownLinks(from: body) {
+      found.append(
+        (located.link.kind, located.link.target, located.link.label, located.start, located.end))
+    }
+
     return found.sorted { $0.start < $1.start }.enumerated().map { index, link in
       EditableLink(
         index: index, kind: link.kind, target: link.target, label: link.label,

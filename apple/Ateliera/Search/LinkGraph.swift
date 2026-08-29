@@ -56,10 +56,8 @@ enum LinkExtractor {
     }
 
     // Markdown links from the code-masked body so links inside code are ignored.
-    let masked = maskCode(body)
-    let definitions = referenceDefinitions(in: masked)
-    for md in markdownLinks(in: masked, definitions: definitions) {
-      located.append(md)
+    for md in locatedMarkdownLinks(from: body) {
+      located.append(md.link)
     }
 
     // De-dup by kind:target.lowercased(), first-seen order preserved.
@@ -121,18 +119,35 @@ enum LinkExtractor {
 
   // ---- Markdown link + reference scanning (mask-based, no mdast) ----
 
-  private struct RawLink {
-    let label: String
-    let url: String
+  // A markdown/reference/shortcut link with the UTF-16 span of its whole source node
+  // (from the opening `[` to just past the closing `)`/`]`), so the repair editor can
+  // splice a replacement by the same boundaries the web's mdast offsets give.
+  struct LocatedLink: Equatable {
+    let link: ParsedLink
+    let start: Int  // UTF-16 offset into the body
+    let end: Int
   }
 
   // Inline links `[label](url)` (supporting <...> destinations) and reference
-  // links `[label][id]` / `[id][]` / `[id]` resolved through definitions.
-  private static func markdownLinks(
-    in masked: String, definitions: [String: String]
-  ) -> [ParsedLink] {
-    var out: [ParsedLink] = []
+  // links `[label][id]` / `[id][]` / `[id]` resolved through definitions, each with
+  // its UTF-16 source span. Scans the code-masked body (offsets stay aligned to the
+  // original), so links inside code are ignored.
+  static func locatedMarkdownLinks(from body: String) -> [LocatedLink] {
+    let masked = maskCode(body)
+    let definitions = referenceDefinitions(in: masked)
     let scalars = Array(masked)
+    // Prefix sum of UTF-16 lengths so a character index maps to a UTF-16 offset.
+    var u16 = [Int](repeating: 0, count: scalars.count + 1)
+    for (index, ch) in scalars.enumerated() { u16[index + 1] = u16[index] + ch.utf16.count }
+
+    var out: [LocatedLink] = []
+    func emit(_ kind: LinkKind, _ target: String, _ label: String, from openChar: Int, toChar closeChar: Int) {
+      out.append(
+        LocatedLink(
+          link: ParsedLink(kind: kind, target: target, label: normalizeLabel(label)),
+          start: u16[openChar], end: u16[closeChar + 1]))
+    }
+
     var i = 0
     while i < scalars.count {
       guard scalars[i] == "[" else { i += 1; continue }
@@ -144,9 +159,7 @@ enum LinkExtractor {
       if next < scalars.count && scalars[next] == "(" {
         // Inline link — read destination up to the matching ")".
         if let (url, end) = readInlineDestination(scalars, open: next) {
-          if let c = classify(url) {
-            out.append(ParsedLink(kind: c.kind, target: c.target, label: normalizeLabel(label)))
-          }
+          if let c = classify(url) { emit(c.kind, c.target, label, from: i, toChar: end) }
           i = end + 1
           continue
         }
@@ -156,15 +169,15 @@ enum LinkExtractor {
           let refId = String(scalars[(next + 1)..<refClose])
           let key = refId.isEmpty ? label : refId
           if let url = definitions[referenceKey(key)], let c = classify(url) {
-            out.append(ParsedLink(kind: c.kind, target: c.target, label: normalizeLabel(label)))
+            emit(c.kind, c.target, label, from: i, toChar: refClose)
           }
           i = refClose + 1
           continue
         }
-      } else {
-        // Shortcut reference `[id]`.
+      } else if !(next < scalars.count && scalars[next] == ":") {
+        // Shortcut reference `[id]` — but not a `[id]:` definition line.
         if let url = definitions[referenceKey(label)], let c = classify(url) {
-          out.append(ParsedLink(kind: c.kind, target: c.target, label: normalizeLabel(label)))
+          emit(c.kind, c.target, label, from: i, toChar: close)
         }
       }
       i = close + 1
