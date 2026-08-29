@@ -130,29 +130,49 @@ struct SeasonView: View {
   private var stepFields: some View {
     switch wizardStep {
     case .nameDates:
-      field("Name", text: $fields.title, id: "season-field-title")
+      field("Name", text: $fields.title, id: "season-field-title", guidance: SeasonGuidance.name)
       field("Starts (YYYY-MM-DD, optional)", text: $fields.startsOn, id: "season-field-start")
       field("Ends (YYYY-MM-DD, optional)", text: $fields.endsOn, id: "season-field-end")
     case .priorReflection:
-      editor("What are you carrying in from before?", text: $fields.priorReflection, id: "season-field-reflection")
+      editor(
+        "What are you carrying in from before?", text: $fields.priorReflection,
+        id: "season-field-reflection", guidance: SeasonGuidance.carryAsLearning)
       Toggle("Skip this step", isOn: $fields.skipReflection)
         .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
         .accessibilityIdentifier("season-skip-reflection")
     case .feelings:
-      editor("Feelings (one per line)", text: $fields.feelings, id: "season-field-feelings")
-      field("A season of…", text: $fields.statement, id: "season-field-statement")
+      editor(
+        "Feelings (one per line)", text: $fields.feelings, id: "season-field-feelings",
+        guidance: SeasonGuidance.feelings)
+      field(
+        "A season of…", text: $fields.statement, id: "season-field-statement",
+        guidance: SeasonGuidance.statement)
     case .priorities:
-      editor("Priorities (one per line)", text: $fields.priorities, id: "season-field-priorities")
+      editor(
+        "Priorities (one per line)", text: $fields.priorities, id: "season-field-priorities",
+        guidance: FieldGuidance(
+          description: SeasonGuidance.prioritiesDescription,
+          example: SeasonGuidance.newPriority.example))
     case .decisionsPractices:
-      editor("Practices (one per line)", text: $fields.practices, id: "season-field-practices")
+      editor(
+        "Practices (one per line)", text: $fields.practices, id: "season-field-practices",
+        guidance: SeasonGuidance.practices)
       decisionsEditor
     case .supportsConstraints:
-      editor("Support (one per line)", text: $fields.supports, id: "season-field-supports")
-      editor("Constraints (one per line)", text: $fields.constraints, id: "season-field-constraints")
+      editor(
+        "Support (one per line)", text: $fields.supports, id: "season-field-supports",
+        guidance: SeasonGuidance.supports)
+      editor(
+        "Constraints (one per line)", text: $fields.constraints, id: "season-field-constraints",
+        guidance: SeasonGuidance.constraints)
     case .enough:
-      editor("What would be enough?", text: $fields.enough, id: "season-field-enough")
+      editor(
+        "What would be enough?", text: $fields.enough, id: "season-field-enough",
+        guidance: SeasonGuidance.enough)
     case .notNow:
-      editor("Not now (one per line)", text: $fields.notNow, id: "season-field-notnow")
+      editor(
+        "Not now (one per line)", text: $fields.notNow, id: "season-field-notnow",
+        guidance: SeasonGuidance.notNow)
     case .confirm:
       Text("Review and begin this season.")
         .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkMuted)
@@ -253,9 +273,12 @@ struct SeasonView: View {
     VStack(alignment: .leading, spacing: 10) {
       Text("DECISIONS")
         .font(StudioFont.eyebrow).tracking(1.2).foregroundStyle(theme.inkFaint)
+      Text(SeasonGuidance.decisions30.description)
+        .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
+        .fixedSize(horizontal: false, vertical: true)
       ForEach($decisions) { $decision in
         VStack(alignment: .leading, spacing: 6) {
-          TextField("A choice you can make", text: $decision.text)
+          TextField(SeasonGuidance.decisions30.example, text: $decision.text)
             .font(StudioFont.body).foregroundStyle(theme.inkStrong)
             .padding(10)
             .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.line, lineWidth: 1))
@@ -284,10 +307,16 @@ struct SeasonView: View {
     }
   }
 
-  private func field(_ label: String, text: Binding<String>, id: String) -> some View {
+  private func field(
+    _ label: String, text: Binding<String>, id: String, guidance: FieldGuidance? = nil
+  ) -> some View {
     VStack(alignment: .leading, spacing: 6) {
       Text(label.uppercased()).font(StudioFont.eyebrow).tracking(1.2).foregroundStyle(theme.inkFaint)
-      TextField("", text: text)
+      if let guidance {
+        Text(guidance.description).font(StudioFont.meta).foregroundStyle(theme.inkMuted)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      TextField(guidance?.example ?? "", text: text)
         .font(StudioFont.body).foregroundStyle(theme.inkStrong)
         .padding(10)
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.line, lineWidth: 1))
@@ -295,14 +324,27 @@ struct SeasonView: View {
     }
   }
 
-  private func editor(_ label: String, text: Binding<String>, id: String) -> some View {
+  private func editor(
+    _ label: String, text: Binding<String>, id: String, guidance: FieldGuidance? = nil
+  ) -> some View {
     VStack(alignment: .leading, spacing: 6) {
       Text(label.uppercased()).font(StudioFont.eyebrow).tracking(1.2).foregroundStyle(theme.inkFaint)
-      TextEditor(text: text)
-        .font(StudioFont.body).foregroundStyle(theme.inkStrong)
-        .scrollContentBackground(.hidden).frame(minHeight: 80)
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.line, lineWidth: 1))
-        .accessibilityIdentifier(id)
+      if let guidance {
+        Text(guidance.description).font(StudioFont.meta).foregroundStyle(theme.inkMuted)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      ZStack(alignment: .topLeading) {
+        if let guidance, text.wrappedValue.isEmpty {
+          Text(guidance.example)
+            .font(StudioFont.body).foregroundStyle(theme.inkFaint)
+            .padding(.top, 8).padding(.leading, 5).allowsHitTesting(false)
+        }
+        TextEditor(text: text)
+          .font(StudioFont.body).foregroundStyle(theme.inkStrong)
+          .scrollContentBackground(.hidden).frame(minHeight: 80)
+          .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.line, lineWidth: 1))
+          .accessibilityIdentifier(id)
+      }
     }
   }
 

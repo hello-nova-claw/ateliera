@@ -232,22 +232,33 @@ private struct WisdomAddView: View {
             ForEach(WisdomDomain.kinds, id: \.self) { Text($0.capitalized).tag($0) }
           }
           .pickerStyle(.menu).accessibilityIdentifier("wisdom-kind-menu")
-          TextField("A short name (optional)", text: $title)
-            .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
-            .accessibilityIdentifier("wisdom-title-field")
-          TextEditor(text: $noteBody)
-            .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkStrong)
-            .scrollContentBackground(.hidden).frame(minHeight: 140)
-            .accessibilityIdentifier("wisdom-body-editor")
+          GuidedField(description: WisdomGuidance.title.description) {
+            TextField(WisdomGuidance.title.example, text: $title)
+              .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
+              .accessibilityIdentifier("wisdom-title-field")
+          }
+          GuidedField(description: WisdomGuidance.idea.description) {
+            GuidedEditor(
+              text: $noteBody, example: WisdomGuidance.idea.example,
+              minHeight: 140, accessibilityId: "wisdom-body-editor")
+          }
           if !themes.isEmpty {
             Text("THEMES").font(StudioFont.eyebrow).tracking(1.2).foregroundStyle(theme.inkFaint)
             themeChips
           }
           DisclosureGroup("Source", isExpanded: $showSource) {
-            VStack(spacing: 8) {
-              TextField("Creator", text: $creator).accessibilityIdentifier("wisdom-source-creator")
-              TextField("Title", text: $sourceTitle)
-              TextField("URL", text: $url).textInputAutocapitalization(.never)
+            VStack(alignment: .leading, spacing: 12) {
+              GuidedField(label: "Creator", description: WisdomGuidance.creator.description) {
+                TextField(WisdomGuidance.creator.example, text: $creator)
+                  .accessibilityIdentifier("wisdom-source-creator")
+              }
+              GuidedField(label: "Title", description: WisdomGuidance.sourceTitle.description) {
+                TextField(WisdomGuidance.sourceTitle.example, text: $sourceTitle)
+              }
+              GuidedField(label: "Link", description: WisdomGuidance.sourceUrl.description) {
+                TextField(WisdomGuidance.sourceUrl.example, text: $url)
+                  .textInputAutocapitalization(.never)
+              }
             }
             .font(StudioFont.control).foregroundStyle(theme.inkStrong)
           }
@@ -392,10 +403,11 @@ private struct WisdomMakeMineView: View {
           Text("What do I believe about \(themeTitle)? What have I observed? How would this fit my actual life?")
             .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkMuted)
             .fixedSize(horizontal: false, vertical: true)
-          TextEditor(text: $noteBody)
-            .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkStrong)
-            .scrollContentBackground(.hidden).frame(minHeight: 160)
-            .accessibilityIdentifier("wisdom-mine-body")
+          GuidedField(description: WisdomGuidance.makeItMine.description) {
+            GuidedEditor(
+              text: $noteBody, example: WisdomGuidance.makeItMine.example,
+              minHeight: 160, accessibilityId: "wisdom-mine-body")
+          }
         }
         .padding(24)
       }
@@ -433,10 +445,11 @@ private struct WisdomSynthesisView: View {
             .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkMuted)
           TextField("A name for this synthesis (optional)", text: $title)
             .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
-          TextEditor(text: $noteBody)
-            .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkStrong)
-            .scrollContentBackground(.hidden).frame(minHeight: 160)
-            .accessibilityIdentifier("synthesis-body")
+          GuidedField(description: WisdomGuidance.synthesis.description) {
+            GuidedEditor(
+              text: $noteBody, example: WisdomGuidance.synthesis.example,
+              minHeight: 160, accessibilityId: "synthesis-body")
+          }
         }
         .padding(24)
       }

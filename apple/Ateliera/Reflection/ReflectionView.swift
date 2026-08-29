@@ -144,16 +144,10 @@ struct ReflectionView: View {
       }
       .pickerStyle(.segmented)
       .accessibilityIdentifier("reflection-kind")
-      ZStack(alignment: .topLeading) {
-        if draft.isEmpty {
-          Text("What are you noticing?")
-            .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkFaint)
-            .padding(.top, 8).padding(.leading, 5).allowsHitTesting(false)
-        }
-        TextEditor(text: $draft)
-          .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkStrong)
-          .scrollContentBackground(.hidden).frame(minHeight: 80)
-          .accessibilityIdentifier("reflection-editor")
+      GuidedField(description: ReflectionGuidance.sentenceToKeep.description) {
+        GuidedEditor(
+          text: $draft, example: ReflectionGuidance.sentenceToKeep.example,
+          minHeight: 80, accessibilityId: "reflection-editor")
       }
       HStack {
         Spacer()

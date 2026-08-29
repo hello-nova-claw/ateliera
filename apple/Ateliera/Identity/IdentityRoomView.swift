@@ -142,14 +142,17 @@ private struct IdentityAddView: View {
           Text(section.prompt)
             .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkMuted)
             .fixedSize(horizontal: false, vertical: true)
-          TextField("A short name (optional)", text: $title)
-            .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
-            .accessibilityIdentifier("identity-title-field")
+          GuidedField(description: Identity.titleGuidance.description) {
+            TextField(Identity.titleGuidance.example, text: $title)
+              .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
+              .accessibilityIdentifier("identity-title-field")
+          }
           Divider().overlay(theme.line)
-          TextEditor(text: $noteBody)
-            .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkStrong)
-            .scrollContentBackground(.hidden).frame(minHeight: 160)
-            .accessibilityIdentifier("identity-body-editor")
+          GuidedField(description: section.guidance.description) {
+            GuidedEditor(
+              text: $noteBody, example: section.guidance.example,
+              minHeight: 160, accessibilityId: "identity-body-editor")
+          }
         }
         .padding(24)
       }
