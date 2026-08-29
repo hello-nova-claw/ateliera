@@ -134,6 +134,25 @@ extension StudioNote {
         ])))
     extraFrontmatter = extra
   }
+
+  // Reflection evidence + Then-&-Now writers. Kept here so all YamlNode construction
+  // stays in this file (cross-file nested YamlNode use trips a compiler cycle).
+
+  /// Replace the `related_notes` list, dropping the key entirely when empty.
+  mutating func setRelatedNotes(_ ids: [String]) {
+    var extra = extraFrontmatter.filter { $0.0 != "related_notes" }
+    if !ids.isEmpty { extra.append(("related_notes", .list(ids))) }
+    extraFrontmatter = extra
+  }
+
+  /// Set (or clear, when nil/empty) the `then_note_id` scalar.
+  mutating func setThenNoteId(_ id: String?) {
+    var extra = extraFrontmatter.filter { $0.0 != "then_note_id" }
+    if let id, !id.trimmingCharacters(in: .whitespaces).isEmpty {
+      extra.append(("then_note_id", .scalar(id)))
+    }
+    extraFrontmatter = extra
+  }
 }
 
 struct StudioNote {
