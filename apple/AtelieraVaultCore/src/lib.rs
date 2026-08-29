@@ -55,6 +55,28 @@ pub struct WriteOutcome {
     pub revision: String,
 }
 
+/// One write within an atomic batch: content for `path`, with the same optimistic
+/// preconditions as `write_text`.
+#[derive(uniffi::Record)]
+pub struct BatchWrite {
+    pub path: String,
+    pub bytes: Vec<u8>,
+    pub expected_hash: Option<String>,
+    pub expected_missing: bool,
+}
+
+#[derive(Debug, uniffi::Record)]
+pub struct BatchWriteResult {
+    pub path: String,
+    pub hash: String,
+}
+
+#[derive(Debug, uniffi::Record)]
+pub struct AtomicBatchOutcome {
+    pub revision: String,
+    pub results: Vec<BatchWriteResult>,
+}
+
 /// A capability-scoped handle to a Studio vault folder. Opening is the only
 /// ambient-authority boundary; later reads and writes never reopen the path.
 #[derive(uniffi::Object)]
@@ -187,6 +209,133 @@ impl Vault {
     pub fn read_binary(&self, path: String) -> Result<Vec<u8>, VaultError> {
         let parent = open_parent(&self.root, &path, false)?;
         read_file_nofollow(&parent.directory, &parent.basename)
+    }
+
+    /// Atomically write many files at once, guarded by the vault revision (so a
+    /// concurrent write between plan and apply is rejected). Holds the write lock for
+    /// the whole prepare-then-rename sequence and bumps the revision once. All temps
+    /// are written first (and cleaned up on failure); the renames commit last.
+    pub fn write_batch_atomic(
+        &self,
+        expected_revision: String,
+        writes: Vec<BatchWrite>,
+    ) -> Result<AtomicBatchOutcome, VaultError> {
+        if writes.len() > 9_999 {
+            return Err(VaultError::Unavailable);
+        }
+        struct Staged {
+            parent: ParentHandle,
+            temp: String,
+            path: String,
+            hash: String,
+            expected_hash: Option<String>,
+            expected_missing: bool,
+        }
+
+        let _write_guard = self.lock_writes()?;
+        // Revision precondition, read inside the lock (no time-of-check/use race).
+        if self.get_revision()? != expected_revision {
+            return Err(VaultError::Conflict);
+        }
+
+        let mut staged: Vec<Staged> = Vec::new();
+        let cleanup = |staged: &[Staged]| {
+            for entry in staged {
+                let _ = entry.parent.directory.remove_file(&entry.temp);
+            }
+        };
+
+        for write in &writes {
+            let parent = match open_parent(&self.root, &write.path, true) {
+                Ok(parent) => parent,
+                Err(error) => {
+                    cleanup(&staged);
+                    return Err(error);
+                }
+            };
+            if let Err(error) = Self::require_write_condition(
+                &parent.directory,
+                &parent.basename,
+                write.expected_hash.as_deref(),
+                write.expected_missing,
+            ) {
+                cleanup(&staged);
+                return Err(error);
+            }
+            let temporary = temp_name();
+            let mut options = OpenOptions::new();
+            options
+                .create_new(true)
+                .write(true)
+                .follow(FollowSymlinks::No);
+            let result = (|| -> Result<(), VaultError> {
+                let mut file = parent
+                    .directory
+                    .open_with(&temporary, &options)
+                    .map_err(map_path_error)?;
+                file.write_all(&write.bytes)
+                    .map_err(|_| VaultError::Unavailable)?;
+                file.flush().map_err(|_| VaultError::Unavailable)?;
+                file.sync_all().map_err(|_| VaultError::Unavailable)?;
+                Ok(())
+            })();
+            if let Err(error) = result {
+                let _ = parent.directory.remove_file(&temporary);
+                cleanup(&staged);
+                return Err(error);
+            }
+            staged.push(Staged {
+                parent,
+                temp: temporary,
+                path: write.path.clone(),
+                hash: hash(&write.bytes),
+                expected_hash: write.expected_hash.clone(),
+                expected_missing: write.expected_missing,
+            });
+        }
+
+        // Re-check every precondition just before committing.
+        for entry in &staged {
+            if let Err(error) = Self::require_write_condition(
+                &entry.parent.directory,
+                &entry.parent.basename,
+                entry.expected_hash.as_deref(),
+                entry.expected_missing,
+            ) {
+                cleanup(&staged);
+                return Err(error);
+            }
+        }
+
+        self.reserve_revision_locked()?;
+        for entry in &staged {
+            if entry.expected_missing {
+                rename_exclusive(
+                    &entry.parent.directory,
+                    &entry.temp,
+                    &entry.parent.directory,
+                    &entry.parent.basename,
+                )?;
+            } else {
+                entry
+                    .parent
+                    .directory
+                    .rename(&entry.temp, &entry.parent.directory, &entry.parent.basename)
+                    .map_err(map_path_error)?;
+            }
+            sync_directory(&entry.parent.directory)?;
+        }
+
+        Ok(AtomicBatchOutcome {
+            revision: self.get_revision()?,
+            results: staged
+                .iter()
+                .map(|entry| BatchWriteResult {
+                    path: entry.path.clone(),
+                    hash: entry.hash.clone(),
+                })
+                .collect(),
+        })
     }
 
     /// Whether a path exists (false, not an error, for missing parents).
@@ -731,6 +880,64 @@ mod tests {
             .read_binary("Reflection Garden/Media/cover.jpg".into())
             .unwrap();
         assert_eq!(read, bytes);
+    }
+
+    #[test]
+    fn write_batch_atomic_writes_all_and_bumps_revision_once() {
+        let tv = TempVault::new();
+        let start = tv.vault.get_revision().unwrap();
+        let outcome = tv
+            .vault
+            .write_batch_atomic(
+                start.clone(),
+                vec![
+                    BatchWrite {
+                        path: "a.md".into(),
+                        bytes: b"one\n".to_vec(),
+                        expected_hash: None,
+                        expected_missing: true,
+                    },
+                    BatchWrite {
+                        path: "sub/b.md".into(),
+                        bytes: b"two\n".to_vec(),
+                        expected_hash: None,
+                        expected_missing: true,
+                    },
+                ],
+            )
+            .unwrap();
+        assert_eq!(outcome.results.len(), 2);
+        assert_eq!(tv.vault.read_text("a.md".into()).unwrap().text, "one\n");
+        assert_eq!(tv.vault.read_text("sub/b.md".into()).unwrap().text, "two\n");
+        // Exactly one revision bump for the whole batch.
+        assert_eq!(
+            tv.vault.get_revision().unwrap(),
+            (start.parse::<u64>().unwrap() + 1).to_string()
+        );
+    }
+
+    #[test]
+    fn write_batch_atomic_rejects_stale_revision() {
+        let tv = TempVault::new();
+        // A concurrent write advances the revision.
+        tv.vault
+            .write_text("first.md".into(), "x\n".into(), None, true)
+            .unwrap();
+        let err = tv
+            .vault
+            .write_batch_atomic(
+                "0".into(), // stale
+                vec![BatchWrite {
+                    path: "b.md".into(),
+                    bytes: b"y\n".to_vec(),
+                    expected_hash: None,
+                    expected_missing: true,
+                }],
+            )
+            .unwrap_err();
+        assert!(matches!(err, VaultError::Conflict));
+        // Nothing was written.
+        assert!(!tv.vault.exists("b.md".into()).unwrap());
     }
 
     #[test]

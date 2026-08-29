@@ -539,6 +539,32 @@ final class VaultStore {
     return (data, sniffed)
   }
 
+  /// The current vault revision (for import's optimistic batch guard), or "0".
+  func currentRevision() -> String {
+    guard let vault else { return "0" }
+    return (try? vault.getRevision()) ?? "0"
+  }
+
+  /// Apply a set of writes atomically, guarded by `expectedRevision`. Reloads on
+  /// success. Returns false (with `error` set) on failure — e.g. the vault changed
+  /// since the import was planned.
+  @discardableResult
+  func writeBatch(expectedRevision: String, writes: [BatchWrite]) -> Bool {
+    guard let vault else {
+      error = "Choose a Studio folder first."
+      return false
+    }
+    do {
+      _ = try vault.writeBatchAtomic(expectedRevision: expectedRevision, writes: writes)
+      try reload()
+      error = nil
+      return true
+    } catch {
+      self.error = "\(error)"
+      return false
+    }
+  }
+
   /// Every file path in the vault (not directories), for export/backup.
   func listAllPaths() -> [String] {
     guard let vault, let entries = try? vault.list(prefix: nil) else { return [] }

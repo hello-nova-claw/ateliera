@@ -794,6 +794,18 @@ private struct SettingsView: View {
             .padding(.vertical, 14)
           }
           .accessibilityIdentifier("export-button")
+          Divider().overlay(theme.line)
+          NavigationLink {
+            ImportView(store: store)
+          } label: {
+            HStack {
+              Text("Import a backup").font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
+              Spacer()
+              Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(theme.inkFaint)
+            }
+            .padding(.vertical, 14)
+          }
+          .accessibilityIdentifier("import-button")
         }
         .padding(24)
         .frame(maxWidth: .infinity, alignment: .leading)
