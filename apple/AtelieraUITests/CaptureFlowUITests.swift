@@ -306,6 +306,21 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(value.contains("and more"), "restored body was \(value)")
   }
 
+  func testDiagnosticsRecordsASave() {
+    let app = launchEmptyApp()
+    captureAndOpen(app, title: "Diag note", body: "body")
+    // An edit + save records a diagnostic.
+    type(" edited", into: app.textViews["note-body-editor"], in: app)
+    app.buttons["note-save-button"].tap()
+    // Settings → Diagnostics shows the save.
+    app.buttons["settings-button"].tap()
+    let diag = app.buttons["diagnostics-button"]
+    XCTAssertTrue(diag.waitForExistence(timeout: 5))
+    diag.tap()
+    XCTAssertTrue(app.navigationBars["Diagnostics"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["save"].firstMatch.waitForExistence(timeout: 5))
+  }
+
   func testSettingsSwitchesTheme() {
     let app = launchEmptyApp()
     let settings = app.buttons["settings-button"]

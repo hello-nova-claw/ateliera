@@ -60,6 +60,11 @@ final class VaultStore {
   // reload. Kept out of observation since callers query it on demand.
   @ObservationIgnored private let index = SearchIndex()
   @ObservationIgnored private var summariesByPath: [String: NoteSummary] = [:]
+  // Paths of `.md` files the full parser rejected — surfaced as parse-error repair
+  // items. Rebuilt on each reload.
+  @ObservationIgnored private(set) var unparsedPaths: [String] = []
+  // A recorder of recent vault operations, for the diagnostics view.
+  @ObservationIgnored let diagnostics = DiagnosticsRecorder()
   // The full parsed model for every note the schema accepts — the shared source
   // for room projections (P5/P6) and the Foyer (P9). Rebuilt on each reload.
   @ObservationIgnored private(set) var parsedNotes: [StudioNote] = []
@@ -93,9 +98,10 @@ final class VaultStore {
     return index.forwardLinks(id)
   }
 
-  /// The repair queue over the loaded notes (duplicate ids + broken/ambiguous links).
+  /// The repair queue over the loaded notes (parse errors + duplicate ids +
+  /// broken/ambiguous links).
   func repairQueue() -> [RepairItem] {
-    RepairQueue.build(notes: parsedNotesByPath)
+    RepairQueue.build(notes: parsedNotesByPath, unparsedPaths: unparsedPaths)
   }
 
   /// Repair one link occurrence in a note — relink or remove — through the one write
@@ -395,9 +401,11 @@ final class VaultStore {
         createNew: false)
       try reload()
       error = nil
+      diagnostics.record(operation: "save", outcome: "success", fileId: updated.id)
       return true
     } catch let error as VaultError {
       if case .Conflict = error {
+        diagnostics.record(operation: "save", outcome: "conflict", fileId: updated.id)
         // The note changed under us (a concurrent write). Set both: `error` so any
         // non-editor caller (the Gift, a Landscape move) still surfaces the failure,
         // and `conflict` so the note editor can offer a merge choice. The editor
@@ -408,9 +416,11 @@ final class VaultStore {
         return false
       }
       self.error = "\(error)"
+      diagnostics.record(operation: "save", outcome: "failure", errorCode: "\(error)")
       return false
     } catch {
       self.error = "\(error)"
+      diagnostics.record(operation: "save", outcome: "failure", errorCode: "\(error)")
       return false
     }
   }
@@ -600,6 +610,7 @@ final class VaultStore {
     var parsed: [StudioNote] = []
     var parsedPairs: [(path: String, note: StudioNote)] = []
     var indexed: [IndexedNote] = []
+    var unparsed: [String] = []
     for entry in entries where !entry.isDirectory && entry.path.hasSuffix(".md") {
       let read = try vault.readText(path: entry.path)
       // Prefer the full model (all metadata fields); fall back to the lenient
@@ -611,6 +622,7 @@ final class VaultStore {
         indexed.append(Self.indexedNote(from: note, path: entry.path))
         summary = Self.summary(from: note, path: entry.path)
       } else {
+        unparsed.append(entry.path)
         summary = Self.parse(path: entry.path, text: read.text)
       }
       summaries.append(summary)
@@ -618,6 +630,7 @@ final class VaultStore {
     }
     self.parsedNotes = parsed
     self.parsedNotesByPath = parsedPairs
+    self.unparsedPaths = unparsed
     index.rebuild(indexed)
     // Newest first: by `updated`/`created` (ISO strings sort chronologically),
     // then title as a stable tiebreaker for notes without a timestamp.

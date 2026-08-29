@@ -763,13 +763,25 @@ private struct SettingsView: View {
             RepairView(store: store)
           } label: {
             HStack {
-              Text("Repair links").font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
+              Text("Repair notes & links").font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
               Spacer()
               Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(theme.inkFaint)
             }
             .padding(.vertical, 14)
           }
           .accessibilityIdentifier("repair-links-button")
+          Divider().overlay(theme.line)
+          NavigationLink {
+            DiagnosticsView(store: store)
+          } label: {
+            HStack {
+              Text("Diagnostics").font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
+              Spacer()
+              Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(theme.inkFaint)
+            }
+            .padding(.vertical, 14)
+          }
+          .accessibilityIdentifier("diagnostics-button")
         }
         .padding(24)
         .frame(maxWidth: .infinity, alignment: .leading)

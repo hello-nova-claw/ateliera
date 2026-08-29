@@ -41,11 +41,19 @@ enum RepairItem: Equatable, Identifiable {
 }
 
 enum RepairQueue {
-  static func build(notes: [(path: String, note: StudioNote)]) -> [RepairItem] {
+  static func build(
+    notes: [(path: String, note: StudioNote)], unparsedPaths: [String] = []
+  ) -> [RepairItem] {
     // Canonical owner of each id is the first note by path; later ones are duplicates.
     let byPath = notes.sorted { $0.path.localizedCompare($1.path) == .orderedAscending }
     var canonical: [String: String] = [:]
     var metadata: [MetadataItem] = []
+    for path in unparsedPaths {
+      metadata.append(
+        MetadataItem(
+          path: path,
+          message: "This note couldn't be read — its frontmatter needs attention."))
+    }
     for (path, note) in byPath {
       if let owner = canonical[note.id] {
         metadata.append(
