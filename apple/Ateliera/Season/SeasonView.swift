@@ -12,7 +12,16 @@ struct SeasonView: View {
   @State private var wizardStep: SeasonWizardStep = .nameDates
   @State private var beginTitle = ""
   @State private var fields = Fields()
+  @State private var decisions: [EditableDecision] = []
   @State private var closing = false
+
+  // A decision being edited in the wizard (the model's SeasonDecision needs an id).
+  struct EditableDecision: Identifiable {
+    let id = UUID()
+    var text = ""
+    var horizon: SeasonHorizon = .d30
+    var kind: SeasonDecision.Kind = .decision
+  }
 
   init(store: VaultStore, onOpen: @escaping (String) -> Void) {
     self.store = store
@@ -135,6 +144,7 @@ struct SeasonView: View {
       editor("Priorities (one per line)", text: $fields.priorities, id: "season-field-priorities")
     case .decisionsPractices:
       editor("Practices (one per line)", text: $fields.practices, id: "season-field-practices")
+      decisionsEditor
     case .supportsConstraints:
       editor("Support (one per line)", text: $fields.supports, id: "season-field-supports")
       editor("Constraints (one per line)", text: $fields.constraints, id: "season-field-constraints")
@@ -161,7 +171,14 @@ struct SeasonView: View {
     case .priorities:
       answers = .priorities(lines(fields.priorities))
     case .decisionsPractices:
-      answers = .decisionsPractices(decisions: [], practices: lines(fields.practices))
+      let structured = decisions
+        .filter { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty }
+        .map {
+          SeasonDecision(
+            id: $0.id.uuidString, text: $0.text.trimmingCharacters(in: .whitespaces),
+            horizon: $0.horizon, kind: $0.kind)
+        }
+      answers = .decisionsPractices(decisions: structured, practices: lines(fields.practices))
     case .supportsConstraints:
       answers = .supportsConstraints(
         supports: lines(fields.supports), constraints: lines(fields.constraints))
@@ -228,6 +245,43 @@ struct SeasonView: View {
   }
 
   // MARK: - Field helpers
+
+  // A small editor for structured decisions: text + a 30/60/90 horizon + decision or
+  // experiment. Empty rows are dropped when the step is saved.
+  private var decisionsEditor: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Text("DECISIONS")
+        .font(StudioFont.eyebrow).tracking(1.2).foregroundStyle(theme.inkFaint)
+      ForEach($decisions) { $decision in
+        VStack(alignment: .leading, spacing: 6) {
+          TextField("A choice you can make", text: $decision.text)
+            .font(StudioFont.body).foregroundStyle(theme.inkStrong)
+            .padding(10)
+            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.line, lineWidth: 1))
+          HStack(spacing: 10) {
+            Picker("Horizon", selection: $decision.horizon) {
+              ForEach(SeasonHorizon.allCases, id: \.self) { Text("\($0.rawValue)d").tag($0) }
+            }
+            .pickerStyle(.segmented)
+            Picker("Kind", selection: $decision.kind) {
+              Text("Decision").tag(SeasonDecision.Kind.decision)
+              Text("Experiment").tag(SeasonDecision.Kind.experiment)
+            }
+            .pickerStyle(.segmented)
+          }
+        }
+        .padding(.vertical, 4)
+      }
+      Button {
+        decisions.append(EditableDecision())
+      } label: {
+        Label("Add a decision", systemImage: "plus.circle").font(StudioFont.control)
+          .foregroundStyle(theme.link)
+      }
+      .buttonStyle(.plain)
+      .accessibilityIdentifier("season-add-decision")
+    }
+  }
 
   private func field(_ label: String, text: Binding<String>, id: String) -> some View {
     VStack(alignment: .leading, spacing: 6) {

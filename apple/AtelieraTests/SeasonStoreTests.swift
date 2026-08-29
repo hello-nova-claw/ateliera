@@ -53,6 +53,22 @@ final class SeasonStoreTests: XCTestCase {
     XCTAssertEqual(season.record?.state.practices, ["walk"])
   }
 
+  func testDecisionsRoundTripThroughSaveStep() throws {
+    let (dir, store) = try makeStore()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let season = SeasonStore(store: store)
+    XCTAssertTrue(season.beginSeason(title: "Spring", startsOn: nil, endsOn: nil))
+    let decision = SeasonDecision(id: "D1", text: "take the sabbatical", horizon: .d60, kind: .experiment)
+    XCTAssertTrue(
+      season.saveStep(.decisionsPractices(decisions: [decision], practices: ["walk"])))
+    // Re-decode from the note on disk.
+    let path = try XCTUnwrap(season.record?.path)
+    let reread = try XCTUnwrap(store.beginEdit(path: path))
+    let state = SeasonNoteMapper.stateFromNote(reread.note)
+    XCTAssertEqual(state.decisions, [decision])
+    XCTAssertEqual(state.practices, ["walk"])
+  }
+
   func testActivateBeforeCompletingFails() throws {
     let (dir, store) = try makeStore()
     defer { try? FileManager.default.removeItem(at: dir) }
