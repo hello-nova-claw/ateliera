@@ -650,6 +650,19 @@ final class VaultStore {
     }
   }
 
+  /// Remove a vault file (e.g. pruning an old revision snapshot). Missing is a no-op.
+  @discardableResult
+  func removeFile(path: String) -> Bool {
+    guard let vault else { return false }
+    do {
+      try vault.remove(path: path)
+      return true
+    } catch {
+      self.error = "\(error)"
+      return false
+    }
+  }
+
   /// Every file path in the vault (not directories), for export/backup.
   func listAllPaths() -> [String] {
     guard let vault, let entries = try? vault.list(prefix: nil) else { return [] }

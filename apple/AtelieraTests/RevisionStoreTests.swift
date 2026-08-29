@@ -46,9 +46,34 @@ final class RevisionStoreTests: XCTestCase {
     XCTAssertTrue(store.capture(title: "A", body: "a", room: "inbox"))
     let path = try XCTUnwrap(store.parsedNotesByPath.first?.path)
     let revisions = RevisionStore(store: store)
+    // Different days within the retention window both survive pruning.
+    _ = revisions.snapshot(reason: "migration", paths: [path], now: "2026-06-01T00:00:00.000Z", id: "OLD")
+    _ = revisions.snapshot(reason: "migration", paths: [path], now: "2026-06-15T00:00:00.000Z", id: "NEW")
+    XCTAssertEqual(revisions.list().map { $0.id }, ["NEW", "OLD"])
+  }
+
+  func testPruneRemovesSnapshotsPastRetention() throws {
+    let (dir, store) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.capture(title: "A", body: "a", room: "inbox"))
+    let path = try XCTUnwrap(store.parsedNotesByPath.first?.path)
+    let revisions = RevisionStore(store: store)
+    // An old snapshot, then a recent one — the recent one's auto-prune drops the old.
     _ = revisions.snapshot(reason: "migration", paths: [path], now: "2026-01-01T00:00:00.000Z", id: "OLD")
     _ = revisions.snapshot(reason: "migration", paths: [path], now: "2026-06-01T00:00:00.000Z", id: "NEW")
-    XCTAssertEqual(revisions.list().map { $0.id }, ["NEW", "OLD"])
+    XCTAssertEqual(revisions.list().map { $0.id }, ["NEW"])
+  }
+
+  func testPruneKeepsOnePerDay() throws {
+    let (dir, store) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.capture(title: "A", body: "a", room: "inbox"))
+    let path = try XCTUnwrap(store.parsedNotesByPath.first?.path)
+    let revisions = RevisionStore(store: store)
+    _ = revisions.snapshot(reason: "migration", paths: [path], now: "2026-06-01T10:00:00.000Z", id: "EARLY")
+    _ = revisions.snapshot(reason: "migration", paths: [path], now: "2026-06-01T11:00:00.000Z", id: "LATE")
+    // Same day → only the newest is kept.
+    XCTAssertEqual(revisions.list().map { $0.id }, ["LATE"])
   }
 
   func testConflictOverwriteLeavesASnapshot() throws {

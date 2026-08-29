@@ -3,8 +3,8 @@ import Foundation
 // Point-in-time snapshots of vault files under `.studio/backups/`, mirroring
 // `revisions.ts`. A snapshot copies the current bytes of a set of paths into a dated
 // folder plus a manifest, written atomically through the Rust batch. Restore writes
-// the snapshot's files back to their original paths. (Pruning old snapshots needs a
-// `remove` FFI and is a follow-up; snapshots accumulate for now.)
+// the snapshot's files back to their original paths. Each snapshot prunes older ones
+// via the `remove` FFI: one snapshot per day, nothing past a 30-day retention window.
 struct RevisionFile: Codable, Equatable {
   let originalPath: String
   let snapshotPath: String
@@ -69,7 +69,30 @@ struct RevisionStore {
     guard store.writeBatch(expectedRevision: store.currentRevision(), writes: writes) else {
       return nil
     }
+    prune(now: now)
     return RevisionSnapshot(manifestPath: manifestPath, manifest: manifest)
+  }
+
+  /// Keep at most one snapshot per day and drop anything older than the retention
+  /// window (30 days), removing each dropped snapshot's files + manifest.
+  func prune(now: String, retentionDays: Int = 30) {
+    let cutoffDay = String(Resurfacing.addDaysISO(String(now.prefix(10)), -retentionDays).prefix(10))
+    var keptDays = Set<String>()
+    var toRemove: [RevisionSnapshot] = []
+    for snapshot in list() {  // newest first
+      let day = String(snapshot.manifest.createdAt.prefix(10))
+      if day < cutoffDay {
+        toRemove.append(snapshot)
+      } else if keptDays.contains(day) {
+        toRemove.append(snapshot)
+      } else {
+        keptDays.insert(day)
+      }
+    }
+    for snapshot in toRemove {
+      for file in snapshot.manifest.files { store.removeFile(path: file.snapshotPath) }
+      store.removeFile(path: snapshot.manifestPath)
+    }
   }
 
   /// Every snapshot in the vault, newest first.

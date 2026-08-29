@@ -211,6 +211,28 @@ impl Vault {
         read_file_nofollow(&parent.directory, &parent.basename)
     }
 
+    /// Remove a file (e.g. pruning an old revision snapshot), refusing symlinks and
+    /// traversal. A missing path is a no-op, not an error. Bumps the revision.
+    pub fn remove(&self, path: String) -> Result<(), VaultError> {
+        let _write_guard = self.lock_writes()?;
+        let parent = open_parent(&self.root, &path, false)?;
+        match parent.directory.symlink_metadata(&parent.basename) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                return Err(VaultError::PathEscape)
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(map_path_error(error)),
+        }
+        parent
+            .directory
+            .remove_file(&parent.basename)
+            .map_err(map_path_error)?;
+        self.reserve_revision_locked()?;
+        sync_directory(&parent.directory)?;
+        Ok(())
+    }
+
     /// Atomically write many files at once, guarded by the vault revision (so a
     /// concurrent write between plan and apply is rejected). Holds the write lock for
     /// the whole prepare-then-rename sequence and bumps the revision once. All temps
@@ -938,6 +960,29 @@ mod tests {
         assert!(matches!(err, VaultError::Conflict));
         // Nothing was written.
         assert!(!tv.vault.exists("b.md".into()).unwrap());
+    }
+
+    #[test]
+    fn removes_a_file_and_bumps_revision() {
+        let tv = TempVault::new();
+        tv.vault
+            .write_text("a.md".into(), "one\n".into(), None, true)
+            .unwrap();
+        let before = tv.vault.get_revision().unwrap();
+        tv.vault.remove("a.md".into()).unwrap();
+        assert!(!tv.vault.exists("a.md".into()).unwrap());
+        assert_ne!(tv.vault.get_revision().unwrap(), before);
+        // Removing a missing file is a no-op.
+        tv.vault.remove("a.md".into()).unwrap();
+    }
+
+    #[test]
+    fn remove_refuses_traversal() {
+        let tv = TempVault::new();
+        assert!(matches!(
+            tv.vault.remove("../x".into()).unwrap_err(),
+            VaultError::PathEscape
+        ));
     }
 
     #[test]
