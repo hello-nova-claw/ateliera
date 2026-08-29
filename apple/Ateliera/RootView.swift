@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -503,6 +504,8 @@ private struct NoteEditView: View {
   @State private var titleText: String
   @State private var showingPreview = false
   @State private var notFound = false
+  @State private var coverItem: PhotosPickerItem?
+  @State private var coverImage: UIImage?
 
   init(
     store: VaultStore, editable: EditableNote, onClose: @escaping () -> Void,
@@ -567,6 +570,7 @@ private struct NoteEditView: View {
               .font(StudioFont.control).foregroundStyle(theme.link)
           }
           .accessibilityIdentifier("note-links-button")
+          coverSection
         }
         .padding(24)
       }
@@ -592,6 +596,50 @@ private struct NoteEditView: View {
         Button("OK", role: .cancel) {}
       } message: {
         Text("That link doesn't point to a note in this Studio yet.")
+      }
+    }
+    .task { loadExistingCover() }
+    .onChange(of: coverItem) { importPickedCover() }
+  }
+
+  // A cover-image row: the current cover thumbnail (if any) + a photo picker that
+  // imports one into the vault (validated + written through the Rust binary path).
+  private var coverSection: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Divider().overlay(theme.line)
+      if let coverImage {
+        Image(uiImage: coverImage)
+          .resizable().scaledToFill()
+          .frame(maxWidth: .infinity).frame(height: 160)
+          .clipShape(RoundedRectangle(cornerRadius: 10))
+          .accessibilityIdentifier("note-cover-image")
+      }
+      PhotosPicker(selection: $coverItem, matching: .images) {
+        Label(
+          note.display.cover == nil ? "Add a cover image" : "Change cover image",
+          systemImage: "photo")
+          .font(StudioFont.control).foregroundStyle(theme.link)
+      }
+      .accessibilityIdentifier("note-cover-picker")
+    }
+  }
+
+  private func loadExistingCover() {
+    guard let reference = note.display.cover,
+      let cover = store.readCover(reference: reference, forNotePath: editable.path)
+    else { return }
+    coverImage = UIImage(data: cover.data)
+  }
+
+  private func importPickedCover() {
+    guard let coverItem else { return }
+    Task {
+      guard let data = try? await coverItem.loadTransferable(type: Data.self) else { return }
+      if let reference = store.setCover(data: data, forNotePath: editable.path) {
+        await MainActor.run {
+          note.display = NoteDisplay(cover: reference, featured: note.display.featured)
+          coverImage = UIImage(data: data)
+        }
       }
     }
   }
