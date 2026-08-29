@@ -1143,3 +1143,27 @@ round-trip); the system picker isn't XCUITest-driveable so the flow is unit-cove
 media.** Native parity now spans P1–P7. Remaining roadmap: P8 (export/import ZIP,
 revisions, diagnostics, conflict-merge — more Rust FFI) and P9 (onboarding +
 disclosure + rich Foyer).
+
+## 2026-08-29 — Native parity P8 (partial): conflict merge + draft recovery
+
+The two self-contained, high-value data-management slices (no new Rust FFI),
+per the P8 spec's recommended ordering.
+
+- **Conflict merge**: `VaultStore.saveEdit` now catches `VaultError.Conflict` (a
+  stale `expected_hash` from a concurrent write) and, instead of silently losing the
+  edit, populates a `ConflictState` (draft + the current stored text). The note
+  editor presents `ConflictMergeView` — keep the stored version, overwrite with the
+  draft (re-reading the fresh hash), or save the draft as a new note. It sets `error`
+  too so non-editor callers (the Gift, a Landscape move) still surface the failure,
+  and the editor clears any stale conflict on open so it never leaks across flows.
+  4 unit tests.
+- **Draft recovery**: `DraftRecovery` (ported from draft-recovery.ts) autosaves the
+  in-progress edit to `UserDefaults` (keyed per vault + note path) as you type;
+  reopening the note offers a "Restore draft" banner when the stored note still
+  matches the hash the draft was based on (`.recoverable`), else it's `.stale`. The
+  draft clears on a successful save. `studioId` is the vault path. 5 unit + 1 XCUITest.
+
+Full suite green. Remaining P8 (each its own focused slice): diagnostics recorder +
+parse-error repair queue (no Rust), then export/import ZIP + revision history — which
+need new Rust FFI (`write_batch_atomic`, `remove`, `move_file`) and a byte-exact ZIP32
+writer/reader matching the web `zip32.ts`. Then P9 (onboarding + rich Foyer).
