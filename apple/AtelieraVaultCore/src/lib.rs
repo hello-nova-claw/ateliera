@@ -167,6 +167,28 @@ impl Vault {
         })
     }
 
+    /// Write arbitrary binary content (e.g. a cover image) through the same atomic,
+    /// path-contained, symlink-refusing write path as `write_text`. Creating
+    /// intermediate directories as needed (the `Media/` subfolder pattern).
+    pub fn write_binary(
+        &self,
+        path: String,
+        bytes: Vec<u8>,
+        create_new: bool,
+    ) -> Result<WriteOutcome, VaultError> {
+        let content_hash = self.write_atomic(&path, &bytes, None, create_new)?;
+        Ok(WriteOutcome {
+            hash: content_hash,
+            revision: self.get_revision()?,
+        })
+    }
+
+    /// Read a file's raw bytes, refusing symlinks and traversal.
+    pub fn read_binary(&self, path: String) -> Result<Vec<u8>, VaultError> {
+        let parent = open_parent(&self.root, &path, false)?;
+        read_file_nofollow(&parent.directory, &parent.basename)
+    }
+
     /// Whether a path exists (false, not an error, for missing parents).
     pub fn exists(&self, path: String) -> Result<bool, VaultError> {
         let parent = match open_parent(&self.root, &path, false) {
@@ -688,6 +710,37 @@ mod tests {
             .unwrap()
             .iter()
             .any(|entry| entry.path == "notes" && entry.is_directory));
+    }
+
+    #[test]
+    fn writes_and_reads_binary() {
+        let tv = TempVault::new();
+        // JPEG-ish magic bytes into a Media/ subfolder (created on the fly).
+        let bytes = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10];
+        let outcome = tv
+            .vault
+            .write_binary(
+                "Reflection Garden/Media/cover.jpg".into(),
+                bytes.clone(),
+                true,
+            )
+            .unwrap();
+        assert_eq!(outcome.hash, hash(&bytes));
+        let read = tv
+            .vault
+            .read_binary("Reflection Garden/Media/cover.jpg".into())
+            .unwrap();
+        assert_eq!(read, bytes);
+    }
+
+    #[test]
+    fn write_binary_refuses_traversal() {
+        let tv = TempVault::new();
+        let err = tv
+            .vault
+            .write_binary("../escape.jpg".into(), vec![1, 2, 3], true)
+            .unwrap_err();
+        assert!(matches!(err, VaultError::PathEscape));
     }
 
     #[test]

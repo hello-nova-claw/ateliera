@@ -425,6 +425,52 @@ final class VaultStore {
     return saveEdit(editable, updatedNote: updated)
   }
 
+  /// Import a cover image for the note at `notePath`: validate format + size +
+  /// magic bytes, write it under the note's folder as `Media/cover.<ext>` through
+  /// the Rust core's binary write, and return the vault-relative reference to store
+  /// in `display.cover`. Returns nil (with `error` set) on any failure.
+  func setCover(data: Data, forNotePath notePath: String) -> String? {
+    guard let vault else {
+      error = "Choose a Studio folder first."
+      return nil
+    }
+    guard data.count <= VaultMedia.maxBytes else {
+      error = "That image is too large (max 16 MB)."
+      return nil
+    }
+    guard let mime = VaultMedia.sniff(data), let ext = VaultMedia.extensionByMime[mime] else {
+      error = "That image format isn't supported."
+      return nil
+    }
+    let reference = "Media/cover.\(ext)"
+    guard let fullPath = VaultMedia.normalizeCoverPath(notePath: notePath, reference: reference)
+    else {
+      error = "Couldn't place the image."
+      return nil
+    }
+    do {
+      _ = try vault.writeBinary(path: fullPath, bytes: data, createNew: false)
+      try reload()
+      error = nil
+      return reference
+    } catch {
+      self.error = "\(error)"
+      return nil
+    }
+  }
+
+  /// Read a note's cover image bytes + MIME, validating the path + size + magic.
+  func readCover(reference: String, forNotePath notePath: String) -> (data: Data, mime: String)? {
+    guard let vault,
+      let fullPath = VaultMedia.normalizeCoverPath(notePath: notePath, reference: reference),
+      let declared = VaultMedia.mimeForExtension(fullPath),
+      let data = try? vault.readBinary(path: fullPath)
+    else { return nil }
+    guard data.count <= VaultMedia.maxBytes, let sniffed = VaultMedia.sniff(data), sniffed == declared
+    else { return nil }
+    return (data, sniffed)
+  }
+
   /// Read an arbitrary vault file (config / view-state JSON), or nil if it's absent
   /// or the vault is closed. Used by the Landscape/Identity stores for `.studio/`
   /// state that isn't a note.
