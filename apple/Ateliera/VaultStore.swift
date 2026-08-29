@@ -36,11 +36,21 @@ struct EditableNote: Identifiable {
 // Opens a Studio vault (a user-picked, security-scoped iCloud folder — or a seeded
 // fixture for the demo) via the reused Rust core, and lists its notes. Persists an
 // iOS security-scoped bookmark so relaunch re-opens without re-picking.
+// A save that lost a race: the user's draft and the note as it's currently stored,
+// so the editor can offer a merge choice.
+struct ConflictState: Identifiable {
+  let id = UUID()
+  let path: String
+  let draft: StudioNote
+  let storedText: String
+}
+
 @Observable
 final class VaultStore {
   var notes: [NoteSummary] = []
   var vaultName: String = ""
   var error: String?
+  var conflict: ConflictState?
 
   @ObservationIgnored private var vault: Vault?
   @ObservationIgnored private let bookmarkKey = "ateliera.vault.bookmark"
@@ -383,10 +393,52 @@ final class VaultStore {
       try reload()
       error = nil
       return true
+    } catch let error as VaultError {
+      if case .Conflict = error {
+        // The note changed under us (a concurrent write). Rather than silently lose
+        // the edit, surface a merge choice: keep the stored version, overwrite, or
+        // save the draft as a new note.
+        let storedText = (try? vault.readText(path: editable.path))?.text ?? ""
+        conflict = ConflictState(path: editable.path, draft: updatedNote, storedText: storedText)
+        return false
+      }
+      self.error = "\(error)"
+      return false
     } catch {
       self.error = "\(error)"
       return false
     }
+  }
+
+  /// Resolve a save conflict by overwriting the stored note with the draft (re-reads
+  /// the current hash first, so it writes cleanly on top of the concurrent change).
+  @discardableResult
+  func resolveConflictOverwrite() -> Bool {
+    guard let conflict, let fresh = beginEdit(path: conflict.path) else { return false }
+    let draft = conflict.draft
+    if saveEdit(fresh, updatedNote: draft) {
+      self.conflict = nil
+      return true
+    }
+    return false
+  }
+
+  /// Resolve a save conflict by keeping the draft as a brand-new note (leaving the
+  /// concurrently-changed note untouched).
+  @discardableResult
+  func resolveConflictSaveAsNew() -> Bool {
+    guard let conflict else { return false }
+    let draft = conflict.draft
+    if capture(title: draft.title, body: draft.body, room: draft.rooms.first ?? "inbox") {
+      self.conflict = nil
+      return true
+    }
+    return false
+  }
+
+  /// Dismiss the conflict, keeping the stored version and discarding the draft.
+  func dismissConflict() {
+    conflict = nil
   }
 
   /// Convenience for the plain title+body editor: mutate those two fields on the

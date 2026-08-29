@@ -600,6 +600,20 @@ private struct NoteEditView: View {
     }
     .task { loadExistingCover() }
     .onChange(of: coverItem) { importPickedCover() }
+    .sheet(
+      item: Binding(get: { store.conflict }, set: { if $0 == nil { store.dismissConflict() } })
+    ) { conflict in
+      ConflictMergeView(
+        conflict: conflict,
+        onKeepStored: {
+          store.dismissConflict()
+          onClose()
+        },
+        onOverwrite: { if store.resolveConflictOverwrite() { onClose() } },
+        onSaveAsNew: { if store.resolveConflictSaveAsNew() { onClose() } }
+      )
+      .studioTheme(theme)
+    }
   }
 
   // A cover-image row: the current cover thumbnail (if any) + a photo picker that
