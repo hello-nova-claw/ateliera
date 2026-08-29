@@ -1123,3 +1123,23 @@ Deferred (P7 remaining): cover-image media — needs a Rust core `write_binary`/
 `read_binary` extension (+ UniFFI regen), then `VaultMediaStore` (path guard + magic-
 byte sniff + 16 MB cap) and a `PhotosPicker`. Then P8 (export/import/revisions/
 conflict-merge) and P9 (onboarding + rich Foyer).
+
+## 2026-08-29 — Native parity P7 complete: media (cover images)
+
+The last P7 slice, and the first Rust-core change since N3. Added
+`write_binary`/`read_binary` to `AtelieraVaultCore` (`src/lib.rs`) — same atomic,
+path-contained, symlink-refusing write path as `write_text`, taking/returning raw
+bytes (2 cargo tests: round-trip + traversal refusal); rebuilt the 3-slice
+XCFramework + UniFFI Swift bindings via `build.sh`. `VaultMedia` ports
+`cover-media.ts`: `normalizeCoverPath` (traversal / scheme / absolute / `.studio*`
+guards — golden-matched to the TS, whose real behaviour differs from the P7 spec's
+examples), extension→MIME, and magic-byte sniffing (JPEG/PNG/GIF/WebP/AVIF), with a
+16 MB cap. `VaultStore.setCover`/`readCover` write + read a validated `Media/cover.<ext>`
+through the Rust binary path. A `PhotosPicker` in the note editor imports a cover and
+sets `display.cover`, showing the thumbnail. 5 media unit tests (incl. the full vault
+round-trip); the system picker isn't XCUITest-driveable so the flow is unit-covered.
+
+**P7 done: classified capture (Foyer/Landscape/Identity/Wisdom/Uncharted) + cover
+media.** Native parity now spans P1–P7. Remaining roadmap: P8 (export/import ZIP,
+revisions, diagnostics, conflict-merge — more Rust FFI) and P9 (onboarding +
+disclosure + rich Foyer).
