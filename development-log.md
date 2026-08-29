@@ -1192,3 +1192,19 @@ Two more P8 slices, taking data-management to near-complete.
 
 Full suite green. **P8 now: conflict merge ✓, draft recovery ✓, diagnostics ✓,
 parse-error repair ✓, export ✓, import ✓.** Remaining: revision history. Then P9.
+
+## 2026-08-29 — Native parity P8 complete: revision history
+
+The last P8 slice. `RevisionStore` writes point-in-time snapshots under
+`.studio/backups/<day>/<timestamp>--<id>/` — a manifest plus a copy of each file's
+current bytes — through the atomic batch write, and restores them back to their
+original paths. A snapshot is taken automatically before a conflict overwrite, so the
+version being replaced stays recoverable. A `RevisionHistoryView` in Settings lists
+snapshots (newest first) with a restore action. 3 unit tests (snapshot→list→restore
+round-trip, ordering, and the auto-snapshot on conflict overwrite). Pruning old
+snapshots (needs a `remove` FFI) is a documented follow-up; snapshots accumulate.
+
+**P8 complete: conflict merge, draft recovery, diagnostics, parse-error repair,
+export, import (atomic Rust batch), and revision history.** Native parity now spans
+P1–P8. Remaining: **P9** — onboarding + progressive disclosure + a richer Foyer — the
+final roadmap phase.
