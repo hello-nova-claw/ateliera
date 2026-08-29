@@ -233,6 +233,26 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["Keep going"].firstMatch.waitForExistence(timeout: 5))
   }
 
+  func testReflectionCaptureAndCelebrationTab() {
+    let app = launchEmptyApp()
+    let room = app.buttons["room-reflection-garden"]
+    XCTAssertTrue(room.waitForExistence(timeout: 8))
+    room.tap()
+    XCTAssertTrue(app.navigationBars["Reflection Garden"].waitForExistence(timeout: 5))
+    // Capture a reflection (default kind) — it shows in the Garden.
+    type("Reflection alpha", into: app.textViews["reflection-editor"], in: app)
+    app.buttons["reflection-keep"].tap()
+    XCTAssertTrue(app.staticTexts["Reflection alpha"].firstMatch.waitForExistence(timeout: 5))
+    // The Celebration tab filters it out.
+    app.segmentedControls["reflection-tabs"].buttons["Celebration"].tap()
+    XCTAssertFalse(app.staticTexts["Reflection alpha"].exists)
+    // Capture a celebration → it shows under the Celebration tab.
+    app.segmentedControls["reflection-kind"].buttons["Celebration"].tap()
+    type("Celebration beta", into: app.textViews["reflection-editor"], in: app)
+    app.buttons["reflection-keep"].tap()
+    XCTAssertTrue(app.staticTexts["Celebration beta"].firstMatch.waitForExistence(timeout: 5))
+  }
+
   func testSettingsSwitchesTheme() {
     let app = launchEmptyApp()
     let settings = app.buttons["settings-button"]

@@ -210,6 +210,8 @@ struct RootView: View {
       UnchartedView(store: store, onOpen: openPath)
     case "wisdom-garden":
       WisdomView(store: store, onOpen: openPath)
+    case "reflection-garden":
+      ReflectionView(store: store, onOpen: openPath)
     default:
       RoomView(
         room: room, store: store, onOpen: openEdit,
