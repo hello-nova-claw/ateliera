@@ -28,6 +28,7 @@ struct RootView: View {
   @State private var hemisphere: Hemisphere = SharedStore.bestHemisphere
   @State private var profileStore = RhythmProfileStore()
   @State private var showToday = false  // the atmosphere panel starts tucked away
+  @State private var goToSeason = false  // an accepted "begin a season" invitation
 
   // One sheet at a time: a fresh capture, an edit, or the rhythm profile.
   private enum ActiveSheet: Identifiable {
@@ -38,6 +39,7 @@ struct RootView: View {
     case settings
     case placement
     case tour
+    case moonIntention(lunation: String)
 
     var id: String {
       switch self {
@@ -48,6 +50,7 @@ struct RootView: View {
       case .settings: return "settings"
       case .placement: return "placement"
       case .tour: return "tour"
+      case .moonIntention(let lunation): return "moon:\(lunation)"
       }
     }
   }
@@ -62,6 +65,27 @@ struct RootView: View {
     let today = formatter.string(from: Date())
     return Rhythm.computeContext(
       profile: RhythmProfile(hemisphere: hemisphere, cycle: cycle), date: today)
+  }
+
+  // The single, contextual invitation to offer beside the Gift (or none).
+  private var currentInvitation: Invitation? {
+    InvitationEngine.current(
+      date: almanacContext.date, hemisphere: hemisphere, notes: store.parsedNotes,
+      dismissed: store.dismissedInvitations)
+  }
+
+  private func accept(_ invitation: Invitation) {
+    switch invitation.kind {
+    case .newMoonIntention(let lunation): activeSheet = .moonIntention(lunation: lunation)
+    case .seasonAtTurningPoint: goToSeason = true
+    }
+  }
+
+  @ViewBuilder
+  private var seasonDestination: some View {
+    if let room = Room.all.first(where: { $0.id == "current-season" }) {
+      roomDestination(room)
+    }
   }
 
   var body: some View {
@@ -79,6 +103,13 @@ struct RootView: View {
 
           TodaysGiftView(store: giftStore) { quality in
             giftStore.grade(quality, today: almanacContext.date)
+          }
+
+          if let invitation = currentInvitation {
+            InvitationCard(
+              invitation: invitation,
+              onAccept: { accept(invitation) },
+              onDismiss: { store.dismissInvitation(invitation.id) })
           }
 
           // One capture entry: a quick note by default, or place it as a Foyer card
@@ -104,6 +135,7 @@ struct RootView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
       }
       .background(theme.canvas)
+      .navigationDestination(isPresented: $goToSeason) { seasonDestination }
     }
     .fileImporter(
       isPresented: $picking, allowedContentTypes: [.folder], allowsMultipleSelection: false
@@ -165,6 +197,12 @@ struct RootView: View {
           OnboardingStore().markTourSeen(studioId: store.studioId)
           activeSheet = nil
         })
+      case .moonIntention(let lunation):
+        NoteEditorSheet(
+          heading: "New moon intention", confirmLabel: "Keep", initialTitle: "",
+          initialBody: "",
+          onSave: { _, body in store.captureMoonIntention(body: body, lunationDate: lunation) },
+          onClose: { activeSheet = nil })
       }
     }
   }
@@ -871,6 +909,38 @@ private struct NotePickerSheet: View {
         ToolbarItem(placement: .cancellationAction) { Button("Cancel") { onClose() } }
       }
     }
+  }
+}
+
+// A single calm invitation beside the Gift — accept to open the aligned flow, or wave
+// it away with "Not now".
+private struct InvitationCard: View {
+  @Environment(\.studioTheme) private var theme
+  let invitation: Invitation
+  let onAccept: () -> Void
+  let onDismiss: () -> Void
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Text(invitation.title.uppercased())
+        .font(StudioFont.eyebrow).tracking(1.4).foregroundStyle(theme.vision)
+      Text(invitation.body)
+        .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkStrong)
+        .fixedSize(horizontal: false, vertical: true)
+      HStack(spacing: 18) {
+        Button(invitation.acceptLabel, action: onAccept)
+          .font(StudioFont.control).foregroundStyle(theme.link)
+          .accessibilityIdentifier("invitation-accept")
+        Button("Not now", action: onDismiss)
+          .font(StudioFont.control).foregroundStyle(theme.inkMuted)
+          .accessibilityIdentifier("invitation-dismiss")
+      }
+    }
+    .padding(16)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(RoundedRectangle(cornerRadius: 12).fill(theme.accentSoft))
+    .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.line, lineWidth: 1))
+    .accessibilityIdentifier("invitation-card")
   }
 }
 

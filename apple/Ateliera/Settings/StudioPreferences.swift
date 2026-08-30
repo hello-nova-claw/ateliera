@@ -74,3 +74,24 @@ struct PreferencesStore {
     defaults.set(data, forKey: key(studioId))
   }
 }
+
+// Which Foyer invitations you've waved away, keyed per vault. Ephemeral UI state (not
+// vault content): a dismissed occurrence stays hidden, but a future new moon / equinox
+// has its own key and returns.
+struct InvitationDismissalStore {
+  private let defaults: UserDefaults
+
+  init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+
+  private func key(_ studioId: String) -> String {
+    "studio:invitations-dismissed:\(studioId.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? studioId)"
+  }
+
+  func load(studioId: String) -> Set<String> {
+    Set(defaults.stringArray(forKey: key(studioId)) ?? [])
+  }
+
+  func save(_ dismissed: Set<String>, studioId: String) {
+    defaults.set(Array(dismissed), forKey: key(studioId))
+  }
+}

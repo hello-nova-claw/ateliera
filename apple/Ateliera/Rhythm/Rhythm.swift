@@ -20,6 +20,15 @@ enum MoonPhase: String, CaseIterable, Equatable {
 
 enum Season: String, Equatable {
   case winter, spring, summer, autumn
+
+  var opposite: Season {
+    switch self {
+    case .winter: return .summer
+    case .summer: return .winter
+    case .spring: return .autumn
+    case .autumn: return .spring
+    }
+  }
 }
 
 // How the year's seasons are bounded: by calendar month (meteorological) or by the

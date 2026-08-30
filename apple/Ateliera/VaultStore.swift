@@ -61,9 +61,12 @@ final class VaultStore {
   var conflict: ConflictState?
   // Progressive-disclosure preferences (which rooms/sections/rhythm layers show).
   var preferences = StoredStudioPreferences()
+  // Foyer invitations the user has waved away (per vault, ephemeral).
+  var dismissedInvitations: Set<String> = []
   // A stable identifier for the open vault, used to scope per-note draft recovery.
   @ObservationIgnored private(set) var studioId: String = ""
   @ObservationIgnored private let preferencesStore = PreferencesStore()
+  @ObservationIgnored private let invitationDismissals = InvitationDismissalStore()
   // True on the open that first seeded a brand-new Studio — the cue to offer the tour.
   @ObservationIgnored private(set) var seededNewStudio = false
 
@@ -312,6 +315,23 @@ final class VaultStore {
     } else {
       preferences = StoredStudioPreferences()
     }
+    dismissedInvitations = invitationDismissals.load(studioId: studioId)
+  }
+
+  /// Wave away a Foyer invitation (this occurrence only).
+  func dismissInvitation(_ id: String) {
+    dismissedInvitations.insert(id)
+    invitationDismissals.save(dismissedInvitations, studioId: studioId)
+  }
+
+  /// Capture a moon-intention note stamped with its lunation, so the cycle flow can find
+  /// it later. Filed in the Reflection Garden.
+  @discardableResult
+  func captureMoonIntention(body: String, lunationDate: String) -> Bool {
+    capture(
+      title: nil, body: body, room: "reflection-garden", cardType: "moon-intention",
+      semanticType: "vision",
+      extraFrontmatter: [("moon_lunation", .scalar(lunationDate)), ("moon_phase", .scalar("new"))])
   }
 
   func setRoomVisible(_ id: String, _ visible: Bool) {

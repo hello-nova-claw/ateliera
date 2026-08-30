@@ -134,6 +134,39 @@ enum Sky {
     return newMs <= fullMs ? (.new, newMs) : (.full, fullMs)
   }
 
+  /// The occurrence of `phase` nearest to `ms` (before or after).
+  static func nearestMoonPhase(toMs ms: Int64, phase: MoonPhase) -> Int64 {
+    let center = ((decimalYear(ms) - 2000) * 12.3685).rounded()
+    var best = moonPhaseMs(k: center + phase.rawValue)
+    for i in -2...2 {
+      let t = moonPhaseMs(k: center + Double(i) + phase.rawValue)
+      if abs(t - ms) < abs(best - ms) { best = t }
+    }
+    return best
+  }
+
+  // Civil (proleptic-Gregorian, UTC) date components from millis — inverse of
+  // Rhythm.utcMillis; used for event date strings and the year.
+  static func civil(fromMs ms: Int64) -> (year: Int, month: Int, day: Int) {
+    var days = Int(ms / 86_400_000)
+    if ms < 0 && ms % 86_400_000 != 0 { days -= 1 }
+    let z = days + 719_468
+    let era = (z >= 0 ? z : z - 146_096) / 146_097
+    let doe = z - era * 146_097
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365
+    let y0 = yoe + era * 400
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+    let mp = (5 * doy + 2) / 153
+    let day = doy - (153 * mp + 2) / 5 + 1
+    let month = mp < 10 ? mp + 3 : mp - 9
+    return (month <= 2 ? y0 + 1 : y0, month, day)
+  }
+
+  static func isoDate(ms: Int64) -> String {
+    let c = civil(fromMs: ms)
+    return String(format: "%04d-%02d-%02d", c.year, c.month, c.day)
+  }
+
   private static func decimalYear(_ ms: Int64) -> Double {
     let year = yearOf(ms)
     let start = Rhythm.utcMillis(year: year, month: 1, day: 1)
@@ -214,18 +247,5 @@ enum Sky {
     return (.winter, points.first?.ms ?? dateMs, points.last?.ms ?? dateMs)
   }
 
-  private static func yearOf(_ ms: Int64) -> Int {
-    // Civil year from UTC millis (days-from-civil inverse, matching Rhythm.utcMillis).
-    var days = Int(ms / 86_400_000)
-    if ms < 0 && ms % 86_400_000 != 0 { days -= 1 }
-    let z = days + 719_468
-    let era = (z >= 0 ? z : z - 146_096) / 146_097
-    let doe = z - era * 146_097
-    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365
-    let y = yoe + era * 400
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
-    let mp = (5 * doy + 2) / 153
-    let month = mp < 10 ? mp + 3 : mp - 9
-    return month <= 2 ? y + 1 : y
-  }
+  private static func yearOf(_ ms: Int64) -> Int { civil(fromMs: ms).year }
 }
