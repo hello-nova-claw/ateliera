@@ -29,6 +29,117 @@ enum Sky {
   }
 
   private static func cosDeg(_ deg: Double) -> Double { cos(deg * .pi / 180) }
+  private static func sinDeg(_ deg: Double) -> Double { sin(deg * .pi / 180) }
+  private static func norm(_ deg: Double) -> Double {
+    (deg.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+  }
+
+  // MARK: - Moon phases (Meeus ch. 49)
+
+  enum MoonPhase: Double, CaseIterable {
+    case new = 0, firstQuarter = 0.25, full = 0.5, lastQuarter = 0.75
+
+    var title: String {
+      switch self {
+      case .new: return "New moon"
+      case .firstQuarter: return "First quarter"
+      case .full: return "Full moon"
+      case .lastQuarter: return "Last quarter"
+      }
+    }
+  }
+
+  // The 14 additional planetary arguments (A-terms) and their coefficients (days),
+  // added at every phase (Meeus, table on p. 351).
+  private static let moonA: [(base: Double, kCoef: Double, amp: Double)] = [
+    (299.77, 0.107408, 0.000325), (251.88, 0.016321, 0.000165), (251.83, 26.651886, 0.000164),
+    (349.42, 36.412478, 0.000126), (84.66, 18.206239, 0.000110), (141.74, 53.303771, 0.000062),
+    (207.14, 2.453732, 0.000060), (154.84, 7.306860, 0.000056), (34.52, 27.261239, 0.000047),
+    (207.19, 0.121824, 0.000042), (291.34, 1.844379, 0.000040), (161.72, 24.198154, 0.000037),
+    (239.56, 25.513099, 0.000035), (331.55, 3.592518, 0.000023),
+  ]
+
+  /// UTC milliseconds of the moon phase indexed by `k` — an integer plus the phase
+  /// fraction (.00 new · .25 first quarter · .50 full · .75 last quarter). Golden-matched
+  /// to astronomia's `moonphase.*` (Meeus ch. 49), within ~a minute.
+  static func moonPhaseMs(k: Double) -> Int64 {
+    let t = k / 1236.85
+    var jde =
+      2_451_550.09766 + 29.530588861 * k + 0.00015437 * t * t - 0.000000150 * t * t * t
+      + 0.00000000073 * t * t * t * t
+    let e = 1 - 0.002516 * t - 0.0000074 * t * t
+    let m = norm(2.5534 + 29.10535670 * k - 0.0000014 * t * t - 0.00000011 * t * t * t)
+    let mp = norm(
+      201.5643 + 385.81693528 * k + 0.0107582 * t * t + 0.00001238 * t * t * t
+        - 0.000000058 * t * t * t * t)
+    let f = norm(
+      160.7108 + 390.67050284 * k - 0.0016118 * t * t - 0.00000227 * t * t * t
+        + 0.000000011 * t * t * t * t)
+    let om = norm(124.7746 - 1.56375588 * k + 0.0020672 * t * t + 0.00000215 * t * t * t)
+
+    let frac = k - k.rounded(.down)
+    let isQuarter = abs(frac - 0.25) < 0.01 || abs(frac - 0.75) < 0.01
+    if !isQuarter {
+      // New (frac 0) and full (frac 0.5) share this correction table.
+      jde +=
+        -0.40720 * sinDeg(mp) + 0.17241 * e * sinDeg(m) + 0.01608 * sinDeg(2 * mp)
+        + 0.01039 * sinDeg(2 * f) + 0.00739 * e * sinDeg(mp - m) - 0.00514 * e * sinDeg(mp + m)
+        + 0.00208 * e * e * sinDeg(2 * m) - 0.00111 * sinDeg(mp - 2 * f)
+        - 0.00057 * sinDeg(mp + 2 * f) + 0.00056 * e * sinDeg(2 * mp + m) - 0.00042 * sinDeg(3 * mp)
+        + 0.00042 * e * sinDeg(m + 2 * f) + 0.00038 * e * sinDeg(m - 2 * f)
+        - 0.00024 * e * sinDeg(2 * mp - m) - 0.00017 * sinDeg(om) - 0.00007 * sinDeg(mp + 2 * m)
+        + 0.00004 * sinDeg(2 * mp - 2 * f) + 0.00004 * sinDeg(3 * m)
+        + 0.00003 * sinDeg(mp + m - 2 * f) + 0.00003 * sinDeg(2 * mp + 2 * f)
+        - 0.00003 * sinDeg(mp + m + 2 * f) + 0.00003 * sinDeg(mp - m + 2 * f)
+        - 0.00002 * sinDeg(mp - m - 2 * f) - 0.00002 * sinDeg(3 * mp + m) + 0.00002 * sinDeg(4 * mp)
+    } else {
+      // First and last quarter share this table, then ± a small W correction.
+      jde +=
+        -0.62801 * sinDeg(mp) + 0.17172 * e * sinDeg(m) - 0.01183 * e * sinDeg(mp + m)
+        + 0.00862 * sinDeg(2 * mp) + 0.00804 * sinDeg(2 * f) + 0.00454 * e * sinDeg(mp - m)
+        + 0.00204 * e * e * sinDeg(2 * m) - 0.00180 * sinDeg(mp - 2 * f)
+        - 0.00070 * sinDeg(mp + 2 * f) - 0.00040 * sinDeg(3 * mp) - 0.00034 * e * sinDeg(2 * mp - m)
+        + 0.00032 * e * sinDeg(m + 2 * f) + 0.00032 * e * sinDeg(m - 2 * f)
+        - 0.00028 * e * e * sinDeg(mp + 2 * m) + 0.00027 * e * sinDeg(2 * mp + m)
+        - 0.00017 * sinDeg(om) - 0.00005 * sinDeg(mp - m - 2 * f) + 0.00004 * sinDeg(2 * mp + 2 * f)
+        - 0.00004 * sinDeg(mp + m + 2 * f) + 0.00004 * sinDeg(mp - 2 * m)
+        + 0.00003 * sinDeg(mp + m - 2 * f) + 0.00003 * sinDeg(3 * m) + 0.00002 * sinDeg(2 * mp - 2 * f)
+        + 0.00002 * sinDeg(mp - m + 2 * f) - 0.00002 * sinDeg(3 * mp + m)
+      let w =
+        0.00306 - 0.00038 * e * cosDeg(m) + 0.00026 * cosDeg(mp) - 0.00002 * cosDeg(mp - m)
+        + 0.00002 * cosDeg(mp + m) + 0.00002 * cosDeg(2 * f)
+      jde += abs(frac - 0.25) < 0.01 ? w : -w
+    }
+    for a in moonA {
+      jde += a.amp * sinDeg(norm(a.base + a.kCoef * k - (a.base == 299.77 ? 0.009173 * t * t : 0)))
+    }
+    return Int64(((jde - 2_440_587.5) * 86_400_000).rounded())
+  }
+
+  /// The next occurrence of `phase` strictly after `ms`.
+  static func nextMoonPhase(afterMs ms: Int64, phase: MoonPhase) -> Int64 {
+    let base = ((decimalYear(ms) - 2000) * 12.3685).rounded()
+    var best: Int64?
+    for i in -2...2 {
+      let t = moonPhaseMs(k: base + Double(i) + phase.rawValue)
+      if t > ms, best == nil || t < best! { best = t }
+    }
+    return best ?? moonPhaseMs(k: base + phase.rawValue)
+  }
+
+  /// The next major lunation (whichever of new / full comes first) after `ms`.
+  static func nextLunation(afterMs ms: Int64) -> (phase: MoonPhase, ms: Int64) {
+    let newMs = nextMoonPhase(afterMs: ms, phase: .new)
+    let fullMs = nextMoonPhase(afterMs: ms, phase: .full)
+    return newMs <= fullMs ? (.new, newMs) : (.full, fullMs)
+  }
+
+  private static func decimalYear(_ ms: Int64) -> Double {
+    let year = yearOf(ms)
+    let start = Rhythm.utcMillis(year: year, month: 1, day: 1)
+    let end = Rhythm.utcMillis(year: year + 1, month: 1, day: 1)
+    return Double(year) + Double(ms - start) / Double(end - start)
+  }
 
   // Meeus table 27.A — periodic terms (A, B°, C°) shared by all four points.
   private static let periodic: [(Double, Double, Double)] = [

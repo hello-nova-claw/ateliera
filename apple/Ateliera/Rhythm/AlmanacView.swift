@@ -20,13 +20,23 @@ struct AlmanacView: View {
     return "\(Self.sentenceCase(season.rawValue)) · \(pct)% through"
   }
 
+  private func whenText(_ eventMs: Int64, from ms: Int64) -> String {
+    let days = max(0, Int((eventMs - ms) / 86_400_000))
+    return days == 0 ? "today" : (days == 1 ? "tomorrow" : "in \(days) days")
+  }
+
   // The next equinox/solstice — a gentle "turning point ahead" callout.
   private var turningCallout: String {
     let ms = Rhythm.dayMillis(date: context.date)
     let next = Sky.nextTurningPoint(afterMs: ms)
-    let days = max(0, Int((next.ms - ms) / 86_400_000))
-    let when = days == 0 ? "today" : (days == 1 ? "tomorrow" : "in \(days) days")
-    return "Next turning point: \(next.point.title) \(when)"
+    return "Next turning point: \(next.point.title) \(whenText(next.ms, from: ms))"
+  }
+
+  // The next new or full moon.
+  private var lunationCallout: String {
+    let ms = Rhythm.dayMillis(date: context.date)
+    let next = Sky.nextLunation(afterMs: ms)
+    return "\(next.phase.title) \(whenText(next.ms, from: ms))"
   }
 
   private var orientationCopy: String {
@@ -66,6 +76,9 @@ struct AlmanacView: View {
       Text("By the \(otherStyle.label.lowercased()) calendar, \(seasonText(otherStyle))")
         .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
         .accessibilityIdentifier("almanac-other-season")
+      Text(lunationCallout)
+        .font(StudioFont.meta).foregroundStyle(theme.vision)
+        .accessibilityIdentifier("almanac-lunation")
       Text(turningCallout)
         .font(StudioFont.meta).foregroundStyle(theme.vision)
         .accessibilityIdentifier("almanac-turning-point")

@@ -76,6 +76,27 @@ final class RhythmTests: XCTestCase {
     }
   }
 
+  func testMoonPhasesMatchTheEphemeris() {
+    // Golden instants from astronomia's higher-precision ephemeris. Our Meeus ch. 49
+    // low-accuracy port agrees within ~4 min (the method's precision + the ~69s TD↔UT
+    // convention astronomia applies) — the phase *date* we surface is exact. Each anchor
+    // sits just before the phase we expect next.
+    let cases: [(Sky.MoonPhase, Int, Int, Int64)] = [
+      (.new, 9, 1, 1_789_097_216_521),  // 2026-09-11 03:26 UTC
+      (.firstQuarter, 8, 1, 1_787_193_981_701),  // 2026-08-20 02:46
+      (.full, 8, 21, 1_787_890_711_684),  // 2026-08-28 04:18
+      (.lastQuarter, 9, 1, 1_788_508_276_650),  // 2026-09-04 07:51
+    ]
+    for (phase, month, day, expected) in cases {
+      let after = Rhythm.utcMillis(year: 2026, month: month, day: day)
+      let got = Sky.nextMoonPhase(afterMs: after, phase: phase)
+      XCTAssertLessThan(
+        abs(got - expected), 240_000, "\(phase.title) off by \((got - expected) / 1000)s")
+      // The date it lands on is exactly right.
+      XCTAssertEqual(got / 86_400_000, expected / 86_400_000, "\(phase.title) date")
+    }
+  }
+
   func testAstronomicalSeasonSpanIsExact() {
     // Late-August (southern winter): inside the Jun-solstice → Sep-equinox span.
     let ms = Rhythm.utcMillis(year: 2026, month: 8, day: 30)
