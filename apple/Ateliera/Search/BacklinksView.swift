@@ -1,9 +1,9 @@
 import SwiftUI
 
-// The note's link neighbourhood, shown from the editor's "Links" screen: which
-// notes link here (backlinks, "Linked from"), and where this note links out to
-// ("Links to") with a resolved / broken / ambiguous badge. Tapping a resolved link
-// navigates. Read-only over the disposable P4 index; repair is a later slice.
+// The note's link neighbourhood, reached from the editor's "Links" screen: which notes
+// link here ("Notes that link here"), and where this note links out to ("This note
+// links to") — each resolved link tappable, each unresolved one labelled plainly.
+// Read-only over the disposable P4 index.
 struct BacklinksView: View {
   @Environment(\.studioTheme) private var theme
   let store: VaultStore
@@ -14,34 +14,42 @@ struct BacklinksView: View {
   private var forwardLinks: [ForwardLink] { store.forwardLinks(path: sourcePath) }
 
   var body: some View {
-    ScrollView {
-      VStack(alignment: .leading, spacing: 24) {
-        section("Linked from") {
-          if backlinks.isEmpty {
-            emptyLine("No notes link here yet.")
-          } else {
-            ForEach(backlinks, id: \.id) { back in
-              row(title: back.title.isEmpty ? "Untitled" : back.title, badge: nil) {
-                onNavigate(back.path)
-              }
-              .accessibilityIdentifier("backlink-\(back.id)")
-            }
-          }
-        }
-        section("Links to") {
-          if forwardLinks.isEmpty {
-            emptyLine("This note doesn't link out yet.")
-          } else {
-            ForEach(Array(forwardLinks.enumerated()), id: \.offset) { _, forward in
-              forwardRow(forward)
-            }
-          }
-        }
+    List {
+      Section {
+        Text("How this note connects to the rest of your Studio. Tap a link to open it.")
+          .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
+          .fixedSize(horizontal: false, vertical: true)
+          .studioRoomRow(EdgeInsets(top: 12, leading: 24, bottom: 4, trailing: 24))
       }
-      .padding(24)
-      .frame(maxWidth: .infinity, alignment: .leading)
+
+      Section {
+        if backlinks.isEmpty {
+          emptyRow("No notes link here yet.")
+        } else {
+          ForEach(backlinks, id: \.id) { back in
+            linkRow(title: back.title.isEmpty ? "Untitled" : back.title, hint: nil) {
+              onNavigate(back.path)
+            }
+            .accessibilityIdentifier("backlink-\(back.id)")
+          }
+        }
+      } header: {
+        sectionHeader("Notes that link here", count: backlinks.count)
+      }
+
+      Section {
+        if forwardLinks.isEmpty {
+          emptyRow("This note doesn't link out yet.")
+        } else {
+          ForEach(Array(forwardLinks.enumerated()), id: \.offset) { _, forward in
+            forwardRow(forward)
+          }
+        }
+      } header: {
+        sectionHeader("This note links to", count: forwardLinks.count)
+      }
     }
-    .background(theme.canvas)
+    .studioRoomList(theme.canvas)
     .navigationTitle("Links")
   }
 
@@ -50,29 +58,29 @@ struct BacklinksView: View {
     let label = forward.link.label.isEmpty ? forward.link.target : forward.link.label
     switch forward.state {
     case .resolved(let id):
-      row(title: label, badge: nil) {
+      linkRow(title: label, hint: nil) {
         if let path = store.path(forNoteId: id) { onNavigate(path) }
       }
     case .broken:
-      row(title: label, badge: ("broken", theme.celebration), action: nil)
+      linkRow(title: label, hint: "no match yet", action: nil)
     case .ambiguous:
-      row(title: label, badge: ("ambiguous", theme.vision), action: nil)
+      linkRow(title: label, hint: "several matches", action: nil)
     }
   }
 
-  private func section<Content: View>(
-    _ title: String, @ViewBuilder _ content: () -> Content
-  ) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
+  private func sectionHeader(_ title: String, count: Int) -> some View {
+    HStack {
       Text(title.uppercased())
-        .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
-      content()
+        .font(StudioFont.eyebrow).tracking(1.4).foregroundStyle(theme.inkFaint)
+      if count > 0 {
+        Text("\(count)").font(StudioFont.eyebrow).foregroundStyle(theme.inkFaint)
+      }
     }
+    .textCase(nil)
+    .studioRoomRow(EdgeInsets(top: 16, leading: 24, bottom: 4, trailing: 24))
   }
 
-  private func row(
-    title: String, badge: (String, Color)?, action: (() -> Void)?
-  ) -> some View {
+  private func linkRow(title: String, hint: String?, action: (() -> Void)?) -> some View {
     Button {
       action?()
     } label: {
@@ -80,29 +88,29 @@ struct BacklinksView: View {
         Text(title)
           .font(StudioFont.body).foregroundStyle(action == nil ? theme.inkMuted : theme.link)
         Spacer(minLength: 0)
-        if let badge {
-          Text(badge.0)
-            .font(StudioFont.eyebrow).tracking(0.6)
+        if let hint {
+          Text(hint)
+            .font(StudioFont.eyebrow).tracking(0.4)
             .padding(.horizontal, 8).padding(.vertical, 3)
             .background(Capsule().fill(theme.sunken))
-            .foregroundStyle(badge.1)
+            .foregroundStyle(theme.inkFaint)
         } else if action != nil {
           Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(theme.inkFaint)
         }
       }
-      .padding(.vertical, 10)
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
     .disabled(action == nil)
+    .studioRoomRow(EdgeInsets(top: 10, leading: 24, bottom: 10, trailing: 24))
   }
 
-  // Convenience for the tappable variant (no badge).
-  private func row(title: String, badge: (String, Color)?, action: @escaping () -> Void) -> some View {
-    row(title: title, badge: badge, action: Optional(action))
+  private func linkRow(title: String, hint: String?, action: @escaping () -> Void) -> some View {
+    linkRow(title: title, hint: hint, action: Optional(action))
   }
 
-  private func emptyLine(_ text: String) -> some View {
+  private func emptyRow(_ text: String) -> some View {
     Text(text).font(StudioFont.meta).foregroundStyle(theme.inkFaint)
+      .studioRoomRow(EdgeInsets(top: 4, leading: 24, bottom: 4, trailing: 24))
   }
 }

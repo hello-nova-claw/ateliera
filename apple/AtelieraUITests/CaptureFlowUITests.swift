@@ -304,6 +304,19 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertFalse(app.staticTexts["To be trashed"].waitForExistence(timeout: 3))
   }
 
+  func testEditorInsertsAWikilink() {
+    let app = launchEmptyApp()
+    captureOnly(app, title: "Anchor note", body: "the anchor")
+    captureAndOpen(app, title: "Linking note", body: "See here")
+    app.buttons["insert-link-button"].tap()
+    XCTAssertTrue(app.navigationBars["Link a note"].waitForExistence(timeout: 5))
+    let pick = app.collectionViews.buttons["Anchor note"].firstMatch
+    XCTAssertTrue(pick.waitForExistence(timeout: 5))
+    pick.tap()
+    let value = app.textViews["note-body-editor"].value as? String ?? ""
+    XCTAssertTrue(value.contains("[[Anchor note]]"), "body was \(value)")
+  }
+
   func testSeasonWizardBeginsAndActivates() {
     let app = launchEmptyApp()
     let room = app.buttons["room-current-season"]
@@ -463,9 +476,9 @@ final class CaptureFlowUITests: XCTestCase {
 
     captureAndOpen(app, title: "The link note", body: "See [[A quiet morning]] now.")
     app.buttons["preview-toggle"].tap()
-    let pill = app.buttons["wikilink-A quiet morning"]
-    XCTAssertTrue(pill.waitForExistence(timeout: 5))
-    pill.tap()
+    let link = app.links["A quiet morning"].firstMatch
+    XCTAssertTrue(link.waitForExistence(timeout: 5))
+    link.tap()
 
     // We're now editing A — its title populates the field.
     let title = app.textFields["note-title-field"]
@@ -477,7 +490,7 @@ final class CaptureFlowUITests: XCTestCase {
     let app = launchEmptyApp()
     captureAndOpen(app, title: "Ghost link", body: "See [[Nonexistent]].")
     app.buttons["preview-toggle"].tap()
-    app.buttons["wikilink-Nonexistent"].tap()
+    app.links["Nonexistent"].firstMatch.tap()
     XCTAssertTrue(app.staticTexts["Note not found"].waitForExistence(timeout: 5))
   }
 

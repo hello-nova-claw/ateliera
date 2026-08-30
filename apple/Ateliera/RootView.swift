@@ -567,6 +567,7 @@ private struct NoteEditView: View {
   @State private var coverImage: UIImage?
   @State private var recoverableDraft: DraftRecord?
   @State private var confirmingDelete = false
+  @State private var linking = false
   private let recovery = DraftRecovery()
 
   init(
@@ -618,6 +619,12 @@ private struct NoteEditView: View {
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 180)
                 .accessibilityIdentifier("note-body-editor")
+              Button { linking = true } label: {
+                Label("Link a note", systemImage: "link.badge.plus")
+                  .font(StudioFont.meta).foregroundStyle(theme.link)
+              }
+              .buttonStyle(.plain)
+              .accessibilityIdentifier("insert-link-button")
             }
           }
           Divider().overlay(theme.line)
@@ -684,6 +691,13 @@ private struct NoteEditView: View {
         Button("Cancel", role: .cancel) {}
       } message: {
         Text("It leaves your rooms but isn't gone — the file stays in the vault.")
+      }
+      .sheet(isPresented: $linking) {
+        NotePickerSheet(
+          notes: store.liveNotes.filter { !$0.title.isEmpty && $0.id != editable.path },
+          onPick: { insertLink($0) },
+          onClose: { linking = false })
+          .studioTheme(theme)
       }
     }
     .task {
@@ -804,6 +818,57 @@ private struct NoteEditView: View {
   private func fieldLabel(_ text: String) -> some View {
     Text(text.uppercased())
       .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
+  }
+
+  // Insert a `[[Title]]` wikilink into the body (appended, with tidy spacing).
+  private func insertLink(_ title: String) {
+    let link = "[[\(title)]]"
+    let separator = note.body.isEmpty || note.body.hasSuffix(" ") || note.body.hasSuffix("\n")
+      ? "" : " "
+    note.body += separator + link
+  }
+}
+
+// Pick a note to link to — a searchable list of titles that inserts a `[[Title]]`.
+private struct NotePickerSheet: View {
+  @Environment(\.studioTheme) private var theme
+  let notes: [NoteSummary]
+  let onPick: (String) -> Void
+  let onClose: () -> Void
+  @State private var query = ""
+
+  private var matches: [NoteSummary] {
+    let trimmed = query.trimmingCharacters(in: .whitespaces)
+    guard !trimmed.isEmpty else { return notes }
+    return notes.filter { $0.title.localizedCaseInsensitiveContains(trimmed) }
+  }
+
+  var body: some View {
+    NavigationStack {
+      List {
+        if matches.isEmpty {
+          Text("No notes to link to yet.")
+            .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
+            .studioRoomRow()
+        } else {
+          ForEach(matches) { note in
+            Button { onPick(note.title); onClose() } label: {
+              Text(note.title).font(StudioFont.body).foregroundStyle(theme.inkStrong)
+                .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .studioRoomRow()
+            .accessibilityIdentifier("link-pick-\(note.id)")
+          }
+        }
+      }
+      .studioRoomList(theme.canvas)
+      .searchable(text: $query, prompt: "Search notes")
+      .navigationTitle("Link a note")
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) { Button("Cancel") { onClose() } }
+      }
+    }
   }
 }
 

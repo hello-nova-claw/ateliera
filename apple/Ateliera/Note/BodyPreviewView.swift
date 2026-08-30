@@ -1,74 +1,82 @@
 import SwiftUI
 
-// A read-only render of the note body with its wikilinks made tappable. Per the
-// P1 plan this uses the reliable approach: the body renders as Markdown with the
-// `[[…]]` syntax replaced by labels, and each unique wikilink appears as a tappable
-// pill beneath it (an inline overlay is deferred to P4, when the link graph can
-// validate every target).
+// A read-only render of the note body with its wikilinks tappable *inline*, right where
+// they appear in the text. The body renders as Markdown; each `[[Target]]` / `[[Target|
+// Alias]]` becomes its label carrying a `wikilink:` link, and a tap is routed back
+// through `onWikilinkTap` via the environment's openURL action.
 struct BodyPreviewView: View {
   let bodyText: String
   let onWikilinkTap: (String) -> Void
   @Environment(\.studioTheme) private var theme
 
-  private var links: [ParsedWikilink] { WikilinkParser.parse(bodyText) }
-
   var body: some View {
-    VStack(alignment: .leading, spacing: 16) {
-      Text(rendered)
-        .font(StudioFont.pageSubtitle)
-        .foregroundStyle(theme.inkStrong)
-        .textSelection(.enabled)
-        .fixedSize(horizontal: false, vertical: true)
-
-      if !links.isEmpty {
-        VStack(alignment: .leading, spacing: 8) {
-          Text("LINKS")
-            .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
-          ForEach(links, id: \.target) { link in
-            Button { onWikilinkTap(link.target) } label: {
-              Label(link.label, systemImage: "link")
-                .font(StudioFont.control).foregroundStyle(theme.link)
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("wikilink-\(link.target)")
-          }
-        }
-      }
-    }
-    .frame(maxWidth: .infinity, alignment: .leading)
+    Text(attributed)
+      .font(StudioFont.pageSubtitle)
+      .foregroundStyle(theme.inkStrong)
+      .tint(theme.link)
+      .textSelection(.enabled)
+      .fixedSize(horizontal: false, vertical: true)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .environment(
+        \.openURL,
+        OpenURLAction { url in
+          guard let target = Self.wikilinkTarget(url) else { return .systemAction }
+          onWikilinkTap(target)
+          return .handled
+        })
   }
 
-  // Markdown-rendered body with wikilink syntax swapped for its label text.
-  private var rendered: AttributedString {
-    let withLabels = Self.replacingWikilinks(bodyText)
-    if let markdown = try? AttributedString(
-      markdown: withLabels,
-      options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))
-    {
-      return markdown
-    }
-    return AttributedString(withLabels)
-  }
+  private static let wikilinkRegex = try? NSRegularExpression(
+    pattern: #"\[\[([^\]|\n]+?)(?:\|([^\]\n]+?))?\]\]"#)
 
-  // Replace every `[[Target]]` / `[[Target|Alias]]` with its display label.
-  static func replacingWikilinks(_ body: String) -> String {
-    guard
-      let regex = try? NSRegularExpression(
-        pattern: #"\[\[([^\]|\n]+?)(?:\|([^\]\n]+?))?\]\]"#)
-    else { return body }
-    let ns = body as NSString
-    var result = ""
+  // The body as an AttributedString: Markdown for the ordinary text, and each wikilink
+  // label as an inline, tinted, tappable link.
+  private var attributed: AttributedString {
+    guard let regex = Self.wikilinkRegex else { return markdownChunk(bodyText) }
+    let ns = bodyText as NSString
+    var result = AttributedString()
     var cursor = 0
-    for match in regex.matches(in: body, range: NSRange(location: 0, length: ns.length)) {
-      result += ns.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
+    for match in regex.matches(in: bodyText, range: NSRange(location: 0, length: ns.length)) {
+      let pre = ns.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
+      result += markdownChunk(pre)
+
+      let target = ns.substring(with: match.range(at: 1)).trimmingCharacters(in: .whitespaces)
       let aliasRange = match.range(at: 2)
       let label =
-        aliasRange.location != NSNotFound
-        ? ns.substring(with: aliasRange) : ns.substring(with: match.range(at: 1))
-      result += label.trimmingCharacters(in: .whitespaces)
+        (aliasRange.location != NSNotFound ? ns.substring(with: aliasRange) : target)
+        .trimmingCharacters(in: .whitespaces)
+      var run = AttributedString(label)
+      if let url = Self.wikilinkURL(target) { run.link = url }
+      run.foregroundColor = theme.link
+      run.underlineStyle = .single
+      result += run
+
       cursor = match.range.location + match.range.length
     }
-    result += ns.substring(from: cursor)
+    result += markdownChunk(ns.substring(from: cursor))
     return result
+  }
+
+  private func markdownChunk(_ text: String) -> AttributedString {
+    (try? AttributedString(
+      markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+      ?? AttributedString(text)
+  }
+
+  // Encode/decode the wikilink target in a `wikilink://link?t=…` URL (query items keep
+  // the case and characters intact, unlike a URL host).
+  static func wikilinkURL(_ target: String) -> URL? {
+    var components = URLComponents()
+    components.scheme = "wikilink"
+    components.host = "link"
+    components.queryItems = [URLQueryItem(name: "t", value: target)]
+    return components.url
+  }
+
+  static func wikilinkTarget(_ url: URL) -> String? {
+    guard url.scheme == "wikilink",
+      let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+    else { return nil }
+    return items.first { $0.name == "t" }?.value
   }
 }
