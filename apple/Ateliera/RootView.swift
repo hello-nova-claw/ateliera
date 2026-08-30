@@ -28,7 +28,9 @@ struct RootView: View {
   @State private var hemisphere: Hemisphere = SharedStore.bestHemisphere
   @State private var profileStore = RhythmProfileStore()
   @State private var showToday = false  // the atmosphere panel starts tucked away
-  @State private var goToSeason = false  // an accepted "begin a season" invitation
+  @State private var navigateRoute: RoomRoute?  // an accepted invitation that opens a room
+
+  struct RoomRoute: Identifiable, Hashable { let id: String }
 
   // One sheet at a time: a fresh capture, an edit, or the rhythm profile.
   private enum ActiveSheet: Identifiable {
@@ -40,6 +42,7 @@ struct RootView: View {
     case placement
     case tour
     case moonIntention(lunation: String)
+    case reflect
 
     var id: String {
       switch self {
@@ -51,6 +54,7 @@ struct RootView: View {
       case .placement: return "placement"
       case .tour: return "tour"
       case .moonIntention(let lunation): return "moon:\(lunation)"
+      case .reflect: return "reflect"
       }
     }
   }
@@ -70,22 +74,28 @@ struct RootView: View {
   // The single, contextual invitation to offer beside the Gift (or none).
   private var currentInvitation: Invitation? {
     InvitationEngine.current(
-      date: almanacContext.date, hemisphere: hemisphere, notes: store.parsedNotes,
-      dismissed: store.dismissedInvitations)
+      InvitationContext(
+        date: almanacContext.date, hemisphere: hemisphere, notes: store.parsedNotes,
+        cycle: cycle, birthDate: profileStore.birth?.date,
+        dismissed: store.dismissedInvitations))
   }
 
   private func accept(_ invitation: Invitation) {
     switch invitation.kind {
     case .newMoonIntention(let lunation): activeSheet = .moonIntention(lunation: lunation)
-    case .seasonAtTurningPoint: goToSeason = true
+    case .fullMoonReflection, .microSeasonShift, .cyclePhase: activeSheet = .reflect
+    case .seasonAtTurningPoint, .seasonClosing, .solarReturn:
+      navigateRoute = RoomRoute(id: "current-season")
+    case .inboxWaiting: navigateRoute = RoomRoute(id: "inbox")
+    case .synthesizeWisdom: navigateRoute = RoomRoute(id: "wisdom-garden")
+    case .promoteIdentity: navigateRoute = RoomRoute(id: "identity-studio")
     }
+    store.dismissInvitation(invitation.id)  // accepting also retires this occurrence
   }
 
   @ViewBuilder
-  private var seasonDestination: some View {
-    if let room = Room.all.first(where: { $0.id == "current-season" }) {
-      roomDestination(room)
-    }
+  private func roomDestination(byId id: String) -> some View {
+    if let room = Room.all.first(where: { $0.id == id }) { roomDestination(room) }
   }
 
   var body: some View {
@@ -135,7 +145,7 @@ struct RootView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
       }
       .background(theme.canvas)
-      .navigationDestination(isPresented: $goToSeason) { seasonDestination }
+      .navigationDestination(item: $navigateRoute) { route in roomDestination(byId: route.id) }
     }
     .fileImporter(
       isPresented: $picking, allowedContentTypes: [.folder], allowsMultipleSelection: false
@@ -202,6 +212,15 @@ struct RootView: View {
           heading: "New moon intention", confirmLabel: "Keep", initialTitle: "",
           initialBody: "",
           onSave: { _, body in store.captureMoonIntention(body: body, lunationDate: lunation) },
+          onClose: { activeSheet = nil })
+      case .reflect:
+        NoteEditorSheet(
+          heading: "Reflect", confirmLabel: "Keep", initialTitle: "", initialBody: "",
+          onSave: { title, body in
+            store.capture(
+              title: title.isEmpty ? nil : title, body: body, room: "reflection-garden",
+              cardType: "reflection", semanticType: "reflection")
+          },
           onClose: { activeSheet = nil })
       }
     }
