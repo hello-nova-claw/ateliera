@@ -32,7 +32,10 @@ struct AlmanacView: View {
         .foregroundStyle(theme.vision)
         .fixedSize(horizontal: false, vertical: true)
       HStack(alignment: .top, spacing: 28) {
-        fact("Season", Self.sentenceCase(context.season.rawValue))
+        fact(
+          "Season",
+          "\(Self.sentenceCase(context.season.rawValue)) · \(Int((Rhythm.seasonProgress(date: context.date) * 100).rounded()))% through"
+        )
         fact(
           "Moon",
           "\(Self.sentenceCase(context.moon.phase.rawValue)) · \(Int((context.moon.illumination * 100).rounded()))% lit"

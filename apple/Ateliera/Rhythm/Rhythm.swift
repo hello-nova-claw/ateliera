@@ -113,6 +113,25 @@ enum Rhythm {
     return hemisphere == .south ? flip[northern]! : northern
   }
 
+  // How far through the current (meteorological) season the date sits, 0…1. The
+  // 3-month blocks — Dec–Feb, Mar–May, Jun–Aug, Sep–Nov — are the same dates in both
+  // hemispheres; only the season's *name* flips, so this progress is hemisphere-free.
+  static func seasonProgress(date: String) -> Double {
+    let (year, month, _, ms) = parse(date)
+    let startYear: Int, startMonth: Int, endYear: Int, endMonth: Int
+    switch month {
+    case 12: (startYear, startMonth, endYear, endMonth) = (year, 12, year + 1, 3)
+    case 1, 2: (startYear, startMonth, endYear, endMonth) = (year - 1, 12, year, 3)
+    case 3, 4, 5: (startYear, startMonth, endYear, endMonth) = (year, 3, year, 6)
+    case 6, 7, 8: (startYear, startMonth, endYear, endMonth) = (year, 6, year, 9)
+    default: (startYear, startMonth, endYear, endMonth) = (year, 9, year, 12)  // 9, 10, 11
+    }
+    let startMs = utcMillis(year: startYear, month: startMonth, day: 1)
+    let endMs = utcMillis(year: endYear, month: endMonth, day: 1)
+    guard endMs > startMs else { return 0 }
+    return min(1, max(0, Double(ms - startMs) / Double(endMs - startMs)))
+  }
+
   // MARK: Moon (Meeus, Astronomical Algorithms ch. 47–48)
 
   private static func sinDeg(_ deg: Double) -> Double { sin(deg * .pi / 180) }

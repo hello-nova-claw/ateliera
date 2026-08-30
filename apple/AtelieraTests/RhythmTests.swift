@@ -25,6 +25,20 @@ final class RhythmTests: XCTestCase {
     }
   }
 
+  func testSeasonProgressThroughTheMeteorologicalBlock() {
+    // Percent through the current 3-month block (hemisphere-independent).
+    let cases: [(String, Int)] = [
+      ("2026-06-01", 0),  // first day of the Jun–Sep block
+      ("2026-07-16", 49),  // ~halfway
+      ("2026-08-30", 98),  // near the end
+      ("2026-01-15", 50),  // Dec–Mar block spanning the year boundary
+    ]
+    for (date, expected) in cases {
+      XCTAssertEqual(
+        Int((Rhythm.seasonProgress(date: date) * 100).rounded()), expected, "progress \(date)")
+    }
+  }
+
   func testResolveMicroSeasonBoundariesAndSouthernShift() {
     let cases: [(String, Hemisphere, String)] = [
       ("2026-01-10", .north, "Lesser Cold"),
