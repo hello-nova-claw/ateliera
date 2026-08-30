@@ -59,6 +59,7 @@ targets:
         excludes:
           - Info.plist
       - path: Ateliera/Rhythm/Rhythm.swift
+      - path: Ateliera/Rhythm/Sky.swift
       - path: Ateliera/Intents/RhythmSummary.swift
       - path: Ateliera/Shared/SharedStore.swift
     settings:

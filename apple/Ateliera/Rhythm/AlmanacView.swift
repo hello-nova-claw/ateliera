@@ -20,6 +20,15 @@ struct AlmanacView: View {
     return "\(Self.sentenceCase(season.rawValue)) · \(pct)% through"
   }
 
+  // The next equinox/solstice — a gentle "turning point ahead" callout.
+  private var turningCallout: String {
+    let ms = Rhythm.dayMillis(date: context.date)
+    let next = Sky.nextTurningPoint(afterMs: ms)
+    let days = max(0, Int((next.ms - ms) / 86_400_000))
+    let when = days == 0 ? "today" : (days == 1 ? "tomorrow" : "in \(days) days")
+    return "Next turning point: \(next.point.title) \(when)"
+  }
+
   private var orientationCopy: String {
     switch Rhythm.orientation(context) {
     case .inward: return "A gathering day — a good time to notice how far you have come."
@@ -57,6 +66,9 @@ struct AlmanacView: View {
       Text("By the \(otherStyle.label.lowercased()) calendar, \(seasonText(otherStyle))")
         .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
         .accessibilityIdentifier("almanac-other-season")
+      Text(turningCallout)
+        .font(StudioFont.meta).foregroundStyle(theme.vision)
+        .accessibilityIdentifier("almanac-turning-point")
     }
   }
 

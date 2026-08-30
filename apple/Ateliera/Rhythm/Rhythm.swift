@@ -97,6 +97,9 @@ enum Rhythm {
     return Int64(days) * 86_400_000
   }
 
+  // Day-granular UTC millis for an ISO date (00:00 UTC), for the sky-event helpers.
+  static func dayMillis(date: String) -> Int64 { parse(date).ms }
+
   private static func parse(_ date: String) -> (year: Int, month: Int, day: Int, ms: Int64) {
     let year = Int(date.prefix(4)) ?? 0
     let month = Int(date.dropFirst(5).prefix(2)) ?? 0
@@ -122,23 +125,11 @@ enum Rhythm {
     return hemisphere == .south ? flip[northern]! : northern
   }
 
-  // Astronomical seasons, bounded by the equinoxes/solstices the app already anchors:
-  // spring Mar 20, summer Jun 21, autumn Sep 23, winter Dec 21 (approximate fixed
-  // dates). The name flips for the southern hemisphere, like the meteorological one.
-  static func resolveSeasonAstronomical(
-    year _: Int, month: Int, day: Int, hemisphere: Hemisphere
-  ) -> Season {
-    let key = month * 100 + day
-    let northern: Season
-    if key >= 1221 || key < 320 {
-      northern = .winter
-    } else if key < 621 {
-      northern = .spring
-    } else if key < 923 {
-      northern = .summer
-    } else {
-      northern = .autumn
-    }
+  // Astronomical seasons, bounded by the *exact* equinoxes/solstices (Sky, Meeus ch. 27).
+  // The name flips for the southern hemisphere, like the meteorological one.
+  static func resolveSeasonAstronomical(date: String, hemisphere: Hemisphere) -> Season {
+    let (_, _, _, ms) = parse(date)
+    let northern = Sky.astronomicalSeasonSpan(dateMs: ms).season
     return hemisphere == .south ? flip[northern]! : northern
   }
 
@@ -146,11 +137,10 @@ enum Rhythm {
   // Meteorological blocks (Dec–Feb, …) and the astronomical equinox/solstice spans are
   // the same dates worldwide — only the *name* flips — so progress is hemisphere-free.
   static func season(date: String, hemisphere: Hemisphere, style: SeasonStyle) -> Season {
-    let (year, month, day, _) = parse(date)
+    let (_, month, _, _) = parse(date)
     switch style {
     case .meteorological: return resolveSeason(month: month, hemisphere: hemisphere)
-    case .astronomical:
-      return resolveSeasonAstronomical(year: year, month: month, day: day, hemisphere: hemisphere)
+    case .astronomical: return resolveSeasonAstronomical(date: date, hemisphere: hemisphere)
     }
   }
 
@@ -177,26 +167,12 @@ enum Rhythm {
       to: utcMillis(year: endYear, month: endMonth, day: 1))
   }
 
-  // Progress through the current astronomical season (equinox/solstice bounded).
+  // Progress through the current astronomical season, between the exact solstice/equinox
+  // instants that bound it (Sky, Meeus ch. 27).
   static func seasonProgressAstronomical(date: String) -> Double {
-    let (year, month, day, ms) = parse(date)
-    let key = month * 100 + day
-    let start: (Int, Int, Int)
-    let end: (Int, Int, Int)
-    if key >= 1221 {
-      (start, end) = ((year, 12, 21), (year + 1, 3, 20))
-    } else if key < 320 {
-      (start, end) = ((year - 1, 12, 21), (year, 3, 20))
-    } else if key < 621 {
-      (start, end) = ((year, 3, 20), (year, 6, 21))
-    } else if key < 923 {
-      (start, end) = ((year, 6, 21), (year, 9, 23))
-    } else {
-      (start, end) = ((year, 9, 23), (year, 12, 21))
-    }
-    return fraction(
-      ms, from: utcMillis(year: start.0, month: start.1, day: start.2),
-      to: utcMillis(year: end.0, month: end.1, day: end.2))
+    let (_, _, _, ms) = parse(date)
+    let span = Sky.astronomicalSeasonSpan(dateMs: ms)
+    return fraction(ms, from: span.start, to: span.end)
   }
 
   private static func fraction(_ value: Int64, from start: Int64, to end: Int64) -> Double {

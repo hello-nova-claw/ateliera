@@ -40,18 +40,17 @@ final class RhythmTests: XCTestCase {
   }
 
   func testAstronomicalSeasonNameAndProgress() {
-    // Named by the equinox/solstice boundaries; flips for the southern hemisphere.
-    XCTAssertEqual(
-      Rhythm.resolveSeasonAstronomical(year: 2026, month: 8, day: 30, hemisphere: .north), .summer)
-    XCTAssertEqual(
-      Rhythm.resolveSeasonAstronomical(year: 2026, month: 8, day: 30, hemisphere: .south), .winter)
-    XCTAssertEqual(
-      Rhythm.resolveSeasonAstronomical(year: 2026, month: 3, day: 19, hemisphere: .north), .winter)
-    XCTAssertEqual(
-      Rhythm.resolveSeasonAstronomical(year: 2026, month: 3, day: 20, hemisphere: .north), .spring)
+    // Named by the exact equinox/solstice boundaries; flips for the southern hemisphere.
+    XCTAssertEqual(Rhythm.resolveSeasonAstronomical(date: "2026-08-30", hemisphere: .north), .summer)
+    XCTAssertEqual(Rhythm.resolveSeasonAstronomical(date: "2026-08-30", hemisphere: .south), .winter)
+    XCTAssertEqual(Rhythm.resolveSeasonAstronomical(date: "2026-03-19", hemisphere: .north), .winter)
+    XCTAssertEqual(Rhythm.resolveSeasonAstronomical(date: "2026-06-30", hemisphere: .north), .summer)
 
-    XCTAssertEqual(Int((Rhythm.seasonProgressAstronomical(date: "2026-06-21") * 100).rounded()), 0)
-    XCTAssertEqual(Int((Rhythm.seasonProgressAstronomical(date: "2026-08-30") * 100).rounded()), 74)
+    // Progress is measured between the exact solstice/equinox instants of the span.
+    let ms = Rhythm.utcMillis(year: 2026, month: 8, day: 30)
+    let span = Sky.astronomicalSeasonSpan(dateMs: ms)
+    let expected = Double(ms - span.start) / Double(span.end - span.start)
+    XCTAssertEqual(Rhythm.seasonProgressAstronomical(date: "2026-08-30"), expected, accuracy: 0.0001)
 
     // The style dispatchers agree with the specific functions.
     XCTAssertEqual(
@@ -60,6 +59,30 @@ final class RhythmTests: XCTestCase {
     XCTAssertEqual(
       Rhythm.seasonProgress(date: "2026-08-30", style: .astronomical),
       Rhythm.seasonProgressAstronomical(date: "2026-08-30"))
+  }
+
+  func testTurningPointsMatchTheEphemeris() {
+    // Golden instants captured from astronomia's solstice.* (Meeus ch. 27), within a
+    // couple of minutes — the low-accuracy method's tolerance.
+    let cases: [(Sky.TurningPoint, Int64)] = [
+      (.marchEquinox, 1_774_017_936_183),
+      (.juneSolstice, 1_782_030_295_889),
+      (.septemberEquinox, 1_790_121_930_727),
+      (.decemberSolstice, 1_797_886_213_344),
+    ]
+    for (point, expected) in cases {
+      let got = Sky.turningPointMs(year: 2026, point: point)
+      XCTAssertLessThan(abs(got - expected), 120_000, "\(point) off by \((got - expected) / 1000)s")
+    }
+  }
+
+  func testAstronomicalSeasonSpanIsExact() {
+    // Late-August (southern winter): inside the Jun-solstice → Sep-equinox span.
+    let ms = Rhythm.utcMillis(year: 2026, month: 8, day: 30)
+    let span = Sky.astronomicalSeasonSpan(dateMs: ms)
+    XCTAssertEqual(span.season, .summer)  // northern name; the view flips it for the south
+    XCTAssertEqual(span.start, Sky.turningPointMs(year: 2026, point: .juneSolstice))
+    XCTAssertEqual(span.end, Sky.turningPointMs(year: 2026, point: .septemberEquinox))
   }
 
   func testRhythmPreferencesDecodeWithoutSeasonStyle() throws {
