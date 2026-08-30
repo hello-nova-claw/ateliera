@@ -6,7 +6,19 @@ import SwiftUI
 // engine; no profile is required for moon + season, so it shows for everyone.
 struct AlmanacView: View {
   let context: RhythmContext
+  var hemisphere: Hemisphere = .north
+  var seasonStyle: SeasonStyle = .meteorological
   @Environment(\.studioTheme) private var theme
+
+  private var otherStyle: SeasonStyle {
+    seasonStyle == .meteorological ? .astronomical : .meteorological
+  }
+
+  private func seasonText(_ style: SeasonStyle) -> String {
+    let season = Rhythm.season(date: context.date, hemisphere: hemisphere, style: style)
+    let pct = Int((Rhythm.seasonProgress(date: context.date, style: style) * 100).rounded())
+    return "\(Self.sentenceCase(season.rawValue)) · \(pct)% through"
+  }
 
   private var orientationCopy: String {
     switch Rhythm.orientation(context) {
@@ -32,10 +44,7 @@ struct AlmanacView: View {
         .foregroundStyle(theme.vision)
         .fixedSize(horizontal: false, vertical: true)
       HStack(alignment: .top, spacing: 28) {
-        fact(
-          "Season",
-          "\(Self.sentenceCase(context.season.rawValue)) · \(Int((Rhythm.seasonProgress(date: context.date) * 100).rounded()))% through"
-        )
+        fact("Season", seasonText(seasonStyle))
         fact(
           "Moon",
           "\(Self.sentenceCase(context.moon.phase.rawValue)) · \(Int((context.moon.illumination * 100).rounded()))% lit"
@@ -45,6 +54,9 @@ struct AlmanacView: View {
         }
       }
       .padding(.top, 2)
+      Text("By the \(otherStyle.label.lowercased()) calendar, \(seasonText(otherStyle))")
+        .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
+        .accessibilityIdentifier("almanac-other-season")
     }
   }
 

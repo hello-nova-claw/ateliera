@@ -206,7 +206,9 @@ struct RootView: View {
 
       if showToday {
         if Preferences.isFoyerSectionVisible("almanac", store.preferences) {
-          AlmanacView(context: almanacContext)
+          AlmanacView(
+            context: almanacContext, hemisphere: hemisphere,
+            seasonStyle: store.preferences.rhythm.resolvedSeasonStyle)
         }
         FoyerRichView(store: store, onOpen: openPath)
         Button {
@@ -944,6 +946,20 @@ private struct SettingsView: View {
           rhythmToggle("Moon", keyPath: \.moon)
           rhythmToggle("Micro-season", keyPath: \.microSeason)
           rhythmToggle("Cycle", keyPath: \.cycle)
+          VStack(alignment: .leading, spacing: 6) {
+            Text("Seasons").font(StudioFont.body).foregroundStyle(theme.inkStrong)
+            Picker(
+              "Seasons",
+              selection: Binding(
+                get: { store.preferences.rhythm.resolvedSeasonStyle },
+                set: { store.setSeasonStyle($0) })
+            ) {
+              ForEach(SeasonStyle.allCases, id: \.self) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("season-style-picker")
+          }
+          .padding(.vertical, 8)
 
           Text("THEME")
             .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)

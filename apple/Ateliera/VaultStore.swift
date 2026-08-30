@@ -325,7 +325,14 @@ final class VaultStore {
   }
 
   func setRhythmLayers(moon: Bool, microSeason: Bool, cycle: Bool) {
-    preferences.rhythm = .init(moon: moon, microSeason: microSeason, cycle: cycle)
+    preferences.rhythm.moon = moon
+    preferences.rhythm.microSeason = microSeason
+    preferences.rhythm.cycle = cycle
+    preferencesStore.save(preferences, studioId: studioId)
+  }
+
+  func setSeasonStyle(_ style: SeasonStyle) {
+    preferences.rhythm.seasonStyle = style
     preferencesStore.save(preferences, studioId: studioId)
   }
 

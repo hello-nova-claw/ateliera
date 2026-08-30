@@ -39,6 +39,37 @@ final class RhythmTests: XCTestCase {
     }
   }
 
+  func testAstronomicalSeasonNameAndProgress() {
+    // Named by the equinox/solstice boundaries; flips for the southern hemisphere.
+    XCTAssertEqual(
+      Rhythm.resolveSeasonAstronomical(year: 2026, month: 8, day: 30, hemisphere: .north), .summer)
+    XCTAssertEqual(
+      Rhythm.resolveSeasonAstronomical(year: 2026, month: 8, day: 30, hemisphere: .south), .winter)
+    XCTAssertEqual(
+      Rhythm.resolveSeasonAstronomical(year: 2026, month: 3, day: 19, hemisphere: .north), .winter)
+    XCTAssertEqual(
+      Rhythm.resolveSeasonAstronomical(year: 2026, month: 3, day: 20, hemisphere: .north), .spring)
+
+    XCTAssertEqual(Int((Rhythm.seasonProgressAstronomical(date: "2026-06-21") * 100).rounded()), 0)
+    XCTAssertEqual(Int((Rhythm.seasonProgressAstronomical(date: "2026-08-30") * 100).rounded()), 74)
+
+    // The style dispatchers agree with the specific functions.
+    XCTAssertEqual(
+      Rhythm.seasonProgress(date: "2026-08-30", style: .meteorological),
+      Rhythm.seasonProgress(date: "2026-08-30"))
+    XCTAssertEqual(
+      Rhythm.seasonProgress(date: "2026-08-30", style: .astronomical),
+      Rhythm.seasonProgressAstronomical(date: "2026-08-30"))
+  }
+
+  func testRhythmPreferencesDecodeWithoutSeasonStyle() throws {
+    // Preferences saved before season style existed must still decode (→ meteorological).
+    let json = Data(#"{"moon":true,"microSeason":false,"cycle":true}"#.utf8)
+    let prefs = try JSONDecoder().decode(StoredStudioPreferences.RhythmPreferences.self, from: json)
+    XCTAssertEqual(prefs.resolvedSeasonStyle, .meteorological)
+    XCTAssertFalse(prefs.microSeason)
+  }
+
   func testResolveMicroSeasonBoundariesAndSouthernShift() {
     let cases: [(String, Hemisphere, String)] = [
       ("2026-01-10", .north, "Lesser Cold"),

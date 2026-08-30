@@ -22,6 +22,15 @@ enum Season: String, Equatable {
   case winter, spring, summer, autumn
 }
 
+// How the year's seasons are bounded: by calendar month (meteorological) or by the
+// equinoxes/solstices (astronomical). A per-vault preference; both can be shown.
+enum SeasonStyle: String, Codable, Equatable, CaseIterable {
+  case meteorological
+  case astronomical
+
+  var label: String { self == .meteorological ? "Meteorological" : "Astronomical" }
+}
+
 enum Hemisphere: String, Equatable {
   case north = "N"
   case south = "S"
@@ -113,9 +122,46 @@ enum Rhythm {
     return hemisphere == .south ? flip[northern]! : northern
   }
 
-  // How far through the current (meteorological) season the date sits, 0…1. The
-  // 3-month blocks — Dec–Feb, Mar–May, Jun–Aug, Sep–Nov — are the same dates in both
-  // hemispheres; only the season's *name* flips, so this progress is hemisphere-free.
+  // Astronomical seasons, bounded by the equinoxes/solstices the app already anchors:
+  // spring Mar 20, summer Jun 21, autumn Sep 23, winter Dec 21 (approximate fixed
+  // dates). The name flips for the southern hemisphere, like the meteorological one.
+  static func resolveSeasonAstronomical(
+    year _: Int, month: Int, day: Int, hemisphere: Hemisphere
+  ) -> Season {
+    let key = month * 100 + day
+    let northern: Season
+    if key >= 1221 || key < 320 {
+      northern = .winter
+    } else if key < 621 {
+      northern = .spring
+    } else if key < 923 {
+      northern = .summer
+    } else {
+      northern = .autumn
+    }
+    return hemisphere == .south ? flip[northern]! : northern
+  }
+
+  // A season's name + how far through it the date sits (0…1), for either definition.
+  // Meteorological blocks (Dec–Feb, …) and the astronomical equinox/solstice spans are
+  // the same dates worldwide — only the *name* flips — so progress is hemisphere-free.
+  static func season(date: String, hemisphere: Hemisphere, style: SeasonStyle) -> Season {
+    let (year, month, day, _) = parse(date)
+    switch style {
+    case .meteorological: return resolveSeason(month: month, hemisphere: hemisphere)
+    case .astronomical:
+      return resolveSeasonAstronomical(year: year, month: month, day: day, hemisphere: hemisphere)
+    }
+  }
+
+  static func seasonProgress(date: String, style: SeasonStyle) -> Double {
+    switch style {
+    case .meteorological: return seasonProgress(date: date)
+    case .astronomical: return seasonProgressAstronomical(date: date)
+    }
+  }
+
+  // How far through the current (meteorological) season the date sits, 0…1.
   static func seasonProgress(date: String) -> Double {
     let (year, month, _, ms) = parse(date)
     let startYear: Int, startMonth: Int, endYear: Int, endMonth: Int
@@ -126,10 +172,36 @@ enum Rhythm {
     case 6, 7, 8: (startYear, startMonth, endYear, endMonth) = (year, 6, year, 9)
     default: (startYear, startMonth, endYear, endMonth) = (year, 9, year, 12)  // 9, 10, 11
     }
-    let startMs = utcMillis(year: startYear, month: startMonth, day: 1)
-    let endMs = utcMillis(year: endYear, month: endMonth, day: 1)
-    guard endMs > startMs else { return 0 }
-    return min(1, max(0, Double(ms - startMs) / Double(endMs - startMs)))
+    return fraction(
+      ms, from: utcMillis(year: startYear, month: startMonth, day: 1),
+      to: utcMillis(year: endYear, month: endMonth, day: 1))
+  }
+
+  // Progress through the current astronomical season (equinox/solstice bounded).
+  static func seasonProgressAstronomical(date: String) -> Double {
+    let (year, month, day, ms) = parse(date)
+    let key = month * 100 + day
+    let start: (Int, Int, Int)
+    let end: (Int, Int, Int)
+    if key >= 1221 {
+      (start, end) = ((year, 12, 21), (year + 1, 3, 20))
+    } else if key < 320 {
+      (start, end) = ((year - 1, 12, 21), (year, 3, 20))
+    } else if key < 621 {
+      (start, end) = ((year, 3, 20), (year, 6, 21))
+    } else if key < 923 {
+      (start, end) = ((year, 6, 21), (year, 9, 23))
+    } else {
+      (start, end) = ((year, 9, 23), (year, 12, 21))
+    }
+    return fraction(
+      ms, from: utcMillis(year: start.0, month: start.1, day: start.2),
+      to: utcMillis(year: end.0, month: end.1, day: end.2))
+  }
+
+  private static func fraction(_ value: Int64, from start: Int64, to end: Int64) -> Double {
+    guard end > start else { return 0 }
+    return min(1, max(0, Double(value - start) / Double(end - start)))
   }
 
   // MARK: Moon (Meeus, Astronomical Algorithms ch. 47–48)

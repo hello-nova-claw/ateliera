@@ -317,6 +317,24 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(value.contains("[[Anchor note]]"), "body was \(value)")
   }
 
+  func testSeasonStyleToggleAndSeeBoth() {
+    let app = launchEmptyApp()
+    // Open the Today panel; the almanac shows the other calendar's season too.
+    app.buttons["today-panel-toggle"].tap()
+    let other = app.staticTexts["almanac-other-season"]
+    XCTAssertTrue(other.waitForExistence(timeout: 8))
+    XCTAssertTrue(other.label.contains("astronomical calendar"), "was \(other.label)")
+    // Switch the primary style to Astronomical in Settings.
+    app.buttons["settings-button"].tap()
+    let picker = app.segmentedControls["season-style-picker"]
+    XCTAssertTrue(picker.waitForExistence(timeout: 5))
+    picker.buttons["Astronomical"].tap()
+    app.buttons["Done"].tap()
+    // Now the "see both" line references the meteorological calendar instead.
+    XCTAssertTrue(
+      app.staticTexts["almanac-other-season"].label.contains("meteorological calendar"))
+  }
+
   func testSeasonWizardBeginsAndActivates() {
     let app = launchEmptyApp()
     let room = app.buttons["room-current-season"]
