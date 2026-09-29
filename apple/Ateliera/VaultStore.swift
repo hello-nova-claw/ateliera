@@ -21,6 +21,7 @@ struct NoteSummary: Identifiable {
   var lifeAreas: [String] = []
   var landscapeAnchor: String? = nil
   var featured: Bool = false
+  var cover: String? = nil  // vault-relative cover reference, for list thumbnails
 }
 
 // A note opened for editing: its path, the content hash it was read at (for
@@ -172,9 +173,23 @@ final class VaultStore {
       return
     }
     if !openFromPersistedBookmark() {
-      openFixture()
+      // Demo content is seeded ONLY in the simulator, so the rooms have something
+      // to show during development. On a real device a first launch opens with no
+      // vault and RootView guides the person to pick their folder — never a folder
+      // of fake notes silently written into Documents.
+      #if targetEnvironment(simulator)
+        openFixture()
+      #endif
     }
   }
+
+  /// Whether a vault is currently open — false on a first launch before the person
+  /// has chosen their folder, which RootView uses to present the picker.
+  var hasVault: Bool { vault != nil }
+
+  /// The vault path of the most recent successful quick capture — lets the capture
+  /// flow open the workshop on the note it just wrote.
+  private(set) var lastCapturedPath: String?
 
   private static func uitestVaultURL() -> URL? {
     guard ProcessInfo.processInfo.environment["ATELIERA_UITEST"] == "1" else { return nil }
@@ -264,11 +279,23 @@ final class VaultStore {
       .write(to: dir.appendingPathComponent("a-wish.md"))
   }
 
+  // A sandboxed macOS app must create and resolve the bookmark with security scope
+  // for the picked folder to stay reachable across launches; on iOS the fileImporter
+  // grant needs no such option (and .withSecurityScope isn't available there).
+  #if os(macOS)
+    private static let bookmarkCreateOptions: URL.BookmarkCreationOptions = [.withSecurityScope]
+    private static let bookmarkResolveOptions: URL.BookmarkResolutionOptions = [.withSecurityScope]
+  #else
+    private static let bookmarkCreateOptions: URL.BookmarkCreationOptions = []
+    private static let bookmarkResolveOptions: URL.BookmarkResolutionOptions = []
+  #endif
+
   /// Called from `.fileImporter` when the user picks a folder.
   func open(url: URL) {
     let accessing = url.startAccessingSecurityScopedResource()
     do {
-      let data = try url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
+      let data = try url.bookmarkData(
+        options: Self.bookmarkCreateOptions, includingResourceValuesForKeys: nil, relativeTo: nil)
       UserDefaults.standard.set(data, forKey: bookmarkKey)
       try openVault(at: url)
     } catch {
@@ -282,7 +309,8 @@ final class VaultStore {
     var stale = false
     guard
       let url = try? URL(
-        resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale)
+        resolvingBookmarkData: data, options: Self.bookmarkResolveOptions, relativeTo: nil,
+        bookmarkDataIsStale: &stale)
     else { return false }
     _ = url.startAccessingSecurityScopedResource()  // held for the session
     do {
@@ -367,7 +395,10 @@ final class VaultStore {
   /// it atomically through the Rust core into the room's folder. Returns false
   /// (with `error` set) if there's no vault or nothing was written.
   @discardableResult
-  func capture(title: String?, body: String, room: String = "inbox") -> Bool {
+  func capture(
+    title: String?, body: String, room: String = "inbox", tags: [String] = [],
+    coverData: Data? = nil
+  ) -> Bool {
     guard let vault else {
       error = "Choose a Studio folder first."
       return false
@@ -379,16 +410,25 @@ final class VaultStore {
     }
     let id = NoteFactory.createNoteId()
     let created = NoteFactory.isoTimestamp()
-    let note = StudioNote.capture(
+    var note = StudioNote.capture(
       title: title, body: trimmedBody, id: id, created: created, room: room)
+    note.tags = tags
     let filename = NoteFactory.suggestFilename(
       created: created, title: note.title, cardType: note.cardType, id: id)
     let path = "\(Room.folderName(for: room))/\(filename)"
     do {
-      _ = try vault.writeText(
+      let outcome = try vault.writeText(
         path: path, text: note.serialize(), expectedHash: nil, createNew: true)
+      // A picked cover is written into the note's Media folder, then the note is
+      // rewritten once with the reference — the note must exist on disk first.
+      if let coverData, let reference = setCover(data: coverData, forNotePath: path) {
+        note.display = NoteDisplay(cover: reference, featured: note.display.featured)
+        _ = try vault.writeText(
+          path: path, text: note.serialize(), expectedHash: outcome.hash, createNew: false)
+      }
       try reload()
       error = nil
+      lastCapturedPath = path
       return true
     } catch {
       self.error = "\(error)"
@@ -878,7 +918,7 @@ final class VaultStore {
       meaning: note.cardType, timestamp: note.updated.isEmpty ? note.created : note.updated,
       rooms: note.rooms, status: note.status, semanticType: note.semanticType, tags: note.tags,
       lifeAreas: note.lifeAreas, landscapeAnchor: note.landscapeAnchor,
-      featured: note.display.featured)
+      featured: note.display.featured, cover: note.display.cover)
   }
 
   // The note body (everything after the frontmatter), for full-text search.
@@ -946,6 +986,7 @@ final class VaultStore {
       featured: false)
   }
 
+  #if targetEnvironment(simulator)
   // Seed a small Reflection Garden so the room has content in the simulator.
   private func openFixture() {
     let fm = FileManager.default
@@ -973,4 +1014,5 @@ final class VaultStore {
       self.error = "\(error)"
     }
   }
+  #endif
 }

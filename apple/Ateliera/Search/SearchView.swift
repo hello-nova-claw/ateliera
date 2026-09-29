@@ -9,7 +9,7 @@ struct SearchView: View {
   @Environment(\.studioTheme) private var theme
   let store: VaultStore
   let onOpen: (String) -> Void  // note path
-  let onClose: () -> Void
+  let onClose: (() -> Void)?  // nil when hosted as a tab (no Done button)
 
   @State private var query = ""
   @State private var filters = SearchFilters()
@@ -40,12 +40,15 @@ struct SearchView: View {
         ToolbarItem(placement: .principal) {
           Text("Search").font(StudioFont.control).foregroundStyle(theme.inkStrong)
         }
-        ToolbarItem(placement: .cancellationAction) {
-          Button("Done") { onClose() }
+        if let onClose {
+          ToolbarItem(placement: .cancellationAction) {
+            Button("Done") { onClose() }
+          }
         }
       }
     }
-    .onAppear { focused = true }
+    // Auto-focus only in sheet mode; a tab shouldn't pop the keyboard on selection.
+    .onAppear { if onClose != nil { focused = true } }
   }
 
   private var searchField: some View {

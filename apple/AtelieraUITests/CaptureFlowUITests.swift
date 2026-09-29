@@ -33,6 +33,13 @@ final class CaptureFlowUITests: XCTestCase {
     element.typeText(text)
   }
 
+  // Rooms live in their own tab now; select it first, then return the room's button.
+  private func roomButton(_ id: String, in app: XCUIApplication) -> XCUIElement {
+    let rooms = app.tabBars.buttons["Rooms"]
+    if rooms.waitForExistence(timeout: 5) { rooms.tap() }
+    return app.buttons["room-\(id)"]
+  }
+
   func testCapturingANoteShowsItInTheRoom() {
     let app = launchEmptyApp()
 
@@ -83,13 +90,13 @@ final class CaptureFlowUITests: XCTestCase {
     app.buttons["classified-keep"].tap()
     XCTAssertTrue(app.staticTexts["A found moment"].waitForExistence(timeout: 5))
 
-    // Step into the Inbox room (confirmed by its unique intro) and find the note.
-    let inbox = app.buttons["room-inbox"]
+    // Step into the Journal (quick capture's home; confirmed by its unique intro).
+    let inbox = roomButton("inbox", in: app)
     XCTAssertTrue(inbox.waitForExistence(timeout: 5))
     if !inbox.isHittable { app.swipeUp() }
     inbox.tap()
     XCTAssertTrue(
-      app.staticTexts["Quick captures, waiting here until they find their room."]
+      app.staticTexts["Dated entries — the small moments, caught as they happen."]
         .waitForExistence(timeout: 5))
     XCTAssertTrue(app.staticTexts["A found moment"].exists)
   }
@@ -115,7 +122,7 @@ final class CaptureFlowUITests: XCTestCase {
   func testSearchShowsResultAndFacetIsOperable() {
     let app = launchEmptyApp()
     captureOnly(app, title: "Seaside", body: "waves over the shore at dawn")
-    app.buttons["search-button"].tap()
+    app.tabBars.buttons["Find"].tap()
     type("shore", into: app.textFields["search-field"], in: app)
     XCTAssertTrue(app.staticTexts["Seaside"].waitForExistence(timeout: 5))
     // The Inbox facet chip is present and keeps the matching result when toggled.
@@ -176,7 +183,7 @@ final class CaptureFlowUITests: XCTestCase {
 
   func testLandscapeRoomShowsAnchorsAndAddsArea() {
     let app = launchWith(["ATELIERA_UITEST_P5": "1"])
-    let room = app.buttons["room-landscape"]
+    let room = roomButton("landscape", in: app)
     XCTAssertTrue(room.waitForExistence(timeout: 8))
     room.tap()
     XCTAssertTrue(app.navigationBars["Life Landscape"].waitForExistence(timeout: 5))
@@ -194,7 +201,7 @@ final class CaptureFlowUITests: XCTestCase {
 
   func testLandscapeAddsACardToAnAnchor() {
     let app = launchWith(["ATELIERA_UITEST_P5": "1"])
-    let room = app.buttons["room-landscape"]
+    let room = roomButton("landscape", in: app)
     XCTAssertTrue(room.waitForExistence(timeout: 8))
     room.tap()
     XCTAssertTrue(app.navigationBars["Life Landscape"].waitForExistence(timeout: 5))
@@ -211,7 +218,7 @@ final class CaptureFlowUITests: XCTestCase {
 
   func testLandscapeSwipeDeletesACard() {
     let app = launchWith(["ATELIERA_UITEST_P5": "1"])
-    let room = app.buttons["room-landscape"]
+    let room = roomButton("landscape", in: app)
     XCTAssertTrue(room.waitForExistence(timeout: 8))
     room.tap()
     // Swipe the seeded Vision card left to reveal the move/delete nudge bar, then delete.
@@ -226,7 +233,7 @@ final class CaptureFlowUITests: XCTestCase {
 
   func testIdentityRoomSectionsAndPromote() {
     let app = launchWith(["ATELIERA_UITEST_P5": "1"])
-    let room = app.buttons["room-identity-studio"]
+    let room = roomButton("identity-studio", in: app)
     XCTAssertTrue(room.waitForExistence(timeout: 8))
     room.tap()
     XCTAssertTrue(app.navigationBars["Identity Studio"].waitForExistence(timeout: 5), "did not navigate")
@@ -241,7 +248,7 @@ final class CaptureFlowUITests: XCTestCase {
 
   func testUnchartedKeepsNearAndBeyondPossibilities() {
     let app = launchEmptyApp()
-    let room = app.buttons["room-uncharted"]
+    let room = roomButton("uncharted", in: app)
     XCTAssertTrue(room.waitForExistence(timeout: 8))
     room.tap()
     XCTAssertTrue(app.navigationBars["Uncharted"].waitForExistence(timeout: 5))
@@ -259,7 +266,7 @@ final class CaptureFlowUITests: XCTestCase {
 
   func testWisdomAddIdeaAppearsInGarden() {
     let app = launchEmptyApp()
-    let room = app.buttons["room-wisdom-garden"]
+    let room = roomButton("wisdom-garden", in: app)
     XCTAssertTrue(room.waitForExistence(timeout: 8))
     room.tap()
     XCTAssertTrue(app.navigationBars["Wisdom Garden"].waitForExistence(timeout: 5))
@@ -272,7 +279,7 @@ final class CaptureFlowUITests: XCTestCase {
 
   func testReflectionCaptureAndCelebrationTab() {
     let app = launchEmptyApp()
-    let room = app.buttons["room-reflection-garden"]
+    let room = roomButton("reflection-garden", in: app)
     XCTAssertTrue(room.waitForExistence(timeout: 8))
     room.tap()
     XCTAssertTrue(app.navigationBars["Reflection Garden"].waitForExistence(timeout: 5))
@@ -337,7 +344,7 @@ final class CaptureFlowUITests: XCTestCase {
 
   func testSeasonWizardBeginsAndActivates() {
     let app = launchEmptyApp()
-    let room = app.buttons["room-current-season"]
+    let room = roomButton("current-season", in: app)
     XCTAssertTrue(room.waitForExistence(timeout: 8))
     room.tap()
     XCTAssertTrue(app.navigationBars["Current Season"].waitForExistence(timeout: 5))
@@ -455,15 +462,16 @@ final class CaptureFlowUITests: XCTestCase {
 
   func testRoomVisibilityToggleHidesRoom() {
     let app = launchEmptyApp()
-    XCTAssertTrue(app.buttons["room-uncharted"].waitForExistence(timeout: 8))
-    // Turn the Uncharted room off in Settings.
+    XCTAssertTrue(roomButton("uncharted", in: app).waitForExistence(timeout: 8))
+    // Turn the Uncharted room off in Settings (the gear lives on the Today tab).
+    app.tabBars.buttons["Today"].tap()
     app.buttons["settings-button"].tap()
     let toggle = app.switches["room-toggle-uncharted"]
     XCTAssertTrue(toggle.waitForExistence(timeout: 5))
     toggle.tap()
     app.buttons["Done"].tap()
-    // It's gone from the Foyer's room list.
-    XCTAssertFalse(app.buttons["room-uncharted"].exists)
+    // It's gone from the Rooms tab list.
+    XCTAssertFalse(roomButton("uncharted", in: app).exists)
   }
 
   func testSettingsSwitchesTheme() {
@@ -515,7 +523,7 @@ final class CaptureFlowUITests: XCTestCase {
   func testCaptureIntoASpecificRoom() {
     let app = launchEmptyApp()
     // Step into the Inbox (the generic room scaffold) and capture there.
-    let inbox = app.buttons["room-inbox"]
+    let inbox = roomButton("inbox", in: app)
     XCTAssertTrue(inbox.waitForExistence(timeout: 5))
     if !inbox.isHittable { app.swipeUp() }
     inbox.tap()
@@ -530,8 +538,72 @@ final class CaptureFlowUITests: XCTestCase {
     type("worth remembering", into: editor, in: app)
     app.buttons["note-save-button"].tap()
 
-    // It lands in the Inbox room we're standing in.
+    // It lands in the Journal we're standing in (the workshop is only offered, not forced).
     XCTAssertTrue(app.staticTexts["A kept truth"].waitForExistence(timeout: 5))
+  }
+
+  func testJournalCaptureWithTagsShowsTagPill() {
+    let app = launchEmptyApp()
+    // Capture into the Journal via its Add button — the sheet that supports tags.
+    let journal = roomButton("inbox", in: app)
+    XCTAssertTrue(journal.waitForExistence(timeout: 5))
+    journal.tap()
+    app.buttons["room-capture-button"].tap()
+    type("A tagged moment", into: app.textFields["note-title-field"], in: app)
+    type("with a tag", into: app.textViews["note-body-editor"], in: app)
+    type("gratitude, nature", into: app.textFields["note-tags-field"], in: app)
+    app.buttons["note-save-button"].tap()
+    // The entry shows in the Journal with its tag rendered as a pill.
+    XCTAssertTrue(app.staticTexts["A tagged moment"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["gratitude"].waitForExistence(timeout: 5))
+  }
+
+  func testWorkshopFromCaptureWritesALandscapeCard() {
+    let app = launchEmptyApp()
+    // Capture a Journal entry via the Journal's Add button.
+    let journal = roomButton("inbox", in: app)
+    XCTAssertTrue(journal.waitForExistence(timeout: 5))
+    journal.tap()
+    app.buttons["room-capture-button"].tap()
+    type("More space", into: app.textFields["note-title-field"], in: app)
+    type("I want more space than I thought.", into: app.textViews["note-body-editor"], in: app)
+    app.buttons["note-save-button"].tap()
+
+    // A gentle offer appears — accept it to open the workshop on the seed.
+    let offer = app.buttons["develop-offer"]
+    XCTAssertTrue(offer.waitForExistence(timeout: 5))
+    offer.tap()
+
+    // Anchor it to the Family area.
+    let family = app.buttons["workshop-area-Family"]
+    XCTAssertTrue(family.waitForExistence(timeout: 8))
+    family.tap()
+
+    // Answer the first dimension (Vision) — this writes a real Landscape card.
+    let editor = app.textViews["workshop-editor"]
+    XCTAssertTrue(editor.waitForExistence(timeout: 5))
+    type("An unhurried morning", into: editor, in: app)
+    app.buttons["workshop-next"].tap()
+
+    // Skip the remaining dimensions, then finish.
+    for _ in 0..<4 {
+      let skip = app.buttons["workshop-skip"]
+      if skip.waitForExistence(timeout: 3) { skip.tap() }
+    }
+    let done = app.buttons["workshop-done"]
+    XCTAssertTrue(done.waitForExistence(timeout: 5))
+    done.tap()
+
+    // The Vision card now lives on the Life Landscape, under the Family area.
+    let landscape = roomButton("landscape", in: app)
+    XCTAssertTrue(landscape.waitForExistence(timeout: 8))
+    landscape.tap()
+    // Select Family explicitly so the card's area is the one on screen.
+    let family2 = app.buttons["area-family"]
+    XCTAssertTrue(family2.waitForExistence(timeout: 8))
+    family2.tap()
+    // Landscape cards render as buttons labelled by their title.
+    XCTAssertTrue(app.buttons["An unhurried morning"].waitForExistence(timeout: 8))
   }
 
   func testSearchFindsACapturedNoteByBody() {
@@ -547,7 +619,7 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["A found moment"].waitForExistence(timeout: 5))
 
     // Search by a body word and find it.
-    app.buttons["search-button"].tap()
+    app.tabBars.buttons["Find"].tap()
     let field = app.textFields["search-field"]
     XCTAssertTrue(field.waitForExistence(timeout: 5))
     type("keeping", into: field, in: app)

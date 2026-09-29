@@ -43,10 +43,10 @@ final class RoomsTests: XCTestCase {
   }
 
   func testRoomFolderNames() {
-    XCTAssertEqual(Room.folderName(for: "inbox"), "Inbox")
+    XCTAssertEqual(Room.folderName(for: "inbox"), "Journal")  // Inbox folded into the Journal
     XCTAssertEqual(Room.folderName(for: "reflection-garden"), "Reflection Garden")
     XCTAssertEqual(Room.folderName(for: "wisdom-garden"), "Wisdom Garden")
-    XCTAssertEqual(Room.folderName(for: "nonexistent"), "Inbox")  // safe default
+    XCTAssertEqual(Room.folderName(for: "nonexistent"), "Journal")  // safe default
   }
 
   func testFilteringByRoomMembership() {
