@@ -14,6 +14,6 @@ it('renders one consistent room title relationship', () => {
     'Reflection Garden',
   );
   expect(screen.getByText('notice what is changing')).toHaveClass(
-    'studio-room-heading__script',
+    'studio-room-heading__eyebrow',
   );
 });

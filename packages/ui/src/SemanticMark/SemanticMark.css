@@ -1,45 +1,55 @@
 .semantic-mark {
+  /* Defaults are Foundations; the modifiers below re-point both custom
+   * properties. --semantic-mark-color is component-internal (not a theme token). */
   --semantic-mark-color: var(--studio-color-foundation);
+  --semantic-mark-stock: var(--studio-stock-foundation);
 
   display: inline-flex;
-  align-items: center;
   gap: var(--studio-space-2);
-  color: var(--studio-color-ink-muted);
+  align-items: center;
+  color: var(--studio-color-ink);
   font: var(--studio-type-label);
 }
 
 .semantic-mark--vision {
   --semantic-mark-color: var(--studio-color-vision);
+  --semantic-mark-stock: var(--studio-stock-vision);
 }
 
 .semantic-mark--growth {
   --semantic-mark-color: var(--studio-color-growth);
+  --semantic-mark-stock: var(--studio-stock-growth);
 }
 
 .semantic-mark--reflection {
   --semantic-mark-color: var(--studio-color-reflection);
+  --semantic-mark-stock: var(--studio-stock-reflection);
 }
 
 .semantic-mark--celebration {
   --semantic-mark-color: var(--studio-color-celebration);
+  --semantic-mark-stock: var(--studio-stock-celebration);
 }
 
 .semantic-mark--uncharted {
   --semantic-mark-color: var(--studio-color-uncharted);
+  --semantic-mark-stock: var(--studio-stock-uncharted);
 }
 
-.semantic-mark__heart {
-  inline-size: 1rem;
-  block-size: 1rem;
-  fill: none;
-  stroke: var(--semantic-mark-color);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.75;
+.semantic-mark__badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.875rem;
+  block-size: 1.875rem;
+  color: var(--semantic-mark-color);
+  background: var(--semantic-mark-stock);
+  border-radius: var(--studio-radius-pill);
 }
 
 .semantic-mark__label {
-  color: var(--studio-color-ink-muted);
+  color: var(--studio-color-ink);
 }
 
 .visually-hidden {
@@ -55,7 +65,7 @@
 }
 
 @media (forced-colors: active) {
-  .semantic-mark__heart {
-    stroke: CanvasText;
+  .semantic-mark__badge {
+    border: 1px solid CanvasText;
   }
 }
