@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import { PathEscapeError, VaultConflictError, VaultUnavailableError } from './conflict';
 import { isPublicNotePath } from './vault-port';
 import type {
@@ -55,8 +53,13 @@ function validatePath(path: string): string {
   return path;
 }
 
-function digest(bytes: Uint8Array): string {
-  return createHash('sha256').update(bytes).digest('hex');
+// Web Crypto (available in Node 22 and browsers) so the in-memory vault bundles for
+// the browser app; SHA-256 hex, matching the browser vault and the retired node:crypto.
+async function digest(bytes: Uint8Array): Promise<string> {
+  const hash = await crypto.subtle.digest('SHA-256', bytes.slice().buffer);
+  return [...new Uint8Array(hash)]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 function parentDirectories(path: string): string[] {
@@ -171,11 +174,23 @@ class InMemoryVault implements VaultPort {
   }
 
   async writeBatchAtomic(input: VaultAtomicWriteBatch): Promise<VaultAtomicWriteResult> {
+    // Hash every write first (the only await); the revision gate, per-write
+    // conflict checks, and the mutation then run as one synchronous critical
+    // section so two concurrent batches can't both pass the revision gate.
+    const hashed = await Promise.all(
+      input.writes.map(async (write) => {
+        // .slice() runs synchronously (before digest's await), so a caller
+        // mutating its array during the async hash can't change what we store.
+        const bytes = write.bytes.slice();
+        return { write, bytes, hash: await digest(bytes) };
+      }),
+    );
+
     if (input.expectedRevision !== this.#revision.toString()) {
       throw new VaultConflictError();
     }
     const paths = new Set<string>();
-    const prepared = input.writes.map((write) => {
+    const prepared = hashed.map(({ write, bytes, hash }) => {
       const path = validatePath(write.path);
       if (paths.has(path)) throw new VaultConflictError('A batch cannot write the same path twice.');
       paths.add(path);
@@ -187,8 +202,7 @@ class InMemoryVault implements VaultPort {
       if (write.expectedHash !== undefined && previous?.hash !== write.expectedHash) {
         throw new VaultConflictError();
       }
-      const bytes = write.bytes.slice();
-      return { path, bytes, hash: digest(bytes), previous };
+      return { path, bytes, hash, previous };
     });
 
     for (const write of prepared) {
@@ -219,7 +233,16 @@ class InMemoryVault implements VaultPort {
     return file;
   }
 
-  #write(path: string, sourceBytes: Uint8Array, condition?: WriteCondition): { hash: string } {
+  async #write(
+    path: string,
+    sourceBytes: Uint8Array,
+    condition?: WriteCondition,
+  ): Promise<{ hash: string }> {
+    // Hash first (the only await); the conflict check and the write then run as one
+    // synchronous critical section, so two concurrent writers can't both pass it.
+    const bytes = sourceBytes.slice();
+    const hash = await digest(bytes);
+
     const previous = this.#files.get(path);
     if (condition?.expectedMissing && previous !== undefined) {
       throw new VaultConflictError();
@@ -232,8 +255,6 @@ class InMemoryVault implements VaultPort {
       throw new VaultConflictError();
     }
 
-    const bytes = sourceBytes.slice();
-    const hash = digest(bytes);
     this.#files.set(path, { bytes, hash });
     this.#advanceRevision();
     this.#emit({ kind: previous === undefined ? 'created' : 'modified', path, hash });
