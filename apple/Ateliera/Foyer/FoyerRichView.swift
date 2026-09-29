@@ -39,10 +39,7 @@ struct FoyerRichView: View {
             .fixedSize(horizontal: false, vertical: true)
         }
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .padding(18)
-      .background(RoundedRectangle(cornerRadius: 12).fill(theme.surface))
-      .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.line, lineWidth: 1))
+      .studioCard()
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
