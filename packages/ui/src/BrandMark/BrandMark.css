@@ -1,0 +1,59 @@
+.studio-brand-mark {
+  display: inline-flex;
+  gap: 0.4em;
+  align-items: center;
+  color: var(--studio-color-ink-strong);
+}
+
+.studio-brand-mark--foil {
+  color: var(--studio-color-script);
+}
+
+.studio-brand-mark__glyph {
+  display: block;
+  flex: none;
+}
+
+.studio-brand-mark__line {
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.4;
+  opacity: 0.55;
+}
+
+.studio-brand-mark__star {
+  fill: currentcolor;
+  stroke: none;
+}
+
+.studio-brand-mark__lockup {
+  display: grid;
+  gap: 0.05em;
+  line-height: 1;
+}
+
+.studio-brand-mark__wordmark {
+  font-family: var(--studio-font-display);
+  font-size: 0.72em;
+  font-weight: 400;
+}
+
+.studio-brand-mark__tagline {
+  font-family: var(--studio-font-interface);
+  font-size: 0.22em;
+  font-weight: 500;
+  letter-spacing: 0.42em;
+
+  /* Trim the trailing tracked space so the word stays optically centred. */
+  text-indent: 0.42em;
+  color: var(--studio-color-ink-soft);
+}
+
+@media (forced-colors: active) {
+  .studio-brand-mark,
+  .studio-brand-mark--foil {
+    color: CanvasText;
+  }
+}

@@ -1,0 +1,82 @@
+.studio-button {
+  display: inline-flex;
+  gap: var(--studio-space-2);
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--studio-touch-target);
+  padding: var(--studio-space-2) var(--studio-space-5);
+  font: var(--studio-type-control);
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: var(--studio-radius-pill);
+  transition: background-color var(--studio-motion-fast) var(--studio-ease-standard),
+    border-color var(--studio-motion-fast) var(--studio-ease-standard),
+    color var(--studio-motion-fast) var(--studio-ease-standard);
+}
+
+.studio-button:focus-visible {
+  outline: var(--studio-focus-width) solid var(--studio-color-focus);
+  outline-offset: var(--studio-focus-offset);
+}
+
+.studio-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.studio-button--primary {
+  color: var(--studio-color-surface);
+  background: var(--studio-color-ink);
+}
+
+.studio-button--primary:hover:not(:disabled) {
+  background: var(--studio-color-ink-1);
+}
+
+.studio-button--secondary {
+  color: var(--studio-color-ink);
+  background: transparent;
+  border-color: var(--studio-color-line-strong);
+}
+
+.studio-button--secondary:hover:not(:disabled) {
+  border-color: var(--studio-color-ink-soft);
+}
+
+.studio-button--quiet {
+  min-block-size: auto;
+  padding: var(--studio-space-1) var(--studio-space-2);
+  color: var(--studio-color-ink-soft);
+  background: transparent;
+}
+
+.studio-button--quiet:hover:not(:disabled) {
+  color: var(--studio-color-ink);
+}
+
+.studio-button__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  color: var(--studio-color-ink-soft);
+  border: 1px solid currentcolor;
+  border-radius: var(--studio-radius-pill);
+}
+
+.studio-button--quiet:hover:not(:disabled) .studio-button__mark {
+  color: var(--studio-color-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-button {
+    transition-duration: var(--studio-motion-reduced-duration);
+  }
+}
+
+@media (forced-colors: active) {
+  .studio-button {
+    border-color: CanvasText;
+  }
+}

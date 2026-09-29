@@ -1,0 +1,101 @@
+.studio-season-timeline {
+  display: grid;
+  gap: var(--studio-space-6);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.studio-season-timeline__item {
+  margin: 0;
+}
+
+.studio-season-timeline__entry {
+  position: relative;
+  display: flex;
+  gap: var(--studio-space-4);
+  align-items: center;
+  inline-size: 100%;
+  padding: 0 0 0 var(--studio-space-6);
+  text-align: start;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+
+/* The spine: a 1px line threading the dots down the left edge. */
+.studio-season-timeline__item:not(:last-child) .studio-season-timeline__entry::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0.75rem;
+  inset-inline-start: 3px;
+  inline-size: 1px;
+  block-size: calc(100% + var(--studio-space-6));
+  background: var(--studio-color-line-strong);
+}
+
+.studio-season-timeline__dot {
+  position: absolute;
+  inset-block-start: 0.55rem;
+  inset-inline-start: 0;
+  inline-size: 7px;
+  block-size: 7px;
+  background: var(--studio-color-line-strong);
+  border-radius: var(--studio-radius-pill);
+}
+
+.studio-season-timeline__item[aria-current='true'] .studio-season-timeline__dot {
+  background: var(--studio-color-accent);
+}
+
+.studio-season-timeline__thumb {
+  display: block;
+  flex: none;
+  inline-size: 3.25rem;
+  block-size: 3.25rem;
+  overflow: hidden;
+  background: var(--studio-color-sunken);
+  border-radius: var(--studio-radius-pill);
+}
+
+.studio-season-timeline__thumb img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+.studio-season-timeline__text {
+  display: grid;
+  gap: 2px;
+}
+
+.studio-season-timeline__name {
+  font: var(--studio-type-card-title);
+  color: var(--studio-color-ink);
+}
+
+.studio-season-timeline__theme {
+  font: var(--studio-type-quote);
+  color: var(--studio-color-ink-muted);
+}
+
+.studio-season-timeline__range {
+  font: var(--studio-type-meta);
+  color: var(--studio-color-ink-soft);
+}
+
+.studio-season-timeline__entry:focus-visible {
+  outline: var(--studio-focus-width) solid var(--studio-color-focus);
+  outline-offset: var(--studio-focus-offset);
+}
+
+@media (forced-colors: active) {
+  .studio-season-timeline__dot,
+  .studio-season-timeline__item:not(:last-child) .studio-season-timeline__entry::before {
+    background: CanvasText;
+  }
+
+  .studio-season-timeline__item[aria-current='true'] .studio-season-timeline__dot {
+    background: Highlight;
+  }
+}
