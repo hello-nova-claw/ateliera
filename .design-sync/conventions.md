@@ -38,24 +38,47 @@ design tokens — always `var(--studio-*)`, never hard-coded colours or pixels:
   `--studio-type-quote`, `--studio-type-page-subtitle`, `--studio-type-body`,
   `--studio-type-meta`, `--studio-type-control`, `--studio-type-label`,
   `--studio-type-eyebrow`, `--studio-type-signature` (each a full `font`
-  shorthand). Font families: `--studio-font-display` (Source Serif 4 serif),
-  `--studio-font-interface` (Figtree), `--studio-font-handwritten` (Nothing You
-  Could Do — the accent hand, used only for the brand mark and image captions).
+  shorthand). Serif for anything the person reads or writes; the interface face
+  is for controls, eyebrows, dates and counts only. Font families:
+  `--studio-font-display` (Cormorant Garamond serif — display **and** long-form
+  body), `--studio-font-interface` (Figtree), `--studio-font-handwritten`
+  (Nothing You Could Do — the accent hand, used only for greetings, the brand
+  mark, and image captions).
+- **Colour accent:** `--studio-color-accent` (the dusk indicator — selected
+  chips, the active timeline dot).
 - **Space:** `--studio-space-1` … `-24`. **Radius:** `--studio-radius-note`,
-  `-card`, `-sheet`, `-control`.
+  `-card`, `-sheet`, `-control`, `-pill` (999px).
 
 Use semantic BEM class names for your own elements (e.g. `class="reflection-list"`),
 not utility classes — this system has no utility-class vocabulary.
 
 ## Components
 
-Four verified components, all from `@studio/ui`: **Card** (a note card with a
-semantic meaning, title, excerpt, optional actions), **SemanticMark** (the
-meaning marker — `type` is one of the six meanings above, `labelMode`
-`"visible"`/`"hidden"`), **CardEditor** (the markdown note editor with
-save/conflict/recovery states), **Inspector** (an overlay panel with metadata,
-backlinks, and repair states). Read each component's `.d.ts` for its exact props
-and `.prompt.md` for usage before composing it.
+All from `@studio/ui`. Read each component's `.d.ts` for its exact props before
+composing it.
+
+Primitives:
+- **Icon** — the line-glyph set (six meanings + `chevron`/`back`/`plus`/`more`),
+  24-unit grid, `currentColor`.
+- **Button** — `primary` (ink fill), `secondary` (outlined), `quiet` (text +
+  circled plus). Pill radius.
+- **FilterChips** — a group of pill toggles; the selected chip carries the accent
+  border and a soft accent fill with ink text.
+- **ListRow** — a note inside a room: thumbnail, serif title, meta, chevron, on a
+  hairline rule (this is the "row, not a card" from the stock-fill rule).
+- **SeasonTimeline** — the seasons down a spine, current season on the accent dot.
+- **PromptField** — a titled prompt with helper text, entries in soft notes, and
+  a quiet "+ Add".
+- **BrandMark** — the seven-star constellation-A; `mark` or `lockup`, `ink` or
+  `foil`.
+
+Composed:
+- **Card** (a note card with a semantic meaning, title, excerpt, optional
+  actions), **SemanticMark** (the meaning marker — `type` is one of the six
+  meanings above, `labelMode` `"visible"`/`"hidden"`, now a tinted badge holding
+  the meaning glyph), **RoomHeading** (eyebrow → room title → intro),
+  **CardEditor** (the markdown note editor with save/conflict/recovery states),
+  **Inspector** (an overlay panel with metadata, backlinks, and repair states).
 
 ## Where the truth lives
 

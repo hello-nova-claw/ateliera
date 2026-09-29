@@ -16,7 +16,7 @@ export function RoomHeading({
 }: RoomHeadingProps) {
   return (
     <div className="studio-room-heading">
-      <p className="studio-room-heading__script">{eyebrow}</p>
+      <p className="studio-room-heading__eyebrow">{eyebrow}</p>
       <h1 id={titleId}>{title}</h1>
       {intro !== undefined && (
         <p className="studio-room-heading__intro">{intro}</p>

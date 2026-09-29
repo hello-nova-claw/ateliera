@@ -1,52 +1,69 @@
 .card {
   display: grid;
-  gap: var(--studio-space-4);
-  padding: var(--studio-space-6);
+  gap: var(--studio-space-3);
+  padding: var(--studio-space-5);
   color: var(--studio-color-ink);
   background: var(--studio-color-surface);
-  border: 1px solid var(--studio-color-line);
   border-radius: var(--studio-radius-card);
   box-shadow: var(--studio-shadow-card);
 }
 
 .card__header {
-  display: grid;
-  gap: var(--studio-space-3);
+  display: flex;
+  gap: var(--studio-space-2);
+  align-items: center;
 }
 
 .card__title {
   margin: 0;
   font: var(--studio-type-card-title);
+  color: var(--studio-color-ink-strong);
 }
 
 .card__excerpt {
   max-inline-size: var(--studio-reading-measure);
   margin: 0;
   color: var(--studio-color-ink-muted);
-  font: var(--studio-type-body);
+  font: var(--studio-type-quote);
 }
 
 .card__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--studio-space-2);
+  gap: var(--studio-space-4);
   padding-block-start: var(--studio-space-1);
 }
 
+/* Actions read as quiet text, not filled controls; the card is the object. */
 .card__actions :where(button, a) {
-  min-inline-size: var(--studio-touch-target);
+  display: inline-flex;
+  gap: var(--studio-space-1);
+  align-items: center;
   min-block-size: var(--studio-touch-target);
-  padding: var(--studio-space-2) var(--studio-space-4);
+  padding: 0;
   color: var(--studio-color-ink);
+  cursor: pointer;
   background: transparent;
-  border: 1px solid var(--studio-color-line-strong);
-  border-radius: var(--studio-radius-control);
-  font: var(--studio-type-label);
+  border: 0;
+  font: var(--studio-type-control);
+  text-decoration: none;
+}
+
+.card__actions :where(button, a):hover {
+  color: var(--studio-color-link);
 }
 
 .card__actions :where(button, a):focus-visible {
   outline: var(--studio-focus-width) solid var(--studio-color-focus);
   outline-offset: var(--studio-focus-offset);
+}
+
+/* Cards lift with shadow, not a border — restore an edge only when the person
+ * asks for more contrast. */
+@media (prefers-contrast: more) {
+  .card {
+    border: 1px solid var(--studio-color-line);
+  }
 }
 
 @media (width <= 30rem) {
@@ -64,8 +81,7 @@
 }
 
 @media (forced-colors: active) {
-  .card,
-  .card__actions :where(button, a) {
-    border-color: CanvasText;
+  .card {
+    border: 1px solid CanvasText;
   }
 }

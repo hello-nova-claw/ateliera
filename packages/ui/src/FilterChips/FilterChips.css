@@ -1,0 +1,54 @@
+.studio-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--studio-space-2);
+}
+
+.studio-filter-chips__chip {
+  min-block-size: 2rem;
+  padding: var(--studio-space-1) var(--studio-space-4);
+  color: var(--studio-color-ink-muted);
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--studio-color-line);
+  border-radius: var(--studio-radius-pill);
+  font: var(--studio-type-control);
+  transition: border-color var(--studio-motion-fast) var(--studio-ease-standard),
+    color var(--studio-motion-fast) var(--studio-ease-standard),
+    background-color var(--studio-motion-fast) var(--studio-ease-standard);
+}
+
+.studio-filter-chips__chip:hover {
+  color: var(--studio-color-ink);
+  border-color: var(--studio-color-line-strong);
+}
+
+/* Selected: the accent shows in the border and a soft fill (non-text, so it
+ * stays legible on every theme); the label stays ink to hold 4.5:1. */
+.studio-filter-chips__chip[aria-pressed='true'] {
+  color: var(--studio-color-ink-strong);
+  background: color-mix(in srgb, var(--studio-color-accent) 12%, var(--studio-color-surface));
+  border-color: var(--studio-color-accent);
+}
+
+.studio-filter-chips__chip:focus-visible {
+  outline: var(--studio-focus-width) solid var(--studio-color-focus);
+  outline-offset: var(--studio-focus-offset);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .studio-filter-chips__chip {
+    transition-duration: var(--studio-motion-reduced-duration);
+  }
+}
+
+@media (forced-colors: active) {
+  .studio-filter-chips__chip {
+    border-color: CanvasText;
+  }
+
+  .studio-filter-chips__chip[aria-pressed='true'] {
+    border-color: Highlight;
+    color: Highlight;
+  }
+}
