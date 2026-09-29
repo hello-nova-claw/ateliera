@@ -234,21 +234,34 @@ struct RootView: View {
     NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: 30) {
-          BrandLockup()
-            .padding(.bottom, 2)
-          RoomHeading(eyebrow: greeting, title: "The Foyer", intro: "A calm place to begin.")
-          SeasonalHero(season: feltSeason)
-          dailyCard
-          almanacCard
-          foyerRooms
-          todaySection
-          captureButton
-          if let error = store.error {
-            Text(error).font(StudioFont.meta).foregroundStyle(theme.celebration)
+          VStack(alignment: .leading, spacing: 30) {
+            BrandLockup()
+              .padding(.bottom, 2)
+            RoomHeading(eyebrow: greeting, title: "The Foyer", intro: "A calm place to begin.")
           }
-          recentlySection
+          .padding(.horizontal, 28)
+
+          // Full-bleed seasonal hero with the Today card lifted over its lower edge.
+          VStack(spacing: 0) {
+            SeasonalHero(season: feltSeason, height: 230, cornerRadius: 0)
+            almanacCard
+              .padding(.horizontal, 28)
+              .padding(.top, -44)
+          }
+
+          VStack(alignment: .leading, spacing: 30) {
+            dailyCard
+            foyerRooms
+            todaySection
+            captureButton
+            if let error = store.error {
+              Text(error).font(StudioFont.meta).foregroundStyle(theme.celebration)
+            }
+            recentlySection
+          }
+          .padding(.horizontal, 28)
         }
-        .padding(28)
+        .padding(.vertical, 28)
         .frame(maxWidth: .infinity, alignment: .leading)
       }
       .background(theme.canvas)
