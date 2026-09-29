@@ -233,9 +233,14 @@ struct RootView: View {
   private var todayTab: some View {
     NavigationStack {
       ScrollView {
-        VStack(alignment: .leading, spacing: 28) {
+        VStack(alignment: .leading, spacing: 30) {
+          BrandLockup()
+            .padding(.bottom, 2)
           RoomHeading(eyebrow: greeting, title: "The Foyer", intro: "A calm place to begin.")
+          SeasonalHero(season: feltSeason)
           dailyCard
+          almanacCard
+          foyerRooms
           todaySection
           captureButton
           if let error = store.error {
@@ -273,6 +278,56 @@ struct RootView: View {
     TodaysGiftView(store: giftStore) { quality in
       giftStore.grade(quality, today: almanacContext.date)
     }
+  }
+
+  // The felt season for the Foyer's hero photo, from the person's own season style.
+  private var feltSeason: Season {
+    Rhythm.season(
+      date: almanacContext.date, hemisphere: hemisphere,
+      style: store.preferences.rhythm.resolvedSeasonStyle)
+  }
+
+  // The day's rhythm as a calm, prominent card — the Foyer's quiet centrepiece.
+  @ViewBuilder
+  private var almanacCard: some View {
+    if Preferences.isFoyerSectionVisible("almanac", store.preferences) {
+      AlmanacView(
+        context: almanacContext, hemisphere: hemisphere,
+        seasonStyle: store.preferences.rhythm.resolvedSeasonStyle)
+        .studioCard()
+    }
+  }
+
+  // A calm 2×2 way into the rooms, each a soft tile with its own constellation and a
+  // one-line invitation — the Foyer's map of where you can go.
+  private var foyerRooms: some View {
+    let rooms = Room.all.filter { Preferences.isRoomVisible($0.id, store.preferences) }
+    let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+    return VStack(alignment: .leading, spacing: 12) {
+      Text("YOUR ROOMS")
+        .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
+      LazyVGrid(columns: columns, spacing: 12) {
+        ForEach(rooms) { room in
+          NavigationLink { roomDestination(room) } label: { roomTile(room) }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("foyer-room-\(room.id)")
+        }
+      }
+    }
+  }
+
+  private func roomTile(_ room: Room) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      ConstellationMark(size: 26, color: theme.inkStrong)
+        .padding(.bottom, 2)
+      Text(room.title).font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
+      Text(room.eyebrow)
+        .font(StudioFont.displayItalic(14)).foregroundStyle(theme.inkMuted)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .frame(maxWidth: .infinity, minHeight: 116, alignment: .topLeading)
+    .studioCard(padding: 16)
+    .contentShape(Rectangle())
   }
 
   private var captureButton: some View {
@@ -360,12 +415,6 @@ struct RootView: View {
 
   @ToolbarContentBuilder
   private var studioToolbar: some ToolbarContent {
-    ToolbarItem(placement: .principal) {
-      HStack(spacing: 6) {
-        Text("STUDIO").font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
-        Text(store.vaultName).font(StudioFont.control).foregroundStyle(theme.inkMuted)
-      }
-    }
     ToolbarItem(placement: .primaryAction) {
       Button {
         activeSheet = .settings
@@ -417,7 +466,7 @@ struct RootView: View {
         if Preferences.isFoyerSectionVisible("almanac", store.preferences) {
           AlmanacView(
             context: almanacContext, hemisphere: hemisphere,
-            seasonStyle: store.preferences.rhythm.resolvedSeasonStyle)
+            seasonStyle: store.preferences.rhythm.resolvedSeasonStyle, mode: .detail)
         }
         FoyerRichView(store: store, onOpen: openPath)
         Button {
@@ -631,8 +680,8 @@ struct RoomHeading: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       Text(eyebrow)
-        .font(StudioFont.greeting)
-        .foregroundStyle(theme.vision)
+        .font(StudioFont.displayItalic(19))
+        .foregroundStyle(theme.script)
       Text(title)
         .font(StudioFont.roomTitle)
         .tracking(-0.5)
