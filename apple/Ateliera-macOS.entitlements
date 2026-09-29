@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Mac App Store distribution requires the App Sandbox. HealthKit is iOS-only
+	     and so is deliberately absent here. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- The vault is a folder the user picks; read-write to user-selected files, and
+	     an app-scoped bookmark so it reopens across launches. -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
+	<!-- One-shot location fix for the hemisphere, and network for reverse geocoding. -->
+	<key>com.apple.security.personal-information.location</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+</dict>
+</plist>

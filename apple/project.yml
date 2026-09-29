@@ -11,7 +11,7 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.9"
     GENERATE_INFOPLIST_FILE: YES
-    DEVELOPMENT_TEAM: ""
+    DEVELOPMENT_TEAM: "4J2C587G89"
     CODE_SIGN_STYLE: Automatic
 targets:
   Ateliera:
@@ -38,6 +38,7 @@ targets:
         INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
         ENABLE_PREVIEWS: YES
         ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # HealthKit (iOS only — the framework isn't on macOS). The usage string is
         # required before requesting authorization; the entitlement is scoped to
         # the iOS SDKs so the macOS build/sign stays clean.
@@ -45,6 +46,9 @@ targets:
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Ateliera uses your location once to tell which hemisphere you're in, so the season and micro-season are right. It stays on your device."
         "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": Ateliera.entitlements
         "CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*]": Ateliera.entitlements
+        # macOS ships the App Sandbox (Mac App Store) + user-selected-folder access
+        # for the vault; HealthKit is iOS-only so it lives only in the iOS file.
+        "CODE_SIGN_ENTITLEMENTS[sdk=macosx*]": Ateliera-macOS.entitlements
   # WidgetKit extension: a home-screen "Today's rhythm" almanac. Reuses the pure
   # rhythm engine + the App Group hemisphere; multiplatform so the Mac app can
   # embed it too.
