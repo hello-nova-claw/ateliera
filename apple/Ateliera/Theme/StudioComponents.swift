@@ -120,6 +120,7 @@ extension View {
 struct SeasonalHero: View {
   let season: Season
   var height: CGFloat = 188
+  var cornerRadius: CGFloat = 20  // 0 for a full-bleed band
 
   private var asset: String {
     switch season {
@@ -136,7 +137,7 @@ struct SeasonalHero: View {
       .aspectRatio(contentMode: .fill)
       .frame(maxWidth: .infinity)
       .frame(height: height)
-      .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+      .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
       .accessibilityHidden(true)
   }
 }
