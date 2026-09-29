@@ -1,0 +1,30 @@
+.studio-icon {
+  display: inline-block;
+  flex: none;
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.3;
+  vertical-align: middle;
+}
+
+/* Dots read as filled points, not rings. */
+.studio-icon__star {
+  fill: currentcolor;
+  stroke: none;
+}
+
+.studio-icon__star--bright {
+  fill: currentcolor;
+}
+
+@media (forced-colors: active) {
+  .studio-icon {
+    stroke: CanvasText;
+  }
+
+  .studio-icon__star {
+    fill: CanvasText;
+  }
+}
