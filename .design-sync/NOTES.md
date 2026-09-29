@@ -95,3 +95,27 @@ CardEditor, SemanticMark, Inspector), all graded `match`.
   (the moon-phase glyph). All named tokens/themes still resolve, so it's an
   undercount, not misleading drift; the two ship with their own `.d.ts`/`.prompt.md`.
   Update the header + rebuild + re-sync when convenient.
+
+## Folio refresh (2026-09-29)
+
+- **Display face swapped Source Serif 4 → Cormorant Garamond** (OFL, self-hosted
+  woff2 in `apps/studio/src/assets/fonts/`, 4 variable subset binaries declared
+  at 400/500 normal + 400 italic × latin/latin-ext). Body is now serif too. The
+  `[FONT_MISSING]` accept-list above changes accordingly: primary brand faces are
+  now **Cormorant Garamond, Figtree, Nothing You Could Do**; Iowan Old
+  Style / Georgia / Bradley Hand remain accepted system fallbacks.
+- **`--semantic-mark-color` (and `--semantic-mark-stock`) on `.semantic-mark--*`
+  are component-internal, not theme tokens.** `/design-sync` should ignore them —
+  they are re-pointed per meaning inside SemanticMark's own CSS, not published as
+  design tokens. Do not flag them as undefined/rogue tokens.
+- **Motion tokens carry `/* @kind other */`** in `tokens.css` so the token
+  categorizer files them as uncategorized rather than colour/space/type.
+- **Seven new components** ship this run: Icon, Button, FilterChips, ListRow,
+  SeasonTimeline, PromptField, BrandMark (titleMap + conventions.md updated).
+- **All theme canvases are now flat** (gradients removed); a new
+  `--studio-color-accent` and `--studio-radius-pill` are published per theme.
+- **Synced 2026-09-29**: 13 components uploaded (6 pre-existing + 7 new), all
+  graded `match`; 0 deletes. The `source-serif-4-*` woff2 in the project's
+  `fonts/` are now **orphaned** too (the display face moved to Cormorant), joining
+  the caveat/hanken-grotesk/newsreader orphans above — unreferenced by
+  `fonts/fonts.css`, harmless, prunable in a future reviewed `list_files` delete.
