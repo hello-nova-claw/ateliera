@@ -13,9 +13,36 @@ enum IdentityProjector {
     sectionOrders: [IdentitySection: [String]] = [:],
     currentlyBecomingOrder: [String] = []
   ) -> IdentityBoardModel {
+    // Active identity cards feed the sections + hero; archived/trashed ones are set
+    // aside (retired becomings surface in their own group instead).
     let eligible = notes.filter {
       $0.note.rooms.contains("identity-studio")
         && Identity.sectionForCardType($0.note.cardType) != nil
+        && $0.note.status != "archived" && $0.note.status != "trashed"
+    }
+
+    // A becoming = a Life-planning identity statement pinned to the Foyer. Several can be
+    // in play at once (one per life area); retired ones keep their `archived_reason`.
+    let becomings: [Projection.Loaded] = notes.filter { Becoming.matches($0.note) }
+    let activeLoaded: [Projection.Loaded] =
+      becomings
+      .filter { $0.note.status != "archived" && $0.note.status != "trashed" }
+      .sorted { $0.note.created > $1.note.created }
+    let retiredLoaded: [Projection.Loaded] =
+      becomings
+      .filter { $0.note.status == "archived" }
+      .sorted { $0.note.created > $1.note.created }
+    let activeBecomings: [BecomingModel] = activeLoaded.map { loaded in
+      BecomingModel(
+        id: loaded.note.id, path: loaded.path, title: Projection.title(loaded.note),
+        excerpt: Projection.excerpt(loaded.note), lifeAreaId: loaded.note.lifeAreas.first,
+        created: loaded.note.created)
+    }
+    let retiredBecomings: [RetiredBecomingModel] = retiredLoaded.map { loaded in
+      RetiredBecomingModel(
+        id: loaded.note.id, path: loaded.path, title: Projection.title(loaded.note),
+        lifeAreaId: loaded.note.lifeAreas.first,
+        reason: loaded.note.frontmatterScalar("archived_reason"), created: loaded.note.created)
     }
 
     // Evidence: reflection/celebration notes' `related_notes` → identity note ids.
@@ -69,6 +96,8 @@ enum IdentityProjector {
     }
     let becoming = (promoted ?? legacy).map(enrich)
 
-    return IdentityBoardModel(currentlyBecoming: becoming, sections: sections)
+    return IdentityBoardModel(
+      currentlyBecoming: becoming, sections: sections, activeBecomings: activeBecomings,
+      retiredBecomings: retiredBecomings)
   }
 }

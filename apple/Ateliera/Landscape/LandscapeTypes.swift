@@ -37,6 +37,27 @@ extension LandscapeAnchor {
     }
   }
 
+  /// The dimension prompt personalised to a becoming statement, so a guided thread
+  /// carries the person's own words forward. The statement is quoted so any phrasing
+  /// stays grammatical, and an empty seed falls back to the plain (golden-matched)
+  /// `prompt`. Apple-only guided copy — no golden to match.
+  func prompt(seed: String) -> String {
+    let s = seed.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !s.isEmpty else { return prompt }
+    switch self {
+    case .vision:
+      return "If “\(s)” were already true, what would an ordinary Tuesday look like?"
+    case .identityValuesFeelings:
+      return "Picture the version of you living “\(s)”. How does she move in rooms?"
+    case .decisions:
+      return "To grow into “\(s)”, what could you choose in the next 30, 60, or 90 days?"
+    case .practices:
+      return "What daily rhythm would let “\(s)” be lived, not just wished?"
+    case .structureStrategy:
+      return "What time, space, help, boundary, or money would support “\(s)”?"
+    }
+  }
+
   // semanticTypeForLandscapeAnchor in domain/landscape.ts. Written to the note's
   // `semantic_type` (alongside `card_type = rawValue`) when a card is moved.
   var semanticType: String {

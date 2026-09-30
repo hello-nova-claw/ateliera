@@ -107,9 +107,67 @@ struct IdentityCardModel: Identifiable, Equatable {
   let evidence: [IdentityEvidenceModel]
 }
 
+// The one rule for "is this note a becoming": a Life-planning identity statement pinned
+// to the Foyer. Centralised so the projector, the store, and the thread agree.
+enum Becoming {
+  static func matches(_ note: StudioNote) -> Bool {
+    note.cardType == "identity" && note.rooms.contains("foyer")
+  }
+}
+
+// A becoming statement in play — the seed of a Life-planning thread, tagged with the
+// life area it belongs to. Several can be active at once (one per area).
+struct BecomingModel: Identifiable, Equatable {
+  let id: String
+  let path: String
+  let title: String
+  let excerpt: String
+  let lifeAreaId: String?
+  let created: String
+}
+
+// A retired becoming: archived, with the reason it was set down so the history reads
+// clearly. `reason` is the raw `archived_reason` value (nil = archived without a reason).
+struct RetiredBecomingModel: Identifiable, Equatable {
+  let id: String
+  let path: String
+  let title: String
+  let lifeAreaId: String?
+  let reason: String?
+  let created: String
+}
+
+// Why a becoming was retired, written to the note's `archived_reason` (an unknown-key
+// -safe frontmatter field). A becoming may also be archived with no reason, or a
+// free-text one — both round-trip.
+enum BecomingRetireReason: String, CaseIterable, Identifiable {
+  case becameTrue = "became-true"
+  case noLongerDesired = "no-longer-desired"
+  case changedDirection = "changed-direction"
+
+  var id: String { rawValue }
+
+  var label: String {
+    switch self {
+    case .becameTrue: return "Became true / complete"
+    case .noLongerDesired: return "No longer desired"
+    case .changedDirection: return "Changed direction"
+    }
+  }
+
+  // Human label for a stored raw value: a known reason, a free-text one verbatim, or
+  // the quiet "Archived" when none was given.
+  static func label(forRaw raw: String?) -> String {
+    guard let raw, !raw.trimmingCharacters(in: .whitespaces).isEmpty else { return "Archived" }
+    return BecomingRetireReason(rawValue: raw)?.label ?? raw
+  }
+}
+
 struct IdentityBoardModel: Equatable {
   var currentlyBecoming: IdentityCardModel?
   var sections: [IdentitySection: [IdentityCardModel]]
+  var activeBecomings: [BecomingModel] = []
+  var retiredBecomings: [RetiredBecomingModel] = []
 
   static let empty = IdentityBoardModel(currentlyBecoming: nil, sections: [:])
 }

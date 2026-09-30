@@ -464,8 +464,14 @@ final class VaultStore {
   /// Life Landscape anchor, Identity section, Wisdom kind, or Uncharted), with the
   /// exact frontmatter + folder the web writes. Validates before writing and retries
   /// on an id collision (up to 8 attempts, matching the web's CAPTURE_ATTEMPTS).
+  ///
+  /// `sourceNoteIds`, when given, overrides the destination's own source links — this
+  /// is how a guided thread ties every card it writes back to the seed note it grew
+  /// from (written as `source_notes`).
   @discardableResult
-  func capture(title: String?, body: String, destination: CaptureDestination) -> Bool {
+  func capture(
+    title: String?, body: String, destination: CaptureDestination, sourceNoteIds: [String]? = nil
+  ) -> Bool {
     guard let vault else {
       error = "Choose a Studio folder first."
       return false
@@ -492,7 +498,7 @@ final class VaultStore {
       note.landscapeAnchor = meta.landscapeAnchor
       note.tags = meta.tags
       note.source = meta.source
-      note.sourceNoteIds = meta.sourceNoteIds
+      note.sourceNoteIds = sourceNoteIds ?? meta.sourceNoteIds
       note.extraFrontmatter = meta.extraFrontmatter
       note.display = NoteDisplay(cover: nil, featured: meta.featured)
       let filename = NoteFactory.suggestFilename(
@@ -502,6 +508,7 @@ final class VaultStore {
         _ = try vault.writeText(path: path, text: note.serialize(), expectedHash: nil, createNew: true)
         try reload()
         error = nil
+        lastCapturedPath = path
         return true
       } catch {
         lastError = error  // most likely a name collision — retry with a fresh id
@@ -614,6 +621,56 @@ final class VaultStore {
     var note = editable.note
     note.status = status
     return saveEdit(editable, updatedNote: note)
+  }
+
+  /// Retire a becoming: archive it (reversibly) and record why via `archived_reason`
+  /// (an unknown-key-safe field). `reason` may be a `BecomingRetireReason` raw value,
+  /// free text, or nil (archived with no reason). One write rail; unknown keys survive.
+  @discardableResult
+  func retireBecoming(path: String, reason: String?) -> Bool {
+    guard let editable = beginEdit(path: path) else { return false }
+    var note = editable.note
+    note.status = "archived"
+    note.extraFrontmatter.removeAll { $0.0 == "archived_reason" }
+    if let reason, !reason.trimmingCharacters(in: .whitespaces).isEmpty {
+      note.extraFrontmatter.append(("archived_reason", .scalar(reason)))
+    }
+    return saveEdit(editable, updatedNote: note)
+  }
+
+  /// Bring a retired becoming back into play: active again, reason cleared.
+  @discardableResult
+  func restoreBecoming(path: String) -> Bool {
+    guard let editable = beginEdit(path: path) else { return false }
+    var note = editable.note
+    note.status = "active"
+    note.extraFrontmatter.removeAll { $0.0 == "archived_reason" }
+    return saveEdit(editable, updatedNote: note)
+  }
+
+  /// Deepen an entry with a guided follow-up: append a `**heading**` + answer block to
+  /// the note's body through the one save rail. An empty answer is a no-op (a skipped
+  /// step leaves the note untouched). Backs the gratitude / dream guided threads.
+  @discardableResult
+  func appendGuidedAnswer(path: String, heading: String, answer: String) -> Bool {
+    let trimmed = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return true }
+    guard let editable = beginEdit(path: path) else { return false }
+    var note = editable.note
+    note.body += "\n\n**\(heading)**\n\(trimmed)"
+    return saveEdit(editable, updatedNote: note)
+  }
+
+  /// The active becomings tagged to a life area (optionally excluding one note id) —
+  /// used to offer retiring the area's current becoming when a new one is started, so
+  /// each area keeps one becoming in play at a time.
+  func activeBecomings(inArea area: String, excludingId: String? = nil) -> [(path: String, title: String)] {
+    parsedNotesByPath
+      .filter {
+        Becoming.matches($0.note) && $0.note.status != "archived" && $0.note.status != "trashed"
+          && $0.note.lifeAreas.contains(area) && $0.note.id != excludingId
+      }
+      .map { ($0.path, Projection.title($0.note)) }
   }
 
   /// Keep an Inbox draft as a Journal entry: promote it to active without changing its

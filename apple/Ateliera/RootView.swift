@@ -32,10 +32,28 @@ struct RootView: View {
   @State private var pendingSeed: WorkshopSeed?  // set on capture; becomes the offer once the sheet closes
   @State private var workshopOffer: WorkshopSeed?  // a gentle, dismissable "develop this" offer
   @State private var workshopSeed: WorkshopSeed?  // drives the workshop sheet (once accepted)
+  @State private var pendingBecoming: WorkshopSeed?  // a Life-planning capture; opens the thread on dismiss
+  @State private var pendingGuided: GuidedSeed?  // a gratitude/dream capture; opens its thread on dismiss
+  @State private var activeGuided: GuidedSeed?  // drives the gratitude/dream guided-thread sheet
+
+  // A just-captured gratitude/dream entry to deepen with its guided follow-up prompts.
+  struct GuidedSeed: Identifiable {
+    let id = UUID()
+    let path: String
+    let text: String
+    let kind: GuidedThreadKind
+  }
 
   struct RoomRoute: Identifiable, Hashable { let id: String }
   // A just-captured entry to workshop (anchor to an area, then walk the dimensions).
-  struct WorkshopSeed: Identifiable { let id = UUID(); let path: String; let text: String }
+  // `mode` distinguishes a becoming statement (guided, prompts carry its words) from
+  // developing an ordinary note.
+  struct WorkshopSeed: Identifiable {
+    let id = UUID()
+    let path: String
+    let text: String
+    var mode: WorkshopView.Mode = .develop
+  }
 
   // One sheet at a time: a fresh capture, an edit, or the rhythm profile.
   private enum ActiveSheet: Identifiable {
@@ -111,7 +129,7 @@ struct RootView: View {
       todayTab
         .tabItem { Label("Today", systemImage: "sun.max") }
       roomsTab
-        .tabItem { Label("Rooms", systemImage: "square.grid.2x2") }
+        .tabItem { Label("Browse", systemImage: "square.grid.2x2") }
       findTab
         .tabItem { Label("Find", systemImage: "magnifyingglass") }
     }
@@ -148,18 +166,33 @@ struct RootView: View {
     }
     .sheet(item: $workshopSeed) { seed in
       WorkshopView(
-        store: store, seedPath: seed.path, seedText: seed.text,
+        store: store, seedPath: seed.path, seedText: seed.text, mode: seed.mode,
         onClose: { workshopSeed = nil })
+      .studioTheme(themeStore.current)
+    }
+    .sheet(item: $activeGuided) { seed in
+      GuidedThreadView(
+        store: store, seedPath: seed.path, seedText: seed.text, kind: seed.kind,
+        onClose: { activeGuided = nil })
       .studioTheme(themeStore.current)
     }
     .sheet(
       item: $activeSheet,
       // A quick Journal capture offers to develop the note on the Landscape — a calm,
       // dismissable prompt (never a forced flow), shown once the capture sheet closes.
+      // A Life-planning capture instead opens the guided Become thread straight away.
       onDismiss: {
         if let seed = pendingSeed {
           pendingSeed = nil
           withAnimation(.easeInOut(duration: 0.2)) { workshopOffer = seed }
+        }
+        if let becoming = pendingBecoming {
+          pendingBecoming = nil
+          workshopSeed = becoming
+        }
+        if let guided = pendingGuided {
+          pendingGuided = nil
+          activeGuided = guided
         }
       }
     ) { sheet in
@@ -204,7 +237,15 @@ struct RootView: View {
         )
         .studioTheme(themeStore.current)
       case .placement:
-        ClassifiedCaptureSheet(store: store, onClose: { activeSheet = nil })
+        ClassifiedCaptureSheet(
+          store: store,
+          onStartThread: { path, text in
+            pendingBecoming = WorkshopSeed(path: path, text: text, mode: .becoming)
+          },
+          onStartGuided: { kind, path, text in
+            pendingGuided = GuidedSeed(path: path, text: text, kind: kind)
+          },
+          onClose: { activeSheet = nil })
       case .tour:
         FirstVisitGuide(onFinish: {
           OnboardingStore().markTourSeen(studioId: store.studioId)
@@ -256,9 +297,8 @@ struct RootView: View {
 
           VStack(alignment: .leading, spacing: 30) {
             dailyCard
-            foyerRooms
-            todaySection
             captureButton
+            todaySection
             if let error = store.error {
               Text(error).font(StudioFont.meta).foregroundStyle(theme.celebration)
             }
@@ -316,45 +356,20 @@ struct RootView: View {
     }
   }
 
-  // A calm 2×2 way into the rooms, each a soft tile with its own constellation and a
-  // one-line invitation — the Foyer's map of where you can go.
-  private var foyerRooms: some View {
-    let rooms = Room.all.filter { Preferences.isRoomVisible($0.id, store.preferences) }
-    let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
-    return VStack(alignment: .leading, spacing: 12) {
-      Text("YOUR ROOMS")
-        .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
-      LazyVGrid(columns: columns, spacing: 12) {
-        ForEach(rooms) { room in
-          NavigationLink { roomDestination(room) } label: { roomTile(room) }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("foyer-room-\(room.id)")
-        }
-      }
-    }
-  }
-
-  private func roomTile(_ room: Room) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
-      ConstellationMark(size: 26, color: theme.inkStrong)
-        .padding(.bottom, 2)
-      Text(room.title).font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
-      Text(room.eyebrow)
-        .font(StudioFont.displayItalic(14)).foregroundStyle(theme.inkMuted)
-        .fixedSize(horizontal: false, vertical: true)
-    }
-    .frame(maxWidth: .infinity, minHeight: 116, alignment: .topLeading)
-    .studioCard(padding: 16)
-    .contentShape(Rectangle())
-  }
-
+  // The single way in: one calm, guided capture. Rooms live in the Browse tab, so Today
+  // stays a place to begin rather than a directory to scan.
   private var captureButton: some View {
     Button {
       activeSheet = .placement
     } label: {
-      Label("Capture", systemImage: "plus.circle.fill")
-        .font(StudioFont.control)
-        .foregroundStyle(theme.link)
+      HStack(spacing: 10) {
+        Image(systemName: "plus.circle.fill").font(.system(size: 18))
+        Text("Capture something").font(StudioFont.control)
+      }
+      .foregroundStyle(theme.canvas)
+      .frame(maxWidth: .infinity, minHeight: 54)
+      .background(RoundedRectangle(cornerRadius: 14).fill(theme.inkStrong))
+      .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
     .accessibilityIdentifier("capture-button")
@@ -385,8 +400,8 @@ struct RootView: View {
       ScrollView {
         VStack(alignment: .leading, spacing: 28) {
           RoomHeading(
-            eyebrow: "your studio", title: "Rooms",
-            intro: "Step into a room to work in it.")
+            eyebrow: "your studio", title: "Browse",
+            intro: "Everything you've made — step into a room to work in it.")
           roomsSection
         }
         .padding(28)

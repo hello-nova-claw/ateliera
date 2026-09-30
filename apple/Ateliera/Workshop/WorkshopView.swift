@@ -6,10 +6,16 @@ import SwiftUI
 // Landscape card through the same tested capture path (LandscapeStore.addCard). Fully
 // resumable — close anytime and whatever you've written already persists.
 struct WorkshopView: View {
+  // How the thread is framed. `.becoming` starts from a "becoming" statement and weaves
+  // it into every prompt (the guided life-planning flow); `.develop` keeps the plain,
+  // golden-matched prompts for developing an ordinary captured note.
+  enum Mode { case becoming, develop }
+
   @Environment(\.studioTheme) private var theme
   let store: VaultStore
   let seedPath: String
   let seedText: String
+  let mode: Mode
   let onClose: () -> Void
 
   @State private var landscape: LandscapeStore
@@ -19,11 +25,25 @@ struct WorkshopView: View {
   @State private var newAreaText = ""
   @State private var draft = ""
   @State private var added = 0
+  @State private var seedId: String?  // resolved from the seed note, to link cards back to it
+  @State private var supersede: Supersede?  // an area's existing becoming, offered for retiring
 
-  init(store: VaultStore, seedPath: String, seedText: String, onClose: @escaping () -> Void) {
+  // The becoming already active in the chosen area — offered for retiring so each area
+  // keeps one in play at a time (keeping both stays possible).
+  private struct Supersede: Identifiable {
+    let id = UUID()
+    let path: String
+    let title: String
+  }
+
+  init(
+    store: VaultStore, seedPath: String, seedText: String, mode: Mode = .develop,
+    onClose: @escaping () -> Void
+  ) {
     self.store = store
     self.seedPath = seedPath
     self.seedText = seedText
+    self.mode = mode
     self.onClose = onClose
     _landscape = State(initialValue: LandscapeStore(store: store))
   }
@@ -45,16 +65,41 @@ struct WorkshopView: View {
         .padding(28).frame(maxWidth: .infinity, alignment: .leading)
       }
       .background(theme.canvas)
-      .task { landscape.loadConfig(); landscape.refresh() }
+      .task {
+        landscape.loadConfig()
+        landscape.refresh()
+        // Resolve the seed's id once, so every card the thread writes can point back to it.
+        seedId = store.beginEdit(path: seedPath)?.note.id
+      }
       .toolbar {
         ToolbarItem(placement: .principal) {
-          Text("Workshop").font(StudioFont.control).foregroundStyle(theme.inkStrong)
+          Text(mode == .becoming ? "Become" : "Workshop")
+            .font(StudioFont.control).foregroundStyle(theme.inkStrong)
         }
         ToolbarItem(placement: .cancellationAction) {
           Button(step == 0 ? "Not now" : "Save & leave") { onClose() }
             .foregroundStyle(theme.link)
             .accessibilityIdentifier("workshop-leave")
         }
+      }
+      .confirmationDialog(
+        "Already becoming here",
+        isPresented: Binding(
+          get: { supersede != nil },
+          set: { if !$0 { supersede = nil; advanceFromAnchor() } }),
+        presenting: supersede
+      ) { existing in
+        ForEach(BecomingRetireReason.allCases) { reason in
+          Button(reason.label) {
+            _ = store.retireBecoming(path: existing.path, reason: reason.rawValue)
+          }
+        }
+        Button("Keep both active") {}
+        Button("Cancel", role: .cancel) {}
+      } message: { existing in
+        Text(
+          "You're already becoming “\(existing.title)” in \(chosenAreaTitle ?? "this area"). Retire it, or keep both?"
+        )
       }
     }
   }
@@ -112,7 +157,26 @@ struct WorkshopView: View {
     chosenAreaId = id
     chosenAreaTitle = title
     linkSeed(toAreaId: id)
+    // In becoming mode, if this area already holds an active becoming, offer to retire it
+    // (one per area at a time) before walking the thread; otherwise go straight in.
+    if mode == .becoming, let existing = existingBecoming(inArea: id) {
+      supersede = existing
+    } else {
+      advanceFromAnchor()
+    }
+  }
+
+  private func advanceFromAnchor() {
+    guard step == 0 else { return }
     withAnimation(.easeInOut(duration: 0.25)) { step = 1 }
+  }
+
+  private func existingBecoming(inArea id: String) -> Supersede? {
+    let excluding = seedId ?? store.beginEdit(path: seedPath)?.note.id
+    guard let other = store.activeBecomings(inArea: id, excludingId: excluding).first else {
+      return nil
+    }
+    return Supersede(path: other.path, title: other.title)
   }
 
   private func addAndChooseArea() {
@@ -136,45 +200,26 @@ struct WorkshopView: View {
   // MARK: - Walk the dimensions
 
   private func dimensionStep(_ anchor: LandscapeAnchor) -> some View {
-    VStack(alignment: .leading, spacing: 22) {
-      ConstellationProgress(total: dimensions.count, done: step - 1)
-      eyebrow("\(chosenAreaTitle ?? "") · \(anchor.label)")
-      Text(anchor.prompt)
-        .font(StudioFont.section).foregroundStyle(theme.inkStrong)
-        .fixedSize(horizontal: false, vertical: true)
-      ZStack(alignment: .topLeading) {
-        if draft.isEmpty {
-          Text("Write what comes — or skip it.")
-            .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkFaint)
-            .padding(.top, 8).padding(.leading, 5).allowsHitTesting(false)
-        }
-        TextEditor(text: $draft)
-          .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkStrong)
-          .scrollContentBackground(.hidden).frame(minHeight: 130)
-          .accessibilityIdentifier("workshop-editor")
-      }
-      .padding(12)
-      .background(RoundedRectangle(cornerRadius: 12).fill(theme.surface))
-      .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.line, lineWidth: 1))
-      HStack {
-        Button("Skip") { advance(write: false, anchor: anchor) }
-          .font(StudioFont.control).foregroundStyle(theme.inkMuted)
-          .accessibilityIdentifier("workshop-skip")
-        Spacer()
-        Button(step == dimensions.count ? "Finish" : "Next") { advance(write: true, anchor: anchor) }
-          .font(StudioFont.control).foregroundStyle(theme.link)
-          .accessibilityIdentifier("workshop-next")
-      }
-      Text("Take what's useful, leave the rest. You can always come back.")
-        .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
-    }
+    ThreadStepView(
+      eyebrow: "\(chosenAreaTitle ?? "") · \(anchor.label)",
+      prompt: mode == .becoming ? anchor.prompt(seed: seedText) : anchor.prompt,
+      placeholder: "Write what comes — or skip it.",
+      draft: $draft,
+      stepIndex: step - 1,
+      stepCount: dimensions.count,
+      isLast: step == dimensions.count,
+      onSkip: { advance(write: false, anchor: anchor) },
+      onNext: { advance(write: true, anchor: anchor) })
   }
 
   private func advance(write: Bool, anchor: LandscapeAnchor) {
     let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
     // The answer is the card's content: it becomes the title so the Landscape shows it.
+    // In becoming mode the card links back to the seed statement via `source_notes`.
     if write, !text.isEmpty, let areaId = chosenAreaId,
-      landscape.addCard(lifeArea: areaId, anchor: anchor, horizon: nil, title: text, body: text)
+      landscape.addCard(
+        lifeArea: areaId, anchor: anchor, horizon: nil, title: text, body: text,
+        sourceNoteId: seedId)
     {
       added += 1
     }
