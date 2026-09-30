@@ -23,7 +23,7 @@ struct StoredStudioPreferences: Codable, Equatable {
   // but becoming + gift + almanac.
   static let newStudio = StoredStudioPreferences(
     rooms: [
-      "reflection-garden": "off", "inbox": "off", "wisdom-garden": "off",
+      "reflection-garden": "off", "inbox": "off", "journal": "off", "wisdom-garden": "off",
       "identity-studio": "off", "uncharted": "off", "current-season": "off",
     ],
     foyerSections: [

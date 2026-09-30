@@ -90,13 +90,14 @@ final class CaptureFlowUITests: XCTestCase {
     app.buttons["classified-keep"].tap()
     XCTAssertTrue(app.staticTexts["A found moment"].waitForExistence(timeout: 5))
 
-    // Step into the Journal (quick capture's home; confirmed by its unique intro).
+    // Step into the Inbox (quick capture's home until it's sorted; confirmed by its
+    // unique intro). Kept entries move on to the Journal.
     let inbox = roomButton("inbox", in: app)
     XCTAssertTrue(inbox.waitForExistence(timeout: 5))
     if !inbox.isHittable { app.swipeUp() }
     inbox.tap()
     XCTAssertTrue(
-      app.staticTexts["Dated entries — the small moments, caught as they happen."]
+      app.staticTexts["Quick captures waiting to find their place."]
         .waitForExistence(timeout: 5))
     XCTAssertTrue(app.staticTexts["A found moment"].exists)
   }
@@ -538,32 +539,32 @@ final class CaptureFlowUITests: XCTestCase {
     type("worth remembering", into: editor, in: app)
     app.buttons["note-save-button"].tap()
 
-    // It lands in the Journal we're standing in (the workshop is only offered, not forced).
+    // It lands in the Inbox we're standing in (the workshop is only offered, not forced).
     XCTAssertTrue(app.staticTexts["A kept truth"].waitForExistence(timeout: 5))
   }
 
   func testJournalCaptureWithTagsShowsTagPill() {
     let app = launchEmptyApp()
-    // Capture into the Journal via its Add button — the sheet that supports tags.
-    let journal = roomButton("inbox", in: app)
-    XCTAssertTrue(journal.waitForExistence(timeout: 5))
-    journal.tap()
+    // Capture into the Inbox via its Add button — the sheet that supports tags.
+    let inbox = roomButton("inbox", in: app)
+    XCTAssertTrue(inbox.waitForExistence(timeout: 5))
+    inbox.tap()
     app.buttons["room-capture-button"].tap()
     type("A tagged moment", into: app.textFields["note-title-field"], in: app)
     type("with a tag", into: app.textViews["note-body-editor"], in: app)
     type("gratitude, nature", into: app.textFields["note-tags-field"], in: app)
     app.buttons["note-save-button"].tap()
-    // The entry shows in the Journal with its tag rendered as a pill.
+    // The entry shows in the Inbox with its tag rendered as a pill.
     XCTAssertTrue(app.staticTexts["A tagged moment"].waitForExistence(timeout: 5))
     XCTAssertTrue(app.staticTexts["gratitude"].waitForExistence(timeout: 5))
   }
 
   func testWorkshopFromCaptureWritesALandscapeCard() {
     let app = launchEmptyApp()
-    // Capture a Journal entry via the Journal's Add button.
-    let journal = roomButton("inbox", in: app)
-    XCTAssertTrue(journal.waitForExistence(timeout: 5))
-    journal.tap()
+    // Capture an Inbox entry via the Inbox's Add button.
+    let inbox = roomButton("inbox", in: app)
+    XCTAssertTrue(inbox.waitForExistence(timeout: 5))
+    inbox.tap()
     app.buttons["room-capture-button"].tap()
     type("More space", into: app.textFields["note-title-field"], in: app)
     type("I want more space than I thought.", into: app.textViews["note-body-editor"], in: app)

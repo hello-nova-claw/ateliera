@@ -13,7 +13,9 @@ struct JournalView: View {
   @State private var filing: NoteSummary?
 
   // Newest first (liveNotes is already ordered newest-first — Anna's preference).
-  private var entries: [NoteSummary] { store.liveNotes.filter { $0.rooms.contains(room.id) } }
+  private var entries: [NoteSummary] {
+    store.liveNotes.filter { room.matches(rooms: $0.rooms, status: $0.status) }
+  }
 
   var body: some View {
     List {
@@ -56,8 +58,9 @@ struct JournalView: View {
       isPresented: Binding(get: { filing != nil }, set: { if !$0 { filing = nil } }),
       presenting: filing
     ) { note in
-      ForEach(Room.all.filter { $0.id != room.id }) { target in
-        Button(target.title) { _ = store.fileNote(path: note.id, toRoom: target.id) }
+      // The other philosophical rooms; skip the Inbox/Journal (same `inbox` vault key).
+      ForEach(Room.all.filter { $0.vaultKey != "inbox" }) { target in
+        Button(target.title) { _ = store.fileNote(path: note.id, toRoom: target.vaultKey) }
       }
       Button("Cancel", role: .cancel) {}
     }
@@ -65,7 +68,8 @@ struct JournalView: View {
 }
 
 // One dated entry: date · title · snippet · tags, with a cover thumbnail when present.
-private struct JournalEntryRow: View {
+// Shared with the Inbox triage list.
+struct JournalEntryRow: View {
   @Environment(\.studioTheme) private var theme
   let note: NoteSummary
   let store: VaultStore

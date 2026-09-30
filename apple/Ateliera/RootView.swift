@@ -39,7 +39,7 @@ struct RootView: View {
 
   // One sheet at a time: a fresh capture, an edit, or the rhythm profile.
   private enum ActiveSheet: Identifiable {
-    case capture(room: String?)
+    case capture(room: String?, keep: Bool)
     case edit(EditableNote)
     case rhythm
     case search
@@ -51,7 +51,7 @@ struct RootView: View {
 
     var id: String {
       switch self {
-      case .capture(let room): return "capture:\(room ?? "inbox")"
+      case .capture(let room, let keep): return "capture:\(room ?? "inbox"):\(keep ? "keep" : "draft")"
       case .edit(let editable): return "edit:\(editable.id)"
       case .rhythm: return "rhythm"
       case .search: return "search"
@@ -164,14 +164,15 @@ struct RootView: View {
       }
     ) { sheet in
       switch sheet {
-      case .capture(let room):
+      case .capture(let room, let keep):
         NoteEditorSheet(
           heading: "Capture", confirmLabel: "Keep", initialTitle: "", initialBody: "",
           showsExtras: true,
           onSave: { title, body, tags, cover in
             let ok = store.capture(
-              title: title, body: body, room: room ?? "inbox", tags: tags, coverData: cover)
-            // Only Journal entries expand into a workshop (memories/dreams won't).
+              title: title, body: body, room: room ?? "inbox", tags: tags, coverData: cover,
+              keep: keep)
+            // Only Inbox/Journal entries (the `inbox` room) expand into a workshop.
             if ok, (room ?? "inbox") == "inbox", let path = store.lastCapturedPath {
               pendingSeed = WorkshopSeed(path: path, text: body)
             }
@@ -237,7 +238,11 @@ struct RootView: View {
           VStack(alignment: .leading, spacing: 30) {
             BrandLockup()
               .padding(.bottom, 2)
-            RoomHeading(eyebrow: greeting, title: "The Foyer", intro: "A calm place to begin.")
+            HStack(alignment: .top, spacing: 12) {
+              RoomHeading(eyebrow: greeting, title: "The Foyer", intro: "A calm place to begin.")
+              Spacer(minLength: 0)
+              ProfileAvatar(store: store, size: 48)
+            }
           }
           .padding(.horizontal, 28)
 
@@ -361,12 +366,16 @@ struct RootView: View {
   }
 
   private var greeting: String {
+    let base: String
     switch Calendar.current.component(.hour, from: Date()) {
-    case 5..<12: return "good morning"
-    case 12..<17: return "good afternoon"
-    case 17..<22: return "good evening"
-    default: return "welcome back"
+    case 5..<12: base = "good morning"
+    case 12..<17: base = "good afternoon"
+    case 17..<22: base = "good evening"
+    default: base = "welcome back"
     }
+    // Address you by name once a profile exists; otherwise keep the quiet lowercase line.
+    guard let name = store.profileName else { return base }
+    return "\(base.prefix(1).uppercased())\(base.dropFirst()), \(name)"
   }
 
   // ROOMS — the directory of rooms and everything you've captured lately, off the
@@ -510,7 +519,7 @@ struct RootView: View {
           HStack(spacing: 10) {
             Text(room.title).font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
             Spacer(minLength: 0)
-            let count = store.liveNotes.filter { $0.rooms.contains(room.id) }.count
+            let count = store.liveNotes.filter { room.matches(rooms: $0.rooms, status: $0.status) }.count
             if count > 0 {
               Text("\(count)").font(StudioFont.meta).foregroundStyle(theme.inkMuted)
             }
@@ -531,9 +540,13 @@ struct RootView: View {
   private func roomDestination(_ room: Room) -> some View {
     switch room.id {
     case "inbox":
+      InboxView(
+        room: room, store: store, onOpen: openPath,
+        onCapture: { activeSheet = .capture(room: room.vaultKey, keep: false) })
+    case "journal":
       JournalView(
         room: room, store: store, onOpen: openPath,
-        onCapture: { activeSheet = .capture(room: room.id) })
+        onCapture: { activeSheet = .capture(room: room.vaultKey, keep: true) })
     case "landscape":
       LandscapeRoomView(store: store, onOpen: openPath)
     case "identity-studio":
@@ -549,7 +562,7 @@ struct RootView: View {
     default:
       RoomView(
         room: room, store: store, onOpen: openEdit,
-        onCapture: { activeSheet = .capture(room: room.id) })
+        onCapture: { activeSheet = .capture(room: room.vaultKey, keep: false) })
     }
   }
 
@@ -622,7 +635,9 @@ private struct RoomView: View {
   let onCapture: () -> Void
   @State private var filing: NoteSummary?
 
-  private var notes: [NoteSummary] { store.liveNotes.filter { $0.rooms.contains(room.id) } }
+  private var notes: [NoteSummary] {
+    store.liveNotes.filter { room.matches(rooms: $0.rooms, status: $0.status) }
+  }
 
   var body: some View {
     List {
@@ -703,6 +718,36 @@ struct RoomHeading: View {
         .font(StudioFont.pageSubtitle)
         .foregroundStyle(theme.inkMuted)
         .fixedSize(horizontal: false, vertical: true)
+    }
+  }
+}
+
+// A circular profile picture (from the vault), or a calm placeholder when none is set.
+// Shown on the Foyer beside the greeting and in Settings' Profile section.
+struct ProfileAvatar: View {
+  @Environment(\.studioTheme) private var theme
+  let store: VaultStore
+  var size: CGFloat = 48
+  @State private var image: UIImage?
+
+  var body: some View {
+    Group {
+      if let image {
+        Image(uiImage: image).resizable().scaledToFill()
+      } else {
+        theme.sunken
+          .overlay(
+            Image(systemName: "person.crop.circle")
+              .font(.system(size: size * 0.5))
+              .foregroundStyle(theme.inkFaint))
+      }
+    }
+    .frame(width: size, height: size)
+    .clipShape(Circle())
+    .overlay(Circle().stroke(theme.line, lineWidth: 1))
+    .accessibilityIdentifier("profile-avatar")
+    .task(id: store.profileChangeStamp) {
+      image = store.profileAvatar().flatMap(UIImage.init)
     }
   }
 }
@@ -1232,11 +1277,40 @@ private struct SettingsView: View {
   let onClose: () -> Void
   let onReplayTour: () -> Void
   let onChangeFolder: () -> Void
+  @State private var profileName: String = ""
+  @State private var avatarItem: PhotosPickerItem?
+
+  private func commitName() {
+    if profileName != (store.profileName ?? "") { _ = store.setProfileName(profileName) }
+  }
 
   var body: some View {
     NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: 0) {
+          Text("PROFILE")
+            .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
+            .padding(.bottom, 12)
+          HStack(spacing: 14) {
+            ProfileAvatar(store: store, size: 60)
+            VStack(alignment: .leading, spacing: 4) {
+              TextField("Your name", text: $profileName)
+                .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
+                .textInputAutocapitalization(.words)
+                .submitLabel(.done)
+                .onSubmit(commitName)
+                .accessibilityIdentifier("profile-name-field")
+              PhotosPicker(selection: $avatarItem, matching: .images) {
+                Text(store.profileAvatar() == nil ? "Add a photo" : "Change photo")
+                  .font(StudioFont.meta).foregroundStyle(theme.link)
+              }
+              .accessibilityIdentifier("profile-photo-picker")
+            }
+            Spacer(minLength: 0)
+          }
+          .padding(.vertical, 6)
+          Divider().overlay(theme.line)
+
           Button {
             onReplayTour()
           } label: {
@@ -1409,12 +1483,24 @@ private struct SettingsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
       }
       .background(theme.canvas)
+      .onAppear { profileName = store.profileName ?? "" }
+      .onChange(of: avatarItem) { _, item in
+        guard let item else { return }
+        Task {
+          if let data = try? await item.loadTransferable(type: Data.self) {
+            _ = store.setProfileAvatar(data: data)
+          }
+        }
+      }
       .toolbar {
         ToolbarItem(placement: .principal) {
           Text("Settings").font(StudioFont.control).foregroundStyle(theme.inkStrong)
         }
         ToolbarItem(placement: .confirmationAction) {
-          Button("Done") { onClose() }
+          Button("Done") {
+            commitName()
+            onClose()
+          }
         }
       }
     }
