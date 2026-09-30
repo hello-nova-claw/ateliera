@@ -32,6 +32,7 @@ enum CaptureDestination {
   case identity(IdentitySection)
   case wisdom(kind: String, themes: [String], source: NoteSource?, sourceNoteIds: [String]?)
   case uncharted(beyond: Bool)
+  case celebration
 }
 
 // The frontmatter + folder a destination produces.
@@ -94,6 +95,12 @@ extension CaptureDestination {
         cardType: "possibility", semanticType: "uncharted", rooms: ["uncharted"], status: "active",
         landscapeAnchor: nil, source: nil, sourceNoteIds: nil, extraFrontmatter: extra,
         folder: "Uncharted")
+
+    case .celebration:
+      return CaptureMetadata(
+        cardType: "celebration", semanticType: "celebration", rooms: ["reflection-garden"],
+        status: "active", landscapeAnchor: nil, source: nil, sourceNoteIds: nil,
+        folder: "Reflection Garden")
     }
   }
 

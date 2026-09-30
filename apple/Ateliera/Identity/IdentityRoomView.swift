@@ -10,6 +10,7 @@ struct IdentityRoomView: View {
 
   @State private var identity: IdentityStore
   @State private var addingSection: IdentitySection?
+  @State private var retiring: BecomingModel?  // the becoming awaiting a retire reason
 
   init(store: VaultStore, onOpen: @escaping (String) -> Void) {
     self.store = store
@@ -27,11 +28,32 @@ struct IdentityRoomView: View {
           currentlyBecoming(becoming)
             .studioRoomRow(EdgeInsets(top: 8, leading: 24, bottom: 8, trailing: 24))
         }
+        becomingsSection
         ForEach(IdentitySection.allCases, id: \.self) { section in
           sectionView(section)
         }
+        retiredSection
       }
       .studioRoomList(theme.canvas)
+    }
+    .confirmationDialog(
+      "Retire this becoming?",
+      isPresented: Binding(get: { retiring != nil }, set: { if !$0 { retiring = nil } }),
+      presenting: retiring
+    ) { becoming in
+      ForEach(BecomingRetireReason.allCases) { reason in
+        Button(reason.label) {
+          _ = identity.retireBecoming(path: becoming.path, reason: reason.rawValue)
+          retiring = nil
+        }
+      }
+      Button("Just archive") {
+        _ = identity.retireBecoming(path: becoming.path, reason: nil)
+        retiring = nil
+      }
+      Button("Cancel", role: .cancel) { retiring = nil }
+    } message: { becoming in
+      Text(becoming.title)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .background(theme.canvas)
@@ -69,6 +91,93 @@ struct IdentityRoomView: View {
     .background(RoundedRectangle(cornerRadius: 12).fill(theme.surface))
     .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.line, lineWidth: 1))
     .accessibilityIdentifier("currently-becoming")
+  }
+
+  // Active becomings — several in play at once, one per area of life. Each can be
+  // retired (with a reason) when it's complete or no longer wanted.
+  @ViewBuilder
+  private var becomingsSection: some View {
+    let becomings = identity.model.activeBecomings
+    if !becomings.isEmpty {
+      Section {
+        ForEach(becomings) { becoming in
+          becomingRow(becoming).studioRoomRow()
+        }
+      } header: {
+        sectionHeader("Becomings", "What you're growing into — one for each area of life.")
+      }
+    }
+  }
+
+  private func becomingRow(_ becoming: BecomingModel) -> some View {
+    HStack(alignment: .top, spacing: 10) {
+      Button { onOpen(becoming.path) } label: {
+        VStack(alignment: .leading, spacing: 3) {
+          Text(becoming.title).font(StudioFont.body).foregroundStyle(theme.inkStrong)
+          if let area = identity.areaTitle(becoming.lifeAreaId) {
+            Text(area.uppercased())
+              .font(StudioFont.eyebrow).tracking(0.4).foregroundStyle(theme.inkFaint)
+          }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      Button("Retire…") { retiring = becoming }
+        .font(StudioFont.meta).foregroundStyle(theme.link)
+        .accessibilityIdentifier("retire-becoming-\(becoming.id)")
+    }
+    .padding(.vertical, 8)
+    .accessibilityIdentifier("becoming-\(becoming.id)")
+  }
+
+  // Retired becomings — set down, and why. Kept together so the history reads clearly;
+  // each can be brought back into play.
+  @ViewBuilder
+  private var retiredSection: some View {
+    let retired = identity.model.retiredBecomings
+    if !retired.isEmpty {
+      Section {
+        ForEach(retired) { becoming in
+          retiredRow(becoming).studioRoomRow()
+        }
+      } header: {
+        sectionHeader("Retired becomings", "Set down, and why — kept so the story stays clear.")
+      }
+    }
+  }
+
+  private func retiredRow(_ becoming: RetiredBecomingModel) -> some View {
+    HStack(alignment: .top, spacing: 10) {
+      VStack(alignment: .leading, spacing: 3) {
+        Text(becoming.title).font(StudioFont.body).foregroundStyle(theme.inkMuted)
+        Text(retiredSubtitle(becoming))
+          .font(StudioFont.eyebrow).tracking(0.4).foregroundStyle(theme.inkFaint)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      Button("Restore") { _ = identity.restoreBecoming(path: becoming.path) }
+        .font(StudioFont.meta).foregroundStyle(theme.link)
+        .accessibilityIdentifier("restore-becoming-\(becoming.id)")
+    }
+    .padding(.vertical, 8)
+    .accessibilityIdentifier("retired-becoming-\(becoming.id)")
+  }
+
+  private func retiredSubtitle(_ becoming: RetiredBecomingModel) -> String {
+    let reason = BecomingRetireReason.label(forRaw: becoming.reason)
+    if let area = identity.areaTitle(becoming.lifeAreaId) { return "\(area) · \(reason)" }
+    return reason
+  }
+
+  private func sectionHeader(_ title: String, _ subtitle: String) -> some View {
+    VStack(alignment: .leading, spacing: 3) {
+      Text(title).font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
+      Text(subtitle)
+        .font(StudioFont.meta).foregroundStyle(theme.inkSoft)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .textCase(nil)
+    .studioRoomRow(EdgeInsets(top: 16, leading: 24, bottom: 4, trailing: 24))
   }
 
   @ViewBuilder

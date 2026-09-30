@@ -8,6 +8,8 @@ import Observation
 @Observable final class IdentityStore {
   var model: IdentityBoardModel = .empty
   var error: String?
+  // Life-area id → title, so a becoming can show which area it belongs to.
+  private(set) var areaTitles: [String: String] = [:]
 
   @ObservationIgnored private let store: VaultStore
 
@@ -22,9 +24,50 @@ import Observation
       let ids = loadOrder("identity:\(section.rawValue)")
       if !ids.isEmpty { sectionOrders[section] = ids }
     }
+    areaTitles = loadAreaTitles()
     model = IdentityProjector.project(
       notes: store.parsedNotesByPath, sectionOrders: sectionOrders,
       currentlyBecomingOrder: loadOrder("identity:currently-becoming"))
+  }
+
+  /// A becoming's life-area title (for display), or nil if it isn't tagged / is unknown.
+  func areaTitle(_ id: String?) -> String? {
+    guard let id else { return nil }
+    return areaTitles[id]
+  }
+
+  /// Retire a becoming: archive it (reversibly) and record why, so the history reads
+  /// clearly. `reason` may be a `BecomingRetireReason` raw value, free text, or nil
+  /// (archived with no reason). Writes through the one save rail; unknown keys survive.
+  @discardableResult
+  func retireBecoming(path: String, reason: String?) -> Bool {
+    guard store.retireBecoming(path: path, reason: reason) else {
+      error = store.error
+      return false
+    }
+    refresh()
+    return true
+  }
+
+  /// Bring a retired becoming back into play: active again, reason cleared.
+  @discardableResult
+  func restoreBecoming(path: String) -> Bool {
+    guard store.restoreBecoming(path: path) else {
+      error = store.error
+      return false
+    }
+    refresh()
+    return true
+  }
+
+  private func loadAreaTitles() -> [String: String] {
+    let prefs: [LifeAreaPreference]
+    if let raw = store.readRawFile(path: LifeAreaConfig.path), case .ok(let areas) = LifeAreaConfig.parse(raw.text) {
+      prefs = areas
+    } else {
+      prefs = LifeAreaConfig.defaults()
+    }
+    return Dictionary(prefs.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
   }
 
   /// Capture a new card into a section (writes a note tagged identity-studio with the

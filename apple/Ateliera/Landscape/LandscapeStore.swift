@@ -111,12 +111,13 @@ import Observation
   @discardableResult
   func addCard(
     lifeArea: String, anchor: LandscapeAnchor, horizon: DecisionHorizon?, title: String?,
-    body: String
+    body: String, sourceNoteId: String? = nil
   ) -> Bool {
     guard
       store.capture(
         title: title, body: body,
-        destination: .landscape(lifeArea: lifeArea, anchor: anchor, horizon: horizon))
+        destination: .landscape(lifeArea: lifeArea, anchor: anchor, horizon: horizon),
+        sourceNoteIds: sourceNoteId.map { [$0] })
     else {
       error = store.error
       return false
