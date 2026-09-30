@@ -8,17 +8,17 @@ struct ThreadPrompt {
 }
 
 // The guided threads that deepen a just-captured entry a prompt at a time. Gratitude
-// turns a win into a small reflection (who helped, what it means); Dream lets a
-// possibility breathe (what draws you, the smallest hint) without asking for a plan.
-// Each answered step appends to the seed note's body — one entry that grows — so the
-// vault keeps a single, richer note rather than scattered fragments.
+// turns a win into a small reflection (who helped, what it means); Possibilities lets a
+// future you're reaching toward breathe (what draws you, the smallest hint) without
+// asking for a plan. Each answered step appends to the seed note's body — one entry that
+// grows — so the vault keeps a single, richer note rather than scattered fragments.
 enum GuidedThreadKind {
-  case gratitude, dream
+  case gratitude, possibilities
 
   var title: String {
     switch self {
     case .gratitude: return "Celebrate"
-    case .dream: return "Dream"
+    case .possibilities: return "Possibilities"
     }
   }
 
@@ -33,13 +33,13 @@ enum GuidedThreadKind {
           eyebrow: "gratitude", prompt: "What does this tell you about the life you're building?",
           placeholder: "The thread from this moment to who you're becoming."),
       ]
-    case .dream:
+    case .possibilities:
       return [
         ThreadPrompt(
-          eyebrow: "dream", prompt: "What draws you to it?",
+          eyebrow: "possibility", prompt: "What draws you to it?",
           placeholder: "The feeling underneath — no plan needed."),
         ThreadPrompt(
-          eyebrow: "dream", prompt: "What's the smallest hint of it you could notice or try?",
+          eyebrow: "possibility", prompt: "What's the smallest hint of it you could notice or try?",
           placeholder: "A tiny nudge, if any. It can stay a question."),
       ]
     }
@@ -48,14 +48,14 @@ enum GuidedThreadKind {
   var closingTitle: String {
     switch self {
     case .gratitude: return "Kept."
-    case .dream: return "Left as a possibility."
+    case .possibilities: return "Left as a possibility."
     }
   }
 
   var closingBody: String {
     switch self {
     case .gratitude: return "This is on your Reflection Garden."
-    case .dream: return "It's in Uncharted — no plan attached."
+    case .possibilities: return "It's in Uncharted — no plan attached."
     }
   }
 }

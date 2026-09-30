@@ -16,14 +16,14 @@ struct ClassifiedCaptureSheet: View {
   let onClose: () -> Void
 
   enum Intention: Int, CaseIterable, Identifiable {
-    case lifePlanning, gratitude, dream
+    case lifePlanning, gratitude, possibilities
     var id: Int { rawValue }
 
     var label: String {
       switch self {
       case .lifePlanning: return "Life planning"
       case .gratitude: return "Gratitude"
-      case .dream: return "Dream"
+      case .possibilities: return "Possibilities"
       }
     }
 
@@ -31,7 +31,7 @@ struct ClassifiedCaptureSheet: View {
       switch self {
       case .lifePlanning: return .foyer(.becoming)
       case .gratitude: return .celebration
-      case .dream: return .dream
+      case .possibilities: return .possibilities
       }
     }
 
@@ -118,11 +118,11 @@ struct ClassifiedCaptureSheet: View {
       else { return }
       onStartGuided(.gratitude, path, body)
       onClose()
-    case .dream:
+    case .possibilities:
       guard store.capture(title: named, body: body, destination: .uncharted(beyond: false)),
         let path = store.lastCapturedPath
       else { return }
-      onStartGuided(.dream, path, body)
+      onStartGuided(.possibilities, path, body)
       onClose()
     }
   }

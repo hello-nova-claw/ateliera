@@ -24,12 +24,12 @@ struct CaptureGuidance: Equatable {
       "A win, a small mercy, or something you're grateful for. Naming it lets the Studio remember it with you.",
     example: "e.g. Finished the hard email — and someone thanked me for it.")
 
-  // Guided dream logging — a possibility that doesn't need a plan yet.
-  static let dream = CaptureGuidance(
-    title: "Leave a dream",
+  // Guided possibilities — a future you're reaching toward that doesn't need a plan yet.
+  static let possibilities = CaptureGuidance(
+    title: "Leave a possibility",
     prompt: "What if…?",
     description:
-      "A dream or possibility you want to keep, with no plan attached. It can stay a question.",
+      "A possibility you want to keep, with no plan attached. It can stay a question.",
     example: "e.g. What if we spent a whole winter somewhere warm?")
 
   static func foyer(_ slot: FoyerSlot) -> CaptureGuidance {
