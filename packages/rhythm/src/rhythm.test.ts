@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeCycle, computeMoon, computeRhythmContext, resolveMicroSeason, resolveSeason } from './rhythm';
+import { computeCycle, computeLunarSeason, computeMoon, computeRhythmContext, resolveMicroSeason, resolveSeason } from './rhythm';
 import type { RhythmProfile } from './types';
 
 function makeProfile(over: Partial<RhythmProfile> = {}): RhythmProfile {
@@ -171,13 +171,13 @@ describe('Leap-day / year boundary', () => {
       ctx = computeRhythmContext(p, '2025-12-31');
     }).not.toThrow();
     expect(ctx!.season).toBe('winter'); // December, N hemisphere
-    expect(ctx!.microSeason.term).toBe('Winter Solstice'); // on/after Dec 21
+    expect(ctx!.microSeason.term).toBe('The Long Night'); // on/after Dec 21
     expect(ctx!.microSeason.gloss.length).toBeGreaterThan(0);
   });
 });
 
 describe('Micro-season mapping', () => {
-  it('2026-06-21 S returns the containing solar-term window with a non-empty gloss', () => {
+  it('2026-06-21 S returns the containing micro-season window with a non-empty gloss', () => {
     const ctx = computeRhythmContext(makeProfile({ location: { hemisphere: 'S' } }), '2026-06-21');
     expect(typeof ctx.microSeason.term).toBe('string');
     expect(ctx.microSeason.term.length).toBeGreaterThan(0);
@@ -192,13 +192,38 @@ describe('Micro-season mapping', () => {
     );
   });
 
-  it('dates before the first term of the year wrap back to Winter Solstice', () => {
-    expect(resolveMicroSeason(1, 1, 'N').term).toBe('Winter Solstice');
+  it('dates before the first term of the year wrap back to the final micro-season', () => {
+    expect(resolveMicroSeason(1, 1, 'N').term).toBe('The Long Night');
   });
 
   it('a June date in the south reads the December term six months away', () => {
-    expect(resolveMicroSeason(6, 21, 'S').term).toBe('Winter Solstice');
-    expect(resolveMicroSeason(6, 21, 'N').term).toBe('Summer Solstice');
+    expect(resolveMicroSeason(6, 21, 'S').term).toBe('The Long Night');
+    expect(resolveMicroSeason(6, 21, 'N').term).toBe('The Long Light');
+  });
+});
+
+describe('Moon-phase seasons', () => {
+  it('the lunar season and progress track the synodic month', () => {
+    // 2026-09-11 is a new moon (golden instant in the Swift ephemeris tests); at 00:00
+    // UTC the moon sits just shy of the exact new, so progress is near the 0/1 wrap.
+    const ctx = computeRhythmContext(makeProfile({ location: { hemisphere: 'N' } }), '2026-09-11');
+    expect(ctx.lunarSeason).toBe('new');
+    expect(ctx.lunarProgress > 0.94 || ctx.lunarProgress < 0.06).toBe(true);
+  });
+
+  it('a full moon reads as the full season near mid-cycle', () => {
+    const full = computeLunarSeason(Date.UTC(2026, 7, 28)); // 2026-08-28 full moon
+    expect(full.season).toBe('full');
+    expect(full.progress).toBeGreaterThan(0.4);
+    expect(full.progress).toBeLessThan(0.6);
+  });
+
+  it('names every quarter of the cycle across a full month', () => {
+    const seen = new Set<string>();
+    for (let d = 0; d < 30; d++) {
+      seen.add(computeLunarSeason(Date.UTC(2026, 8, 11) + d * 86400000).season);
+    }
+    expect(seen).toEqual(new Set(['new', 'waxing', 'full', 'waning']));
   });
 });
 

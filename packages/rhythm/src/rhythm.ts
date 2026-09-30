@@ -3,6 +3,7 @@ import type {
   CycleProfile,
   CycleState,
   Hemisphere,
+  LunarSeason,
   MicroSeason,
   MoonPhase,
   MoonState,
@@ -51,12 +52,12 @@ const cosDeg = (deg: number): number => Math.cos(deg * DEG);
 const mod360 = (deg: number): number => ((deg % 360) + 360) % 360;
 
 /**
- * Moon phase and illuminated fraction for an instant, from Meeus'
- * *Astronomical Algorithms* (ch. 47–48). Accurate to ~0.5% illumination —
- * good enough to name the phase and draw it, with no ephemeris download and
- * no fixed epoch to drift out of date. `dateMs` is a Unix millisecond time.
+ * Sun–Moon elongation on 0 (new) … 180 (full) … 360 and the illuminated
+ * fraction for an instant, from Meeus' *Astronomical Algorithms* (ch. 47–48).
+ * The single source both the eight-phase name and the four lunar seasons read,
+ * so they can never disagree. `dateMs` is a Unix millisecond time.
  */
-export function computeMoon(dateMs: number): MoonState {
+function moonAngles(dateMs: number): { elongation: number; illumination: number } {
   const jd = dateMs / 86400000 + 2440587.5;
   const t = (jd - 2451545.0) / 36525;
   // Mean elongation of the Moon, Sun's mean anomaly, Moon's mean anomaly (deg).
@@ -87,49 +88,75 @@ export function computeMoon(dateMs: number): MoonState {
   const illumination = (1 + cosDeg(phaseAngle)) / 2;
   // Fold the phase angle to [0, 180] and pair it with the waxing/waning sign
   // (mean elongation < 180° ⇒ waxing) to get an elongation on 0 (new) … 180
-  // (full) … 360, then bin into eight phases 45° wide, centred on their marks.
+  // (full) … 360.
   const waxing = mod360(d) < 180;
   const folded = mod360(phaseAngle) > 180 ? 360 - mod360(phaseAngle) : mod360(phaseAngle);
-  const elongation = waxing ? 180 - folded : 180 + folded;
+  const elongation = mod360(waxing ? 180 - folded : 180 + folded);
+  return { elongation, illumination };
+}
+
+/**
+ * Moon phase and illuminated fraction for an instant. Bins the elongation into
+ * eight phases 45° wide, centred on their marks. `dateMs` is a Unix ms time.
+ */
+export function computeMoon(dateMs: number): MoonState {
+  const { elongation, illumination } = moonAngles(dateMs);
   const index = Math.floor(mod360(elongation + 22.5) / 45) % 8;
   return { phase: MOON_PHASES[index]!, illumination };
 }
 
-// 24 solar terms keyed by their approximate Gregorian start (month, day),
-// each with a short English gloss. Northern-hemisphere calendar; the southern
+/**
+ * The moon-phase season and the fraction through the synodic month (0 at new,
+ * 0.5 at full). Four 90°-wide seasons centred on new/first-quarter/full/last-
+ * quarter, so the "new" and "full" windows straddle their exact instants.
+ */
+export function computeLunarSeason(dateMs: number): { season: LunarSeason; progress: number } {
+  const { elongation } = moonAngles(dateMs);
+  let season: LunarSeason;
+  if (elongation < 45 || elongation >= 315) season = 'new';
+  else if (elongation < 135) season = 'waxing';
+  else if (elongation < 225) season = 'full';
+  else season = 'waning';
+  return { season, progress: elongation / 360 };
+}
+
+// 24 micro-seasons keyed by their approximate Gregorian start (month, day), each
+// with a short observation. Original Ateliera language — inspired by the *form* of
+// nature-almanac micro-seasons (the year cut into small, felt turns), not by any
+// tradition's names or content. Northern-hemisphere calendar; the southern
 // hemisphere reads this table shifted by six months so the felt season matches.
-interface SolarTerm {
+interface MicroSeasonTerm {
   month: number;
   day: number;
   term: string;
   gloss: string;
 }
 
-const SOLAR_TERMS: readonly SolarTerm[] = [
-  { month: 1, day: 5, term: 'Lesser Cold', gloss: 'deep stillness, the year at its quietest' },
-  { month: 1, day: 20, term: 'Greater Cold', gloss: 'the coldest stretch, roots holding' },
-  { month: 2, day: 4, term: 'Start of Spring', gloss: 'the first turn back toward light' },
-  { month: 2, day: 19, term: 'Rain Water', gloss: 'frost softening into rain' },
-  { month: 3, day: 5, term: 'Awakening of Insects', gloss: 'the sleeping world begins to stir' },
-  { month: 3, day: 20, term: 'Spring Equinox', gloss: 'day and night in balance, tipping toward light' },
-  { month: 4, day: 4, term: 'Pure Brightness', gloss: 'clear skies, green returning' },
-  { month: 4, day: 20, term: 'Grain Rain', gloss: 'rains that feed the new growth' },
-  { month: 5, day: 5, term: 'Start of Summer', gloss: 'warmth settling in, days lengthening' },
-  { month: 5, day: 21, term: 'Grain Full', gloss: 'seedheads filling, abundance gathering' },
-  { month: 6, day: 5, term: 'Grain in Ear', gloss: 'the harvest of light begins' },
-  { month: 6, day: 21, term: 'Summer Solstice', gloss: 'the longest day, fullness at its peak' },
-  { month: 7, day: 7, term: 'Lesser Heat', gloss: 'rising heat, the slow simmer of summer' },
-  { month: 7, day: 22, term: 'Greater Heat', gloss: 'the hottest stretch, everything ripening' },
-  { month: 8, day: 7, term: 'Start of Autumn', gloss: 'the first cool edge to the air' },
-  { month: 8, day: 23, term: 'End of Heat', gloss: 'heat releasing its grip' },
-  { month: 9, day: 7, term: 'White Dew', gloss: 'cool mornings, dew on the grass' },
-  { month: 9, day: 23, term: 'Autumn Equinox', gloss: 'balance again, tipping toward dark' },
-  { month: 10, day: 8, term: 'Cold Dew', gloss: 'dew turning cold, leaves letting go' },
-  { month: 10, day: 23, term: 'Frost Descent', gloss: 'the first frosts, the world drawing in' },
-  { month: 11, day: 7, term: 'Start of Winter', gloss: 'stillness arriving, light withdrawing' },
-  { month: 11, day: 22, term: 'Lesser Snow', gloss: 'the first snows, the hush before deep cold' },
-  { month: 12, day: 7, term: 'Greater Snow', gloss: 'snow deepening, the long dark' },
-  { month: 12, day: 21, term: 'Winter Solstice', gloss: 'the longest night, the seed of returning light' },
+const MICRO_SEASONS: readonly MicroSeasonTerm[] = [
+  { month: 1, day: 5, term: 'The Deep Quiet', gloss: 'the year at its stillest, everything held' },
+  { month: 1, day: 20, term: 'The Long Cold', gloss: 'the coldest stretch, roots waiting' },
+  { month: 2, day: 4, term: 'First Turning', gloss: 'the first tilt back toward the light' },
+  { month: 2, day: 19, term: 'The Softening', gloss: 'frost loosening into rain' },
+  { month: 3, day: 5, term: 'First Stirring', gloss: 'the sleeping world begins to move' },
+  { month: 3, day: 20, term: 'The Even Light', gloss: 'day and night in balance, tipping bright' },
+  { month: 4, day: 4, term: 'Clear and Green', gloss: 'clear skies, the green returning' },
+  { month: 4, day: 20, term: 'The Feeding Rains', gloss: 'rains that feed the new growth' },
+  { month: 5, day: 5, term: 'The Warming', gloss: 'warmth settling in, days lengthening' },
+  { month: 5, day: 21, term: 'The Filling', gloss: 'seedheads filling, abundance gathering' },
+  { month: 6, day: 5, term: 'The Gathering Light', gloss: 'the long days building toward their peak' },
+  { month: 6, day: 21, term: 'The Long Light', gloss: 'the longest day, fullness at its height' },
+  { month: 7, day: 7, term: 'The Slow Heat', gloss: 'rising warmth, the slow simmer of summer' },
+  { month: 7, day: 22, term: 'The High Heat', gloss: 'the hottest stretch, everything ripening' },
+  { month: 8, day: 7, term: 'First Cool', gloss: 'the first cool edge to the air' },
+  { month: 8, day: 23, term: 'The Easing', gloss: 'the heat releasing its grip' },
+  { month: 9, day: 7, term: 'First Dew', gloss: 'cool mornings, dew on the grass' },
+  { month: 9, day: 23, term: 'The Even Dark', gloss: 'balance again, tipping toward the dark' },
+  { month: 10, day: 8, term: 'The Cooling Dew', gloss: 'dew turning cold, leaves letting go' },
+  { month: 10, day: 23, term: 'First Frost', gloss: 'the first frosts, the world drawing in' },
+  { month: 11, day: 7, term: 'The Withdrawing', gloss: 'stillness arriving, the light pulling back' },
+  { month: 11, day: 22, term: 'First Snow', gloss: 'the first snows, the hush before deep cold' },
+  { month: 12, day: 7, term: 'The Deep Snow', gloss: 'snow deepening, the long dark' },
+  { month: 12, day: 21, term: 'The Long Night', gloss: 'the longest night, the seed of returning light' },
 ];
 
 const CUMULATIVE_DAYS: readonly number[] = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
@@ -147,10 +174,10 @@ export function resolveMicroSeason(month: number, day: number, hemisphere: Hemis
   }
   const target = dayOfYearNoLeap(lookupMonth, day);
 
-  // Find the latest term whose start day-of-year is <= target; wrap to the
-  // final term (Winter Solstice) for dates before the first term of the year.
-  let chosen = SOLAR_TERMS[SOLAR_TERMS.length - 1]!;
-  for (const t of SOLAR_TERMS) {
+  // Find the latest term whose start day-of-year is <= target; wrap to the final
+  // term (The Long Night) for dates before the first term of the year.
+  let chosen = MICRO_SEASONS[MICRO_SEASONS.length - 1]!;
+  for (const t of MICRO_SEASONS) {
     if (dayOfYearNoLeap(t.month, t.day) <= target) chosen = t;
   }
   return { term: chosen.term, gloss: chosen.gloss };
@@ -186,11 +213,14 @@ export function computeCycle(
 
 export function computeRhythmContext(profile: RhythmProfile, date: string): RhythmContext {
   const { month, day, ms } = parseDateUTC(date);
+  const lunar = computeLunarSeason(ms);
   return {
     date,
     season: resolveSeason(month, profile.location.hemisphere),
     microSeason: resolveMicroSeason(month, day, profile.location.hemisphere),
     moon: computeMoon(ms),
+    lunarSeason: lunar.season,
+    lunarProgress: lunar.progress,
     cycle: computeCycle(profile.cycle, ms),
     placements: profile.natal.placements,
   };

@@ -16,8 +16,10 @@ function ctxWith(over: Partial<RhythmContext> = {}): RhythmContext {
   return {
     date: '2026-06-21',
     season: 'winter',
-    microSeason: { term: 'Summer Solstice', gloss: 'the longest day' },
+    microSeason: { term: 'The Long Light', gloss: 'the longest day' },
     moon: { phase: 'first-quarter', illumination: 0.5 },
+    lunarSeason: 'waxing',
+    lunarProgress: 0.25,
     cycle: { phase: 'follicular', day: 8 },
     placements: {},
     ...over,

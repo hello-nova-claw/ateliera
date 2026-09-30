@@ -10,6 +10,12 @@ export type MoonPhase =
 
 export type Season = 'winter' | 'spring' | 'summer' | 'autumn';
 
+/**
+ * The lunar month as a season in its own right, mirroring the year: `new` (rest,
+ * the seed in the dark), `waxing` (building), `full` (peak), `waning` (release).
+ */
+export type LunarSeason = 'new' | 'waxing' | 'full' | 'waning';
+
 export type Hemisphere = 'N' | 'S';
 
 export type CyclePhase = 'menstrual' | 'follicular' | 'ovulation' | 'luteal';
@@ -51,6 +57,10 @@ export interface RhythmContext {
   season: Season;
   microSeason: MicroSeason;
   moon: MoonState;
+  /** The moon-phase season (new/waxing/full/waning) for the day. */
+  lunarSeason: LunarSeason;
+  /** Fraction through the synodic month from the new moon (0 at new, 0.5 at full). */
+  lunarProgress: number;
   cycle?: CycleState | undefined;
   placements: Record<string, string>;
 }

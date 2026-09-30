@@ -9,7 +9,7 @@ import SwiftUI
 struct AlmanacView: View {
   let context: RhythmContext
   var hemisphere: Hemisphere = .north
-  var seasonStyle: SeasonStyle = .meteorological
+  var seasonStyle: SeasonStyle = .astronomical
   var mode: Mode = .summary
   @Environment(\.studioTheme) private var theme
 
@@ -67,6 +67,13 @@ struct AlmanacView: View {
     return "\(next.phase.title) \(whenText(next.ms, from: ms))"
   }
 
+  // The moon as a season in its own right: which quarter of the lunar month, and how
+  // far through it (0 at new, halfway at full).
+  private var lunarSeasonCallout: String {
+    let pct = Int((context.lunarProgress * 100).rounded())
+    return "\(context.lunarSeason.label) · \(pct)% through the lunar month"
+  }
+
   private var orientationCopy: String {
     switch Rhythm.orientation(context) {
     case .inward: return "A gathering day — a good time to notice how far you have come."
@@ -115,6 +122,9 @@ struct AlmanacView: View {
       Text("By the \(otherStyle.label.lowercased()) calendar, \(seasonText(otherStyle))")
         .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
         .accessibilityIdentifier("almanac-other-season")
+      Text(lunarSeasonCallout)
+        .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
+        .accessibilityIdentifier("almanac-lunar-season")
       Text(lunationCallout)
         .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
         .accessibilityIdentifier("almanac-lunation")

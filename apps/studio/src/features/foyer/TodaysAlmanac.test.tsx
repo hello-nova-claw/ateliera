@@ -12,14 +12,14 @@ describe('TodaysAlmanac', () => {
           illumination: 0.18,
           season: 'winter',
           microSeason: {
-            term: 'Lesser Cold',
+            term: 'The Deep Quiet',
             gloss: 'deep stillness, the year at its quietest',
           },
           orientation: 'outward',
         }}
       />,
     );
-    expect(screen.getByText('Lesser Cold')).toBeInTheDocument();
+    expect(screen.getByText('The Deep Quiet')).toBeInTheDocument();
     expect(screen.getByText(/deep stillness/)).toBeInTheDocument();
     expect(screen.getByText(/An opening day/)).toBeInTheDocument();
     expect(screen.getByText(/Winter/)).toBeInTheDocument();

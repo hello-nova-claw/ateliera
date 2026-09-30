@@ -317,40 +317,37 @@ final class CaptureFlowUITests: XCTestCase {
     app.buttons["today-panel-toggle"].tap()
     let other = app.staticTexts["almanac-other-season"]
     XCTAssertTrue(other.waitForExistence(timeout: 8))
-    XCTAssertTrue(other.label.contains("astronomical calendar"), "was \(other.label)")
-    // Switch the primary style to Astronomical in Settings.
+    // The grounded default is astronomical, so the "see both" line names the other
+    // (meteorological) calendar.
+    XCTAssertTrue(other.label.contains("meteorological calendar"), "was \(other.label)")
+    // Switch the primary style to Meteorological in Settings.
     app.buttons["settings-button"].tap()
     let picker = app.segmentedControls["season-style-picker"]
     XCTAssertTrue(picker.waitForExistence(timeout: 5))
-    picker.buttons["Astronomical"].tap()
+    picker.buttons["Meteorological"].tap()
     app.buttons["Done"].tap()
-    // Now the "see both" line references the meteorological calendar instead.
+    // Now the "see both" line references the astronomical calendar instead.
     XCTAssertTrue(
-      app.staticTexts["almanac-other-season"].label.contains("meteorological calendar"))
+      app.staticTexts["almanac-other-season"].label.contains("astronomical calendar"))
   }
 
-  func testSeasonWizardBeginsAndActivates() {
+  func testSeasonRoomShowsComputedSeasonAndAcceptsAnIntention() {
     let app = launchEmptyApp()
     let room = roomButton("current-season", in: app)
     XCTAssertTrue(room.waitForExistence(timeout: 8))
     room.tap()
     XCTAssertTrue(app.navigationBars["Current Season"].waitForExistence(timeout: 5))
-    // Begin a season.
-    type("Spring", into: app.textFields["season-title-field"], in: app)
-    app.buttons["season-begin"].tap()
-    // Prior reflection: skip it.
-    let skip = app.switches["season-skip-reflection"]
-    XCTAssertTrue(skip.waitForExistence(timeout: 5))
-    skip.tap()
-    // Continue through the remaining eight steps (the last one begins the season).
-    for _ in 0..<8 {
-      let cont = app.buttons["season-continue"]
-      XCTAssertTrue(cont.waitForExistence(timeout: 5))
-      cont.tap()
-    }
-    // The active season view shows the title.
-    XCTAssertTrue(app.staticTexts["Spring"].firstMatch.waitForExistence(timeout: 5))
-    XCTAssertTrue(app.buttons["season-close"].waitForExistence(timeout: 5))
+    // The room leads with the grounded, computed season (no wizard).
+    XCTAssertTrue(app.staticTexts["THE SEASON YOU'RE IN"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["season-computed-title"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["season-lunar"].exists)
+    // Set a light intention; the button flips to "Update intention" once saved.
+    type("tending what I've started", into: app.textFields["season-intention-field"], in: app)
+    app.buttons["season-set-intention"].tap()
+    XCTAssertTrue(app.buttons["Update intention"].waitForExistence(timeout: 5))
+    XCTAssertTrue(
+      app.staticTexts["A season of tending what I've started"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.buttons["season-close"].exists)
   }
 
   func testGuidedHubCapturesGratitudeIntoTheGarden() {

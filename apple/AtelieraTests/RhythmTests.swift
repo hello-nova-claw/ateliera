@@ -107,23 +107,24 @@ final class RhythmTests: XCTestCase {
   }
 
   func testRhythmPreferencesDecodeWithoutSeasonStyle() throws {
-    // Preferences saved before season style existed must still decode (→ meteorological).
+    // Preferences saved before season style existed must still decode; an unset style
+    // now resolves to astronomical (the season grounded in the sky).
     let json = Data(#"{"moon":true,"microSeason":false,"cycle":true}"#.utf8)
     let prefs = try JSONDecoder().decode(StoredStudioPreferences.RhythmPreferences.self, from: json)
-    XCTAssertEqual(prefs.resolvedSeasonStyle, .meteorological)
+    XCTAssertEqual(prefs.resolvedSeasonStyle, .astronomical)
     XCTAssertFalse(prefs.microSeason)
   }
 
   func testResolveMicroSeasonBoundariesAndSouthernShift() {
     let cases: [(String, Hemisphere, String)] = [
-      ("2026-01-10", .north, "Lesser Cold"),
-      ("2026-02-04", .north, "Start of Spring"),
-      ("2026-03-20", .north, "Spring Equinox"),
-      ("2026-06-21", .north, "Summer Solstice"),
-      ("2026-12-21", .north, "Winter Solstice"),
-      ("2026-01-01", .north, "Winter Solstice"),  // wraps to the final term
-      ("2026-06-21", .south, "Winter Solstice"),  // six-month shift
-      ("2026-12-21", .south, "Summer Solstice"),
+      ("2026-01-10", .north, "The Deep Quiet"),
+      ("2026-02-04", .north, "First Turning"),
+      ("2026-03-20", .north, "The Even Light"),
+      ("2026-06-21", .north, "The Long Light"),
+      ("2026-12-21", .north, "The Long Night"),
+      ("2026-01-01", .north, "The Long Night"),  // wraps to the final term
+      ("2026-06-21", .south, "The Long Night"),  // six-month shift
+      ("2026-12-21", .south, "The Long Light"),
     ]
     for (date, hemisphere, term) in cases {
       let month = Int(date.dropFirst(5).prefix(2))!
@@ -184,17 +185,36 @@ final class RhythmTests: XCTestCase {
       hemisphere: .north, cycle: CycleProfile(lastPeriodStart: "2026-01-01", avgLengthDays: 28))
     let a = Rhythm.computeContext(profile: north, date: "2026-01-10")
     XCTAssertEqual(a.season, .winter)
-    XCTAssertEqual(a.microSeason.term, "Lesser Cold")
+    XCTAssertEqual(a.microSeason.term, "The Deep Quiet")
     XCTAssertEqual(a.moon.phase, .lastQuarter)
     XCTAssertEqual(a.moon.illumination, 0.5643686941316037, accuracy: 1e-12)
+    XCTAssertEqual(a.lunarSeason, .waning)
+    XCTAssertEqual(a.lunarProgress, 0.7294537863573674, accuracy: 1e-12)
     XCTAssertEqual(a.cycle?.day, 10)
     XCTAssertEqual(a.cycle?.phase, .follicular)
 
     let south = RhythmProfile(hemisphere: .south, cycle: nil)
     let b = Rhythm.computeContext(profile: south, date: "2026-06-21")
     XCTAssertEqual(b.season, .winter)
-    XCTAssertEqual(b.microSeason.term, "Winter Solstice")
+    XCTAssertEqual(b.microSeason.term, "The Long Night")
     XCTAssertEqual(b.moon.phase, .firstQuarter)
+    XCTAssertEqual(b.lunarSeason, .waxing)
+    XCTAssertEqual(b.lunarProgress, 0.22029633521673936, accuracy: 1e-12)
     XCTAssertNil(b.cycle)
+  }
+
+  func testLunarSeasonMatchesTheWebEngine() {
+    // Golden lunar seasons + synodic progress captured from @studio/rhythm.
+    let cases: [(String, LunarSeason, Double)] = [
+      ("2026-09-11", .new, 0.9947651864020575),  // just before the exact new moon
+      ("2026-08-28", .full, 0.5055011240301004),  // full moon
+      ("2026-01-10", .waning, 0.7294537863573674),
+      ("2026-06-21", .waxing, 0.22029633521673936),
+    ]
+    for (date, season, progress) in cases {
+      let lunar = Rhythm.computeLunarSeason(dateMs: ms(date))
+      XCTAssertEqual(lunar.season, season, date)
+      XCTAssertEqual(lunar.progress, progress, accuracy: 1e-12, date)
+    }
   }
 }

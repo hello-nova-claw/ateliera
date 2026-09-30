@@ -18,7 +18,7 @@ describe('useAlmanac', () => {
     const { result } = renderHook(() => useAlmanac(service(load), DATE));
     await waitFor(() => expect(load).toHaveBeenCalled());
     expect(result.current.season).toBe('winter');
-    expect(result.current.microSeason.term).toBe('Lesser Cold');
+    expect(result.current.microSeason.term).toBe('The Deep Quiet');
     expect(result.current.moonPhase).toBeDefined();
     expect(result.current.illumination).toBeGreaterThanOrEqual(0);
     expect(result.current.illumination).toBeLessThanOrEqual(1);
@@ -32,13 +32,13 @@ describe('useAlmanac', () => {
     });
     const { result } = renderHook(() => useAlmanac(service(load), DATE));
     await waitFor(() => expect(result.current.season).toBe('summer'));
-    expect(result.current.microSeason.term).toBe('Lesser Heat');
+    expect(result.current.microSeason.term).toBe('The Slow Heat');
   });
 
   it('still reads a rhythm with no service, defaulting to the north', () => {
     const { result } = renderHook(() => useAlmanac(undefined, DATE));
     expect(result.current.season).toBe('winter');
-    expect(result.current.microSeason.term).toBe('Lesser Cold');
+    expect(result.current.microSeason.term).toBe('The Deep Quiet');
   });
 
   it('leans outward at the new moon and inward at the full moon', () => {

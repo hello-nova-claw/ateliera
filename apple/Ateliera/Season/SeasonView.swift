@@ -1,56 +1,72 @@
 import SwiftUI
 
-// The Current Season room: begin a season, walk the nine-step wizard, then an active
-// view with a close flow (which files a reflection letter and archives the season).
-// List fields are one item per line; decisions are structured (text + 30/60/90
-// horizon + decision/experiment kind).
+// The Current Season room, grounded in the sky rather than authored: the astronomical
+// season and how far through it, the moon-phase season, and today's micro-season. You
+// can add one light "intention for this season" (a statement, optional feelings) — no
+// nine-step wizard. Legacy seasons (from the old wizard) still show their statement and
+// can be closed (which files a reflection letter and archives them).
 struct SeasonView: View {
   @Environment(\.studioTheme) private var theme
   let store: VaultStore
+  var hemisphere: Hemisphere = .north
+  var seasonStyle: SeasonStyle = .astronomical
   let onOpen: (String) -> Void
 
   @State private var season: SeasonStore
-  @State private var wizardStep: SeasonWizardStep = .nameDates
-  @State private var beginTitle = ""
-  @State private var fields = Fields()
-  @State private var decisions: [EditableDecision] = []
+  @State private var statementDraft = ""
+  @State private var feelingsDraft = ""
   @State private var closing = false
 
-  // A decision being edited in the wizard (the model's SeasonDecision needs an id).
-  struct EditableDecision: Identifiable {
-    let id = UUID()
-    var text = ""
-    var horizon: SeasonHorizon = .d30
-    var kind: SeasonDecision.Kind = .decision
-  }
-
-  init(store: VaultStore, onOpen: @escaping (String) -> Void) {
+  init(
+    store: VaultStore, hemisphere: Hemisphere = .north, seasonStyle: SeasonStyle = .astronomical,
+    onOpen: @escaping (String) -> Void
+  ) {
     self.store = store
+    self.hemisphere = hemisphere
+    self.seasonStyle = seasonStyle
     self.onOpen = onOpen
     _season = State(initialValue: SeasonStore(store: store))
   }
 
-  private struct Fields {
-    var title = "", startsOn = "", endsOn = ""
-    var priorReflection = "", statement = "", enough = ""
-    var skipReflection = false
-    var feelings = "", priorities = "", practices = "", supports = "", constraints = "", notNow = ""
+  private static let isoDay: DateFormatter = {
+    let f = DateFormatter()
+    f.locale = Locale(identifier: "en_US_POSIX")
+    f.timeZone = .current
+    f.dateFormat = "yyyy-MM-dd"
+    return f
+  }()
+
+  private var today: String { Self.isoDay.string(from: Date()) }
+
+  private var context: RhythmContext {
+    Rhythm.computeContext(
+      profile: RhythmProfile(hemisphere: hemisphere, cycle: nil), date: today)
+  }
+
+  private var feltSeason: Season {
+    Rhythm.season(date: today, hemisphere: hemisphere, style: seasonStyle)
+  }
+
+  // A calm, computed title for a light intention, e.g. "Autumn 2026".
+  private var computedTitle: String {
+    "\(AlmanacView.sentenceCase(feltSeason.rawValue)) \(today.prefix(4))"
+  }
+
+  private var seasonSpan: (start: String, end: String) {
+    let span = Sky.astronomicalSeasonSpan(dateMs: Rhythm.dayMillis(date: today))
+    return (Sky.isoDate(ms: span.start), Sky.isoDate(ms: span.end))
   }
 
   var body: some View {
     ScrollView {
-      VStack(alignment: .leading, spacing: 20) {
+      VStack(alignment: .leading, spacing: 24) {
         if let error = season.error {
           Text(error).font(StudioFont.meta).foregroundStyle(theme.celebration)
         }
-        if let record = season.record {
-          if record.state.status == .draft {
-            wizard(record.state)
-          } else {
-            activeView(record.state)
-          }
-        } else {
-          emptyState
+        computedHeader
+        intentionSection
+        if let record = season.record, record.state.status == .active {
+          legacyDetail(record.state)
         }
       }
       .padding(24)
@@ -58,6 +74,12 @@ struct SeasonView: View {
     }
     .background(theme.canvas)
     .navigationTitle("Current Season")
+    .task {
+      if let state = season.record?.state {
+        statementDraft = state.statement
+        feelingsDraft = state.feelings.joined(separator: "\n")
+      }
+    }
     .sheet(isPresented: $closing) {
       if let record = season.record {
         SeasonCloseView(
@@ -69,169 +91,78 @@ struct SeasonView: View {
     }
   }
 
-  private var emptyState: some View {
-    VStack(alignment: .leading, spacing: 14) {
-      Text("A HUMANE PRESENT FOCUS")
+  // MARK: - Computed (grounded) season
+
+  private var computedHeader: some View {
+    let pct = Int((Rhythm.seasonProgress(date: today, style: seasonStyle) * 100).rounded())
+    let lunarPct = Int((context.lunarProgress * 100).rounded())
+    return VStack(alignment: .leading, spacing: 12) {
+      Text("THE SEASON YOU'RE IN")
         .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
-      Text("Current Season")
+      Text("\(AlmanacView.sentenceCase(feltSeason.rawValue)) · \(pct)% through")
         .font(StudioFont.roomTitle).tracking(-0.5).foregroundStyle(theme.inkStrong)
-      Text("Name what matters now as a gentle chapter.")
-        .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkMuted)
-      TextField("Name this season", text: $beginTitle)
+        .accessibilityIdentifier("season-computed-title")
+      VStack(alignment: .leading, spacing: 6) {
+        Text(context.microSeason.term).font(StudioFont.section).foregroundStyle(theme.inkStrong)
+        Text(context.microSeason.gloss)
+          .font(StudioFont.quote).foregroundStyle(theme.inkMuted)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      Text("\(context.lunarSeason.label) · \(lunarPct)% through the lunar month")
+        .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
+        .accessibilityIdentifier("season-lunar")
+    }
+  }
+
+  // MARK: - Light intention
+
+  private var intentionSection: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Text("YOUR INTENTION").font(StudioFont.eyebrow).tracking(1.4).foregroundStyle(theme.inkFaint)
+      Text("What matters this season?")
+        .font(StudioFont.section).foregroundStyle(theme.inkStrong)
+      Text("One line is plenty — a gentle focus for this chapter. It can change any time.")
+        .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
+        .fixedSize(horizontal: false, vertical: true)
+      TextField("A season of tending what I've started…", text: $statementDraft)
         .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
         .padding(12)
         .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.line, lineWidth: 1))
-        .accessibilityIdentifier("season-title-field")
-      Button("Begin a season") {
-        let title = beginTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty else { return }
-        if season.beginSeason(title: title, startsOn: nil, endsOn: nil) {
-          wizardStep = .priorReflection
-          fields.title = title
+        .accessibilityIdentifier("season-intention-field")
+      ZStack(alignment: .topLeading) {
+        if feelingsDraft.isEmpty {
+          Text("How you want it to feel — one per line (optional)")
+            .font(StudioFont.body).foregroundStyle(theme.inkFaint)
+            .padding(.top, 8).padding(.leading, 5).allowsHitTesting(false)
         }
+        TextEditor(text: $feelingsDraft)
+          .font(StudioFont.body).foregroundStyle(theme.inkStrong)
+          .scrollContentBackground(.hidden).frame(minHeight: 70)
+          .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.line, lineWidth: 1))
+          .accessibilityIdentifier("season-feelings-field")
+      }
+      Button(season.record == nil ? "Set intention" : "Update intention") {
+        let statement = statementDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !statement.isEmpty else { return }
+        let span = seasonSpan
+        _ = season.setSeasonalIntention(
+          statement: statement, feelings: lines(feelingsDraft), title: computedTitle,
+          startsOn: span.start, endsOn: span.end)
       }
       .font(StudioFont.control).foregroundStyle(theme.link)
-      .accessibilityIdentifier("season-begin")
+      .disabled(statementDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+      .accessibilityIdentifier("season-set-intention")
     }
   }
 
-  // MARK: - Wizard
+  // MARK: - Legacy season detail (from the old wizard) + close
 
-  private func wizard(_ state: SeasonState) -> some View {
-    let index = (seasonWizardSteps.firstIndex(of: wizardStep) ?? 0) + 1
-    return VStack(alignment: .leading, spacing: 16) {
-      Text("STEP \(index) OF \(seasonWizardSteps.count)")
-        .font(StudioFont.eyebrow).tracking(1.4).foregroundStyle(theme.inkFaint)
-      Text(stepTitle).font(StudioFont.section).foregroundStyle(theme.inkStrong)
-      stepFields
-      Button(wizardStep == .confirm ? "Begin this season" : "Continue") {
-        advance(from: state)
-      }
-      .font(StudioFont.control).foregroundStyle(theme.link)
-      .accessibilityIdentifier("season-continue")
-    }
-  }
-
-  private var stepTitle: String {
-    switch wizardStep {
-    case .nameDates: return "Name & dates"
-    case .priorReflection: return "Looking back"
-    case .feelings: return "How I want it to feel"
-    case .priorities: return "Priorities"
-    case .decisionsPractices: return "Practices"
-    case .supportsConstraints: return "Support & constraints"
-    case .enough: return "Enough"
-    case .notNow: return "Not now"
-    case .confirm: return "Confirm"
-    }
-  }
-
-  @ViewBuilder
-  private var stepFields: some View {
-    switch wizardStep {
-    case .nameDates:
-      field("Name", text: $fields.title, id: "season-field-title", guidance: SeasonGuidance.name)
-      field("Starts (YYYY-MM-DD, optional)", text: $fields.startsOn, id: "season-field-start")
-      field("Ends (YYYY-MM-DD, optional)", text: $fields.endsOn, id: "season-field-end")
-    case .priorReflection:
-      editor(
-        "What are you carrying in from before?", text: $fields.priorReflection,
-        id: "season-field-reflection", guidance: SeasonGuidance.carryAsLearning)
-      Toggle("Skip this step", isOn: $fields.skipReflection)
-        .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
-        .accessibilityIdentifier("season-skip-reflection")
-    case .feelings:
-      editor(
-        "Feelings (one per line)", text: $fields.feelings, id: "season-field-feelings",
-        guidance: SeasonGuidance.feelings)
-      field(
-        "A season of…", text: $fields.statement, id: "season-field-statement",
-        guidance: SeasonGuidance.statement)
-    case .priorities:
-      editor(
-        "Priorities (one per line)", text: $fields.priorities, id: "season-field-priorities",
-        guidance: FieldGuidance(
-          description: SeasonGuidance.prioritiesDescription,
-          example: SeasonGuidance.newPriority.example))
-    case .decisionsPractices:
-      editor(
-        "Practices (one per line)", text: $fields.practices, id: "season-field-practices",
-        guidance: SeasonGuidance.practices)
-      decisionsEditor
-    case .supportsConstraints:
-      editor(
-        "Support (one per line)", text: $fields.supports, id: "season-field-supports",
-        guidance: SeasonGuidance.supports)
-      editor(
-        "Constraints (one per line)", text: $fields.constraints, id: "season-field-constraints",
-        guidance: SeasonGuidance.constraints)
-    case .enough:
-      editor(
-        "What would be enough?", text: $fields.enough, id: "season-field-enough",
-        guidance: SeasonGuidance.enough)
-    case .notNow:
-      editor(
-        "Not now (one per line)", text: $fields.notNow, id: "season-field-notnow",
-        guidance: SeasonGuidance.notNow)
-    case .confirm:
-      Text("Review and begin this season.")
-        .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkMuted)
-    }
-  }
-
-  private func advance(from state: SeasonState) {
-    let answers: SeasonStepAnswers
-    switch wizardStep {
-    case .nameDates:
-      answers = .nameDates(
-        title: fields.title, startsOn: nilIfEmpty(fields.startsOn), endsOn: nilIfEmpty(fields.endsOn))
-    case .priorReflection:
-      answers = .priorReflection(text: fields.priorReflection, skipped: fields.skipReflection)
-    case .feelings:
-      answers = .feelings(feelings: lines(fields.feelings), statement: fields.statement)
-    case .priorities:
-      answers = .priorities(lines(fields.priorities))
-    case .decisionsPractices:
-      let structured = decisions
-        .filter { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty }
-        .map {
-          SeasonDecision(
-            id: $0.id.uuidString, text: $0.text.trimmingCharacters(in: .whitespaces),
-            horizon: $0.horizon, kind: $0.kind)
-        }
-      answers = .decisionsPractices(decisions: structured, practices: lines(fields.practices))
-    case .supportsConstraints:
-      answers = .supportsConstraints(
-        supports: lines(fields.supports), constraints: lines(fields.constraints))
-    case .enough:
-      answers = .enough(fields.enough)
-    case .notNow:
-      answers = .notNow(lines(fields.notNow))
-    case .confirm:
-      answers = .confirm
-    }
-    guard season.saveStep(answers, priorityOverride: true) else { return }
-    if wizardStep == .confirm {
-      _ = season.activate()
-    } else if let idx = seasonWizardSteps.firstIndex(of: wizardStep),
-      idx + 1 < seasonWizardSteps.count
-    {
-      wizardStep = seasonWizardSteps[idx + 1]
-    }
-  }
-
-  // MARK: - Active
-
-  private func activeView(_ state: SeasonState) -> some View {
-    VStack(alignment: .leading, spacing: 14) {
-      Text("THIS SEASON")
-        .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
-      Text(state.title)
-        .font(StudioFont.roomTitle).tracking(-0.5).foregroundStyle(theme.inkStrong)
-        .accessibilityIdentifier("season-active-title")
+  private func legacyDetail(_ state: SeasonState) -> some View {
+    VStack(alignment: .leading, spacing: 12) {
       if !state.statement.isEmpty {
         Text("A season of \(state.statement)")
           .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkMuted)
+          .accessibilityIdentifier("season-active-title")
       }
       summary("How I want to feel", state.feelings)
       if !state.enough.isEmpty { paragraph("Enough", state.enough) }
@@ -240,7 +171,7 @@ struct SeasonView: View {
       summary("Not now", state.notNow)
       Button("Close this season") { closing = true }
         .font(StudioFont.control).foregroundStyle(theme.link)
-        .padding(.top, 8)
+        .padding(.top, 4)
         .accessibilityIdentifier("season-close")
     }
   }
@@ -251,7 +182,9 @@ struct SeasonView: View {
         VStack(alignment: .leading, spacing: 4) {
           Text(title.uppercased())
             .font(StudioFont.eyebrow).tracking(1.2).foregroundStyle(theme.inkFaint)
-          ForEach(items, id: \.self) { Text("· \($0)").font(StudioFont.body).foregroundStyle(theme.inkStrong) }
+          ForEach(items, id: \.self) {
+            Text("· \($0)").font(StudioFont.body).foregroundStyle(theme.inkStrong)
+          }
         }
       }
     }
@@ -265,100 +198,13 @@ struct SeasonView: View {
     }
   }
 
-  // MARK: - Field helpers
-
-  // A small editor for structured decisions: text + a 30/60/90 horizon + decision or
-  // experiment. Empty rows are dropped when the step is saved.
-  private var decisionsEditor: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      Text("DECISIONS")
-        .font(StudioFont.eyebrow).tracking(1.2).foregroundStyle(theme.inkFaint)
-      Text(SeasonGuidance.decisions30.description)
-        .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
-        .fixedSize(horizontal: false, vertical: true)
-      ForEach($decisions) { $decision in
-        VStack(alignment: .leading, spacing: 6) {
-          TextField(SeasonGuidance.decisions30.example, text: $decision.text)
-            .font(StudioFont.body).foregroundStyle(theme.inkStrong)
-            .padding(10)
-            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.line, lineWidth: 1))
-          HStack(spacing: 10) {
-            Picker("Horizon", selection: $decision.horizon) {
-              ForEach(SeasonHorizon.allCases, id: \.self) { Text("\($0.rawValue)d").tag($0) }
-            }
-            .pickerStyle(.segmented)
-            Picker("Kind", selection: $decision.kind) {
-              Text("Decision").tag(SeasonDecision.Kind.decision)
-              Text("Experiment").tag(SeasonDecision.Kind.experiment)
-            }
-            .pickerStyle(.segmented)
-          }
-        }
-        .padding(.vertical, 4)
-      }
-      Button {
-        decisions.append(EditableDecision())
-      } label: {
-        Label("Add a decision", systemImage: "plus.circle").font(StudioFont.control)
-          .foregroundStyle(theme.link)
-      }
-      .buttonStyle(.plain)
-      .accessibilityIdentifier("season-add-decision")
-    }
-  }
-
-  private func field(
-    _ label: String, text: Binding<String>, id: String, guidance: FieldGuidance? = nil
-  ) -> some View {
-    VStack(alignment: .leading, spacing: 6) {
-      Text(label.uppercased()).font(StudioFont.eyebrow).tracking(1.2).foregroundStyle(theme.inkFaint)
-      if let guidance {
-        Text(guidance.description).font(StudioFont.meta).foregroundStyle(theme.inkMuted)
-          .fixedSize(horizontal: false, vertical: true)
-      }
-      TextField(guidance?.example ?? "", text: text)
-        .font(StudioFont.body).foregroundStyle(theme.inkStrong)
-        .padding(10)
-        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.line, lineWidth: 1))
-        .accessibilityIdentifier(id)
-    }
-  }
-
-  private func editor(
-    _ label: String, text: Binding<String>, id: String, guidance: FieldGuidance? = nil
-  ) -> some View {
-    VStack(alignment: .leading, spacing: 6) {
-      Text(label.uppercased()).font(StudioFont.eyebrow).tracking(1.2).foregroundStyle(theme.inkFaint)
-      if let guidance {
-        Text(guidance.description).font(StudioFont.meta).foregroundStyle(theme.inkMuted)
-          .fixedSize(horizontal: false, vertical: true)
-      }
-      ZStack(alignment: .topLeading) {
-        if let guidance, text.wrappedValue.isEmpty {
-          Text(guidance.example)
-            .font(StudioFont.body).foregroundStyle(theme.inkFaint)
-            .padding(.top, 8).padding(.leading, 5).allowsHitTesting(false)
-        }
-        TextEditor(text: text)
-          .font(StudioFont.body).foregroundStyle(theme.inkStrong)
-          .scrollContentBackground(.hidden).frame(minHeight: 80)
-          .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme.line, lineWidth: 1))
-          .accessibilityIdentifier(id)
-      }
-    }
-  }
-
   private func lines(_ text: String) -> [String] {
     text.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
   }
-
-  private func nilIfEmpty(_ value: String) -> String? {
-    let trimmed = value.trimmingCharacters(in: .whitespaces)
-    return trimmed.isEmpty ? nil : trimmed
-  }
 }
 
-// The close flow: three reflections + one disposition per priority.
+// The close flow: three reflections + one disposition per priority. Files a reflection
+// letter and archives the season (unchanged from the wizard era, for legacy seasons).
 private struct SeasonCloseView: View {
   @Environment(\.studioTheme) private var theme
   let priorities: [String]
@@ -391,7 +237,9 @@ private struct SeasonCloseView: View {
                 Text(priority).font(StudioFont.body).foregroundStyle(theme.inkStrong)
                 Spacer()
                 Picker("", selection: binding(for: priority)) {
-                  ForEach(options, id: \.self) { Text($0.replacingOccurrences(of: "-", with: " ")).tag($0) }
+                  ForEach(options, id: \.self) {
+                    Text($0.replacingOccurrences(of: "-", with: " ")).tag($0)
+                  }
                 }
                 .pickerStyle(.menu)
               }
