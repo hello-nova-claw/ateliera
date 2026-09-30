@@ -78,6 +78,29 @@ final class SeasonStoreTests: XCTestCase {
     XCTAssertEqual(season.record?.state.status, .draft)
   }
 
+  func testSetSeasonalIntentionWritesActiveSeasonWithoutTheWizard() throws {
+    let (dir, store) = try makeStore()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let season = SeasonStore(store: store)
+    XCTAssertTrue(
+      season.setSeasonalIntention(
+        statement: "tending what I've started", feelings: ["calm", "unhurried"],
+        title: "Autumn 2026", startsOn: "2026-09-22", endsOn: "2026-12-21"))
+    // Active straight away — no all-steps-complete guard on the light path.
+    XCTAssertEqual(season.record?.state.status, .active)
+    XCTAssertEqual(season.record?.state.statement, "tending what I've started")
+    XCTAssertEqual(season.record?.state.feelings, ["calm", "unhurried"])
+    XCTAssertEqual(season.record?.state.title, "Autumn 2026")
+
+    // Setting it again updates the same note in place (no second season).
+    XCTAssertTrue(
+      season.setSeasonalIntention(
+        statement: "resting before depletion", feelings: [], title: "Autumn 2026",
+        startsOn: "2026-09-22", endsOn: "2026-12-21"))
+    XCTAssertEqual(season.record?.state.statement, "resting before depletion")
+    XCTAssertEqual(store.parsedNotesByPath.filter { $0.note.cardType == "season" }.count, 1)
+  }
+
   func testCloseArchivesAndWritesLetter() throws {
     let (dir, store) = try makeStore()
     defer { try? FileManager.default.removeItem(at: dir) }

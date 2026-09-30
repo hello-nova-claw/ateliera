@@ -85,8 +85,8 @@ final class ResurfacingTests: XCTestCase {
   ) -> RhythmContext {
     RhythmContext(
       date: "2026-06-21", season: season,
-      microSeason: MicroSeason(term: "Summer Solstice", gloss: "the longest day"),
-      moon: moon, cycle: cycle, placements: [:])
+      microSeason: MicroSeason(term: "The Long Light", gloss: "the longest day"),
+      moon: moon, lunarSeason: .waxing, lunarProgress: 0.25, cycle: cycle, placements: [:])
   }
 
   private func card(_ path: String, _ kind: ResurfaceKind, _ due: String) -> ResurfaceCard {

@@ -51,6 +51,47 @@ import Observation
     return true
   }
 
+  /// Set a light "intention for this season" without the nine-step wizard: a statement
+  /// (and optional feelings) tied to the computed season. Updates the current season note
+  /// in place if one exists, else writes a fresh active one (title/dates from the sky).
+  /// Bypasses the wizard's all-steps-complete activation guard — this is the simple path.
+  @discardableResult
+  func setSeasonalIntention(
+    statement: String, feelings: [String], title: String, startsOn: String?, endsOn: String?
+  ) -> Bool {
+    let trimmed = statement.trimmingCharacters(in: .whitespacesAndNewlines)
+    let now = NoteFactory.isoTimestamp()
+    if let record, let editable = store.beginEdit(path: record.path) {
+      var state = SeasonNoteMapper.stateFromNote(editable.note)
+      state.statement = trimmed
+      state.feelings = feelings
+      state.status = .active
+      state.updated = now
+      guard store.saveEdit(editable, updatedNote: SeasonNoteMapper.noteWithState(editable.note, state))
+      else {
+        error = store.error
+        return false
+      }
+      load()
+      return true
+    }
+    let id = NoteFactory.createNoteId()
+    var state = SeasonEngine.createDraft(id: id, now: now)
+    state.title = title
+    state.startsOn = startsOn
+    state.endsOn = endsOn
+    state.statement = trimmed
+    state.feelings = feelings
+    state.status = .active
+    guard store.createNote(SeasonNoteMapper.createSeasonNote(state, id: id), room: "current-season")
+    else {
+      error = store.error
+      return false
+    }
+    load()
+    return true
+  }
+
   @discardableResult
   func saveStep(_ answers: SeasonStepAnswers, priorityOverride: Bool = false) -> Bool {
     apply { current, now in

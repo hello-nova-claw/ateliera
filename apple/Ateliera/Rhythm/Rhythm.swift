@@ -31,6 +31,21 @@ enum Season: String, Equatable {
   }
 }
 
+// The lunar month as a season in its own right, mirroring the year: new (rest, the
+// seed in the dark), waxing (building), full (peak), waning (release).
+enum LunarSeason: String, Equatable {
+  case new, waxing, full, waning
+
+  var label: String {
+    switch self {
+    case .new: return "New moon"
+    case .waxing: return "Waxing"
+    case .full: return "Full moon"
+    case .waning: return "Waning"
+    }
+  }
+}
+
 // How the year's seasons are bounded: by calendar month (meteorological) or by the
 // equinoxes/solstices (astronomical). A per-vault preference; both can be shown.
 enum SeasonStyle: String, Codable, Equatable, CaseIterable {
@@ -88,6 +103,8 @@ struct RhythmContext {
   let season: Season
   let microSeason: MicroSeason
   let moon: MoonState
+  let lunarSeason: LunarSeason
+  let lunarProgress: Double  // fraction through the synodic month (0 at new, 0.5 at full)
   let cycle: CycleState?
   let placements: [String: String]
 }
@@ -195,7 +212,9 @@ enum Rhythm {
   private static func cosDeg(_ deg: Double) -> Double { cos(deg * .pi / 180) }
   private static func mod360(_ deg: Double) -> Double { (deg.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360) }
 
-  static func computeMoon(dateMs: Int64) -> MoonState {
+  // Sun–Moon elongation on 0 (new) … 180 (full) … 360 and the illuminated fraction —
+  // the single source both the eight-phase name and the four lunar seasons read.
+  private static func moonAngles(dateMs: Int64) -> (elongation: Double, illumination: Double) {
     let jd = Double(dateMs) / 86_400_000 + 2_440_587.5
     let t = (jd - 2_451_545.0) / 36_525
     let d =
@@ -213,9 +232,32 @@ enum Rhythm {
     let waxing = mod360(d) < 180
     let foldedBase = mod360(phaseAngle)
     let folded = foldedBase > 180 ? 360 - foldedBase : foldedBase
-    let elongation = waxing ? 180 - folded : 180 + folded
+    let elongation = mod360(waxing ? 180 - folded : 180 + folded)
+    return (elongation, illumination)
+  }
+
+  static func computeMoon(dateMs: Int64) -> MoonState {
+    let (elongation, illumination) = moonAngles(dateMs: dateMs)
     let index = Int((mod360(elongation + 22.5) / 45).rounded(.down)) % 8
     return MoonState(phase: MoonPhase.allCases[index], illumination: illumination)
+  }
+
+  // The moon-phase season + fraction through the synodic month (0 at new, 0.5 at full).
+  // Four 90°-wide seasons centred on new/first-quarter/full/last-quarter, so the "new"
+  // and "full" windows straddle their exact instants.
+  static func computeLunarSeason(dateMs: Int64) -> (season: LunarSeason, progress: Double) {
+    let elongation = moonAngles(dateMs: dateMs).elongation
+    let season: LunarSeason
+    if elongation < 45 || elongation >= 315 {
+      season = .new
+    } else if elongation < 135 {
+      season = .waxing
+    } else if elongation < 225 {
+      season = .full
+    } else {
+      season = .waning
+    }
+    return (season, elongation / 360)
   }
 
   // MARK: Micro-seasons (24 solar terms)
@@ -228,30 +270,30 @@ enum Rhythm {
   }
 
   private static let solarTerms: [SolarTerm] = [
-    .init(month: 1, day: 5, term: "Lesser Cold", gloss: "deep stillness, the year at its quietest"),
-    .init(month: 1, day: 20, term: "Greater Cold", gloss: "the coldest stretch, roots holding"),
-    .init(month: 2, day: 4, term: "Start of Spring", gloss: "the first turn back toward light"),
-    .init(month: 2, day: 19, term: "Rain Water", gloss: "frost softening into rain"),
-    .init(month: 3, day: 5, term: "Awakening of Insects", gloss: "the sleeping world begins to stir"),
-    .init(month: 3, day: 20, term: "Spring Equinox", gloss: "day and night in balance, tipping toward light"),
-    .init(month: 4, day: 4, term: "Pure Brightness", gloss: "clear skies, green returning"),
-    .init(month: 4, day: 20, term: "Grain Rain", gloss: "rains that feed the new growth"),
-    .init(month: 5, day: 5, term: "Start of Summer", gloss: "warmth settling in, days lengthening"),
-    .init(month: 5, day: 21, term: "Grain Full", gloss: "seedheads filling, abundance gathering"),
-    .init(month: 6, day: 5, term: "Grain in Ear", gloss: "the harvest of light begins"),
-    .init(month: 6, day: 21, term: "Summer Solstice", gloss: "the longest day, fullness at its peak"),
-    .init(month: 7, day: 7, term: "Lesser Heat", gloss: "rising heat, the slow simmer of summer"),
-    .init(month: 7, day: 22, term: "Greater Heat", gloss: "the hottest stretch, everything ripening"),
-    .init(month: 8, day: 7, term: "Start of Autumn", gloss: "the first cool edge to the air"),
-    .init(month: 8, day: 23, term: "End of Heat", gloss: "heat releasing its grip"),
-    .init(month: 9, day: 7, term: "White Dew", gloss: "cool mornings, dew on the grass"),
-    .init(month: 9, day: 23, term: "Autumn Equinox", gloss: "balance again, tipping toward dark"),
-    .init(month: 10, day: 8, term: "Cold Dew", gloss: "dew turning cold, leaves letting go"),
-    .init(month: 10, day: 23, term: "Frost Descent", gloss: "the first frosts, the world drawing in"),
-    .init(month: 11, day: 7, term: "Start of Winter", gloss: "stillness arriving, light withdrawing"),
-    .init(month: 11, day: 22, term: "Lesser Snow", gloss: "the first snows, the hush before deep cold"),
-    .init(month: 12, day: 7, term: "Greater Snow", gloss: "snow deepening, the long dark"),
-    .init(month: 12, day: 21, term: "Winter Solstice", gloss: "the longest night, the seed of returning light"),
+    .init(month: 1, day: 5, term: "The Deep Quiet", gloss: "the year at its stillest, everything held"),
+    .init(month: 1, day: 20, term: "The Long Cold", gloss: "the coldest stretch, roots waiting"),
+    .init(month: 2, day: 4, term: "First Turning", gloss: "the first tilt back toward the light"),
+    .init(month: 2, day: 19, term: "The Softening", gloss: "frost loosening into rain"),
+    .init(month: 3, day: 5, term: "First Stirring", gloss: "the sleeping world begins to move"),
+    .init(month: 3, day: 20, term: "The Even Light", gloss: "day and night in balance, tipping bright"),
+    .init(month: 4, day: 4, term: "Clear and Green", gloss: "clear skies, the green returning"),
+    .init(month: 4, day: 20, term: "The Feeding Rains", gloss: "rains that feed the new growth"),
+    .init(month: 5, day: 5, term: "The Warming", gloss: "warmth settling in, days lengthening"),
+    .init(month: 5, day: 21, term: "The Filling", gloss: "seedheads filling, abundance gathering"),
+    .init(month: 6, day: 5, term: "The Gathering Light", gloss: "the long days building toward their peak"),
+    .init(month: 6, day: 21, term: "The Long Light", gloss: "the longest day, fullness at its height"),
+    .init(month: 7, day: 7, term: "The Slow Heat", gloss: "rising warmth, the slow simmer of summer"),
+    .init(month: 7, day: 22, term: "The High Heat", gloss: "the hottest stretch, everything ripening"),
+    .init(month: 8, day: 7, term: "First Cool", gloss: "the first cool edge to the air"),
+    .init(month: 8, day: 23, term: "The Easing", gloss: "the heat releasing its grip"),
+    .init(month: 9, day: 7, term: "First Dew", gloss: "cool mornings, dew on the grass"),
+    .init(month: 9, day: 23, term: "The Even Dark", gloss: "balance again, tipping toward the dark"),
+    .init(month: 10, day: 8, term: "The Cooling Dew", gloss: "dew turning cold, leaves letting go"),
+    .init(month: 10, day: 23, term: "First Frost", gloss: "the first frosts, the world drawing in"),
+    .init(month: 11, day: 7, term: "The Withdrawing", gloss: "stillness arriving, the light pulling back"),
+    .init(month: 11, day: 22, term: "First Snow", gloss: "the first snows, the hush before deep cold"),
+    .init(month: 12, day: 7, term: "The Deep Snow", gloss: "snow deepening, the long dark"),
+    .init(month: 12, day: 21, term: "The Long Night", gloss: "the longest night, the seed of returning light"),
   ]
 
   private static let cumulativeDays = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
@@ -331,12 +373,15 @@ enum Rhythm {
 
   static func computeContext(profile: RhythmProfile, date: String) -> RhythmContext {
     let parsed = parse(date)
+    let lunar = computeLunarSeason(dateMs: parsed.ms)
     return RhythmContext(
       date: date,
       season: resolveSeason(month: parsed.month, hemisphere: profile.hemisphere),
       microSeason: resolveMicroSeason(
         month: parsed.month, day: parsed.day, hemisphere: profile.hemisphere),
       moon: computeMoon(dateMs: parsed.ms),
+      lunarSeason: lunar.season,
+      lunarProgress: lunar.progress,
       cycle: computeCycle(profile.cycle, dateMs: parsed.ms),
       placements: profile.placements)
   }

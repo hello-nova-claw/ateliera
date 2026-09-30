@@ -573,7 +573,9 @@ struct RootView: View {
     case "reflection-garden":
       ReflectionView(store: store, onOpen: openPath)
     case "current-season":
-      SeasonView(store: store, onOpen: openPath)
+      SeasonView(
+        store: store, hemisphere: hemisphere,
+        seasonStyle: store.preferences.rhythm.resolvedSeasonStyle, onOpen: openPath)
     default:
       RoomView(
         room: room, store: store, onOpen: openEdit,

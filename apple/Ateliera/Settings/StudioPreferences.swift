@@ -13,10 +13,11 @@ struct StoredStudioPreferences: Codable, Equatable {
     var moon = true
     var microSeason = true
     var cycle = true
-    // Optional so preferences saved before this existed still decode (→ meteorological).
+    // Optional so preferences saved before this existed still decode. Unset resolves to
+    // astronomical — the season grounded in the sky (equinoxes/solstices).
     var seasonStyle: SeasonStyle?
 
-    var resolvedSeasonStyle: SeasonStyle { seasonStyle ?? .meteorological }
+    var resolvedSeasonStyle: SeasonStyle { seasonStyle ?? .astronomical }
   }
 
   // Seeded for a brand-new Studio: hide the optional rooms, and every Foyer section

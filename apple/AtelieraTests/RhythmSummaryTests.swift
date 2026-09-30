@@ -12,7 +12,7 @@ final class RhythmSummaryTests: XCTestCase {
     let line = RhythmSummary.line(for: context)
     XCTAssertEqual(
       line,
-      "Today's rhythm: Lesser Cold, Winter. The moon is Last quarter, 56% lit. Cycle day 10, Follicular."
+      "Today's rhythm: The Deep Quiet, Winter. The moon is Last quarter, 56% lit. Cycle day 10, Follicular."
     )
   }
 
@@ -21,6 +21,6 @@ final class RhythmSummaryTests: XCTestCase {
       profile: RhythmProfile(hemisphere: .south, cycle: nil), date: "2026-06-21")
     let line = RhythmSummary.line(for: context)
     XCTAssertFalse(line.contains("Cycle"))
-    XCTAssertTrue(line.hasPrefix("Today's rhythm: Winter Solstice, Winter."))
+    XCTAssertTrue(line.hasPrefix("Today's rhythm: The Long Night, Winter."))
   }
 }
