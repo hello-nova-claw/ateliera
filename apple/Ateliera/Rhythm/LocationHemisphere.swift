@@ -12,8 +12,10 @@ final class LocationHemisphere: NSObject, CLLocationManagerDelegate {
   private var continuation: CheckedContinuation<CLLocationCoordinate2D?, Never>?
 
   /// The last hemisphere we resolved, if any — safe to read synchronously at
-  /// launch so the first render isn't wrong while a fresh fix is pending. Shared
-  /// with the widget (App Group); usable off the main actor (e.g. from an intent).
+  /// launch so the first render isn't wrong while a fresh fix is pending. Stored
+  /// in the app's own `UserDefaults` (no App Group), so the widget — a separate
+  /// process — can't read it and falls back to the device region instead. Usable
+  /// off the main actor (e.g. from an intent).
   nonisolated static var persisted: Hemisphere? {
     SharedStore.hemisphere
   }
@@ -35,7 +37,7 @@ final class LocationHemisphere: NSObject, CLLocationManagerDelegate {
     }
   }
 
-  /// Resolve the hemisphere from a fresh fix and persist it (shared with the widget).
+  /// Resolve the hemisphere from a fresh fix and persist it for the next launch.
   func resolve() async -> Hemisphere? {
     guard let coordinate = await resolveCoordinate() else { return nil }
     let hemisphere: Hemisphere = coordinate.latitude >= 0 ? .north : .south

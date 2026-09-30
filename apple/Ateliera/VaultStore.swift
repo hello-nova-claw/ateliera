@@ -21,6 +21,7 @@ struct NoteSummary: Identifiable {
   var lifeAreas: [String] = []
   var landscapeAnchor: String? = nil
   var featured: Bool = false
+  var cover: String? = nil  // vault-relative cover reference, for list thumbnails
 }
 
 // A note opened for editing: its path, the content hash it was read at (for
@@ -53,7 +54,9 @@ final class VaultStore {
   /// room lists and the Foyer read this so a swipe/editor "Delete" actually removes the
   /// note from view. The projection-based rooms filter equivalently via `Projection.visible`.
   var liveNotes: [NoteSummary] {
-    notes.filter { $0.status != "trashed" && $0.status != "archived" }
+    notes.filter {
+      $0.status != "trashed" && $0.status != "archived" && $0.meaning != "profile"
+    }
   }
 
   var vaultName: String = ""
@@ -172,9 +175,23 @@ final class VaultStore {
       return
     }
     if !openFromPersistedBookmark() {
-      openFixture()
+      // Demo content is seeded ONLY in the simulator, so the rooms have something
+      // to show during development. On a real device a first launch opens with no
+      // vault and RootView guides the person to pick their folder — never a folder
+      // of fake notes silently written into Documents.
+      #if targetEnvironment(simulator)
+        openFixture()
+      #endif
     }
   }
+
+  /// Whether a vault is currently open — false on a first launch before the person
+  /// has chosen their folder, which RootView uses to present the picker.
+  var hasVault: Bool { vault != nil }
+
+  /// The vault path of the most recent successful quick capture — lets the capture
+  /// flow open the workshop on the note it just wrote.
+  private(set) var lastCapturedPath: String?
 
   private static func uitestVaultURL() -> URL? {
     guard ProcessInfo.processInfo.environment["ATELIERA_UITEST"] == "1" else { return nil }
@@ -264,11 +281,23 @@ final class VaultStore {
       .write(to: dir.appendingPathComponent("a-wish.md"))
   }
 
+  // A sandboxed macOS app must create and resolve the bookmark with security scope
+  // for the picked folder to stay reachable across launches; on iOS the fileImporter
+  // grant needs no such option (and .withSecurityScope isn't available there).
+  #if os(macOS)
+    private static let bookmarkCreateOptions: URL.BookmarkCreationOptions = [.withSecurityScope]
+    private static let bookmarkResolveOptions: URL.BookmarkResolutionOptions = [.withSecurityScope]
+  #else
+    private static let bookmarkCreateOptions: URL.BookmarkCreationOptions = []
+    private static let bookmarkResolveOptions: URL.BookmarkResolutionOptions = []
+  #endif
+
   /// Called from `.fileImporter` when the user picks a folder.
   func open(url: URL) {
     let accessing = url.startAccessingSecurityScopedResource()
     do {
-      let data = try url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
+      let data = try url.bookmarkData(
+        options: Self.bookmarkCreateOptions, includingResourceValuesForKeys: nil, relativeTo: nil)
       UserDefaults.standard.set(data, forKey: bookmarkKey)
       try openVault(at: url)
     } catch {
@@ -282,7 +311,8 @@ final class VaultStore {
     var stale = false
     guard
       let url = try? URL(
-        resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale)
+        resolvingBookmarkData: data, options: Self.bookmarkResolveOptions, relativeTo: nil,
+        bookmarkDataIsStale: &stale)
     else { return false }
     _ = url.startAccessingSecurityScopedResource()  // held for the session
     do {
@@ -300,6 +330,25 @@ final class VaultStore {
     self.studioId = url.path  // stable per-vault id, for draft-recovery keys
     try reload()
     loadPreferences()
+    migrateInboxDraftsToJournalIfNeeded()
+  }
+
+  // A one-time migration for the Inbox/Journal split. Earlier versions wrote every
+  // quick capture as an `inbox` draft and displayed them all as the "Journal". The
+  // Inbox is now a triage surface for drafts, and the Journal shows kept (active)
+  // entries. Flip the pre-existing drafts to active once, so a person's existing
+  // journal stays in the Journal instead of flooding the new Inbox. Status-only and
+  // reversible; before triage existed, everything here was effectively "kept".
+  private func migrateInboxDraftsToJournalIfNeeded() {
+    let encoded = studioId.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? studioId
+    let key = "ateliera.inbox-journal-migrated:\(encoded)"
+    let defaults = UserDefaults.standard
+    guard !defaults.bool(forKey: key) else { return }
+    let draftPaths = parsedNotesByPath
+      .filter { $0.note.rooms.contains("inbox") && $0.note.status == "draft" }
+      .map(\.path)
+    for path in draftPaths { _ = setNoteStatus(path: path, status: "active") }
+    defaults.set(true, forKey: key)
   }
 
   // Load this vault's preferences; a fresh (empty) vault is seeded to start small,
@@ -367,7 +416,10 @@ final class VaultStore {
   /// it atomically through the Rust core into the room's folder. Returns false
   /// (with `error` set) if there's no vault or nothing was written.
   @discardableResult
-  func capture(title: String?, body: String, room: String = "inbox") -> Bool {
+  func capture(
+    title: String?, body: String, room: String = "inbox", tags: [String] = [],
+    coverData: Data? = nil, keep: Bool = false
+  ) -> Bool {
     guard let vault else {
       error = "Choose a Studio folder first."
       return false
@@ -379,16 +431,28 @@ final class VaultStore {
     }
     let id = NoteFactory.createNoteId()
     let created = NoteFactory.isoTimestamp()
-    let note = StudioNote.capture(
+    var note = StudioNote.capture(
       title: title, body: trimmedBody, id: id, created: created, room: room)
+    // A kept entry (e.g. "Add to Journal") is active from the start; a plain quick
+    // capture stays a draft so it surfaces in the Inbox for triage.
+    if keep { note.status = "active" }
+    note.tags = tags
     let filename = NoteFactory.suggestFilename(
       created: created, title: note.title, cardType: note.cardType, id: id)
     let path = "\(Room.folderName(for: room))/\(filename)"
     do {
-      _ = try vault.writeText(
+      let outcome = try vault.writeText(
         path: path, text: note.serialize(), expectedHash: nil, createNew: true)
+      // A picked cover is written into the note's Media folder, then the note is
+      // rewritten once with the reference — the note must exist on disk first.
+      if let coverData, let reference = setCover(data: coverData, forNotePath: path) {
+        note.display = NoteDisplay(cover: reference, featured: note.display.featured)
+        _ = try vault.writeText(
+          path: path, text: note.serialize(), expectedHash: outcome.hash, createNew: false)
+      }
       try reload()
       error = nil
+      lastCapturedPath = path
       return true
     } catch {
       self.error = "\(error)"
@@ -550,6 +614,100 @@ final class VaultStore {
     var note = editable.note
     note.status = status
     return saveEdit(editable, updatedNote: note)
+  }
+
+  /// Keep an Inbox draft as a Journal entry: promote it to active without changing its
+  /// room (it stays in the `inbox` vault room, so it moves from the Inbox to the
+  /// Journal view). Backs the Inbox's "Keep in Journal" action.
+  @discardableResult
+  func keepInJournal(path: String) -> Bool {
+    guard let editable = beginEdit(path: path) else { return false }
+    var note = editable.note
+    note.status = "active"
+    return saveEdit(editable, updatedNote: note)
+  }
+
+  // MARK: - Profile (your name + picture, stored as a singleton vault note)
+
+  // The profile lives in the vault (not app storage) so it travels with the Markdown
+  // and could be adopted by the web app later: a `profile` card carrying `name` in
+  // frontmatter and the picture via the note's cover. It's `excluded_from_views` and
+  // in no room, and filtered out of `liveNotes`, so it never shows as content.
+
+  private var profilePair: (path: String, note: StudioNote)? {
+    parsedNotesByPath
+      .filter { $0.note.cardType == "profile" }
+      .max { $0.note.created < $1.note.created }  // newest wins if ever duplicated
+  }
+
+  var profileName: String? {
+    guard
+      let raw = profilePair?.note.frontmatterScalar("name")?
+        .trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty
+    else { return nil }
+    return raw
+  }
+
+  func profileAvatar() -> Data? {
+    guard let pair = profilePair, let reference = pair.note.display.cover else { return nil }
+    return readCover(reference: reference, forNotePath: pair.path)?.data
+  }
+
+  /// Changes whenever the profile is edited (name or picture) — a stable key for
+  /// `.task(id:)` so avatar views reload after an edit.
+  var profileChangeStamp: String? { profilePair?.note.updated }
+
+  @discardableResult
+  func setProfileName(_ name: String) -> Bool {
+    let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let path = ensureProfileNote(), let editable = beginEdit(path: path) else { return false }
+    var note = editable.note
+    note.extraFrontmatter.removeAll { $0.0 == "name" }
+    if !trimmed.isEmpty { note.extraFrontmatter.append(("name", .scalar(trimmed))) }
+    return saveEdit(editable, updatedNote: note)
+  }
+
+  @discardableResult
+  func setProfileAvatar(data: Data) -> Bool {
+    guard let path = ensureProfileNote() else { return false }
+    // setCover writes the image and reloads; re-read to stamp the reference on the
+    // fresh hash (mirrors the cover write in `capture`).
+    guard let reference = setCover(data: data, forNotePath: path),
+      let editable = beginEdit(path: path)
+    else { return false }
+    var note = editable.note
+    note.display = NoteDisplay(cover: reference, featured: note.display.featured)
+    return saveEdit(editable, updatedNote: note)
+  }
+
+  /// The profile note's path, creating an empty one if it doesn't exist yet.
+  private func ensureProfileNote() -> String? {
+    if let pair = profilePair { return pair.path }
+    guard let vault else {
+      error = "Choose a Studio folder first."
+      return nil
+    }
+    let id = NoteFactory.createNoteId()
+    let created = NoteFactory.isoTimestamp()
+    var note = StudioNote.capture(title: nil, body: "", id: id, created: created, room: "inbox")
+    note.cardType = "profile"
+    note.semanticType = "foundations"
+    note.status = "active"
+    note.rooms = []
+    note.body = ""
+    note.extraFrontmatter = [("excluded_from_views", .bool(true))]
+    let filename = NoteFactory.suggestFilename(
+      created: created, title: nil, cardType: "profile", id: id)
+    let path = "Profile/\(filename)"
+    do {
+      _ = try vault.writeText(path: path, text: note.serialize(), expectedHash: nil, createNew: true)
+      try reload()
+      error = nil
+      return path
+    } catch {
+      self.error = "\(error)"
+      return nil
+    }
   }
 
   /// Re-file a captured note into a room (its primary room), promoting a still-draft
@@ -878,7 +1036,7 @@ final class VaultStore {
       meaning: note.cardType, timestamp: note.updated.isEmpty ? note.created : note.updated,
       rooms: note.rooms, status: note.status, semanticType: note.semanticType, tags: note.tags,
       lifeAreas: note.lifeAreas, landscapeAnchor: note.landscapeAnchor,
-      featured: note.display.featured)
+      featured: note.display.featured, cover: note.display.cover)
   }
 
   // The note body (everything after the frontmatter), for full-text search.
@@ -946,6 +1104,7 @@ final class VaultStore {
       featured: false)
   }
 
+  #if targetEnvironment(simulator)
   // Seed a small Reflection Garden so the room has content in the simulator.
   private func openFixture() {
     let fm = FileManager.default
@@ -973,4 +1132,5 @@ final class VaultStore {
       self.error = "\(error)"
     }
   }
+  #endif
 }

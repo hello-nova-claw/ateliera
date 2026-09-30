@@ -43,10 +43,37 @@ final class RoomsTests: XCTestCase {
   }
 
   func testRoomFolderNames() {
-    XCTAssertEqual(Room.folderName(for: "inbox"), "Inbox")
+    XCTAssertEqual(Room.folderName(for: "inbox"), "Inbox")  // the `inbox` vault key → Inbox folder
     XCTAssertEqual(Room.folderName(for: "reflection-garden"), "Reflection Garden")
     XCTAssertEqual(Room.folderName(for: "wisdom-garden"), "Wisdom Garden")
-    XCTAssertEqual(Room.folderName(for: "nonexistent"), "Inbox")  // safe default
+    XCTAssertEqual(Room.folderName(for: "nonexistent"), "Journal")  // safe default
+  }
+
+  // The Inbox and the Journal are two views onto the same `inbox` vault key, split by
+  // status: unfiled drafts triage in the Inbox; kept (active) entries live in the Journal.
+  func testInboxAndJournalSplitByStatus() {
+    let inbox = Room.all.first { $0.id == "inbox" }!
+    let journal = Room.all.first { $0.id == "journal" }!
+    XCTAssertEqual(inbox.vaultKey, "inbox")
+    XCTAssertEqual(journal.vaultKey, "inbox")
+
+    // A fresh capture (draft) belongs to the Inbox, not the Journal.
+    XCTAssertTrue(inbox.matches(rooms: ["inbox"], status: "draft"))
+    XCTAssertFalse(journal.matches(rooms: ["inbox"], status: "draft"))
+
+    // A kept (active) capture belongs to the Journal, not the Inbox.
+    XCTAssertFalse(inbox.matches(rooms: ["inbox"], status: "active"))
+    XCTAssertTrue(journal.matches(rooms: ["inbox"], status: "active"))
+
+    // Neither claims notes from another room.
+    XCTAssertFalse(inbox.matches(rooms: ["wisdom-garden"], status: "draft"))
+    XCTAssertFalse(journal.matches(rooms: ["wisdom-garden"], status: "active"))
+  }
+
+  func testOrdinaryRoomsMatchAnyStatus() {
+    let wisdom = Room.all.first { $0.id == "wisdom-garden" }!
+    XCTAssertTrue(wisdom.matches(rooms: ["wisdom-garden"], status: "active"))
+    XCTAssertTrue(wisdom.matches(rooms: ["wisdom-garden"], status: "draft"))
   }
 
   func testFilteringByRoomMembership() {

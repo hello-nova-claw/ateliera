@@ -1,32 +1,35 @@
 :root {
-  /* One hero per room. 30px → 44px, never larger. */
-  --studio-type-room-title: 300 clamp(1.875rem, 3.4vw, 2.75rem) / 1.14
-    var(--studio-font-display);
-  --studio-type-room-title-tracking: -0.015em;
+  /* One hero per room. Cormorant has a small x-height; a fixed 44px reads calm. */
+  --studio-type-room-title: 400 2.75rem / 1.05 var(--studio-font-display);
+  --studio-type-room-title-tracking: -0.01em;
 
   /* The step that was missing: section headings inside a room. */
-  --studio-type-section: 400 1.5rem / 1.25 var(--studio-font-display);
+  --studio-type-section: 400 1.375rem / 1.2 var(--studio-font-display);
 
   /* Card and list-item titles. */
-  --studio-type-card-title: 400 1.1875rem / 1.3 var(--studio-font-display);
+  --studio-type-card-title: 400 1.375rem / 1.2 var(--studio-font-display);
 
-  /* The room greeting, in display italic — replaces the handwritten line. */
-  --studio-type-greeting: 300 italic 1.1875rem / 1.2 var(--studio-font-display);
+  /* The room greeting, in the accent hand. Colour set in the component. */
+  --studio-type-greeting: 400 1.25rem / 1 var(--studio-font-handwritten);
 
-  /* Pulled quotes: Today's gift, Wisdom Garden, Season "Enough". */
-  --studio-type-quote: 300 italic 1.375rem / 1.55 var(--studio-font-display);
+  /* Pulled quotes and card excerpts: display italic. */
+  --studio-type-quote: italic 400 1.0625rem / 1.45 var(--studio-font-display);
 
-  /* Brand mark and user image captions. The only handwritten token. */
+  /* Brand mark and user image captions. The only handwritten-signature token. */
   --studio-type-signature: 400 1rem / 1.15 var(--studio-font-handwritten);
-  --studio-type-page-subtitle: 400 1.0625rem / 1.65 var(--studio-font-interface);
 
-  /* Secondary interface text: prompts, captions, metadata. */
-  --studio-type-meta: 400 0.9375rem / 1.6 var(--studio-font-interface);
-  --studio-type-body: 400 1rem / 1.65 var(--studio-font-interface);
-  --studio-type-control: 500 0.875rem / 1.2 var(--studio-font-interface);
-  --studio-type-label: 600 0.875rem / 1.4 var(--studio-font-interface);
-  --studio-type-eyebrow: 600 0.6875rem / 1.2 var(--studio-font-interface);
-  --studio-type-eyebrow-tracking: 0.16em;
+  /* Page subtitle beneath a room title: display italic. */
+  --studio-type-page-subtitle: italic 400 1.1875rem / 1.4 var(--studio-font-display);
+
+  /* Long-form reading and writing is serif. */
+  --studio-type-body: 400 1.0625rem / 1.55 var(--studio-font-display);
+
+  /* Interface text only: prompts, captions, metadata, controls. */
+  --studio-type-meta: 400 0.75rem / 1 var(--studio-font-interface);
+  --studio-type-control: 500 0.8125rem / 1 var(--studio-font-interface);
+  --studio-type-label: 500 0.75rem / 1 var(--studio-font-interface);
+  --studio-type-eyebrow: 500 0.6563rem / 1 var(--studio-font-interface);
+  --studio-type-eyebrow-tracking: 0.18em;
   --studio-space-1: 0.25rem;
   --studio-space-2: 0.5rem;
   --studio-space-3: 0.75rem;
@@ -40,12 +43,13 @@
   --studio-space-16: 4rem;
   --studio-space-20: 5rem;
   --studio-space-24: 6rem;
-  --studio-radius-note: 4px 4px 12px 12px;
-  --studio-radius-card: 1.125rem;
-  --studio-radius-sheet: 0.875rem;
+  --studio-radius-note: 0.75rem;
+  --studio-radius-card: 1rem;
+  --studio-radius-sheet: 1rem;
   --studio-radius-control: 0.75rem;
-  --studio-shadow-note: 0 3px 9px rgb(43 42 38 / 6%);
-  --studio-shadow-card: 0 8px 28px rgb(43 42 38 / 8%);
+  --studio-radius-pill: 999px;
+  --studio-shadow-note: 0 1px 2px rgb(43 40 36 / 4%), 0 4px 12px rgb(43 40 36 / 5%);
+  --studio-shadow-card: 0 1px 2px rgb(43 40 36 / 4%), 0 8px 24px rgb(43 40 36 / 6%);
   --studio-shadow-drag: 0 18px 40px rgb(43 42 38 / 18%);
   --studio-content-max: 73.75rem;
   --studio-content-narrow: 47.5rem;
@@ -68,194 +72,197 @@
   --studio-touch-target: 2.75rem;
   --studio-focus-width: 3px;
   --studio-focus-offset: 3px;
-  --studio-motion-fast: 150ms;
-  --studio-motion-base: 180ms;
-  --studio-motion-room: 220ms;
-  --studio-motion-theme: 350ms;
-  --studio-motion-reduced-duration: 0s;
-  --studio-ease-standard: ease;
+  --studio-motion-fast: 150ms; /* @kind other */
+  --studio-motion-base: 180ms; /* @kind other */
+  --studio-motion-room: 220ms; /* @kind other */
+  --studio-motion-theme: 350ms; /* @kind other */
+  --studio-motion-reduced-duration: 0s; /* @kind other */
+  --studio-ease-standard: ease; /* @kind other */
 }
 
 .studio-app {
-  --studio-color-canvas: #f7f5f0;
-  --studio-color-frame: #eae6dd;
-  --studio-color-rail: #f2eee6;
-  --studio-color-surface: #fffdfa;
-  --studio-color-sunken: #f6f3ec;
-  --studio-color-ink: #292a28;
-  --studio-color-ink-strong: #26271f;
-  --studio-color-ink-1: #3a3b34;
-  --studio-color-ink-muted: #54564f;
-  --studio-color-ink-soft: #6f716c;
-  --studio-color-ink-faint: #8a8c86;
-  --studio-color-line: #e2ddd2;
-  --studio-color-line-strong: #c9c2b3;
-  --studio-color-topbar: rgb(247 245 240 / 86%);
-  --studio-color-script: #b09a70;
+  --studio-color-canvas: #eee8de;
+  --studio-color-frame: #e9e3d8;
+  --studio-color-rail: #f2ede4;
+  --studio-color-surface: #f7f3ec;
+  --studio-color-sunken: #e6dfd3;
+  --studio-color-ink: #2b2824;
+  --studio-color-ink-strong: #221f1b;
+  --studio-color-ink-1: #3a3631;
+  --studio-color-ink-muted: #5b554d;
+  --studio-color-ink-soft: #6c655b;
+  --studio-color-ink-faint: #8a8378;
+  --studio-color-line: #ddd4c6;
+  --studio-color-line-strong: #bfb3a1;
+  --studio-color-topbar: rgb(238 232 222 / 86%);
+  --studio-color-script: #a3855a;
   --studio-color-script-ink: #7a642f;
-  --studio-color-link: #6e91ad;
-  --studio-color-focus: #5b3d84;
+  --studio-color-accent: #55657a;
+  --studio-color-link: #55657a;
+  --studio-color-focus: #55657a;
   --studio-color-accent-soft: #f4ecd8;
   --studio-color-accent-soft-hover: #efe4c9;
   --studio-color-accent-line: #d8c9a6;
-  --studio-color-foundation: #8c8d89;
-  --studio-color-vision: #d5ab42;
-  --studio-color-growth: #6f9478;
-  --studio-color-reflection: #6e91ad;
-  --studio-color-celebration: #d2874f;
-  --studio-color-uncharted: #8976a7;
-  --studio-stock-foundation: #ebe6da;
-  --studio-stock-foundation-edge: #d8d3c1;
-  --studio-stock-vision: #f6e8bd;
-  --studio-stock-vision-edge: #e6d497;
-  --studio-stock-growth: #dae9d0;
-  --studio-stock-growth-edge: #c3dab6;
-  --studio-stock-reflection: #d7e5ef;
-  --studio-stock-reflection-edge: #bed5e6;
-  --studio-stock-celebration: #f6dcc4;
-  --studio-stock-celebration-edge: #ecc8a6;
-  --studio-stock-uncharted: #e4dbf0;
-  --studio-stock-uncharted-edge: #d2c3e8;
+  --studio-color-foundation: #7d725f;
+  --studio-color-vision: #556578;
+  --studio-color-growth: #636a4a;
+  --studio-color-reflection: #6f6173;
+  --studio-color-celebration: #9a6d48;
+  --studio-color-uncharted: #66625c;
+  --studio-stock-foundation: #e6ded1;
+  --studio-stock-foundation-edge: #cdc6bb;
+  --studio-stock-vision: #e0e3e4;
+  --studio-stock-vision-edge: #bfc2c4;
+  --studio-stock-growth: #e2e3d2;
+  --studio-stock-growth-edge: #c4c4b4;
+  --studio-stock-reflection: #e7e0e3;
+  --studio-stock-reflection-edge: #c8c0c2;
+  --studio-stock-celebration: #efe0d1;
+  --studio-stock-celebration-edge: #d7c5b3;
+  --studio-stock-uncharted: #e4e0da;
+  --studio-stock-uncharted-edge: #c5c1ba;
 }
 
 .studio-app[data-theme='fig-leaf'] {
-  --studio-color-frame: #dde5cf;
-  --studio-color-rail: #e9efdf;
-  --studio-color-surface: #fbfdf7;
-  --studio-color-canvas:
-    radial-gradient(120% 90% at 20% 0%, #f1f4e8, transparent 60%),
-    linear-gradient(165deg, #eef2e6, #e7eede 55%, #dfe8d3);
-  --studio-color-sunken: #eef2e6;
-  --studio-color-line: #dce4d1;
-  --studio-color-line-strong: #a9b59a;
-  --studio-color-ink: #2a2d26;
-  --studio-color-ink-strong: #222519;
-  --studio-color-ink-1: #353a2d;
-  --studio-color-ink-muted: #54564f;
-  --studio-color-ink-soft: #6f716c;
-  --studio-color-ink-faint: #777a72;
-  --studio-color-topbar: rgb(238 242 230 / 85%);
-  --studio-color-foundation: #87897f;
-  --studio-color-vision: #c6a94a;
-  --studio-color-growth: #5f8f6a;
-  --studio-color-reflection: #5f8aa0;
-  --studio-color-celebration: #cf8a54;
-  --studio-color-uncharted: #8478a4;
+  --studio-color-canvas: #e6e7dc;
+  --studio-color-frame: #e1e2d6;
+  --studio-color-rail: #eaece2;
+  --studio-color-surface: #f1f2ea;
+  --studio-color-sunken: #e0ded1;
+  --studio-color-line: #d3d6c5;
+  --studio-color-line-strong: #b5b5a0;
+  --studio-color-ink: #272a22;
+  --studio-color-ink-strong: #1e2119;
+  --studio-color-ink-1: #36382f;
+  --studio-color-ink-muted: #57574b;
+  --studio-color-ink-soft: #686759;
+  --studio-color-ink-faint: #868576;
+  --studio-color-topbar: rgb(230 231 220 / 86%);
+  --studio-color-accent: #6f7556;
   --studio-color-link: #4f7691;
   --studio-color-script: #7f8a5f;
   --studio-color-script-ink: #5f6a30;
-  --studio-stock-foundation: #ecefe4;
-  --studio-stock-foundation-edge: #dbe0cf;
-  --studio-stock-vision: #f2ecc9;
-  --studio-stock-vision-edge: #e4d9a8;
-  --studio-stock-growth: #dfe9d3;
-  --studio-stock-growth-edge: #c9d9ba;
-  --studio-stock-reflection: #dde8ea;
-  --studio-stock-reflection-edge: #c6d8da;
-  --studio-stock-celebration: #f2e3d0;
-  --studio-stock-celebration-edge: #e6cdb0;
-  --studio-stock-uncharted: #e6e0ee;
-  --studio-stock-uncharted-edge: #d3c9e2;
+  --studio-color-foundation: #7d725f;
+  --studio-color-vision: #556578;
+  --studio-color-growth: #636a4a;
+  --studio-color-reflection: #6f6173;
+  --studio-color-celebration: #9a6d48;
+  --studio-color-uncharted: #66625c;
+  --studio-stock-foundation: #deddd3;
+  --studio-stock-foundation-edge: #c9c6ba;
+  --studio-stock-vision: #d7dbd7;
+  --studio-stock-vision-edge: #bbc1c2;
+  --studio-stock-growth: #dadcd0;
+  --studio-stock-growth-edge: #c0c3b3;
+  --studio-stock-reflection: #dcdad6;
+  --studio-stock-reflection-edge: #c4c0c1;
+  --studio-stock-celebration: #e3dccf;
+  --studio-stock-celebration-edge: #d3c4b2;
+  --studio-stock-uncharted: #dadad3;
+  --studio-stock-uncharted-edge: #c1c0b9;
 }
 
 .studio-app[data-theme='sunrise'] {
-  --studio-color-frame: #f0dccc;
-  --studio-color-rail: #f7e6d6;
-  --studio-color-surface: #fffdf9;
-  --studio-color-canvas:
-    radial-gradient(120% 95% at 18% 0%, #fdeee0, transparent 55%),
-    linear-gradient(168deg, #fbecdc, #f8e2d2 45%, #f4dcd6 80%, #efd6cf);
-  --studio-color-sunken: #f9eee1;
-  --studio-color-line: #efdccb;
-  --studio-color-line-strong: #c7a98d;
-  --studio-color-ink: #2e2822;
-  --studio-color-ink-strong: #261f18;
-  --studio-color-ink-1: #3d352c;
-  --studio-color-topbar: rgb(251 236 220 / 85%);
-  --studio-color-foundation: #8f8a83;
-  --studio-color-vision: #d5a742;
-  --studio-color-growth: #6f9478;
-  --studio-color-reflection: #6f8fb0;
-  --studio-color-celebration: #d67f4f;
-  --studio-color-uncharted: #9079ab;
+  --studio-color-canvas: #f0e6dc;
+  --studio-color-frame: #ebe1d6;
+  --studio-color-rail: #f4ebe2;
+  --studio-color-surface: #f7f0e8;
+  --studio-color-sunken: #e6dccf;
+  --studio-color-line: #e3d3c4;
+  --studio-color-line-strong: #c5b29f;
+  --studio-color-ink: #2e2620;
+  --studio-color-ink-strong: #251d17;
+  --studio-color-ink-1: #3d342d;
+  --studio-color-ink-muted: #5e5349;
+  --studio-color-ink-soft: #6f6357;
+  --studio-color-ink-faint: #8d8174;
+  --studio-color-topbar: rgb(240 230 220 / 86%);
+  --studio-color-accent: #b0805c;
   --studio-color-script: #b98a5f;
   --studio-color-script-ink: #8a5f30;
   --studio-color-accent-soft: #f8ead2;
   --studio-color-accent-soft-hover: #f2ddc0;
   --studio-color-accent-line: #d2ad76;
-  --studio-stock-foundation: #efe9df;
-  --studio-stock-foundation-edge: #e0d7c6;
-  --studio-stock-vision: #f9e9bf;
-  --studio-stock-vision-edge: #eed79a;
-  --studio-stock-growth: #e2ebda;
-  --studio-stock-growth-edge: #cddcc0;
-  --studio-stock-reflection: #e0e8ef;
-  --studio-stock-reflection-edge: #ccd9e6;
-  --studio-stock-celebration: #f9ddc6;
-  --studio-stock-celebration-edge: #f0c6a6;
-  --studio-stock-uncharted: #ecdff0;
-  --studio-stock-uncharted-edge: #dcc9e6;
+  --studio-color-foundation: #7d725f;
+  --studio-color-vision: #556578;
+  --studio-color-growth: #636a4a;
+  --studio-color-reflection: #6f6173;
+  --studio-color-celebration: #9a6d48;
+  --studio-color-uncharted: #66625c;
+  --studio-stock-foundation: #e3dbd1;
+  --studio-stock-foundation-edge: #cdc4b9;
+  --studio-stock-vision: #dcd9d6;
+  --studio-stock-vision-edge: #bfc0c1;
+  --studio-stock-growth: #dfdace;
+  --studio-stock-growth-edge: #c4c2b1;
+  --studio-stock-reflection: #e1d8d5;
+  --studio-stock-reflection-edge: #c8bebf;
+  --studio-stock-celebration: #e8dace;
+  --studio-stock-celebration-edge: #d7c3b1;
+  --studio-stock-uncharted: #dfd9d1;
+  --studio-stock-uncharted-edge: #c5bfb7;
 }
 
 .studio-app[data-theme='wisteria'] {
-  --studio-color-frame: #e3d9ec;
-  --studio-color-rail: #ece5f3;
-  --studio-color-surface: #fdfbff;
-  --studio-color-canvas:
-    radial-gradient(120% 90% at 22% 0%, #f1ecf7, transparent 55%),
-    linear-gradient(168deg, #efe9f6, #eae4f2 50%, #efe6ee 85%, #f2e6ea);
-  --studio-color-sunken: #efe9f5;
-  --studio-color-line: #e4dcee;
-  --studio-color-line-strong: #ad9cc9;
-  --studio-color-ink: #2b2830;
-  --studio-color-ink-strong: #231f2a;
-  --studio-color-ink-1: #38333f;
-  --studio-color-topbar: rgb(239 233 246 / 85%);
-  --studio-color-foundation: #89858f;
-  --studio-color-vision: #c6a24f;
-  --studio-color-growth: #679277;
-  --studio-color-reflection: #6987ad;
-  --studio-color-celebration: #cd825a;
-  --studio-color-uncharted: #8a6fb0;
+  --studio-color-canvas: #e8e4e9;
+  --studio-color-frame: #e3dfe3;
+  --studio-color-rail: #ece9ef;
+  --studio-color-surface: #f2eff2;
+  --studio-color-sunken: #e1dbd9;
+  --studio-color-line: #d8d1da;
+  --studio-color-line-strong: #bab0b5;
+  --studio-color-ink: #2a2630;
+  --studio-color-ink-strong: #211d27;
+  --studio-color-ink-1: #39343d;
+  --studio-color-ink-muted: #5a5359;
+  --studio-color-ink-soft: #6b6367;
+  --studio-color-ink-faint: #898184;
+  --studio-color-topbar: rgb(232 228 233 / 86%);
+  --studio-color-accent: #7d6f86;
   --studio-color-script: #9a7fb0;
   --studio-color-script-ink: #6a4f8a;
-  --studio-stock-foundation: #ece9ef;
-  --studio-stock-foundation-edge: #dcd6e4;
-  --studio-stock-vision: #f2ebcf;
-  --studio-stock-vision-edge: #e5daae;
-  --studio-stock-growth: #e0ebe1;
-  --studio-stock-growth-edge: #cadccb;
-  --studio-stock-reflection: #e1e8f1;
-  --studio-stock-reflection-edge: #ccd8e8;
-  --studio-stock-celebration: #f3e2da;
-  --studio-stock-celebration-edge: #e8cdc0;
-  --studio-stock-uncharted: #eadff3;
-  --studio-stock-uncharted-edge: #d8c6ea;
+  --studio-color-foundation: #7d725f;
+  --studio-color-vision: #556578;
+  --studio-color-growth: #636a4a;
+  --studio-color-reflection: #6f6173;
+  --studio-color-celebration: #9a6d48;
+  --studio-color-uncharted: #66625c;
+  --studio-stock-foundation: #dfdada;
+  --studio-stock-foundation-edge: #c9c4bf;
+  --studio-stock-vision: #d8d8de;
+  --studio-stock-vision-edge: #bcbfc8;
+  --studio-stock-growth: #dad9d6;
+  --studio-stock-growth-edge: #c0c1b8;
+  --studio-stock-reflection: #dcd8dd;
+  --studio-stock-reflection-edge: #c5bec6;
+  --studio-stock-celebration: #e3dad6;
+  --studio-stock-celebration-edge: #d4c2b7;
+  --studio-stock-uncharted: #dbd8d9;
+  --studio-stock-uncharted-edge: #c1bebe;
 }
 
 .studio-app[data-theme='deep-ocean'] {
+  --studio-color-canvas: #1f262d;
   --studio-color-frame: #0e1720;
   --studio-color-rail: #132534;
-  --studio-color-surface: #183446;
-  --studio-color-canvas:
-    radial-gradient(120% 90% at 25% 0%, #1c3040, transparent 55%),
-    linear-gradient(168deg, #16293a, #122232 55%, #0f1b28);
+  --studio-color-surface: #283039;
   --studio-color-sunken: #1e3c50;
-  --studio-color-line: #365669;
+  --studio-color-line: #3a4550;
   --studio-color-line-strong: #5d8294;
-  --studio-color-ink: #e2edf2;
+  --studio-color-ink: #e4e8ea;
   --studio-color-ink-strong: #eef6f9;
   --studio-color-ink-1: #d2e2ea;
   --studio-color-ink-muted: #a6bcc7;
   --studio-color-ink-soft: #86a0ad;
   --studio-color-ink-faint: #6d8794;
-  --studio-color-topbar: rgb(18 34 50 / 80%);
-  --studio-color-foundation: #9fb0b3;
-  --studio-color-vision: #e6c56a;
-  --studio-color-growth: #79c0a0;
-  --studio-color-reflection: #7fc2dc;
-  --studio-color-celebration: #e8a06b;
-  --studio-color-uncharted: #b39ad6;
+  --studio-color-topbar: rgb(31 38 45 / 82%);
+  --studio-color-accent: #93a5b5;
+  --studio-color-foundation: #9f9789;
+  --studio-color-vision: #8f99a6;
+  --studio-color-growth: #989d88;
+  --studio-color-reflection: #a097a3;
+  --studio-color-celebration: #b49378;
+  --studio-color-uncharted: #9a9793;
   --studio-color-link: #7fc2dc;
   --studio-color-script: #8fc7cf;
   --studio-color-script-ink: #e6c56a;
@@ -278,28 +285,27 @@
 }
 
 .studio-app[data-theme='sunset'] {
+  --studio-color-canvas: #2a2227;
   --studio-color-frame: #1a1220;
   --studio-color-rail: #281c30;
-  --studio-color-surface: #2f2338;
-  --studio-color-canvas:
-    radial-gradient(120% 95% at 78% 4%, #5a3350, transparent 52%),
-    linear-gradient(168deg, #3a2436, #2b1f34 55%, #201a2c);
+  --studio-color-surface: #342b31;
   --studio-color-sunken: #382a42;
-  --studio-color-line: #55405f;
+  --studio-color-line: #4b3e46;
   --studio-color-line-strong: #7c6588;
-  --studio-color-ink: #f1e6ec;
+  --studio-color-ink: #efe6e7;
   --studio-color-ink-strong: #f8eff2;
   --studio-color-ink-1: #e5d8e0;
   --studio-color-ink-muted: #c0b0bd;
   --studio-color-ink-soft: #9f8f9d;
   --studio-color-ink-faint: #82727f;
-  --studio-color-topbar: rgb(43 31 52 / 80%);
-  --studio-color-foundation: #aaa1a6;
-  --studio-color-vision: #eec06a;
-  --studio-color-growth: #89b98f;
-  --studio-color-reflection: #9aa6db;
-  --studio-color-celebration: #ec9463;
-  --studio-color-uncharted: #c294c9;
+  --studio-color-topbar: rgb(42 34 39 / 82%);
+  --studio-color-accent: #c49c8c;
+  --studio-color-foundation: #9f9789;
+  --studio-color-vision: #8f99a6;
+  --studio-color-growth: #959a84;
+  --studio-color-reflection: #9d94a0;
+  --studio-color-celebration: #b29074;
+  --studio-color-uncharted: #9a9793;
   --studio-color-link: #e6a08f;
   --studio-color-script: #e2a6b0;
   --studio-color-script-ink: #eec06a;
@@ -322,28 +328,27 @@
 }
 
 .studio-app[data-theme='forest'] {
+  --studio-color-canvas: #1f241e;
   --studio-color-frame: #0f150f;
   --studio-color-rail: #182418;
-  --studio-color-surface: #1c2a1b;
-  --studio-color-canvas:
-    radial-gradient(120% 90% at 22% 0%, #233524, transparent 55%),
-    linear-gradient(168deg, #1a271a, #152014 58%, #111a11);
+  --studio-color-surface: #282e26;
   --studio-color-sunken: #233324;
-  --studio-color-line: #3d503c;
+  --studio-color-line: #3b4337;
   --studio-color-line-strong: #5f775d;
-  --studio-color-ink: #e7eede;
+  --studio-color-ink: #e6eadf;
   --studio-color-ink-strong: #f0f5e8;
   --studio-color-ink-1: #d8e3cd;
   --studio-color-ink-muted: #aebca4;
   --studio-color-ink-soft: #8ba083;
   --studio-color-ink-faint: #728a6b;
-  --studio-color-topbar: rgb(21 32 20 / 80%);
-  --studio-color-foundation: #a4ac9c;
-  --studio-color-vision: #dcc169;
-  --studio-color-growth: #84c07f;
-  --studio-color-reflection: #84b6cc;
-  --studio-color-celebration: #e0a06a;
-  --studio-color-uncharted: #af9dce;
+  --studio-color-topbar: rgb(31 36 30 / 82%);
+  --studio-color-accent: #9ca688;
+  --studio-color-foundation: #9c9485;
+  --studio-color-vision: #8b96a3;
+  --studio-color-growth: #959a84;
+  --studio-color-reflection: #9d94a0;
+  --studio-color-celebration: #b29074;
+  --studio-color-uncharted: #979490;
   --studio-color-link: #84b6cc;
   --studio-color-script: #b6c98a;
   --studio-color-script-ink: #dcc169;
@@ -363,20 +368,6 @@
   --studio-stock-celebration-edge: #4c412b;
   --studio-stock-uncharted: #2d2f3f;
   --studio-stock-uncharted-edge: #3f4155;
-}
-
-/*
- * Dark canvases expand light type optically, thinning the 300-weight display
- * face. Override to weight 400 rather than compromise the light themes. See
- * ADR-009 and board option 7g.
- */
-.studio-app[data-theme='deep-ocean'],
-.studio-app[data-theme='sunset'],
-.studio-app[data-theme='forest'] {
-  --studio-type-room-title: 400 clamp(1.875rem, 3.4vw, 2.75rem) / 1.14
-    var(--studio-font-display);
-  --studio-type-greeting: 400 italic 1.1875rem / 1.2 var(--studio-font-display);
-  --studio-type-quote: 400 italic 1.375rem / 1.55 var(--studio-font-display);
 }
 
 @media (prefers-contrast: more) {

@@ -54,3 +54,30 @@ are all gitignored — regenerate them from a clean checkout with steps 1–2 ab
 
 To run on a device, open `Ateliera.xcodeproj` in Xcode (or `xcodebuild -destination
 "platform=iOS,name=<device>"` with your signing team), pick your iPhone, and run.
+
+## Release checklist (App Store / TestFlight)
+
+The app is feature-complete and ships an app icon (`Ateliera/Assets.xcassets`), a
+privacy manifest (`Ateliera/PrivacyInfo.xcprivacy` + one for the widget), and iOS +
+macOS entitlements. What remains needs an Apple Developer account and can't be done
+from the repo alone:
+
+- **Signing** — set `DEVELOPMENT_TEAM` in `project.yml` (currently `""`) to your
+  10-char Team ID, then `xcodegen generate`. Automatic signing needs App IDs
+  registered for both bundle ids (`…native`, `…native.widgets`).
+- **HealthKit capability** — enable HealthKit on the app's App ID in the developer
+  portal (the entitlement is already in `Ateliera.entitlements`). App Review rejects
+  HealthKit apps without a **privacy policy URL** in App Store Connect.
+- **Privacy policy + support URL** — host both and add them to App Store Connect.
+- **Version** — decide the public `MARKETING_VERSION` (`project.yml`, currently
+  `0.1.0`); bump `CURRENT_PROJECT_VERSION` per upload.
+- **Screenshots** — capture for each required device size (6.7"/6.5" iPhone, 12.9"
+  iPad, and Mac if shipping there).
+- **Archive & upload** — `xcodebuild archive` → Organizer → TestFlight, then submit.
+- **macOS** — if shipping the Mac app: it uses `Ateliera-macOS.entitlements`
+  (App Sandbox + user-selected files). Decide App Store (sandbox) vs. Developer ID
+  (notarized, Hardened Runtime).
+
+Note: the demo Reflection Garden is seeded **only** in the simulator
+(`#if targetEnvironment(simulator)` in `VaultStore.swift`); a real first launch opens
+the folder picker instead.

@@ -2,9 +2,10 @@ import XCTest
 import SwiftUI
 @testable import Ateliera
 
-// Golden values captured verbatim from apps/studio/src/styles/tokens.css
-// (lines 79-366, CSS custom properties under .studio-app and its theme overrides).
-// Inherited values (no CSS override) are marked "inherits chamomile".
+// Golden values captured verbatim from apps/studio/src/styles/tokens.css after the
+// Folio refresh (flat canvases, Cormorant display face, new muted meaning palette,
+// new --studio-color-accent). Dark themes keep their hand-tuned ink ramps and stock
+// tints (lighter touch); only canvas/surface/line/ink + accent + meaning changed.
 
 final class ThemeTests: XCTestCase {
 
@@ -44,51 +45,52 @@ final class ThemeTests: XCTestCase {
     XCTAssertEqual(StudioTheme.byId("not-a-theme").id,   "chamomile")
   }
 
-  // MARK: - Chamomile golden values (tokens.css lines 80-119)
+  // MARK: - Chamomile golden values
 
   func testChamomileStructuralColours() {
     let t = StudioTheme.chamomile
-    assertHex(t.canvas,     0xf7f5f0, "canvas")
-    assertHex(t.frame,      0xeae6dd, "frame")
-    assertHex(t.rail,       0xf2eee6, "rail")
-    assertHex(t.surface,    0xfffdfa, "surface")
-    assertHex(t.sunken,     0xf6f3ec, "sunken")
-    assertHex(t.ink,        0x292a28, "ink")
-    assertHex(t.inkStrong,  0x26271f, "inkStrong")
-    assertHex(t.ink1,       0x3a3b34, "ink1")
-    assertHex(t.inkMuted,   0x54564f, "inkMuted")
-    assertHex(t.inkSoft,    0x6f716c, "inkSoft")
-    assertHex(t.inkFaint,   0x8a8c86, "inkFaint")
-    assertHex(t.line,       0xe2ddd2, "line")
-    assertHex(t.lineStrong, 0xc9c2b3, "lineStrong")
-    assertHex(t.link,       0x6e91ad, "link")
-    assertHex(t.focus,      0x5b3d84, "focus")
+    assertHex(t.canvas,     0xeee8de, "canvas")
+    assertHex(t.frame,      0xe9e3d8, "frame")
+    assertHex(t.rail,       0xf2ede4, "rail")
+    assertHex(t.surface,    0xf7f3ec, "surface")
+    assertHex(t.sunken,     0xe6dfd3, "sunken")
+    assertHex(t.ink,        0x2b2824, "ink")
+    assertHex(t.inkStrong,  0x221f1b, "inkStrong")
+    assertHex(t.ink1,       0x3a3631, "ink1")
+    assertHex(t.inkMuted,   0x5b554d, "inkMuted")
+    assertHex(t.inkSoft,    0x6c655b, "inkSoft")
+    assertHex(t.inkFaint,   0x8a8378, "inkFaint")
+    assertHex(t.line,       0xddd4c6, "line")
+    assertHex(t.lineStrong, 0xbfb3a1, "lineStrong")
+    assertHex(t.accent,     0x55657a, "accent")
+    assertHex(t.link,       0x55657a, "link")
+    assertHex(t.focus,      0x55657a, "focus")
   }
 
   func testChamomileSemanticAccents() {
     let t = StudioTheme.chamomile
-    assertHex(t.foundation,  0x8c8d89, "foundation")
-    assertHex(t.vision,      0xd5ab42, "vision")
-    assertHex(t.growth,      0x6f9478, "growth")
-    assertHex(t.reflection,  0x6e91ad, "reflection")
-    assertHex(t.celebration, 0xd2874f, "celebration")
-    assertHex(t.uncharted,   0x8976a7, "uncharted")
+    assertHex(t.foundation,  0x7d725f, "foundation")
+    assertHex(t.vision,      0x556578, "vision")
+    assertHex(t.growth,      0x636a4a, "growth")
+    assertHex(t.reflection,  0x6f6173, "reflection")
+    assertHex(t.celebration, 0x9a6d48, "celebration")
+    assertHex(t.uncharted,   0x66625c, "uncharted")
   }
 
   func testChamomileStockPairs() {
     let t = StudioTheme.chamomile
-    assertHex(t.stockFoundation,      0xebe6da, "stockFoundation")
-    assertHex(t.stockFoundationEdge,  0xd8d3c1, "stockFoundationEdge")
-    assertHex(t.stockVision,          0xf6e8bd, "stockVision")
-    assertHex(t.stockVisionEdge,      0xe6d497, "stockVisionEdge")
-    assertHex(t.stockGrowth,          0xdae9d0, "stockGrowth")
-    assertHex(t.stockGrowthEdge,      0xc3dab6, "stockGrowthEdge")
-    assertHex(t.stockReflection,      0xd7e5ef, "stockReflection")
-    assertHex(t.stockReflectionEdge,  0xbed5e6, "stockReflectionEdge")
-    assertHex(t.stockCelebration,     0xf6dcc4, "stockCelebration")
-    assertHex(t.stockCelebrationEdge, 0xecc8a6, "stockCelebrationEdge")
-    assertHex(t.stockUncharted,       0xe4dbf0, "stockUncharted")
-    assertHex(t.stockUnchartedEdge,   0xd2c3e8, "stockUnchartedEdge")
+    assertHex(t.stockFoundation,      0xe6ded1, "stockFoundation")
+    assertHex(t.stockFoundationEdge,  0xcdc6bb, "stockFoundationEdge")
+    assertHex(t.stockVision,          0xe0e3e4, "stockVision")
+    assertHex(t.stockVisionEdge,      0xbfc2c4, "stockVisionEdge")
+    assertHex(t.stockGrowth,          0xe2e3d2, "stockGrowth")
+    assertHex(t.stockGrowthEdge,      0xc4c4b4, "stockGrowthEdge")
+    assertHex(t.stockReflection,      0xe7e0e3, "stockReflection")
+    assertHex(t.stockReflectionEdge,  0xc8c0c2, "stockReflectionEdge")
+    assertHex(t.stockCelebration,     0xefe0d1, "stockCelebration")
+    assertHex(t.stockCelebrationEdge, 0xd7c5b3, "stockCelebrationEdge")
+    assertHex(t.stockUncharted,       0xe4e0da, "stockUncharted")
+    assertHex(t.stockUnchartedEdge,   0xc5c1ba, "stockUnchartedEdge")
   }
 
   func testChamomileAccentAndScript() {
@@ -96,66 +98,72 @@ final class ThemeTests: XCTestCase {
     assertHex(t.accentSoft,      0xf4ecd8, "accentSoft")
     assertHex(t.accentSoftHover, 0xefe4c9, "accentSoftHover")
     assertHex(t.accentLine,      0xd8c9a6, "accentLine")
-    assertHex(t.script,          0xb09a70, "script")
+    assertHex(t.script,          0xa3855a, "script")
     assertHex(t.scriptInk,       0x7a642f, "scriptInk")
   }
 
-  // MARK: - Fig Leaf golden values (tokens.css lines 121-159)
+  // MARK: - Fig Leaf golden values
 
   func testFigLeafOverriddenTokens() {
     let t = StudioTheme.figLeaf
-    assertHex(t.canvas,      0xeef2e6, "canvas")   // solid fallback; CSS uses gradient
-    assertHex(t.frame,       0xdde5cf, "frame")
-    assertHex(t.rail,        0xe9efdf, "rail")
-    assertHex(t.surface,     0xfbfdf7, "surface")
-    assertHex(t.sunken,      0xeef2e6, "sunken")
-    assertHex(t.ink,         0x2a2d26, "ink")
-    assertHex(t.inkStrong,   0x222519, "inkStrong")
-    assertHex(t.ink1,        0x353a2d, "ink1")
-    assertHex(t.inkFaint,    0x777a72, "inkFaint")  // differs from chamomile
-    assertHex(t.line,        0xdce4d1, "line")
-    assertHex(t.lineStrong,  0xa9b59a, "lineStrong")
-    assertHex(t.link,        0x4f7691, "link")       // overrides chamomile
-    assertHex(t.foundation,  0x87897f, "foundation")
-    assertHex(t.vision,      0xc6a94a, "vision")
-    assertHex(t.growth,      0x5f8f6a, "growth")
-    assertHex(t.reflection,  0x5f8aa0, "reflection")
-    assertHex(t.celebration, 0xcf8a54, "celebration")
-    assertHex(t.uncharted,   0x8478a4, "uncharted")
+    assertHex(t.canvas,      0xe6e7dc, "canvas")
+    assertHex(t.frame,       0xe1e2d6, "frame")
+    assertHex(t.rail,        0xeaece2, "rail")
+    assertHex(t.surface,     0xf1f2ea, "surface")
+    assertHex(t.sunken,      0xe0ded1, "sunken")
+    assertHex(t.ink,         0x272a22, "ink")
+    assertHex(t.inkStrong,   0x1e2119, "inkStrong")
+    assertHex(t.ink1,        0x36382f, "ink1")
+    assertHex(t.inkMuted,    0x57574b, "inkMuted")
+    assertHex(t.inkSoft,     0x686759, "inkSoft")
+    assertHex(t.inkFaint,    0x868576, "inkFaint")
+    assertHex(t.line,        0xd3d6c5, "line")
+    assertHex(t.lineStrong,  0xb5b5a0, "lineStrong")
+    assertHex(t.accent,      0x6f7556, "accent")
+    assertHex(t.link,        0x4f7691, "link")
+    assertHex(t.foundation,  0x7d725f, "foundation")
+    assertHex(t.vision,      0x556578, "vision")
+    assertHex(t.growth,      0x636a4a, "growth")
+    assertHex(t.reflection,  0x6f6173, "reflection")
+    assertHex(t.celebration, 0x9a6d48, "celebration")
+    assertHex(t.uncharted,   0x66625c, "uncharted")
     assertHex(t.script,      0x7f8a5f, "script")
     assertHex(t.scriptInk,   0x5f6a30, "scriptInk")
   }
 
-  func testFigLeafInheritsChamomileAccents() {
+  func testFigLeafInheritedTokens() {
     let t = StudioTheme.figLeaf
-    assertHex(t.inkMuted,        0x54564f, "inkMuted (chamomile)")
-    assertHex(t.inkSoft,         0x6f716c, "inkSoft (chamomile)")
-    assertHex(t.focus,           0x5b3d84, "focus (chamomile)")
+    // focus + the quiet-action accents track chamomile.
+    assertHex(t.focus,           0x55657a, "focus (chamomile)")
     assertHex(t.accentSoft,      0xf4ecd8, "accentSoft (chamomile)")
     assertHex(t.accentSoftHover, 0xefe4c9, "accentSoftHover (chamomile)")
     assertHex(t.accentLine,      0xd8c9a6, "accentLine (chamomile)")
   }
 
-  // MARK: - Sunrise golden values (tokens.css lines 161-198)
+  // MARK: - Sunrise golden values
 
   func testSunriseOverriddenTokens() {
     let t = StudioTheme.sunrise
-    assertHex(t.canvas,      0xfbecdc, "canvas")
-    assertHex(t.frame,       0xf0dccc, "frame")
-    assertHex(t.rail,        0xf7e6d6, "rail")
-    assertHex(t.surface,     0xfffdf9, "surface")
-    assertHex(t.sunken,      0xf9eee1, "sunken")
-    assertHex(t.ink,         0x2e2822, "ink")
-    assertHex(t.inkStrong,   0x261f18, "inkStrong")
-    assertHex(t.ink1,        0x3d352c, "ink1")
-    assertHex(t.line,        0xefdccb, "line")
-    assertHex(t.lineStrong,  0xc7a98d, "lineStrong")
-    assertHex(t.foundation,  0x8f8a83, "foundation")
-    assertHex(t.vision,      0xd5a742, "vision")
-    assertHex(t.growth,      0x6f9478, "growth")
-    assertHex(t.reflection,  0x6f8fb0, "reflection")
-    assertHex(t.celebration, 0xd67f4f, "celebration")
-    assertHex(t.uncharted,   0x9079ab, "uncharted")
+    assertHex(t.canvas,      0xf0e6dc, "canvas")
+    assertHex(t.frame,       0xebe1d6, "frame")
+    assertHex(t.rail,        0xf4ebe2, "rail")
+    assertHex(t.surface,     0xf7f0e8, "surface")
+    assertHex(t.sunken,      0xe6dccf, "sunken")
+    assertHex(t.ink,         0x2e2620, "ink")
+    assertHex(t.inkStrong,   0x251d17, "inkStrong")
+    assertHex(t.ink1,        0x3d342d, "ink1")
+    assertHex(t.inkMuted,    0x5e5349, "inkMuted")
+    assertHex(t.inkSoft,     0x6f6357, "inkSoft")
+    assertHex(t.inkFaint,    0x8d8174, "inkFaint")
+    assertHex(t.line,        0xe3d3c4, "line")
+    assertHex(t.lineStrong,  0xc5b29f, "lineStrong")
+    assertHex(t.accent,      0xb0805c, "accent")
+    assertHex(t.foundation,  0x7d725f, "foundation")
+    assertHex(t.vision,      0x556578, "vision")
+    assertHex(t.growth,      0x636a4a, "growth")
+    assertHex(t.reflection,  0x6f6173, "reflection")
+    assertHex(t.celebration, 0x9a6d48, "celebration")
+    assertHex(t.uncharted,   0x66625c, "uncharted")
     assertHex(t.accentSoft,      0xf8ead2, "accentSoft")
     assertHex(t.accentSoftHover, 0xf2ddc0, "accentSoftHover")
     assertHex(t.accentLine,      0xd2ad76, "accentLine")
@@ -165,80 +173,79 @@ final class ThemeTests: XCTestCase {
 
   func testSunriseInheritsChamomileTokens() {
     let t = StudioTheme.sunrise
-    // ink-muted, ink-soft, ink-faint, link, focus are not overridden in CSS.
-    assertHex(t.inkMuted, 0x54564f, "inkMuted (chamomile)")
-    assertHex(t.inkSoft,  0x6f716c, "inkSoft (chamomile)")
-    assertHex(t.inkFaint, 0x8a8c86, "inkFaint (chamomile)")
-    assertHex(t.link,     0x6e91ad, "link (chamomile)")
-    assertHex(t.focus,    0x5b3d84, "focus (chamomile)")
+    // link + focus track chamomile's new dusk.
+    assertHex(t.link,     0x55657a, "link (chamomile)")
+    assertHex(t.focus,    0x55657a, "focus (chamomile)")
   }
 
-  // MARK: - Wisteria golden values (tokens.css lines 200-234)
+  // MARK: - Wisteria golden values
 
   func testWisteriaOverriddenTokens() {
     let t = StudioTheme.wisteria
-    assertHex(t.canvas,      0xefe9f6, "canvas")
-    assertHex(t.frame,       0xe3d9ec, "frame")
-    assertHex(t.rail,        0xece5f3, "rail")
-    assertHex(t.surface,     0xfdfbff, "surface")
-    assertHex(t.sunken,      0xefe9f5, "sunken")
-    assertHex(t.ink,         0x2b2830, "ink")
-    assertHex(t.inkStrong,   0x231f2a, "inkStrong")
-    assertHex(t.ink1,        0x38333f, "ink1")
-    assertHex(t.line,        0xe4dcee, "line")
-    assertHex(t.lineStrong,  0xad9cc9, "lineStrong")
-    assertHex(t.foundation,  0x89858f, "foundation")
-    assertHex(t.vision,      0xc6a24f, "vision")
-    assertHex(t.growth,      0x679277, "growth")
-    assertHex(t.reflection,  0x6987ad, "reflection")
-    assertHex(t.celebration, 0xcd825a, "celebration")
-    assertHex(t.uncharted,   0x8a6fb0, "uncharted")
+    assertHex(t.canvas,      0xe8e4e9, "canvas")
+    assertHex(t.frame,       0xe3dfe3, "frame")
+    assertHex(t.rail,        0xece9ef, "rail")
+    assertHex(t.surface,     0xf2eff2, "surface")
+    assertHex(t.sunken,      0xe1dbd9, "sunken")
+    assertHex(t.ink,         0x2a2630, "ink")
+    assertHex(t.inkStrong,   0x211d27, "inkStrong")
+    assertHex(t.ink1,        0x39343d, "ink1")
+    assertHex(t.inkMuted,    0x5a5359, "inkMuted")
+    assertHex(t.inkSoft,     0x6b6367, "inkSoft")
+    assertHex(t.inkFaint,    0x898184, "inkFaint")
+    assertHex(t.line,        0xd8d1da, "line")
+    assertHex(t.lineStrong,  0xbab0b5, "lineStrong")
+    assertHex(t.accent,      0x7d6f86, "accent")
+    assertHex(t.foundation,  0x7d725f, "foundation")
+    assertHex(t.vision,      0x556578, "vision")
+    assertHex(t.growth,      0x636a4a, "growth")
+    assertHex(t.reflection,  0x6f6173, "reflection")
+    assertHex(t.celebration, 0x9a6d48, "celebration")
+    assertHex(t.uncharted,   0x66625c, "uncharted")
     assertHex(t.script,      0x9a7fb0, "script")
     assertHex(t.scriptInk,   0x6a4f8a, "scriptInk")
   }
 
   func testWisteriaInheritsChamomileTokens() {
     let t = StudioTheme.wisteria
-    assertHex(t.inkMuted,        0x54564f, "inkMuted (chamomile)")
-    assertHex(t.inkSoft,         0x6f716c, "inkSoft (chamomile)")
-    assertHex(t.inkFaint,        0x8a8c86, "inkFaint (chamomile)")
-    assertHex(t.link,            0x6e91ad, "link (chamomile)")
-    assertHex(t.focus,           0x5b3d84, "focus (chamomile)")
+    assertHex(t.link,            0x55657a, "link (chamomile)")
+    assertHex(t.focus,           0x55657a, "focus (chamomile)")
     assertHex(t.accentSoft,      0xf4ecd8, "accentSoft (chamomile)")
     assertHex(t.accentSoftHover, 0xefe4c9, "accentSoftHover (chamomile)")
     assertHex(t.accentLine,      0xd8c9a6, "accentLine (chamomile)")
   }
 
-  // MARK: - Deep Ocean golden values (tokens.css lines 236-278)
+  // MARK: - Deep Ocean golden values (dark, lighter touch)
 
   func testDeepOceanStructural() {
     let t = StudioTheme.deepOcean
     XCTAssertTrue(t.isDark)
-    assertHex(t.canvas,     0x16293a, "canvas")
+    assertHex(t.canvas,     0x1f262d, "canvas")
     assertHex(t.frame,      0x0e1720, "frame")
     assertHex(t.rail,       0x132534, "rail")
-    assertHex(t.surface,    0x183446, "surface")
+    assertHex(t.surface,    0x283039, "surface")
     assertHex(t.sunken,     0x1e3c50, "sunken")
-    assertHex(t.ink,        0xe2edf2, "ink")
+    assertHex(t.ink,        0xe4e8ea, "ink")
     assertHex(t.inkStrong,  0xeef6f9, "inkStrong")
     assertHex(t.ink1,       0xd2e2ea, "ink1")
     assertHex(t.inkMuted,   0xa6bcc7, "inkMuted")
     assertHex(t.inkSoft,    0x86a0ad, "inkSoft")
     assertHex(t.inkFaint,   0x6d8794, "inkFaint")
-    assertHex(t.line,       0x365669, "line")
+    assertHex(t.line,       0x3a4550, "line")
     assertHex(t.lineStrong, 0x5d8294, "lineStrong")
+    assertHex(t.accent,     0x93a5b5, "accent")
     assertHex(t.link,       0x7fc2dc, "link")
     assertHex(t.focus,      0xf0d477, "focus")
   }
 
   func testDeepOceanAccents() {
     let t = StudioTheme.deepOcean
-    assertHex(t.foundation,      0x9fb0b3, "foundation")
-    assertHex(t.vision,          0xe6c56a, "vision")
-    assertHex(t.growth,          0x79c0a0, "growth")
-    assertHex(t.reflection,      0x7fc2dc, "reflection")
-    assertHex(t.celebration,     0xe8a06b, "celebration")
-    assertHex(t.uncharted,       0xb39ad6, "uncharted")
+    assertHex(t.foundation,      0x9f9789, "foundation")
+    assertHex(t.vision,          0x8f99a6, "vision")
+    assertHex(t.growth,          0x989d88, "growth")
+    assertHex(t.reflection,      0xa097a3, "reflection")
+    assertHex(t.celebration,     0xb49378, "celebration")
+    assertHex(t.uncharted,       0x9a9793, "uncharted")
     assertHex(t.accentSoft,      0x123246, "accentSoft")
     assertHex(t.accentSoftHover, 0x17405a, "accentSoftHover")
     assertHex(t.accentLine,      0x4b829d, "accentLine")
@@ -246,36 +253,37 @@ final class ThemeTests: XCTestCase {
     assertHex(t.scriptInk,       0xe6c56a, "scriptInk")
   }
 
-  // MARK: - Sunset golden values (tokens.css lines 280-322)
+  // MARK: - Sunset golden values (dark, lighter touch)
 
   func testSunsetStructural() {
     let t = StudioTheme.sunset
     XCTAssertTrue(t.isDark)
-    assertHex(t.canvas,     0x3a2436, "canvas")
+    assertHex(t.canvas,     0x2a2227, "canvas")
     assertHex(t.frame,      0x1a1220, "frame")
     assertHex(t.rail,       0x281c30, "rail")
-    assertHex(t.surface,    0x2f2338, "surface")
+    assertHex(t.surface,    0x342b31, "surface")
     assertHex(t.sunken,     0x382a42, "sunken")
-    assertHex(t.ink,        0xf1e6ec, "ink")
+    assertHex(t.ink,        0xefe6e7, "ink")
     assertHex(t.inkStrong,  0xf8eff2, "inkStrong")
     assertHex(t.ink1,       0xe5d8e0, "ink1")
     assertHex(t.inkMuted,   0xc0b0bd, "inkMuted")
     assertHex(t.inkSoft,    0x9f8f9d, "inkSoft")
     assertHex(t.inkFaint,   0x82727f, "inkFaint")
-    assertHex(t.line,       0x55405f, "line")
+    assertHex(t.line,       0x4b3e46, "line")
     assertHex(t.lineStrong, 0x7c6588, "lineStrong")
+    assertHex(t.accent,     0xc49c8c, "accent")
     assertHex(t.link,       0xe6a08f, "link")
     assertHex(t.focus,      0xf1ca78, "focus")
   }
 
   func testSunsetAccents() {
     let t = StudioTheme.sunset
-    assertHex(t.foundation,      0xaaa1a6, "foundation")
-    assertHex(t.vision,          0xeec06a, "vision")
-    assertHex(t.growth,          0x89b98f, "growth")
-    assertHex(t.reflection,      0x9aa6db, "reflection")
-    assertHex(t.celebration,     0xec9463, "celebration")
-    assertHex(t.uncharted,       0xc294c9, "uncharted")
+    assertHex(t.foundation,      0x9f9789, "foundation")
+    assertHex(t.vision,          0x8f99a6, "vision")
+    assertHex(t.growth,          0x959a84, "growth")
+    assertHex(t.reflection,      0x9d94a0, "reflection")
+    assertHex(t.celebration,     0xb29074, "celebration")
+    assertHex(t.uncharted,       0x9a9793, "uncharted")
     assertHex(t.accentSoft,      0x3a2a1c, "accentSoft")
     assertHex(t.accentSoftHover, 0x472f22, "accentSoftHover")
     assertHex(t.accentLine,      0x80604a, "accentLine")
@@ -283,36 +291,37 @@ final class ThemeTests: XCTestCase {
     assertHex(t.scriptInk,       0xeec06a, "scriptInk")
   }
 
-  // MARK: - Forest golden values (tokens.css lines 324-366)
+  // MARK: - Forest golden values (dark, lighter touch)
 
   func testForestStructural() {
     let t = StudioTheme.forest
     XCTAssertTrue(t.isDark)
-    assertHex(t.canvas,     0x1a271a, "canvas")
+    assertHex(t.canvas,     0x1f241e, "canvas")
     assertHex(t.frame,      0x0f150f, "frame")
     assertHex(t.rail,       0x182418, "rail")
-    assertHex(t.surface,    0x1c2a1b, "surface")
+    assertHex(t.surface,    0x282e26, "surface")
     assertHex(t.sunken,     0x233324, "sunken")
-    assertHex(t.ink,        0xe7eede, "ink")
+    assertHex(t.ink,        0xe6eadf, "ink")
     assertHex(t.inkStrong,  0xf0f5e8, "inkStrong")
     assertHex(t.ink1,       0xd8e3cd, "ink1")
     assertHex(t.inkMuted,   0xaebca4, "inkMuted")
     assertHex(t.inkSoft,    0x8ba083, "inkSoft")
     assertHex(t.inkFaint,   0x728a6b, "inkFaint")
-    assertHex(t.line,       0x3d503c, "line")
+    assertHex(t.line,       0x3b4337, "line")
     assertHex(t.lineStrong, 0x5f775d, "lineStrong")
+    assertHex(t.accent,     0x9ca688, "accent")
     assertHex(t.link,       0x84b6cc, "link")
     assertHex(t.focus,      0xe7cb72, "focus")
   }
 
   func testForestAccents() {
     let t = StudioTheme.forest
-    assertHex(t.foundation,      0xa4ac9c, "foundation")
-    assertHex(t.vision,          0xdcc169, "vision")
-    assertHex(t.growth,          0x84c07f, "growth")
-    assertHex(t.reflection,      0x84b6cc, "reflection")
-    assertHex(t.celebration,     0xe0a06a, "celebration")
-    assertHex(t.uncharted,       0xaf9dce, "uncharted")
+    assertHex(t.foundation,      0x9c9485, "foundation")
+    assertHex(t.vision,          0x8b96a3, "vision")
+    assertHex(t.growth,          0x959a84, "growth")
+    assertHex(t.reflection,      0x9d94a0, "reflection")
+    assertHex(t.celebration,     0xb29074, "celebration")
+    assertHex(t.uncharted,       0x979490, "uncharted")
     assertHex(t.accentSoft,      0x293618, "accentSoft")
     assertHex(t.accentSoftHover, 0x33421f, "accentSoftHover")
     assertHex(t.accentLine,      0x687943, "accentLine")

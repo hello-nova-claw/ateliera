@@ -29,12 +29,17 @@ struct RootView: View {
   @State private var profileStore = RhythmProfileStore()
   @State private var showToday = false  // the atmosphere panel starts tucked away
   @State private var navigateRoute: RoomRoute?  // an accepted invitation that opens a room
+  @State private var pendingSeed: WorkshopSeed?  // set on capture; becomes the offer once the sheet closes
+  @State private var workshopOffer: WorkshopSeed?  // a gentle, dismissable "develop this" offer
+  @State private var workshopSeed: WorkshopSeed?  // drives the workshop sheet (once accepted)
 
   struct RoomRoute: Identifiable, Hashable { let id: String }
+  // A just-captured entry to workshop (anchor to an area, then walk the dimensions).
+  struct WorkshopSeed: Identifiable { let id = UUID(); let path: String; let text: String }
 
   // One sheet at a time: a fresh capture, an edit, or the rhythm profile.
   private enum ActiveSheet: Identifiable {
-    case capture(room: String?)
+    case capture(room: String?, keep: Bool)
     case edit(EditableNote)
     case rhythm
     case search
@@ -46,7 +51,7 @@ struct RootView: View {
 
     var id: String {
       switch self {
-      case .capture(let room): return "capture:\(room ?? "inbox")"
+      case .capture(let room, let keep): return "capture:\(room ?? "inbox"):\(keep ? "keep" : "draft")"
       case .edit(let editable): return "edit:\(editable.id)"
       case .rhythm: return "rhythm"
       case .search: return "search"
@@ -98,54 +103,21 @@ struct RootView: View {
     if let room = Room.all.first(where: { $0.id == id }) { roomDestination(room) }
   }
 
+  // Three calm tabs give the app a spine: Today (a greeting + one gentle daily
+  // card + capture), Rooms (the directory + what you've captured lately), and Find.
+  // No more one-long-scroll home you must return to in order to go anywhere.
   var body: some View {
-    NavigationStack {
-      ScrollView {
-        VStack(alignment: .leading, spacing: 28) {
-          studioBar
-
-          RoomHeading(
-            eyebrow: "welcome back",
-            title: "The Foyer",
-            intro: "A calm place to begin — your rooms and what you've been noticing.")
-
-          todaySection
-
-          TodaysGiftView(store: giftStore) { quality in
-            giftStore.grade(quality, today: almanacContext.date)
-          }
-
-          if let invitation = currentInvitation {
-            InvitationCard(
-              invitation: invitation,
-              onAccept: { accept(invitation) },
-              onDismiss: { store.dismissInvitation(invitation.id) })
-          }
-
-          // One capture entry: a quick note by default, or place it as a Foyer card
-          // (becoming / feeling / principle) from the same sheet.
-          Button {
-            activeSheet = .placement
-          } label: {
-            Label("Capture", systemImage: "plus.circle.fill")
-              .font(StudioFont.control)
-              .foregroundStyle(theme.link)
-          }
-          .buttonStyle(.plain)
-          .accessibilityIdentifier("capture-button")
-
-          if let error = store.error {
-            Text(error).font(StudioFont.meta).foregroundStyle(theme.celebration)
-          }
-
-          roomsSection
-          recentlySection
-        }
-        .padding(28)
-        .frame(maxWidth: .infinity, alignment: .leading)
-      }
-      .background(theme.canvas)
-      .navigationDestination(item: $navigateRoute) { route in roomDestination(byId: route.id) }
+    TabView {
+      todayTab
+        .tabItem { Label("Today", systemImage: "sun.max") }
+      roomsTab
+        .tabItem { Label("Rooms", systemImage: "square.grid.2x2") }
+      findTab
+        .tabItem { Label("Find", systemImage: "magnifyingglass") }
+    }
+    .tint(theme.link)
+    .overlay(alignment: .bottom) {
+      if let offer = workshopOffer { developOffer(offer) }
     }
     .fileImporter(
       isPresented: $picking, allowedContentTypes: [.folder], allowsMultipleSelection: false
@@ -155,6 +127,10 @@ struct RootView: View {
       }
     }
     .task {
+      // First launch with no chosen vault: guide the person straight to the folder
+      // picker rather than an empty Foyer. (In the simulator a demo vault is seeded,
+      // so this only fires on a real, un-onboarded device.)
+      if !store.hasVault { picking = true }
       // Resolve hemisphere from location first, then the cycle from HealthKit —
       // sequentially so the two permission prompts don't stack. Both refine the
       // almanac and both degrade quietly when unavailable.
@@ -170,12 +146,38 @@ struct RootView: View {
     .onChange(of: almanacContext.date) {
       giftStore.refresh(ctx: almanacContext, today: almanacContext.date)
     }
-    .sheet(item: $activeSheet) { sheet in
+    .sheet(item: $workshopSeed) { seed in
+      WorkshopView(
+        store: store, seedPath: seed.path, seedText: seed.text,
+        onClose: { workshopSeed = nil })
+      .studioTheme(themeStore.current)
+    }
+    .sheet(
+      item: $activeSheet,
+      // A quick Journal capture offers to develop the note on the Landscape — a calm,
+      // dismissable prompt (never a forced flow), shown once the capture sheet closes.
+      onDismiss: {
+        if let seed = pendingSeed {
+          pendingSeed = nil
+          withAnimation(.easeInOut(duration: 0.2)) { workshopOffer = seed }
+        }
+      }
+    ) { sheet in
       switch sheet {
-      case .capture(let room):
+      case .capture(let room, let keep):
         NoteEditorSheet(
           heading: "Capture", confirmLabel: "Keep", initialTitle: "", initialBody: "",
-          onSave: { title, body in store.capture(title: title, body: body, room: room ?? "inbox") },
+          showsExtras: true,
+          onSave: { title, body, tags, cover in
+            let ok = store.capture(
+              title: title, body: body, room: room ?? "inbox", tags: tags, coverData: cover,
+              keep: keep)
+            // Only Inbox/Journal entries (the `inbox` room) expand into a workshop.
+            if ok, (room ?? "inbox") == "inbox", let path = store.lastCapturedPath {
+              pendingSeed = WorkshopSeed(path: path, text: body)
+            }
+            return ok
+          },
           onClose: { activeSheet = nil })
       case .edit(let editable):
         NoteEditView(
@@ -197,7 +199,8 @@ struct RootView: View {
       case .settings:
         SettingsView(
           themeStore: themeStore, store: store, onClose: { activeSheet = nil },
-          onReplayTour: { activeSheet = .tour }
+          onReplayTour: { activeSheet = .tour },
+          onChangeFolder: { activeSheet = nil; picking = true }
         )
         .studioTheme(themeStore.current)
       case .placement:
@@ -211,18 +214,238 @@ struct RootView: View {
         NoteEditorSheet(
           heading: "New moon intention", confirmLabel: "Keep", initialTitle: "",
           initialBody: "",
-          onSave: { _, body in store.captureMoonIntention(body: body, lunationDate: lunation) },
+          onSave: { _, body, _, _ in store.captureMoonIntention(body: body, lunationDate: lunation) },
           onClose: { activeSheet = nil })
       case .reflect:
         NoteEditorSheet(
           heading: "Reflect", confirmLabel: "Keep", initialTitle: "", initialBody: "",
-          onSave: { title, body in
+          onSave: { title, body, _, _ in
             store.capture(
               title: title.isEmpty ? nil : title, body: body, room: "reflection-garden",
               cardType: "reflection", semanticType: "reflection")
           },
           onClose: { activeSheet = nil })
       }
+    }
+  }
+
+  // TODAY — a greeting, one gentle daily card, the day's rhythm tucked away, and one
+  // way to capture. Rooms and search have moved to their own tabs, so this stays calm.
+  private var todayTab: some View {
+    NavigationStack {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 30) {
+          VStack(alignment: .leading, spacing: 30) {
+            BrandLockup()
+              .padding(.bottom, 2)
+            HStack(alignment: .top, spacing: 12) {
+              RoomHeading(eyebrow: greeting, title: "The Foyer", intro: "A calm place to begin.")
+              Spacer(minLength: 0)
+              ProfileAvatar(store: store, size: 48)
+            }
+          }
+          .padding(.horizontal, 28)
+
+          // Full-bleed seasonal hero with the Today card lifted over its lower edge.
+          VStack(spacing: 0) {
+            SeasonalHero(season: feltSeason, height: 230, cornerRadius: 0)
+            almanacCard
+              .padding(.horizontal, 28)
+              .padding(.top, -44)
+          }
+
+          VStack(alignment: .leading, spacing: 30) {
+            dailyCard
+            foyerRooms
+            todaySection
+            captureButton
+            if let error = store.error {
+              Text(error).font(StudioFont.meta).foregroundStyle(theme.celebration)
+            }
+            recentlySection
+          }
+          .padding(.horizontal, 28)
+        }
+        .padding(.vertical, 28)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .background(theme.canvas)
+      .navigationDestination(item: $navigateRoute) { route in roomDestination(byId: route.id) }
+      .toolbar { studioToolbar }
+    }
+  }
+
+  // The daily prompt shows at most ONE thing (no more three stacked cards): the
+  // resurfaced Gift when one is due, else a single contextual invitation, else the
+  // Gift's calm line.
+  @ViewBuilder
+  private var dailyCard: some View {
+    if giftIsDue {
+      giftView
+    } else if let invitation = currentInvitation {
+      InvitationCard(
+        invitation: invitation,
+        onAccept: { accept(invitation) },
+        onDismiss: { store.dismissInvitation(invitation.id) })
+    } else {
+      giftView
+    }
+  }
+
+  private var giftView: some View {
+    TodaysGiftView(store: giftStore) { quality in
+      giftStore.grade(quality, today: almanacContext.date)
+    }
+  }
+
+  // The felt season for the Foyer's hero photo, from the person's own season style.
+  private var feltSeason: Season {
+    Rhythm.season(
+      date: almanacContext.date, hemisphere: hemisphere,
+      style: store.preferences.rhythm.resolvedSeasonStyle)
+  }
+
+  // The day's rhythm as a calm, prominent card — the Foyer's quiet centrepiece.
+  @ViewBuilder
+  private var almanacCard: some View {
+    if Preferences.isFoyerSectionVisible("almanac", store.preferences) {
+      AlmanacView(
+        context: almanacContext, hemisphere: hemisphere,
+        seasonStyle: store.preferences.rhythm.resolvedSeasonStyle)
+        .studioCard()
+    }
+  }
+
+  // A calm 2×2 way into the rooms, each a soft tile with its own constellation and a
+  // one-line invitation — the Foyer's map of where you can go.
+  private var foyerRooms: some View {
+    let rooms = Room.all.filter { Preferences.isRoomVisible($0.id, store.preferences) }
+    let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+    return VStack(alignment: .leading, spacing: 12) {
+      Text("YOUR ROOMS")
+        .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
+      LazyVGrid(columns: columns, spacing: 12) {
+        ForEach(rooms) { room in
+          NavigationLink { roomDestination(room) } label: { roomTile(room) }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("foyer-room-\(room.id)")
+        }
+      }
+    }
+  }
+
+  private func roomTile(_ room: Room) -> some View {
+    VStack(alignment: .leading, spacing: 8) {
+      ConstellationMark(size: 26, color: theme.inkStrong)
+        .padding(.bottom, 2)
+      Text(room.title).font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
+      Text(room.eyebrow)
+        .font(StudioFont.displayItalic(14)).foregroundStyle(theme.inkMuted)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .frame(maxWidth: .infinity, minHeight: 116, alignment: .topLeading)
+    .studioCard(padding: 16)
+    .contentShape(Rectangle())
+  }
+
+  private var captureButton: some View {
+    Button {
+      activeSheet = .placement
+    } label: {
+      Label("Capture", systemImage: "plus.circle.fill")
+        .font(StudioFont.control)
+        .foregroundStyle(theme.link)
+    }
+    .buttonStyle(.plain)
+    .accessibilityIdentifier("capture-button")
+  }
+
+  private var giftIsDue: Bool {
+    if case .card = giftStore.gift { return true }
+    return false
+  }
+
+  private var greeting: String {
+    let base: String
+    switch Calendar.current.component(.hour, from: Date()) {
+    case 5..<12: base = "good morning"
+    case 12..<17: base = "good afternoon"
+    case 17..<22: base = "good evening"
+    default: base = "welcome back"
+    }
+    // Address you by name once a profile exists; otherwise keep the quiet lowercase line.
+    guard let name = store.profileName else { return base }
+    return "\(base.prefix(1).uppercased())\(base.dropFirst()), \(name)"
+  }
+
+  // ROOMS — the directory of rooms and everything you've captured lately, off the
+  // Today surface so neither list makes the home grow without end.
+  private var roomsTab: some View {
+    NavigationStack {
+      ScrollView {
+        VStack(alignment: .leading, spacing: 28) {
+          RoomHeading(
+            eyebrow: "your studio", title: "Rooms",
+            intro: "Step into a room to work in it.")
+          roomsSection
+        }
+        .padding(28)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .background(theme.canvas)
+    }
+  }
+
+  // FIND — faceted search hosted directly in the tab (no Done button here).
+  private var findTab: some View {
+    SearchView(store: store, onOpen: openPath, onClose: nil)
+  }
+
+  // A calm, dismissable offer to open the workshop on a just-captured note. It sits above
+  // the tab bar, never blocks, and clears when tapped or dismissed — quick jots stay quick.
+  private func developOffer(_ seed: WorkshopSeed) -> some View {
+    HStack(spacing: 12) {
+      Button {
+        withAnimation(.easeInOut(duration: 0.2)) { workshopOffer = nil }
+        workshopSeed = seed
+      } label: {
+        HStack(spacing: 8) {
+          Image(systemName: "sparkle").font(.system(size: 12))
+          Text("Develop this on your Landscape").font(StudioFont.control)
+          Image(systemName: "arrow.right").font(.system(size: 11))
+        }
+        .foregroundStyle(theme.link)
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityIdentifier("develop-offer")
+      Spacer(minLength: 0)
+      Button {
+        withAnimation(.easeInOut(duration: 0.2)) { workshopOffer = nil }
+      } label: {
+        Image(systemName: "xmark").font(.system(size: 11)).foregroundStyle(theme.inkFaint)
+      }
+      .buttonStyle(.plain)
+      .accessibilityIdentifier("develop-offer-dismiss")
+    }
+    .padding(.horizontal, 16).padding(.vertical, 12)
+    .background(RoundedRectangle(cornerRadius: 12).fill(theme.surface))
+    .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.line, lineWidth: 1))
+    .padding(.horizontal, 20).padding(.bottom, 58)
+    .transition(.move(edge: .bottom).combined(with: .opacity))
+  }
+
+  @ToolbarContentBuilder
+  private var studioToolbar: some ToolbarContent {
+    ToolbarItem(placement: .primaryAction) {
+      Button {
+        activeSheet = .settings
+      } label: {
+        Image(systemName: "gearshape").font(StudioFont.control)
+      }
+      .foregroundStyle(theme.link)
+      .accessibilityIdentifier("settings-button")
+      .accessibilityLabel("Settings")
     }
   }
 
@@ -265,7 +488,7 @@ struct RootView: View {
         if Preferences.isFoyerSectionVisible("almanac", store.preferences) {
           AlmanacView(
             context: almanacContext, hemisphere: hemisphere,
-            seasonStyle: store.preferences.rhythm.resolvedSeasonStyle)
+            seasonStyle: store.preferences.rhythm.resolvedSeasonStyle, mode: .detail)
         }
         FoyerRichView(store: store, onOpen: openPath)
         Button {
@@ -296,7 +519,7 @@ struct RootView: View {
           HStack(spacing: 10) {
             Text(room.title).font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
             Spacer(minLength: 0)
-            let count = store.liveNotes.filter { $0.rooms.contains(room.id) }.count
+            let count = store.liveNotes.filter { room.matches(rooms: $0.rooms, status: $0.status) }.count
             if count > 0 {
               Text("\(count)").font(StudioFont.meta).foregroundStyle(theme.inkMuted)
             }
@@ -316,6 +539,14 @@ struct RootView: View {
   @ViewBuilder
   private func roomDestination(_ room: Room) -> some View {
     switch room.id {
+    case "inbox":
+      InboxView(
+        room: room, store: store, onOpen: openPath,
+        onCapture: { activeSheet = .capture(room: room.vaultKey, keep: false) })
+    case "journal":
+      JournalView(
+        room: room, store: store, onOpen: openPath,
+        onCapture: { activeSheet = .capture(room: room.vaultKey, keep: true) })
     case "landscape":
       LandscapeRoomView(store: store, onOpen: openPath)
     case "identity-studio":
@@ -331,7 +562,7 @@ struct RootView: View {
     default:
       RoomView(
         room: room, store: store, onOpen: openEdit,
-        onCapture: { activeSheet = .capture(room: room.id) })
+        onCapture: { activeSheet = .capture(room: room.vaultKey, keep: false) })
     }
   }
 
@@ -340,53 +571,30 @@ struct RootView: View {
   }
 
   // Everything you've captured, newest first, whatever room it's in.
+  // A short, capped "Recently" on the Today tab: enough to confirm a fresh capture
+  // landed and to pick up where you left off, without the home growing without end.
+  // Older notes live in their rooms and are reachable through Find.
   private var recentlySection: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      if !store.liveNotes.isEmpty {
+    let recent = Array(store.liveNotes.prefix(6))
+    return VStack(alignment: .leading, spacing: 0) {
+      if !recent.isEmpty {
         Text("RECENTLY")
           .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
           .padding(.bottom, 8)
       }
-      ForEach(store.liveNotes) { note in
+      ForEach(recent) { note in
         Button { openEdit(note) } label: { NoteRow(note: note) }
           .buttonStyle(.plain)
         Divider().overlay(theme.line)
       }
+      if store.liveNotes.count > recent.count {
+        Text("Older notes live in their rooms — or find any of them in Find.")
+          .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
+          .padding(.top, 10)
+      }
     }
   }
 
-  private var studioBar: some View {
-    HStack {
-      HStack(spacing: 6) {
-        Text("STUDIO")
-          .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
-        Text(store.vaultName)
-          .font(StudioFont.control).foregroundStyle(theme.inkMuted)
-      }
-      Spacer()
-      Button {
-        activeSheet = .search
-      } label: {
-        Image(systemName: "magnifyingglass").font(StudioFont.control)
-      }
-      .foregroundStyle(theme.link)
-      .accessibilityIdentifier("search-button")
-      .accessibilityLabel("Search")
-      Button {
-        activeSheet = .settings
-      } label: {
-        Image(systemName: "gearshape").font(StudioFont.control)
-      }
-      .foregroundStyle(theme.link)
-      .accessibilityIdentifier("settings-button")
-      .accessibilityLabel("Settings")
-      Button("Choose folder…") { picking = true }
-        .font(StudioFont.control)
-        .foregroundStyle(theme.link)
-    }
-    .padding(.bottom, 4)
-    .overlay(alignment: .bottom) { Divider().overlay(theme.line) }
-  }
 }
 
 // A note as it appears in a list: a meaning-coloured mark, title, and snippet.
@@ -427,7 +635,9 @@ private struct RoomView: View {
   let onCapture: () -> Void
   @State private var filing: NoteSummary?
 
-  private var notes: [NoteSummary] { store.liveNotes.filter { $0.rooms.contains(room.id) } }
+  private var notes: [NoteSummary] {
+    store.liveNotes.filter { room.matches(rooms: $0.rooms, status: $0.status) }
+  }
 
   var body: some View {
     List {
@@ -478,7 +688,7 @@ private struct RoomView: View {
   }
 }
 
-private func meaningColour(_ meaning: String, theme: StudioTheme) -> Color {
+func meaningColour(_ meaning: String, theme: StudioTheme) -> Color {
   switch meaning {
   case "foundation", "foundations": return theme.foundation
   case "vision": return theme.vision
@@ -489,7 +699,7 @@ private func meaningColour(_ meaning: String, theme: StudioTheme) -> Color {
   }
 }
 
-private struct RoomHeading: View {
+struct RoomHeading: View {
   @Environment(\.studioTheme) private var theme
   let eyebrow: String
   let title: String
@@ -498,8 +708,8 @@ private struct RoomHeading: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       Text(eyebrow)
-        .font(StudioFont.greeting)
-        .foregroundStyle(theme.vision)
+        .font(StudioFont.displayItalic(19))
+        .foregroundStyle(theme.script)
       Text(title)
         .font(StudioFont.roomTitle)
         .tracking(-0.5)
@@ -512,6 +722,36 @@ private struct RoomHeading: View {
   }
 }
 
+// A circular profile picture (from the vault), or a calm placeholder when none is set.
+// Shown on the Foyer beside the greeting and in Settings' Profile section.
+struct ProfileAvatar: View {
+  @Environment(\.studioTheme) private var theme
+  let store: VaultStore
+  var size: CGFloat = 48
+  @State private var image: UIImage?
+
+  var body: some View {
+    Group {
+      if let image {
+        Image(uiImage: image).resizable().scaledToFill()
+      } else {
+        theme.sunken
+          .overlay(
+            Image(systemName: "person.crop.circle")
+              .font(.system(size: size * 0.5))
+              .foregroundStyle(theme.inkFaint))
+      }
+    }
+    .frame(width: size, height: size)
+    .clipShape(Circle())
+    .overlay(Circle().stroke(theme.line, lineWidth: 1))
+    .accessibilityIdentifier("profile-avatar")
+    .task(id: store.profileChangeStamp) {
+      image = store.profileAvatar().flatMap(UIImage.init)
+    }
+  }
+}
+
 // The note composer, shared by capture (a new note) and edit (an existing one):
 // an optional title and the note body. The confirm button calls `onSave` and
 // dismisses only when it returns true, so a write conflict or empty note keeps the
@@ -520,21 +760,39 @@ private struct NoteEditorSheet: View {
   @Environment(\.studioTheme) private var theme
   let heading: String
   let confirmLabel: String
-  let onSave: (_ title: String, _ body: String) -> Bool
+  let showsExtras: Bool  // tags + a cover photo (the Journal capture); off for moon/reflect
+  let onSave: (_ title: String, _ body: String, _ tags: [String], _ coverData: Data?) -> Bool
   let onClose: () -> Void
   @State private var noteTitle: String
   @State private var noteText: String
+  @State private var tagsText = ""
+  @State private var coverItem: PhotosPickerItem?
+  @State private var coverData: Data?
+  @State private var coverImage: UIImage?
 
   init(
     heading: String, confirmLabel: String, initialTitle: String, initialBody: String,
-    onSave: @escaping (_ title: String, _ body: String) -> Bool, onClose: @escaping () -> Void
+    showsExtras: Bool = false,
+    onSave: @escaping (_ title: String, _ body: String, _ tags: [String], _ coverData: Data?) ->
+      Bool, onClose: @escaping () -> Void
   ) {
     self.heading = heading
     self.confirmLabel = confirmLabel
+    self.showsExtras = showsExtras
     self.onSave = onSave
     self.onClose = onClose
     _noteTitle = State(initialValue: initialTitle)
     _noteText = State(initialValue: initialBody)
+  }
+
+  // Comma-separated tags → a clean, de-duped list.
+  private var parsedTags: [String] {
+    var seen = Set<String>()
+    return tagsText.split(separator: ",").compactMap {
+      let t = $0.trimmingCharacters(in: .whitespaces)
+      guard !t.isEmpty, seen.insert(t.lowercased()).inserted else { return nil }
+      return t
+    }
   }
 
   private var canConfirm: Bool {
@@ -579,6 +837,7 @@ private struct NoteEditorSheet: View {
                 .accessibilityIdentifier("note-body-editor")
             }
           }
+          if showsExtras { extrasSection }
           Text("Notice what is changing. Fifteen minutes still counts.")
             .font(StudioFont.meta)
             .foregroundStyle(theme.inkFaint)
@@ -586,6 +845,7 @@ private struct NoteEditorSheet: View {
         .padding(24)
       }
       .background(theme.canvas)
+      .onChange(of: coverItem) { importCover() }
       .toolbar {
         // A styled principal title instead of `.navigationTitle`, so the heading
         // is always high-contrast ink rather than a faint system default.
@@ -599,11 +859,53 @@ private struct NoteEditorSheet: View {
         }
         ToolbarItem(placement: .confirmationAction) {
           Button(confirmLabel) {
-            if onSave(noteTitle, noteText) { onClose() }
+            if onSave(noteTitle, noteText, parsedTags, coverData) { onClose() }
           }
           .disabled(!canConfirm)
           .accessibilityIdentifier("note-save-button")
         }
+      }
+    }
+  }
+
+  // Tags + an optional cover photo, for a richer Journal entry at capture time.
+  private var extrasSection: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      Divider().overlay(theme.line)
+      VStack(alignment: .leading, spacing: 6) {
+        fieldLabel("Tags")
+        TextField("Comma-separated (e.g. gratitude, nature)", text: $tagsText)
+          .font(StudioFont.pageSubtitle)
+          .foregroundStyle(theme.inkStrong)
+          .autocorrectionDisabled()
+          .textInputAutocapitalization(.never)
+          .accessibilityIdentifier("note-tags-field")
+      }
+      VStack(alignment: .leading, spacing: 8) {
+        fieldLabel("Cover")
+        if let coverImage {
+          Image(uiImage: coverImage)
+            .resizable().scaledToFill()
+            .frame(maxWidth: .infinity).frame(height: 140)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .accessibilityIdentifier("note-cover-image")
+        }
+        PhotosPicker(selection: $coverItem, matching: .images) {
+          Label(coverData == nil ? "Add a cover image" : "Change cover image", systemImage: "photo")
+            .font(StudioFont.control).foregroundStyle(theme.link)
+        }
+        .accessibilityIdentifier("note-cover-picker")
+      }
+    }
+  }
+
+  private func importCover() {
+    guard let coverItem else { return }
+    Task {
+      guard let data = try? await coverItem.loadTransferable(type: Data.self) else { return }
+      await MainActor.run {
+        coverData = data
+        coverImage = UIImage(data: data)
       }
     }
   }
@@ -974,11 +1276,41 @@ private struct SettingsView: View {
   let store: VaultStore
   let onClose: () -> Void
   let onReplayTour: () -> Void
+  let onChangeFolder: () -> Void
+  @State private var profileName: String = ""
+  @State private var avatarItem: PhotosPickerItem?
+
+  private func commitName() {
+    if profileName != (store.profileName ?? "") { _ = store.setProfileName(profileName) }
+  }
 
   var body: some View {
     NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: 0) {
+          Text("PROFILE")
+            .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
+            .padding(.bottom, 12)
+          HStack(spacing: 14) {
+            ProfileAvatar(store: store, size: 60)
+            VStack(alignment: .leading, spacing: 4) {
+              TextField("Your name", text: $profileName)
+                .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
+                .textInputAutocapitalization(.words)
+                .submitLabel(.done)
+                .onSubmit(commitName)
+                .accessibilityIdentifier("profile-name-field")
+              PhotosPicker(selection: $avatarItem, matching: .images) {
+                Text(store.profileAvatar() == nil ? "Add a photo" : "Change photo")
+                  .font(StudioFont.meta).foregroundStyle(theme.link)
+              }
+              .accessibilityIdentifier("profile-photo-picker")
+            }
+            Spacer(minLength: 0)
+          }
+          .padding(.vertical, 6)
+          Divider().overlay(theme.line)
+
           Button {
             onReplayTour()
           } label: {
@@ -990,6 +1322,26 @@ private struct SettingsView: View {
             .padding(.vertical, 14)
           }
           .accessibilityIdentifier("take-tour-button")
+          Divider().overlay(theme.line)
+
+          Text("STUDIO")
+            .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
+            .padding(.top, 24).padding(.bottom, 8)
+          Button {
+            onChangeFolder()
+          } label: {
+            HStack {
+              VStack(alignment: .leading, spacing: 2) {
+                Text(store.vaultName.isEmpty ? "No folder chosen" : store.vaultName)
+                  .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
+                Text("Choose folder…").font(StudioFont.meta).foregroundStyle(theme.link)
+              }
+              Spacer()
+              Image(systemName: "folder").font(.system(size: 12)).foregroundStyle(theme.inkFaint)
+            }
+            .padding(.vertical, 14)
+          }
+          .accessibilityIdentifier("change-folder-button")
           Divider().overlay(theme.line)
 
           Text("ROOMS")
@@ -1131,12 +1483,24 @@ private struct SettingsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
       }
       .background(theme.canvas)
+      .onAppear { profileName = store.profileName ?? "" }
+      .onChange(of: avatarItem) { _, item in
+        guard let item else { return }
+        Task {
+          if let data = try? await item.loadTransferable(type: Data.self) {
+            _ = store.setProfileAvatar(data: data)
+          }
+        }
+      }
       .toolbar {
         ToolbarItem(placement: .principal) {
           Text("Settings").font(StudioFont.control).foregroundStyle(theme.inkStrong)
         }
         ToolbarItem(placement: .confirmationAction) {
-          Button("Done") { onClose() }
+          Button("Done") {
+            commitName()
+            onClose()
+          }
         }
       }
     }

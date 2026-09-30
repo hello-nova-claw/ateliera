@@ -71,10 +71,16 @@ final class InvitationTests: XCTestCase {
   }
 
   func testInboxWaitingIsAGentleFallback() {
-    // A quiet sky day (north, 2026-08-05) with a note resting in the Inbox.
+    // A quiet sky day (north, 2026-08-05) with an unfiled draft resting in the Inbox.
     let waiting = note(cardType: "capture", status: "draft", rooms: ["inbox"])
     let inv = InvitationEngine.current(ctx("2026-08-05", notes: [waiting]))
     XCTAssertEqual(inv?.kind, .inboxWaiting)
+  }
+
+  func testInboxWaitingIgnoresKeptJournalEntries() {
+    // A kept (active) entry has already found its place in the Journal — no nag.
+    let kept = note(cardType: "capture", status: "active", rooms: ["inbox"])
+    XCTAssertNil(InvitationEngine.current(ctx("2026-08-05", notes: [kept])))
   }
 
   func testSynthesizeWhenAThemeHasEnoughIdeas() {

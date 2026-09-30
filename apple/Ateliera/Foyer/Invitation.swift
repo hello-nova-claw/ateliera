@@ -167,13 +167,15 @@ enum InvitationEngine {
   }
 
   private static func inboxWaiting(_ ctx: InvitationContext) -> Invitation? {
-    let waiting = ctx.notes.filter { $0.rooms.contains("inbox") && $0.status != "trashed" }
+    // Only unfiled quick captures (drafts in the Inbox) — kept Journal entries have
+    // already found their place and shouldn't be counted.
+    let waiting = ctx.notes.filter { $0.rooms.contains("inbox") && $0.status == "draft" }
     guard !waiting.isEmpty else { return nil }
     let count = waiting.count
     return Invitation(
-      id: "inbox:\(week(ctx.date))", kind: .inboxWaiting, title: "Notes are waiting",
+      id: "inbox:\(week(ctx.date))", kind: .inboxWaiting, title: "Notes to sort",
       body:
-        "\(count) note\(count == 1 ? "" : "s") \(count == 1 ? "is" : "are") resting in the Inbox — find \(count == 1 ? "it" : "them") a home?",
+        "\(count) note\(count == 1 ? "" : "s") \(count == 1 ? "is" : "are") waiting in the Inbox — sort \(count == 1 ? "it" : "them") into place?",
       acceptLabel: "Open the Inbox")
   }
 

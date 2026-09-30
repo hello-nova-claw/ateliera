@@ -25,10 +25,7 @@ struct TodaysGiftView: View {
         cardBody(title: title, excerpt: excerpt)
       }
     }
-    .padding(18)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(RoundedRectangle(cornerRadius: 12).fill(theme.surface))
-    .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(theme.line, lineWidth: 1))
+    .studioCard()
   }
 
   private func cardBody(title: String, excerpt: String) -> some View {

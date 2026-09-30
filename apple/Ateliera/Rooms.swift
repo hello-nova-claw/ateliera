@@ -4,16 +4,49 @@ import Foundation
 // Foyer (the home screen) isn't in this list — it's the orientation surface and
 // the way into these rooms.
 struct Room: Identifiable, Hashable {
-  let id: String  // the room key stored in a note's `rooms`
+  // Most rooms are simply "everything in this vault room". The Inbox and the Journal
+  // are two views onto the *same* vault room (`inbox`), split by status: unfiled
+  // drafts triage in the Inbox, kept entries live in the Journal. This keeps the
+  // vault format one room key (compatible with the web app) while giving the two
+  // distinct surfaces.
+  enum StatusScope { case any, draft, active }
+
+  let id: String  // the room's UI identity (route + visibility key)
   let title: String
   let eyebrow: String
   let intro: String
+  let vaultKey: String  // the room key stored in a note's `rooms`
+  let statusScope: StatusScope
+
+  init(
+    id: String, title: String, eyebrow: String, intro: String,
+    vaultKey: String? = nil, statusScope: StatusScope = .any
+  ) {
+    self.id = id
+    self.title = title
+    self.eyebrow = eyebrow
+    self.intro = intro
+    self.vaultKey = vaultKey ?? id
+    self.statusScope = statusScope
+  }
+
+  /// Whether a note belongs to this room's view: it lists the room's vault key and,
+  /// for the Inbox/Journal split, its status matches the scope. `active` means "kept"
+  /// — anything that isn't still a draft.
+  func matches(rooms: [String], status: String) -> Bool {
+    guard rooms.contains(vaultKey) else { return false }
+    switch statusScope {
+    case .any: return true
+    case .draft: return status == "draft"
+    case .active: return status != "draft"
+    }
+  }
 
   /// The vault folder a capture for `roomKey` is written into (the room's title,
-  /// or "Inbox" for anything unrecognised). The web app reads notes by their
+  /// or the Journal for anything unrecognised). The web app reads notes by their
   /// `rooms` frontmatter regardless of folder; this just keeps paths readable.
   static func folderName(for roomKey: String) -> String {
-    all.first { $0.id == roomKey }?.title ?? "Inbox"
+    all.first { $0.vaultKey == roomKey }?.title ?? "Journal"
   }
 
   static let all: [Room] = [
@@ -21,10 +54,20 @@ struct Room: Identifiable, Hashable {
       id: "reflection-garden", title: "Reflection Garden",
       eyebrow: "notice what is changing",
       intro: "Gather what you're learning and celebrating, so the Studio remembers with you."),
+    // The Inbox and the Journal are two views onto the same `inbox` vault room. Quick
+    // capture lands here as a draft (the Inbox); keeping or filing a note promotes it
+    // (out of the Inbox, into the Journal or another room). The room key stays `inbox`
+    // so notes written by earlier versions (and by the web app) still belong here.
     Room(
       id: "inbox", title: "Inbox",
-      eyebrow: "caught, not yet placed",
-      intro: "Quick captures, waiting here until they find their room."),
+      eyebrow: "to sort",
+      intro: "Quick captures waiting to find their place.",
+      vaultKey: "inbox", statusScope: .draft),
+    Room(
+      id: "journal", title: "Journal",
+      eyebrow: "thoughts & observations",
+      intro: "Dated entries — the small moments, caught as they happen.",
+      vaultKey: "inbox", statusScope: .active),
     Room(
       id: "wisdom-garden", title: "Wisdom Garden",
       eyebrow: "what you want to keep",
