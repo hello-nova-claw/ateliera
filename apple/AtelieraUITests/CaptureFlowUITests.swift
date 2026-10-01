@@ -331,6 +331,29 @@ final class CaptureFlowUITests: XCTestCase {
       app.staticTexts["almanac-other-season"].label.contains("astronomical calendar"))
   }
 
+  func testPersonalisedMicroSeasonShowsAndTogglesOff() {
+    // ATELIERA_UITEST_AI seeds a home place + a deterministic fake personalizer, so the
+    // personalised path is exercisable without the real on-device model.
+    let app = launchWith(["ATELIERA_UITEST_AI": "1"])
+    // The Today almanac shows the fake personalised micro-season + its "for <place>" caption.
+    XCTAssertTrue(app.staticTexts["Local turning"].waitForExistence(timeout: 10))
+    XCTAssertTrue(app.staticTexts["almanac-personalized"].firstMatch.exists)
+
+    // Turn personalisation off in Settings → it reverts to the deterministic micro-season.
+    app.buttons["settings-button"].tap()
+    let toggle = app.switches["rhythm-toggle-Personalize"]
+    var tries = 0
+    while !toggle.exists && tries < 6 {
+      app.swipeUp()
+      tries += 1
+    }
+    XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+    toggle.tap()
+    app.buttons["Done"].tap()
+    XCTAssertFalse(app.staticTexts["almanac-personalized"].waitForExistence(timeout: 3))
+    XCTAssertFalse(app.staticTexts["Local turning"].exists)
+  }
+
   func testSeasonRoomShowsComputedSeasonAndAcceptsAnIntention() {
     let app = launchEmptyApp()
     let room = roomButton("current-season", in: app)

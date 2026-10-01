@@ -11,7 +11,13 @@ struct AlmanacView: View {
   var hemisphere: Hemisphere = .north
   var seasonStyle: SeasonStyle = .astronomical
   var mode: Mode = .summary
+  // When the on-device model has personalised today's micro-season, show it in place of the
+  // deterministic one, with a quiet "for <place>" caption. Absent → the deterministic term.
+  var personalizedMicroSeason: MicroSeason? = nil
+  var personalizedPlace: String? = nil
   @Environment(\.studioTheme) private var theme
+
+  private var shownMicroSeason: MicroSeason { personalizedMicroSeason ?? context.microSeason }
 
   enum Mode { case summary, detail }
 
@@ -93,13 +99,18 @@ struct AlmanacView: View {
       Text("Today's rhythm")
         .font(StudioFont.eyebrow).tracking(1.6)
         .foregroundStyle(theme.inkFaint)
-      Text(context.microSeason.term)
+      Text(shownMicroSeason.term)
         .font(StudioFont.section)
         .foregroundStyle(theme.inkStrong)
-      Text(context.microSeason.gloss)
+      Text(shownMicroSeason.gloss)
         .font(StudioFont.quote)
         .foregroundStyle(theme.inkMuted)
         .fixedSize(horizontal: false, vertical: true)
+      if let place = personalizedPlace {
+        Text("✦ for \(place)")
+          .font(StudioFont.eyebrow).tracking(1.0).foregroundStyle(theme.inkFaint)
+          .accessibilityIdentifier("almanac-personalized")
+      }
       HStack(spacing: 12) {
         ZStack {
           Circle().strokeBorder(theme.lineStrong, lineWidth: 1).frame(width: 34, height: 34)

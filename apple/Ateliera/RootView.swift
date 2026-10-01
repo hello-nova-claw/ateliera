@@ -19,6 +19,17 @@ struct RootView: View {
     let vault = VaultStore()
     _store = State(initialValue: vault)
     _giftStore = State(initialValue: GiftStore(store: vault))
+    _microSeasons = State(
+      initialValue: MicroSeasonStore(store: vault, personalizer: Self.makePersonalizer()))
+  }
+
+  // The production personalizer is the on-device model; UI tests inject a deterministic fake
+  // so the personalised path is exercisable without the real model.
+  private static func makePersonalizer() -> MicroSeasonPersonalizer {
+    if ProcessInfo.processInfo.environment["ATELIERA_UITEST_AI"] == "1" {
+      return FakeMicroSeasonPersonalizer()
+    }
+    return FoundationModelsPersonalizer()
   }
 
   @State private var activeSheet: ActiveSheet?
@@ -27,6 +38,8 @@ struct RootView: View {
   @State private var location = LocationHemisphere()
   @State private var hemisphere: Hemisphere = SharedStore.bestHemisphere
   @State private var profileStore = RhythmProfileStore()
+  @State private var homePlace = HomePlaceStore()  // where you live, for climate personalisation
+  @State private var microSeasons: MicroSeasonStore  // the on-device personalised micro-season
   @State private var showToday = false  // the atmosphere panel starts tucked away
   @State private var navigateRoute: RoomRoute?  // an accepted invitation that opens a room
   @State private var pendingSeed: WorkshopSeed?  // set on capture; becomes the offer once the sheet closes
@@ -94,6 +107,14 @@ struct RootView: View {
       profile: RhythmProfile(hemisphere: hemisphere, cycle: cycle), date: today)
   }
 
+  // Recompute today's personalised micro-season (served from cache or generated once per
+  // window when the on-device model is available and enabled; deterministic otherwise).
+  private func refreshMicroSeason() async {
+    await microSeasons.refresh(
+      context: almanacContext, home: homePlace.place,
+      enabled: store.preferences.rhythm.resolvedPersonalizeMicroSeasons)
+  }
+
   // The single, contextual invitation to offer beside the Gift (or none).
   private var currentInvitation: Invitation? {
     InvitationEngine.current(
@@ -149,12 +170,20 @@ struct RootView: View {
       // picker rather than an empty Foyer. (In the simulator a demo vault is seeded,
       // so this only fires on a real, un-onboarded device.)
       if !store.hasVault { picking = true }
-      // Resolve hemisphere from location first, then the cycle from HealthKit —
-      // sequentially so the two permission prompts don't stack. Both refine the
-      // almanac and both degrade quietly when unavailable.
-      if let resolved = await location.resolve() { hemisphere = resolved }
+      // Resolve the home place (hemisphere + a reverse-geocoded place for climate) first,
+      // then the cycle from HealthKit — sequentially so the permission prompts don't stack.
+      // Both refine the almanac and both degrade quietly when unavailable.
+      if let resolved = await location.resolveHome() {
+        hemisphere = resolved.latitude >= 0 ? .north : .south
+        if homePlace.place == nil { homePlace.set(resolved) }  // seed once; Settings can override
+      }
       cycle = await health.loadCycle()
       giftStore.refresh(ctx: almanacContext, today: almanacContext.date)
+      // UI tests can't reach Location, so seed a home place to exercise the personalised path.
+      if ProcessInfo.processInfo.environment["ATELIERA_UITEST_AI"] == "1", homePlace.place == nil {
+        homePlace.set(ResolvedPlace(name: "Testville", latitude: -37.8, longitude: 144.9, timeZoneId: nil))
+      }
+      await refreshMicroSeason()
       if store.seededNewStudio, !OnboardingStore().hasSeenTour(studioId: store.studioId),
         activeSheet == nil
       {
@@ -163,6 +192,13 @@ struct RootView: View {
     }
     .onChange(of: almanacContext.date) {
       giftStore.refresh(ctx: almanacContext, today: almanacContext.date)
+      Task { await refreshMicroSeason() }
+    }
+    .onChange(of: store.preferences.rhythm.personalizeMicroSeasons) {
+      Task { await refreshMicroSeason() }
+    }
+    .onChange(of: homePlace.place) {
+      Task { await refreshMicroSeason() }
     }
     .sheet(item: $workshopSeed) { seed in
       WorkshopView(
@@ -231,7 +267,8 @@ struct RootView: View {
           onClose: { activeSheet = nil })
       case .settings:
         SettingsView(
-          themeStore: themeStore, store: store, onClose: { activeSheet = nil },
+          themeStore: themeStore, store: store, homePlace: homePlace, location: location,
+          onClose: { activeSheet = nil },
           onReplayTour: { activeSheet = .tour },
           onChangeFolder: { activeSheet = nil; picking = true }
         )
@@ -351,7 +388,9 @@ struct RootView: View {
     if Preferences.isFoyerSectionVisible("almanac", store.preferences) {
       AlmanacView(
         context: almanacContext, hemisphere: hemisphere,
-        seasonStyle: store.preferences.rhythm.resolvedSeasonStyle)
+        seasonStyle: store.preferences.rhythm.resolvedSeasonStyle,
+        personalizedMicroSeason: microSeasons.personalized,
+        personalizedPlace: microSeasons.personalizedPlace)
         .studioCard()
     }
   }
@@ -503,7 +542,9 @@ struct RootView: View {
         if Preferences.isFoyerSectionVisible("almanac", store.preferences) {
           AlmanacView(
             context: almanacContext, hemisphere: hemisphere,
-            seasonStyle: store.preferences.rhythm.resolvedSeasonStyle, mode: .detail)
+            seasonStyle: store.preferences.rhythm.resolvedSeasonStyle, mode: .detail,
+            personalizedMicroSeason: microSeasons.personalized,
+            personalizedPlace: microSeasons.personalizedPlace)
         }
         FoyerRichView(store: store, onOpen: openPath)
         Button {
@@ -575,7 +616,9 @@ struct RootView: View {
     case "current-season":
       SeasonView(
         store: store, hemisphere: hemisphere,
-        seasonStyle: store.preferences.rhythm.resolvedSeasonStyle, onOpen: openPath)
+        seasonStyle: store.preferences.rhythm.resolvedSeasonStyle,
+        personalizedMicroSeason: microSeasons.personalized,
+        personalizedPlace: microSeasons.personalizedPlace, onOpen: openPath)
     default:
       RoomView(
         room: room, store: store, onOpen: openEdit,
@@ -1291,11 +1334,14 @@ private struct SettingsView: View {
   @Environment(\.studioTheme) private var theme
   let themeStore: ThemeStore
   let store: VaultStore
+  let homePlace: HomePlaceStore
+  let location: LocationHemisphere
   let onClose: () -> Void
   let onReplayTour: () -> Void
   let onChangeFolder: () -> Void
   @State private var profileName: String = ""
   @State private var avatarItem: PhotosPickerItem?
+  @State private var locatingHome = false
 
   private func commitName() {
     if profileName != (store.profileName ?? "") { _ = store.setProfileName(profileName) }
@@ -1418,6 +1464,8 @@ private struct SettingsView: View {
             .accessibilityIdentifier("season-style-picker")
           }
           .padding(.vertical, 8)
+          personalizeMicroSeasonsRow
+          homePlaceRow
 
           Text("THEME")
             .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
@@ -1521,6 +1569,47 @@ private struct SettingsView: View {
         }
       }
     }
+  }
+
+  // Personalise the micro-season with the on-device model (private; nothing leaves the phone).
+  private var personalizeMicroSeasonsRow: some View {
+    Toggle(
+      "Personalise micro-seasons · on-device",
+      isOn: Binding(
+        get: { store.preferences.rhythm.resolvedPersonalizeMicroSeasons },
+        set: { store.setPersonalizeMicroSeasons($0) })
+    )
+    .font(StudioFont.body).foregroundStyle(theme.inkStrong)
+    .padding(.vertical, 8)
+    .accessibilityIdentifier("rhythm-toggle-Personalize")
+  }
+
+  // Where you live now — used only to colour the personalised micro-season by local climate.
+  private var homePlaceRow: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      Text("Home").font(StudioFont.body).foregroundStyle(theme.inkStrong)
+      Text(homePlace.place?.name ?? "Not set — uses your region")
+        .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
+        .accessibilityIdentifier("home-place-name")
+      HStack(spacing: 16) {
+        Button(locatingHome ? "Locating…" : "Use my location") {
+          locatingHome = true
+          Task {
+            if let resolved = await location.resolveHome() { homePlace.set(resolved) }
+            locatingHome = false
+          }
+        }
+        .font(StudioFont.control).foregroundStyle(theme.link)
+        .disabled(locatingHome)
+        .accessibilityIdentifier("home-place-locate")
+        if homePlace.place != nil {
+          Button("Clear") { homePlace.clear() }
+            .font(StudioFont.control).foregroundStyle(theme.inkMuted)
+            .accessibilityIdentifier("home-place-clear")
+        }
+      }
+    }
+    .padding(.vertical, 8)
   }
 
   private func rhythmToggle(
