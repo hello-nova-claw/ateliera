@@ -16,8 +16,12 @@ struct StoredStudioPreferences: Codable, Equatable {
     // Optional so preferences saved before this existed still decode. Unset resolves to
     // astronomical — the season grounded in the sky (equinoxes/solstices).
     var seasonStyle: SeasonStyle?
+    // Personalise the micro-season with the on-device model when available. Optional so
+    // older preferences decode; unset resolves to on (it's private and on-device).
+    var personalizeMicroSeasons: Bool?
 
     var resolvedSeasonStyle: SeasonStyle { seasonStyle ?? .astronomical }
+    var resolvedPersonalizeMicroSeasons: Bool { personalizeMicroSeasons ?? true }
   }
 
   // Seeded for a brand-new Studio: hide the optional rooms, and every Foyer section

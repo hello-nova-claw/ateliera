@@ -45,6 +45,17 @@ final class LocationHemisphere: NSObject, CLLocationManagerDelegate {
     return hemisphere
   }
 
+  /// One-shot device location resolved to a reverse-geocoded place (name + lat/lon/zone),
+  /// persisting the hemisphere along the way. Seeds the home place used to personalise the
+  /// micro-season to your local climate — same permission, no extra prompt. Nil when
+  /// Location is unavailable/declined, so the almanac quietly stays deterministic.
+  func resolveHome() async -> ResolvedPlace? {
+    guard let coordinate = await resolveCoordinate() else { return nil }
+    SharedStore.hemisphere = coordinate.latitude >= 0 ? .north : .south
+    return await PlaceGeocoder.reverse(
+      latitude: coordinate.latitude, longitude: coordinate.longitude)
+  }
+
   private func finish(_ coordinate: CLLocationCoordinate2D?) {
     continuation?.resume(returning: coordinate)
     continuation = nil

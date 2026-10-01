@@ -10,6 +10,8 @@ struct SeasonView: View {
   let store: VaultStore
   var hemisphere: Hemisphere = .north
   var seasonStyle: SeasonStyle = .astronomical
+  var personalizedMicroSeason: MicroSeason? = nil
+  var personalizedPlace: String? = nil
   let onOpen: (String) -> Void
 
   @State private var season: SeasonStore
@@ -19,14 +21,19 @@ struct SeasonView: View {
 
   init(
     store: VaultStore, hemisphere: Hemisphere = .north, seasonStyle: SeasonStyle = .astronomical,
+    personalizedMicroSeason: MicroSeason? = nil, personalizedPlace: String? = nil,
     onOpen: @escaping (String) -> Void
   ) {
     self.store = store
     self.hemisphere = hemisphere
     self.seasonStyle = seasonStyle
+    self.personalizedMicroSeason = personalizedMicroSeason
+    self.personalizedPlace = personalizedPlace
     self.onOpen = onOpen
     _season = State(initialValue: SeasonStore(store: store))
   }
+
+  private var shownMicroSeason: MicroSeason { personalizedMicroSeason ?? context.microSeason }
 
   private static let isoDay: DateFormatter = {
     let f = DateFormatter()
@@ -103,10 +110,15 @@ struct SeasonView: View {
         .font(StudioFont.roomTitle).tracking(-0.5).foregroundStyle(theme.inkStrong)
         .accessibilityIdentifier("season-computed-title")
       VStack(alignment: .leading, spacing: 6) {
-        Text(context.microSeason.term).font(StudioFont.section).foregroundStyle(theme.inkStrong)
-        Text(context.microSeason.gloss)
+        Text(shownMicroSeason.term).font(StudioFont.section).foregroundStyle(theme.inkStrong)
+        Text(shownMicroSeason.gloss)
           .font(StudioFont.quote).foregroundStyle(theme.inkMuted)
           .fixedSize(horizontal: false, vertical: true)
+        if let place = personalizedPlace {
+          Text("✦ for \(place)")
+            .font(StudioFont.eyebrow).tracking(1.0).foregroundStyle(theme.inkFaint)
+            .accessibilityIdentifier("season-personalized")
+        }
       }
       Text("\(context.lunarSeason.label) · \(lunarPct)% through the lunar month")
         .font(StudioFont.meta).foregroundStyle(theme.inkMuted)

@@ -405,6 +405,11 @@ final class VaultStore {
     preferencesStore.save(preferences, studioId: studioId)
   }
 
+  func setPersonalizeMicroSeasons(_ on: Bool) {
+    preferences.rhythm.personalizeMicroSeasons = on
+    preferencesStore.save(preferences, studioId: studioId)
+  }
+
   #if DEBUG
     /// Test hook: open a vault directly at a path, skipping the security-scoped
     /// bookmark persistence used by the real `.fileImporter` flow.
