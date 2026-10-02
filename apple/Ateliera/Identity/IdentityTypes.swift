@@ -105,6 +105,8 @@ struct IdentityCardModel: Identifiable, Equatable {
   let hash: String
   let created: String
   let evidence: [IdentityEvidenceModel]
+  // When false, `title` is the body's first line — showing the excerpt would repeat it.
+  var hasExplicitTitle: Bool = false
 }
 
 // The one rule for "is this note a becoming": a Life-planning identity statement pinned
@@ -124,6 +126,8 @@ struct BecomingModel: Identifiable, Equatable {
   let excerpt: String
   let lifeAreaId: String?
   let created: String
+  // When false, `title` is the body's first line — a becoming is one short text.
+  var hasExplicitTitle: Bool = false
 }
 
 // A retired becoming: archived, with the reason it was set down so the history reads

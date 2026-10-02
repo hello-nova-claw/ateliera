@@ -81,7 +81,7 @@ struct IdentityRoomView: View {
       Text("CURRENTLY BECOMING")
         .font(StudioFont.eyebrow).tracking(1.4).foregroundStyle(theme.vision)
       Text(card.title).font(StudioFont.section).foregroundStyle(theme.inkStrong)
-      if !card.excerpt.isEmpty {
+      if card.hasExplicitTitle, !card.excerpt.isEmpty {
         Text(card.excerpt).font(StudioFont.pageSubtitle).foregroundStyle(theme.inkMuted)
           .fixedSize(horizontal: false, vertical: true)
       }
@@ -227,7 +227,7 @@ struct IdentityRoomView: View {
         Button { onOpen(card.path) } label: {
           VStack(alignment: .leading, spacing: 3) {
             Text(card.title).font(StudioFont.body).foregroundStyle(theme.inkStrong)
-            if !card.excerpt.isEmpty {
+            if card.hasExplicitTitle, !card.excerpt.isEmpty {
               Text(card.excerpt).font(StudioFont.meta).foregroundStyle(theme.inkMuted)
                 .lineLimit(2).fixedSize(horizontal: false, vertical: true)
             }

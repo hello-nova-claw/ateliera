@@ -9,7 +9,9 @@ import SwiftUI
 // without a view. A becoming hero carries the statement, an optional excerpt, and the
 // note path to open; otherwise it invites you to begin one.
 enum FoyerHeroModel: Equatable {
-  case becoming(statement: String, excerpt: String, path: String)
+  // `hasExplicitTitle` false means the statement IS the note's text (not a separate
+  // title), so the excerpt would just repeat it and is dropped.
+  case becoming(statement: String, excerpt: String, path: String, hasExplicitTitle: Bool)
   case invite
 
   init(_ board: IdentityBoardModel) {
@@ -19,13 +21,17 @@ enum FoyerHeroModel: Equatable {
     if let card = board.currentlyBecoming,
       !card.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     {
-      self = .becoming(statement: card.title, excerpt: card.excerpt, path: card.path)
+      self = .becoming(
+        statement: card.title, excerpt: card.excerpt, path: card.path,
+        hasExplicitTitle: card.hasExplicitTitle)
       return
     }
     if let first = board.activeBecomings.first(where: {
       !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }) {
-      self = .becoming(statement: first.title, excerpt: first.excerpt, path: first.path)
+      self = .becoming(
+        statement: first.title, excerpt: first.excerpt, path: first.path,
+        hasExplicitTitle: first.hasExplicitTitle)
       return
     }
     self = .invite
@@ -52,8 +58,9 @@ struct FoyerHero: View {
     VStack(alignment: .leading, spacing: 18) {
       wordmarkRail
       switch model {
-      case .becoming(let statement, let excerpt, let path):
-        becomingHero(statement: statement, excerpt: excerpt, path: path)
+      case .becoming(let statement, let excerpt, let path, let hasExplicitTitle):
+        becomingHero(
+          statement: statement, excerpt: hasExplicitTitle ? excerpt : "", path: path)
       case .invite:
         inviteHero
       }
@@ -105,7 +112,9 @@ struct FoyerHero: View {
     }
     .buttonStyle(.plain)
     .accessibilityElement(children: .ignore)
-    .accessibilityLabel("You are becoming \(statement). \(excerpt)")
+    .accessibilityLabel(
+      excerpt.isEmpty
+        ? "You are becoming \(statement)." : "You are becoming \(statement). \(excerpt)")
     .accessibilityHint("Opens this becoming")
     .accessibilityIdentifier("foyer-hero-becoming")
   }

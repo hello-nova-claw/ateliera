@@ -22,6 +22,9 @@ struct NoteSummary: Identifiable {
   var landscapeAnchor: String? = nil
   var featured: Bool = false
   var cover: String? = nil  // vault-relative cover reference, for list thumbnails
+  // When false, `title` is derived from the note's text (not a separate title), so a
+  // row shows that single text once and drops the snippet rather than repeating it.
+  var hasExplicitTitle: Bool = false
 }
 
 // A note opened for editing: its path, the content hash it was read at (for
@@ -1137,17 +1140,26 @@ final class VaultStore {
 
   // Rich summary projection from a fully-parsed note.
   static func summary(from note: StudioNote, path: String) -> NoteSummary {
+    let firstLine =
+      note.body.components(separatedBy: "\n").first {
+        !$0.trimmingCharacters(in: .whitespaces).isEmpty
+      }?.trimmingCharacters(in: .whitespaces) ?? ""
+    let explicit = Projection.hasExplicitTitle(note)
+    // A note is one piece of text: with no explicit title the row's title is the body's
+    // first line and the snippet is dropped, so the text shows once. With an explicit
+    // title, keep both. Fall back to the file name only when there is no text at all.
     let fallbackTitle = (path as NSString).lastPathComponent.replacingOccurrences(
       of: ".md", with: "")
-    let snippet =
-      note.body.components(separatedBy: "\n").first { !$0.trimmingCharacters(in: .whitespaces).isEmpty
-      } ?? ""
+    let title =
+      explicit
+      ? (note.title ?? fallbackTitle)
+      : (firstLine.isEmpty ? fallbackTitle : firstLine)
     return NoteSummary(
-      id: path, noteId: note.id, title: note.title ?? fallbackTitle, snippet: snippet,
+      id: path, noteId: note.id, title: title, snippet: explicit ? firstLine : "",
       meaning: note.cardType, timestamp: note.updated.isEmpty ? note.created : note.updated,
       rooms: note.rooms, status: note.status, semanticType: note.semanticType, tags: note.tags,
       lifeAreas: note.lifeAreas, landscapeAnchor: note.landscapeAnchor,
-      featured: note.display.featured, cover: note.display.cover)
+      featured: note.display.featured, cover: note.display.cover, hasExplicitTitle: explicit)
   }
 
   // The note body (everything after the frontmatter), for full-text search.
