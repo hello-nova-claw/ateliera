@@ -1,4 +1,5 @@
 import type { StudioNote } from '@studio/domain';
+import { effectiveTitle } from '@studio/domain';
 
 import type {
   HighlightRange,
@@ -504,7 +505,7 @@ export class SqliteIndex implements IndexPort {
   private replace(note: StudioNote, path: string, hash: string, content: IndexedContent): void {
     this.database.prepare('DELETE FROM note_fts WHERE id = ?').run(note.id);
     this.database.prepare('DELETE FROM notes WHERE id = ?').run(note.id);
-    const title = note.title ?? '';
+    const title = effectiveTitle(note);
     const sourceText = [note.source?.title, note.source?.creator, note.source?.url].filter(Boolean).join(' ');
     this.database.prepare(`INSERT INTO notes(id,path,hash,title,body,note_json,card_type,semantic_type,status,created,updated,source_text) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
       .run(note.id, path, hash, title, content.searchText, JSON.stringify(note), note.cardType, note.semanticType, note.status, note.created, note.updated, sourceText);

@@ -64,6 +64,16 @@ describe('SQLite IndexPort', () => {
     expect((await index.forwardLinks(source.id)).every((link) => link.targetId === target.id)).toBe(true);
   });
 
+  it('resolves a wiki link by the effective title — a titleless note’s first line', async () => {
+    const target = note({ id: '01H00000000000000000000011', body: 'Calm morning\nand what followed' });
+    const source = note({ id: '01H00000000000000000000012', body: 'See [[Calm morning]].' });
+    await upsert(index, target, 'Foyer/calm.md', 'target');
+    await upsert(index, source, 'Reflection/source.md', 'source', [
+      { kind: 'wiki', target: 'Calm morning', label: 'calm' },
+    ]);
+    expect(await index.backlinks(target.id)).toEqual([source.id]);
+  });
+
   it('replaces paths without changing stable identity and removes all derived rows', async () => {
     const original = note();
     await upsert(index, original, 'Foyer/old.md', 'one');
