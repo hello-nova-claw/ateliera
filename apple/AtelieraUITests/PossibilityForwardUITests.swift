@@ -62,7 +62,7 @@ final class PossibilityForwardUITests: XCTestCase {
 
     // The first step is the 90-day decision, carrying the possibility forward.
     let far = app.staticTexts.containing(
-      NSPredicate(format: "label CONTAINS %@", "three months")).firstMatch
+      NSPredicate(format: "label CONTAINS[c] %@", "three months")).firstMatch
     XCTAssertTrue(far.waitForExistence(timeout: 5))
     XCTAssertTrue(far.label.contains("sabbatical"), "prompt was \(far.label)")
 
@@ -120,8 +120,11 @@ final class PossibilityForwardUITests: XCTestCase {
     let uncharted = app.buttons["room-uncharted"]
     XCTAssertTrue(uncharted.waitForExistence(timeout: 8))
     uncharted.tap()
-    XCTAssertTrue(
-      app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "learn to sail"))
-        .firstMatch.waitForExistence(timeout: 8))
+    // A titleless note shows its text once — SwiftUI may expose it as a static text or
+    // as the enclosing card button's label, so accept either.
+    let inUncharted = NSPredicate(format: "label CONTAINS[c] %@", "learn to sail")
+    let shown = app.staticTexts.containing(inUncharted).firstMatch.waitForExistence(timeout: 8)
+      || app.buttons.containing(inUncharted).firstMatch.waitForExistence(timeout: 2)
+    XCTAssertTrue(shown, "the Possibility's text should show in Uncharted")
   }
 }
