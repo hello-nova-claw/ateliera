@@ -1113,8 +1113,10 @@ final class VaultStore {
       of: ".md", with: "")
     let sourceText = [note.source?.title, note.source?.creator, note.source?.url]
       .compactMap { $0 }.joined(separator: " ")
+    // A note with no explicit title resolves/links/searches under its first line.
+    let effective = Projection.effectiveTitle(note)
     return IndexedNote(
-      id: note.id, path: path, title: note.title ?? fallbackTitle,
+      id: note.id, path: path, title: effective.isEmpty ? fallbackTitle : effective,
       body: searchText(note.body), cardType: note.cardType, semanticType: note.semanticType,
       status: note.status, updated: note.updated.isEmpty ? note.created : note.updated,
       rooms: note.rooms, lifeAreas: note.lifeAreas, seasons: note.seasons, tags: note.tags,

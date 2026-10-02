@@ -87,6 +87,25 @@ final class VaultStoreSearchTests: XCTestCase {
     XCTAssertEqual(backlinks.first?.path, "Inbox/evening.md")
   }
 
+  func testBacklinksResolveWikilinkByFirstLineWhenUntitled() throws {
+    // A note is one piece of text: a titleless note is linkable by its first line.
+    var target = note(
+      id: "CALM0000000000000000000001", title: "",
+      body: "Calm morning\nand what followed", room: "reflection-garden")
+    target.title = nil
+    var source = note(
+      id: "SOURCE000000000000000000002", title: "",
+      body: "See [[Calm morning]] here.", room: "inbox")
+    source.title = nil
+    let (dir, store) = try makeStore([
+      ("Reflection Garden/calm.md", target),
+      ("Inbox/source.md", source),
+    ])
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let backlinks = store.backlinks(path: "Reflection Garden/calm.md")
+    XCTAssertEqual(backlinks.map { $0.path }, ["Inbox/source.md"])
+  }
+
   func testForwardLinksTagResolvedState() throws {
     let (dir, store) = try fixture()
     defer { try? FileManager.default.removeItem(at: dir) }
