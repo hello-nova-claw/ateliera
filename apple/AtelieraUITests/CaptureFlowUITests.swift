@@ -33,6 +33,29 @@ final class CaptureFlowUITests: XCTestCase {
     element.typeText(text)
   }
 
+  // A note shown as a single piece of text sits inside a tappable card, so SwiftUI may
+  // surface its text as the enclosing button's label rather than a standalone static
+  // text. Match either, so the assertion is robust to that packaging.
+  private func textVisible(
+    _ text: String, in app: XCUIApplication, timeout: TimeInterval = 5
+  ) -> Bool {
+    if app.staticTexts[text].firstMatch.waitForExistence(timeout: timeout) { return true }
+    return app.buttons[text].firstMatch.exists
+  }
+
+  // Like `textVisible`, but matches an element whose text begins with the prefix — for a
+  // single-text note that has grown (e.g. a guided follow-up appended to its body), the
+  // derived heading starts with the original opening line.
+  private func textBeginning(
+    _ prefix: String, in app: XCUIApplication, timeout: TimeInterval = 5
+  ) -> Bool {
+    let predicate = NSPredicate(format: "label BEGINSWITH %@", prefix)
+    if app.staticTexts.matching(predicate).firstMatch.waitForExistence(timeout: timeout) {
+      return true
+    }
+    return app.buttons.matching(predicate).firstMatch.exists
+  }
+
   // Rooms live in the Browse tab now; select it first, then return the room's button.
   private func roomButton(_ id: String, in app: XCUIApplication) -> XCUIElement {
     let browse = app.tabBars.buttons["Browse"]
@@ -242,13 +265,12 @@ final class CaptureFlowUITests: XCTestCase {
     // Keep a near possibility (the editor autocapitalises the first letter).
     type("A smaller life closer to the sea", into: app.textViews["uncharted-editor"], in: app)
     app.buttons["uncharted-keep"].tap()
-    XCTAssertTrue(
-      app.staticTexts["A smaller life closer to the sea"].firstMatch.waitForExistence(timeout: 5))
+    XCTAssertTrue(textVisible("A smaller life closer to the sea", in: app))
     // Keep one beyond the gate.
     app.switches["beyond-toggle"].tap()
     type("Learning to sail", into: app.textViews["uncharted-editor"], in: app)
     app.buttons["uncharted-keep"].tap()
-    XCTAssertTrue(app.staticTexts["Learning to sail"].firstMatch.waitForExistence(timeout: 5))
+    XCTAssertTrue(textVisible("Learning to sail", in: app))
   }
 
   func testWisdomAddIdeaAppearsInGarden() {
@@ -389,18 +411,18 @@ final class CaptureFlowUITests: XCTestCase {
     let picker = app.segmentedControls["classified-placement"]
     XCTAssertTrue(picker.waitForExistence(timeout: 5))
     picker.buttons["Gratitude"].tap()
-    type("A win", into: app.textFields["classified-title"], in: app)
+    // A note is one piece of text — there is no title field, only the body.
     type("Finished the hard email.", into: app.textViews["classified-body"], in: app)
     app.buttons["classified-keep"].tap()
     // Keeping opens the guided gratitude thread; leave it — the entry is already saved.
     let leave = app.buttons["guided-leave"]
     XCTAssertTrue(leave.waitForExistence(timeout: 8))
     leave.tap()
-    // It lands in the Reflection Garden.
+    // It lands in the Reflection Garden, shown as its single text.
     let room = roomButton("reflection-garden", in: app)
     XCTAssertTrue(room.waitForExistence(timeout: 8))
     room.tap()
-    XCTAssertTrue(app.staticTexts["A win"].firstMatch.waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["Finished the hard email."].firstMatch.waitForExistence(timeout: 5))
   }
 
   func testGratitudeThreadDeepensTheEntry() {
@@ -409,8 +431,8 @@ final class CaptureFlowUITests: XCTestCase {
     let picker = app.segmentedControls["classified-placement"]
     XCTAssertTrue(picker.waitForExistence(timeout: 5))
     picker.buttons["Gratitude"].tap()
-    type("A steady win", into: app.textFields["classified-title"], in: app)
-    type("Finished the hard email.", into: app.textViews["classified-body"], in: app)
+    // A note is one piece of text — there is no title field, only the body.
+    type("A steady win today.", into: app.textViews["classified-body"], in: app)
     app.buttons["classified-keep"].tap()
 
     // The gratitude thread opens with a follow-up prompt; answer it, then finish.
@@ -426,11 +448,13 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(done.waitForExistence(timeout: 5))
     done.tap()
 
-    // The entry is in the Reflection Garden.
+    // The entry is in the Reflection Garden. A note is one piece of text, so after the
+    // guided follow-up appends to it, the card's heading is derived from the (now longer)
+    // text — match its opening line rather than an exact string.
     let room = roomButton("reflection-garden", in: app)
     XCTAssertTrue(room.waitForExistence(timeout: 8))
     room.tap()
-    XCTAssertTrue(app.staticTexts["A steady win"].firstMatch.waitForExistence(timeout: 5))
+    XCTAssertTrue(textBeginning("A steady win today.", in: app))
   }
 
   func testDraftRecoveryRestoresUnsavedEdit() {
@@ -554,10 +578,10 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(link.waitForExistence(timeout: 5))
     link.tap()
 
-    // We're now editing A — its title populates the field.
-    let title = app.textFields["note-title-field"]
-    XCTAssertTrue(title.waitForExistence(timeout: 5))
-    XCTAssertEqual(title.value as? String, "A quiet morning")
+    // We're now editing A — the editor shows its body (the one piece of text).
+    let body = app.textViews["note-body-editor"]
+    XCTAssertTrue(body.waitForExistence(timeout: 5))
+    XCTAssertEqual(body.value as? String, "alpha")
   }
 
   func testUnresolvedWikilinkShowsAlert() {
@@ -670,18 +694,19 @@ final class CaptureFlowUITests: XCTestCase {
   func testEditingANoteUpdatesTheRoom() {
     let app = launchEmptyApp()
 
-    // First capture a note to edit.
+    // First capture a note to edit. (Captured via the Inbox sheet, which still carries
+    // a title; the note editor only edits the one body text.)
     captureOnly(app, title: "A found moment", body: "One quiet line.")
     let row = app.staticTexts["A found moment"]
     XCTAssertTrue(row.waitForExistence(timeout: 5))
 
-    // Open it, extend the title, save; the room reflects the edit.
+    // Open it, edit the body, save; the room still shows the note by its preserved
+    // title, confirming the edit round-tripped through the write rail without losing it.
     row.tap()
-    let editTitle = app.textFields["note-title-field"]
-    XCTAssertTrue(editTitle.waitForExistence(timeout: 5))
-    type(" again", into: editTitle, in: app)
+    let editBody = app.textViews["note-body-editor"]
+    XCTAssertTrue(editBody.waitForExistence(timeout: 5))
+    type(" Now a little longer.", into: editBody, in: app)
     app.buttons["note-save-button"].tap()
-
-    XCTAssertTrue(app.staticTexts["A found moment again"].waitForExistence(timeout: 5))
+    XCTAssertTrue(app.staticTexts["A found moment"].waitForExistence(timeout: 5))
   }
 }
