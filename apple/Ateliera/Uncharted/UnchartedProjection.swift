@@ -15,6 +15,8 @@ struct UnchartedCard: Identifiable, Equatable {
   let excerpt: String
   let horizon: UnchartedHorizon
   let seasons: [String]
+  // When false, `title` is the body's first line, so the excerpt would just repeat it.
+  let hasExplicitTitle: Bool
 }
 
 enum UnchartedProjection {
@@ -31,7 +33,7 @@ enum UnchartedProjection {
         id: note.id, path: loaded.path, title: Projection.title(note),
         excerpt: Projection.excerpt(note),
         horizon: note.frontmatterBool("beyond_gate") ? .beyond : .near,
-        seasons: note.seasons)
+        seasons: note.seasons, hasExplicitTitle: Projection.hasExplicitTitle(note))
     }
   }
 }

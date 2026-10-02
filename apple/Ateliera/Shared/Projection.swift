@@ -61,6 +61,13 @@ enum Projection {
     String(plainText(note.body).prefix(240))
   }
 
+  // Whether the note carries its own title (vs. a title derived from the body's first
+  // line). A note is one piece of text; display uses this to avoid showing a derived
+  // title and then repeating it as an excerpt.
+  static func hasExplicitTitle(_ note: StudioNote) -> Bool {
+    !(note.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "").isEmpty
+  }
+
   // A light Markdown→plain reduction for display (not an interop contract).
   static func plainText(_ body: String) -> String {
     let noFences = body.components(separatedBy: "\n")

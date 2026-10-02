@@ -36,7 +36,8 @@ enum IdentityProjector {
       BecomingModel(
         id: loaded.note.id, path: loaded.path, title: Projection.title(loaded.note),
         excerpt: Projection.excerpt(loaded.note), lifeAreaId: loaded.note.lifeAreas.first,
-        created: loaded.note.created)
+        created: loaded.note.created,
+        hasExplicitTitle: Projection.hasExplicitTitle(loaded.note))
     }
     let retiredBecomings: [RetiredBecomingModel] = retiredLoaded.map { loaded in
       RetiredBecomingModel(
@@ -69,7 +70,8 @@ enum IdentityProjector {
       return IdentityCardModel(
         id: note.id, path: loaded.path, title: Projection.title(note),
         excerpt: Projection.excerpt(note), semanticType: note.semanticType, hash: "",
-        created: note.created, evidence: evidenceByIdentity[note.id] ?? [])
+        created: note.created, evidence: evidenceByIdentity[note.id] ?? [],
+        hasExplicitTitle: Projection.hasExplicitTitle(note))
     }
 
     var sections: [IdentitySection: [IdentityCardModel]] = [:]

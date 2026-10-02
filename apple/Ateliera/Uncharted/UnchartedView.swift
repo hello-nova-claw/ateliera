@@ -98,7 +98,7 @@ struct UnchartedView: View {
           Button { onOpen(card.path) } label: {
             VStack(alignment: .leading, spacing: 4) {
               Text(card.title).font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
-              if !card.excerpt.isEmpty {
+              if card.hasExplicitTitle, !card.excerpt.isEmpty {
                 Text(card.excerpt).font(StudioFont.meta).foregroundStyle(theme.inkMuted)
                   .lineLimit(3).fixedSize(horizontal: false, vertical: true)
               }

@@ -1009,8 +1009,9 @@ private struct NoteEditorSheet: View {
   }
 }
 
-// Editing an existing note: title + body, plus a "Details" screen for all
-// metadata. Holds the full StudioNote and saves it through the one write rail.
+// Editing an existing note: one body editor, plus a "Details" screen for all
+// metadata. A note is one piece of text, so there is no title input — any existing
+// `title` (web-authored or legacy) is preserved untouched through the write rail.
 private struct NoteEditView: View {
   @Environment(\.studioTheme) private var theme
   let store: VaultStore
@@ -1019,7 +1020,6 @@ private struct NoteEditView: View {
   let onNavigate: (String) -> Bool  // wikilink target → true if it navigated away
   let onOpenPath: (String) -> Void  // open another note by its vault path (backlinks)
   @State private var note: StudioNote
-  @State private var titleText: String
   @State private var showingPreview = false
   @State private var notFound = false
   @State private var coverItem: PhotosPickerItem?
@@ -1039,7 +1039,6 @@ private struct NoteEditView: View {
     self.onNavigate = onNavigate
     self.onOpenPath = onOpenPath
     _note = State(initialValue: editable.note)
-    _titleText = State(initialValue: editable.note.title ?? "")
   }
 
   private var canSave: Bool {
@@ -1053,13 +1052,6 @@ private struct NoteEditView: View {
           if let draft = recoverableDraft {
             draftBanner(draft)
           }
-          VStack(alignment: .leading, spacing: 6) {
-            fieldLabel("Title")
-            TextField("A short name (optional)", text: $titleText)
-              .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
-              .accessibilityIdentifier("note-title-field")
-          }
-          Divider().overlay(theme.line)
           VStack(alignment: .leading, spacing: 6) {
             HStack {
               fieldLabel("Reflection")
@@ -1122,8 +1114,8 @@ private struct NoteEditView: View {
         }
         ToolbarItem(placement: .confirmationAction) {
           Button("Save") {
-            let trimmed = titleText.trimmingCharacters(in: .whitespacesAndNewlines)
-            note.title = trimmed.isEmpty ? nil : trimmed
+            // `note.title` is preserved exactly as loaded — never surfaced or edited —
+            // so a web-authored or legacy title round-trips cleanly.
             if store.saveEdit(editable, updatedNote: note) {
               recovery.remove(studioId: store.studioId, path: editable.path)
               onClose()
@@ -1166,7 +1158,6 @@ private struct NoteEditView: View {
     }
     .onChange(of: coverItem) { importPickedCover() }
     .onChange(of: note.body) { autosaveDraft() }
-    .onChange(of: titleText) { autosaveDraft() }
     .sheet(
       item: Binding(get: { store.conflict }, set: { if $0 == nil { store.dismissConflict() } })
     ) { conflict in
@@ -1219,8 +1210,8 @@ private struct NoteEditView: View {
         .font(StudioFont.meta).foregroundStyle(theme.inkStrong)
       HStack(spacing: 18) {
         Button("Restore draft") {
+          // Only the body is editable now; the note's title is preserved as loaded.
           note.body = draft.body
-          titleText = draft.title ?? ""
           recoverableDraft = nil
         }
         .font(StudioFont.control).foregroundStyle(theme.link)
@@ -1247,18 +1238,17 @@ private struct NoteEditView: View {
     recoverableDraft = draft
   }
 
-  // Autosave the in-progress edit (only once it diverges from the stored note).
+  // Autosave the in-progress edit (only once the body diverges from the stored note).
+  // The title is preserved untouched, so only body changes drive a draft.
   private func autosaveDraft() {
-    let trimmed = titleText.trimmingCharacters(in: .whitespacesAndNewlines)
-    let title = trimmed.isEmpty ? nil : trimmed
-    guard note.body != editable.note.body || title != editable.note.title else {
+    guard note.body != editable.note.body else {
       recovery.remove(studioId: store.studioId, path: editable.path)
       return
     }
     recovery.write(
       DraftRecord(
-        studioId: store.studioId, path: editable.path, title: title, body: note.body,
-        expectedHash: editable.baseHash, updatedAt: NoteFactory.isoTimestamp()))
+        studioId: store.studioId, path: editable.path, title: editable.note.title,
+        body: note.body, expectedHash: editable.baseHash, updatedAt: NoteFactory.isoTimestamp()))
   }
 
   private func importPickedCover() {
