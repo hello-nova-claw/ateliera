@@ -123,6 +123,10 @@ struct GuidedThreadView: View {
   let seedText: String
   let kind: GuidedThreadKind
   let onClose: () -> Void
+  // For a Possibility, the closing step offers to work it forward into a reverse,
+  // backwards-in-time Landscape thread. Optional and always skippable — leaving it in
+  // Uncharted (the plain "Done") stays the default.
+  var onWorkshopForward: (() -> Void)? = nil
 
   @State private var step = 0  // 0..<steps.count prompts, then a closing card
   @State private var draft = ""
@@ -180,9 +184,31 @@ struct GuidedThreadView: View {
       Text(kind.closingBody)
         .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkMuted)
         .fixedSize(horizontal: false, vertical: true)
-      Button("Done") { onClose() }
-        .font(StudioFont.control).foregroundStyle(theme.link)
-        .padding(.top, 6).accessibilityIdentifier("guided-done")
+      if let onWorkshopForward {
+        // A gentle fork: leave the Possibility in Uncharted, or work it forward into a
+        // backwards-in-time Landscape thread. Neither is urged over the other.
+        VStack(alignment: .leading, spacing: 12) {
+          Text("Would you like to work it forward?")
+            .font(StudioFont.section).foregroundStyle(theme.inkStrong)
+            .fixedSize(horizontal: false, vertical: true)
+          Text("Trace a gentle path back from the far horizon to this week — or leave it to breathe.")
+            .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
+            .fixedSize(horizontal: false, vertical: true)
+          HStack(spacing: 20) {
+            Button("Leave it here") { onClose() }
+              .font(StudioFont.control).foregroundStyle(theme.inkMuted)
+              .accessibilityIdentifier("possibility-leave")
+            Button("Work it forward") { onWorkshopForward() }
+              .font(StudioFont.control).foregroundStyle(theme.link)
+              .accessibilityIdentifier("possibility-forward")
+          }
+        }
+        .padding(.top, 6)
+      } else {
+        Button("Done") { onClose() }
+          .font(StudioFont.control).foregroundStyle(theme.link)
+          .padding(.top, 6).accessibilityIdentifier("guided-done")
+      }
     }
   }
 
