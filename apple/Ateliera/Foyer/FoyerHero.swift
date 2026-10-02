@@ -134,9 +134,12 @@ struct FoyerHero: View {
       }
       .buttonStyle(.plain)
       .padding(.top, 2)
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel("Begin a becoming")
+      .accessibilityAddTraits(.isButton)
+      .accessibilityHint("Name the person you're growing into")
       .accessibilityIdentifier("foyer-hero-begin")
     }
     .frame(maxWidth: .infinity, alignment: .leading)
-    .accessibilityIdentifier("foyer-hero-invite")
   }
 }
