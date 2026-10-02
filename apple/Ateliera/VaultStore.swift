@@ -66,10 +66,13 @@ final class VaultStore {
   var preferences = StoredStudioPreferences()
   // Foyer invitations the user has waved away (per vault, ephemeral).
   var dismissedInvitations: Set<String> = []
+  // Which Sky-ahead event families are shown (per vault, ephemeral).
+  var skyLayers: SkyLayers = .defaults
   // A stable identifier for the open vault, used to scope per-note draft recovery.
   @ObservationIgnored private(set) var studioId: String = ""
   @ObservationIgnored private let preferencesStore = PreferencesStore()
   @ObservationIgnored private let invitationDismissals = InvitationDismissalStore()
+  @ObservationIgnored private let skyLayerStore = SkyLayerStore()
   // True on the open that first seeded a brand-new Studio — the cue to offer the tour.
   @ObservationIgnored private(set) var seededNewStudio = false
 
@@ -365,12 +368,19 @@ final class VaultStore {
       preferences = StoredStudioPreferences()
     }
     dismissedInvitations = invitationDismissals.load(studioId: studioId)
+    skyLayers = skyLayerStore.load(studioId: studioId)
   }
 
   /// Wave away a Foyer invitation (this occurrence only).
   func dismissInvitation(_ id: String) {
     dismissedInvitations.insert(id)
     invitationDismissals.save(dismissedInvitations, studioId: studioId)
+  }
+
+  /// Persist which Sky-ahead event families are shown (per vault).
+  func setSkyLayers(_ layers: SkyLayers) {
+    skyLayers = layers
+    skyLayerStore.save(layers, studioId: studioId)
   }
 
   /// Capture a moon-intention note stamped with its lunation, so the cycle flow can find

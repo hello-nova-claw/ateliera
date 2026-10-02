@@ -80,6 +80,7 @@ struct RootView: View {
     case tour
     case moonIntention(lunation: String)
     case reflect
+    case skyAhead
 
     var id: String {
       switch self {
@@ -92,6 +93,7 @@ struct RootView: View {
       case .tour: return "tour"
       case .moonIntention(let lunation): return "moon:\(lunation)"
       case .reflect: return "reflect"
+      case .skyAhead: return "sky-ahead"
       }
     }
   }
@@ -322,6 +324,19 @@ struct RootView: View {
               cardType: "reflection", semanticType: "reflection")
           },
           onClose: { activeSheet = nil })
+      case .skyAhead:
+        NavigationStack {
+          SkyAheadView(
+            nowMs: Rhythm.dayMillis(date: almanacContext.date), hemisphere: hemisphere,
+            birthDate: profileStore.birth?.date, layers: store.skyLayers,
+            onLayersChange: { store.setSkyLayers($0) })
+          .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+              Button("Done") { activeSheet = nil }
+            }
+          }
+        }
+        .studioTheme(themeStore.current)
       }
     }
   }
@@ -566,6 +581,13 @@ struct RootView: View {
             personalizedPlace: microSeasons.personalizedPlace)
         }
         FoyerRichView(store: store, onOpen: openPath)
+        Button {
+          activeSheet = .skyAhead
+        } label: {
+          Text("Sky ahead ›").font(StudioFont.control).foregroundStyle(theme.link)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("sky-ahead-button")
         Button {
           activeSheet = .rhythm
         } label: {
