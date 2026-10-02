@@ -256,11 +256,11 @@ struct RootView: View {
       switch sheet {
       case .capture(let room, let keep):
         NoteEditorSheet(
-          heading: "Capture", confirmLabel: "Keep", initialTitle: "", initialBody: "",
+          heading: "Capture", confirmLabel: "Keep", initialBody: "",
           showsExtras: true,
-          onSave: { title, body, tags, cover in
+          onSave: { body, tags, cover in
             let ok = store.capture(
-              title: title, body: body, room: room ?? "inbox", tags: tags, coverData: cover,
+              title: nil, body: body, room: room ?? "inbox", tags: tags, coverData: cover,
               keep: keep)
             // Only Inbox/Journal entries (the `inbox` room) expand into a workshop.
             if ok, (room ?? "inbox") == "inbox", let path = store.lastCapturedPath {
@@ -311,16 +311,15 @@ struct RootView: View {
         })
       case .moonIntention(let lunation):
         NoteEditorSheet(
-          heading: "New moon intention", confirmLabel: "Keep", initialTitle: "",
-          initialBody: "",
-          onSave: { _, body, _, _ in store.captureMoonIntention(body: body, lunationDate: lunation) },
+          heading: "New moon intention", confirmLabel: "Keep", initialBody: "",
+          onSave: { body, _, _ in store.captureMoonIntention(body: body, lunationDate: lunation) },
           onClose: { activeSheet = nil })
       case .reflect:
         NoteEditorSheet(
-          heading: "Reflect", confirmLabel: "Keep", initialTitle: "", initialBody: "",
-          onSave: { title, body, _, _ in
+          heading: "Reflect", confirmLabel: "Keep", initialBody: "",
+          onSave: { body, _, _ in
             store.capture(
-              title: title.isEmpty ? nil : title, body: body, room: "reflection-garden",
+              title: nil, body: body, room: "reflection-garden",
               cardType: "reflection", semanticType: "reflection")
           },
           onClose: { activeSheet = nil })
@@ -859,9 +858,8 @@ private struct NoteEditorSheet: View {
   let heading: String
   let confirmLabel: String
   let showsExtras: Bool  // tags + a cover photo (the Journal capture); off for moon/reflect
-  let onSave: (_ title: String, _ body: String, _ tags: [String], _ coverData: Data?) -> Bool
+  let onSave: (_ body: String, _ tags: [String], _ coverData: Data?) -> Bool
   let onClose: () -> Void
-  @State private var noteTitle: String
   @State private var noteText: String
   @State private var tagsText = ""
   @State private var coverItem: PhotosPickerItem?
@@ -869,17 +867,16 @@ private struct NoteEditorSheet: View {
   @State private var coverImage: UIImage?
 
   init(
-    heading: String, confirmLabel: String, initialTitle: String, initialBody: String,
+    heading: String, confirmLabel: String, initialBody: String,
     showsExtras: Bool = false,
-    onSave: @escaping (_ title: String, _ body: String, _ tags: [String], _ coverData: Data?) ->
-      Bool, onClose: @escaping () -> Void
+    onSave: @escaping (_ body: String, _ tags: [String], _ coverData: Data?) -> Bool,
+    onClose: @escaping () -> Void
   ) {
     self.heading = heading
     self.confirmLabel = confirmLabel
     self.showsExtras = showsExtras
     self.onSave = onSave
     self.onClose = onClose
-    _noteTitle = State(initialValue: initialTitle)
     _noteText = State(initialValue: initialBody)
   }
 
@@ -908,14 +905,6 @@ private struct NoteEditorSheet: View {
     NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: 22) {
-          VStack(alignment: .leading, spacing: 6) {
-            fieldLabel("Title")
-            TextField("A short name (optional)", text: $noteTitle)
-              .font(StudioFont.cardTitle)
-              .foregroundStyle(theme.inkStrong)
-              .accessibilityIdentifier("note-title-field")
-          }
-          Divider().overlay(theme.line)
           VStack(alignment: .leading, spacing: 6) {
             fieldLabel("Reflection")
             ZStack(alignment: .topLeading) {
@@ -957,7 +946,7 @@ private struct NoteEditorSheet: View {
         }
         ToolbarItem(placement: .confirmationAction) {
           Button(confirmLabel) {
-            if onSave(noteTitle, noteText, parsedTags, coverData) { onClose() }
+            if onSave(noteText, parsedTags, coverData) { onClose() }
           }
           .disabled(!canConfirm)
           .accessibilityIdentifier("note-save-button")
