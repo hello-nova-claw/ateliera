@@ -124,8 +124,15 @@ private struct ConstellationCanvas: View {
     GeometryReader { geo in
       let layout = ConstellationLayout(nodes: graph.nodes, size: geo.size)
       ZStack {
-        // Lines first (behind the dots). Decorative — the a11y alternative is the
-        // List mode and the per-moment sheet.
+        // A clear backdrop carries the canvas identifier (so the test can confirm
+        // the map rendered) WITHOUT wrapping the dot buttons — an identifier on the
+        // container would be inherited by the children and clobber their own ids.
+        Color.clear
+          .contentShape(Rectangle())
+          .accessibilityIdentifier("constellation-canvas")
+
+        // Lines (behind the dots). Decorative — the a11y alternative is the List
+        // mode and the per-moment sheet.
         Canvas { ctx, _ in
           for edge in graph.edges {
             guard let p1 = layout.position(edge.endpoints.a),
@@ -141,6 +148,9 @@ private struct ConstellationCanvas: View {
         .accessibilityHidden(true)
 
         // Dots — each a real, tappable button so VoiceOver/Full-Keyboard reach it.
+        // The visible mark is small, but the button carries a 44pt transparent hit
+        // area (Apple's minimum touch target — and large enough that XCUITest and
+        // Full-Keyboard Access reliably resolve it).
         ForEach(graph.nodes) { node in
           if let p = layout.position(node.id) {
             Button { selected = node } label: {
@@ -148,10 +158,14 @@ private struct ConstellationCanvas: View {
                 .fill(meaningColour(node.meaning, theme: theme))
                 .frame(width: 13, height: 13)
                 .overlay(Circle().strokeBorder(theme.canvas, lineWidth: 1.5))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .position(p)
-            .accessibilityLabel(node.title)
+            .accessibilityElement(children: .ignore)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(node.title.isEmpty ? "Untitled moment" : node.title)
             .accessibilityHint("Opens this moment")
             .accessibilityIdentifier("constellation-dot-\(node.id)")
           }
@@ -159,7 +173,6 @@ private struct ConstellationCanvas: View {
       }
       .frame(width: geo.size.width, height: geo.size.height)
     }
-    .accessibilityIdentifier("constellation-canvas")
   }
 
   // Fainter lines for lighter relationships, so authored links read first.
@@ -182,7 +195,9 @@ struct ConstellationLayout {
     // Sort oldest→newest; blank timestamps sort first (treated as oldest).
     let ordered = nodes.sorted { $0.timestamp < $1.timestamp }
     let count = max(ordered.count, 1)
-    let maxRadius = min(size.width, size.height) / 2 - 28
+    // Clamp to >= 0: a transient zero/tiny size (e.g. first layout pass) must never
+    // yield a negative radius, which would place dots at invalid, off-screen points.
+    let maxRadius = max(0, min(size.width, size.height) / 2 - 28)
     // Golden-angle spiral spreads points evenly without clumping.
     let goldenAngle = Double.pi * (3 - (5.0).squareRoot())  // ≈ 2.399963 rad
 

@@ -31,15 +31,22 @@ final class ConstellationUITests: XCTestCase {
     let app = launchWithFixture()
     openConstellation(app)
 
-    // The visual map is the default mode and shows at least one dot.
+    // The visual map is the default mode and shows at least one dot. The dots are
+    // graphical buttons, so query across any element type by their identifier.
     XCTAssertTrue(app.otherElements["constellation-canvas"].waitForExistence(timeout: 8))
-    let anyDot = app.buttons.matching(
-      NSPredicate(format: "identifier BEGINSWITH 'constellation-dot-'")).firstMatch
-    XCTAssertTrue(anyDot.waitForExistence(timeout: 5), "expected at least one moment dot")
+    let dotPredicate = NSPredicate(format: "identifier BEGINSWITH 'constellation-dot-'")
+    let anyDot = app.descendants(matching: .any).matching(dotPredicate).firstMatch
+    XCTAssertTrue(anyDot.waitForExistence(timeout: 8), "expected at least one moment dot")
+
+    // Capture the rendered constellation for review.
+    let shot = XCTAttachment(screenshot: app.screenshot())
+    shot.name = "constellation-map"
+    shot.lifetime = .keepAlways
+    add(shot)
 
     // Tapping a dot reveals the moment with an "Open this moment" affordance.
     anyDot.tap()
-    let open = app.buttons.matching(
+    let open = app.descendants(matching: .any).matching(
       NSPredicate(format: "identifier BEGINSWITH 'constellation-open-'")).firstMatch
     XCTAssertTrue(open.waitForExistence(timeout: 5), "tapping a dot should reveal the moment")
   }
