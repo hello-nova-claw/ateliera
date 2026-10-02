@@ -11,8 +11,7 @@ struct ReflectionView: View {
 
   @State private var reflection: ReflectionStore
   @State private var tab: Tab = .garden
-  @State private var draft = ""
-  @State private var kind = "reflection"
+  @State private var entryKind: GuidedThreadKind = .reflection
   @State private var activeTheme: String?
   @State private var connecting: ReflectionCard?
   @State private var pairing: ReflectionCard?
@@ -136,30 +135,20 @@ struct ReflectionView: View {
     }
   }
 
+  // One gentle, guided way in — not a blank page. A small intention toggle (look back, or
+  // celebrate) chooses which single opening prompt the room leads with; answering it opens
+  // a skippable follow-up thread that deepens that same entry. `id(entryKind)` resets the
+  // draft when you switch intention so each opener starts clean.
   private var composer: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      Picker("Kind", selection: $kind) {
-        Text("Reflection").tag("reflection")
-        Text("Celebration").tag("celebration")
+    VStack(alignment: .leading, spacing: 12) {
+      Picker("Intention", selection: $entryKind) {
+        Text("Reflect").tag(GuidedThreadKind.reflection)
+        Text("Celebrate").tag(GuidedThreadKind.gratitude)
       }
       .pickerStyle(.segmented)
       .accessibilityIdentifier("reflection-kind")
-      GuidedField(description: ReflectionGuidance.sentenceToKeep.description) {
-        GuidedEditor(
-          text: $draft, example: ReflectionGuidance.sentenceToKeep.example,
-          minHeight: 80, accessibilityId: "reflection-editor")
-      }
-      HStack {
-        Spacer()
-        Button("Keep") {
-          let body = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-          guard !body.isEmpty else { return }
-          if reflection.keep(kind: kind, body: body) { draft = "" }
-        }
-        .font(StudioFont.control).foregroundStyle(theme.link)
-        .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        .accessibilityIdentifier("reflection-keep")
-      }
+      GuidedRoomEntry(store: store, kind: entryKind, onCaptured: { reflection.refresh() })
+        .id(entryKind)
     }
     .padding(16)
     .background(RoundedRectangle(cornerRadius: 12).fill(theme.surface))
