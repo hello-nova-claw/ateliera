@@ -48,6 +48,7 @@ struct RootView: View {
   @State private var pendingBecoming: WorkshopSeed?  // a Life-planning capture; opens the thread on dismiss
   @State private var pendingGuided: GuidedSeed?  // a gratitude/dream capture; opens its thread on dismiss
   @State private var activeGuided: GuidedSeed?  // drives the gratitude/dream guided-thread sheet
+  @State private var pendingReverse: WorkshopSeed?  // a Possibility to work forward; opens on dismiss
 
   // A just-captured gratitude/dream entry to deepen with its guided follow-up prompts.
   struct GuidedSeed: Identifiable {
@@ -206,10 +207,28 @@ struct RootView: View {
         onClose: { workshopSeed = nil })
       .studioTheme(themeStore.current)
     }
-    .sheet(item: $activeGuided) { seed in
+    .sheet(
+      item: $activeGuided,
+      // Working a Possibility forward opens the reverse workshop once the guided thread
+      // sheet has dismissed (one sheet at a time).
+      onDismiss: {
+        if let reverse = pendingReverse {
+          pendingReverse = nil
+          workshopSeed = reverse
+        }
+      }
+    ) { seed in
       GuidedThreadView(
         store: store, seedPath: seed.path, seedText: seed.text, kind: seed.kind,
-        onClose: { activeGuided = nil })
+        onClose: { activeGuided = nil },
+        // A Possibility can be worked forward: close the guided thread and queue the
+        // reverse Landscape workshop on the same seed (opens once this sheet dismisses).
+        onWorkshopForward: seed.kind == .possibilities
+          ? {
+            pendingReverse = WorkshopSeed(path: seed.path, text: seed.text, mode: .possibility)
+            activeGuided = nil
+          }
+          : nil)
       .studioTheme(themeStore.current)
     }
     .sheet(
