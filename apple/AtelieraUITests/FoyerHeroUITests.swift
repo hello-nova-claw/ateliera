@@ -31,11 +31,13 @@ final class FoyerHeroUITests: XCTestCase {
     app.launchEnvironment["ATELIERA_UITEST"] = "1"  // empty vault, no becoming
     app.launch()
 
-    let invite = app.otherElements["foyer-hero-invite"]
-    XCTAssertTrue(invite.waitForExistence(timeout: 10), "invite hero missing")
-    // The invitation offers a calm way to begin, not a nag.
+    // With no becoming yet, the hero asks the question and offers a calm way to begin —
+    // not a nag. The begin button is the reliable anchor for the invite state.
     XCTAssertTrue(
-      app.buttons["foyer-hero-begin"].waitForExistence(timeout: 5),
+      app.buttons["foyer-hero-begin"].waitForExistence(timeout: 10),
       "empty state should invite beginning a becoming")
+    XCTAssertTrue(
+      app.staticTexts["Who are you becoming?"].waitForExistence(timeout: 5),
+      "empty state should ask who you are becoming")
   }
 }
