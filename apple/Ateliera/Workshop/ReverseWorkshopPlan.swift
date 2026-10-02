@@ -22,15 +22,15 @@ struct ReverseWorkshopStep: Identifiable, Equatable {
     let it = s.isEmpty ? "this possibility" : "“\(s)”"
     switch (anchor, horizon) {
     case (.decisions, .d90):
-      return "Picture \(it) three months on. What big decision would already be made?"
+      return "Three months from now, on the way to \(it) — what big decision would already be made?"
     case (.decisions, .d60):
-      return "Two months out, on the way to \(it) — what will you have decided by then?"
+      return "Two months from now, on the way to \(it) — what decision would already be made?"
     case (.decisions, .d30):
-      return "A month from now, what smaller choice moves \(it) closer?"
+      return "A month from now, on the way to \(it) — what smaller decision would already be made?"
     case (.decisions, .thisWeek):
-      return "This week, what's one decision you could make toward \(it)?"
+      return "A week from now, on the way to \(it) — what small decision would already be made?"
     case (.decisions, .today):
-      return "And today — what's the smallest step you could take toward \(it)?"
+      return "By the end of today, on the way to \(it) — what first decision would already be made?"
     case (.practices, _):
       return "What gentle rhythm would keep \(it) alive between those steps?"
     case (.structureStrategy, _):
