@@ -77,12 +77,16 @@ extension LandscapeAnchor: Identifiable {
   var id: String { rawValue }
 }
 
-// A decision's time horizon (domain `decisionHorizons`). Read-only in P5 — shown as
-// a badge on decision cards; writing one at capture is a P7 concern.
+// A decision's time horizon. The far three + `someday` are golden-matched to the web's
+// `decisionHorizons` (domain `landscape.ts`). `thisWeek`/`today` are Apple-only near-term
+// rungs the reverse Possibility workshop lands on; they survive as ordinary frontmatter
+// in the shared vault (the web app keeps the scalar on round-trip, it just shows no badge).
 enum DecisionHorizon: String, CaseIterable {
   case d30 = "30d"
   case d60 = "60d"
   case d90 = "90d"
+  case thisWeek = "this-week"
+  case today
   case someday
 
   var label: String {
@@ -90,9 +94,15 @@ enum DecisionHorizon: String, CaseIterable {
     case .d30: return "30 days"
     case .d60: return "60 days"
     case .d90: return "90 days"
+    case .thisWeek: return "This week"
+    case .today: return "Today"
     case .someday: return "Someday"
     }
   }
+
+  // The decision rungs the reverse Possibility workshop climbs down — far horizon first,
+  // breaking a possibility into progressively smaller next steps.
+  static let reverseLadder: [DecisionHorizon] = [.d90, .d60, .d30, .thisWeek, .today]
 }
 
 // A configured life area (id + display title).
