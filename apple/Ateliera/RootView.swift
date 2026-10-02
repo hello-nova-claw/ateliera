@@ -609,6 +609,8 @@ struct RootView: View {
       IdentityRoomView(store: store, onOpen: openPath)
     case "uncharted":
       UnchartedView(store: store, onOpen: openPath)
+    case "constellation":
+      ConstellationView(store: store, onOpen: openPath)
     case "wisdom-garden":
       WisdomView(store: store, onOpen: openPath)
     case "reflection-garden":
