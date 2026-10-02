@@ -39,7 +39,6 @@ struct ClassifiedCaptureSheet: View {
   }
 
   @State private var intention: Intention = .lifePlanning
-  @State private var titleText = ""
   @State private var draft = ""
 
   private var guidance: CaptureGuidance { intention.guidance }
@@ -60,10 +59,6 @@ struct ClassifiedCaptureSheet: View {
           Text(guidance.description)
             .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
             .fixedSize(horizontal: false, vertical: true)
-
-          TextField("A short name (optional)", text: $titleText)
-            .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
-            .accessibilityIdentifier("classified-title")
 
           ZStack(alignment: .topLeading) {
             if draft.isEmpty {
@@ -101,25 +96,25 @@ struct ClassifiedCaptureSheet: View {
   }
 
   private func save() {
-    let title = titleText.trimmingCharacters(in: .whitespacesAndNewlines)
+    // A note is one piece of text — no separate title. Store `title: nil`; the display
+    // derives its heading from the text itself.
     let body = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-    let named = title.isEmpty ? nil : title
     switch intention {
     case .lifePlanning:
       // Capture the becoming (it surfaces as "Currently becoming"), then open the thread.
-      guard store.capture(title: named, body: body, destination: .foyer(.becoming)),
+      guard store.capture(title: nil, body: body, destination: .foyer(.becoming)),
         let path = store.lastCapturedPath
       else { return }
       onStartThread(path, body)
       onClose()
     case .gratitude:
-      guard store.capture(title: named, body: body, destination: .celebration),
+      guard store.capture(title: nil, body: body, destination: .celebration),
         let path = store.lastCapturedPath
       else { return }
       onStartGuided(.gratitude, path, body)
       onClose()
     case .possibilities:
-      guard store.capture(title: named, body: body, destination: .uncharted(beyond: false)),
+      guard store.capture(title: nil, body: body, destination: .uncharted(beyond: false)),
         let path = store.lastCapturedPath
       else { return }
       onStartGuided(.possibilities, path, body)
