@@ -8,8 +8,10 @@ import SwiftUI
 struct WorkshopView: View {
   // How the thread is framed. `.becoming` starts from a "becoming" statement and weaves
   // it into every prompt (the guided life-planning flow); `.develop` keeps the plain,
-  // golden-matched prompts for developing an ordinary captured note.
-  enum Mode { case becoming, develop }
+  // golden-matched prompts for developing an ordinary captured note; `.possibility` walks
+  // a captured Possibility *backwards* in time (90 → 60 → 30 days → this week → today)
+  // into decisions, then practices and strategy — the reverse workshop.
+  enum Mode { case becoming, develop, possibility }
 
   @Environment(\.studioTheme) private var theme
   let store: VaultStore
@@ -48,6 +50,10 @@ struct WorkshopView: View {
     _landscape = State(initialValue: LandscapeStore(store: store))
   }
 
+  // The forward thread walks the five Landscape dimensions; the reverse Possibility
+  // thread walks the backwards-in-time plan (decisions far→near, then practice + strategy).
+  private var reverse: Bool { mode == .possibility }
+  private var stepCount: Int { reverse ? ReverseWorkshopPlan.steps.count : LandscapeAnchor.ordered.count }
   private let dimensions = LandscapeAnchor.ordered
 
   var body: some View {
@@ -56,8 +62,12 @@ struct WorkshopView: View {
         VStack(alignment: .leading, spacing: 28) {
           if step == 0 {
             anchorStep
-          } else if step <= dimensions.count {
-            dimensionStep(dimensions[step - 1])
+          } else if step <= stepCount {
+            if reverse {
+              reverseStep(ReverseWorkshopPlan.steps[step - 1])
+            } else {
+              dimensionStep(dimensions[step - 1])
+            }
           } else {
             closingStep
           }
@@ -73,7 +83,7 @@ struct WorkshopView: View {
       }
       .toolbar {
         ToolbarItem(placement: .principal) {
-          Text(mode == .becoming ? "Become" : "Workshop")
+          Text(workshopTitle)
             .font(StudioFont.control).foregroundStyle(theme.inkStrong)
         }
         ToolbarItem(placement: .cancellationAction) {
@@ -213,18 +223,46 @@ struct WorkshopView: View {
   }
 
   private func advance(write: Bool, anchor: LandscapeAnchor) {
+    advance(write: write, anchor: anchor, horizon: nil)
+  }
+
+  private func advance(write: Bool, anchor: LandscapeAnchor, horizon: DecisionHorizon?) {
     let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
     // The answer is the card's content: it becomes the title so the Landscape shows it.
-    // In becoming mode the card links back to the seed statement via `source_notes`.
+    // Guided threads link the card back to the seed (becoming or possibility) via
+    // `source_notes`; a reverse decision step carries its time horizon onto the card.
     if write, !text.isEmpty, let areaId = chosenAreaId,
       landscape.addCard(
-        lifeArea: areaId, anchor: anchor, horizon: nil, title: text, body: text,
+        lifeArea: areaId, anchor: anchor, horizon: horizon, title: text, body: text,
         sourceNoteId: seedId)
     {
       added += 1
     }
     draft = ""
     withAnimation(.easeInOut(duration: 0.25)) { step += 1 }
+  }
+
+  // MARK: - Walk the reverse Possibility plan
+
+  private func reverseStep(_ plan: ReverseWorkshopStep) -> some View {
+    ThreadStepView(
+      eyebrow: "\(chosenAreaTitle ?? "") · \(plan.eyebrow)",
+      prompt: plan.prompt(seed: seedText),
+      placeholder: "Write what comes — or skip it.",
+      draft: $draft,
+      stepIndex: step - 1,
+      stepCount: stepCount,
+      isLast: step == stepCount,
+      onSkip: { advance(write: false, anchor: plan.anchor, horizon: plan.horizon) },
+      onNext: { advance(write: true, anchor: plan.anchor, horizon: plan.horizon) })
+  }
+
+  private var workshopTitle: String {
+    switch mode {
+    case .becoming: return "Become"
+    case .possibility: return "Work it forward"
+    case .develop: return "Workshop"
+    }
   }
 
   // MARK: - Closing
@@ -242,7 +280,7 @@ struct WorkshopView: View {
       )
       .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkMuted)
       .fixedSize(horizontal: false, vertical: true)
-      ConstellationProgress(total: dimensions.count, done: dimensions.count)
+      ConstellationProgress(total: stepCount, done: stepCount)
       Button("Done") { onClose() }
         .font(StudioFont.control).foregroundStyle(theme.link)
         .padding(.top, 6).accessibilityIdentifier("workshop-done")
