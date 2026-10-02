@@ -212,7 +212,29 @@ final class VaultStore {
     if ProcessInfo.processInfo.environment["ATELIERA_UITEST_FOYER"] == "1" {
       seedFoyerFixture(at: url)
     }
+    if ProcessInfo.processInfo.environment["ATELIERA_UITEST_CONSTELLATION"] == "1" {
+      seedConstellationFixture(at: url)
+    }
     return url
+  }
+
+  // Two kept Journal entries where the second wiki-links the first, so the
+  // Constellation spike has at least two dots and one real line to render.
+  private static func seedConstellationFixture(at root: URL) {
+    var first = StudioNote.capture(
+      title: "A quiet morning", body: "\nThe one that started it.\n",
+      id: NoteFactory.createNoteId(), created: NoteFactory.isoTimestamp(), room: "inbox")
+    first.status = "active"
+    first.tags = ["calm"]
+
+    var second = StudioNote.capture(
+      title: "A later thought", body: "\nBack to [[A quiet morning]].\n",
+      id: NoteFactory.createNoteId(), created: NoteFactory.isoTimestamp(), room: "inbox")
+    second.status = "active"
+    second.tags = ["calm"]
+
+    write(first, to: root, folder: "Journal", file: "a-quiet-morning.md")
+    write(second, to: root, folder: "Journal", file: "a-later-thought.md")
   }
 
   // A promoted "becoming" + a desired feeling + a guiding principle, so the rich

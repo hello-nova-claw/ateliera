@@ -88,5 +88,14 @@ struct Room: Identifiable, Hashable {
       id: "current-season", title: "Current Season",
       eyebrow: "a humane present focus",
       intro: "Name what matters now as a gentle chapter."),
+    // Constellation (v2 Phase 7, first-cut spike): a read-only view of moments as
+    // dots and their real relationships as lines. It has no vault room of its own —
+    // it reads across every room — so its `vaultKey` is a sentinel no note carries,
+    // keeping the Foyer room-count badge empty for it.
+    Room(
+      id: "constellation", title: "Constellation",
+      eyebrow: "small moments, bigger patterns",
+      intro: "Your moments as dots, and the meaning between them as lines.",
+      vaultKey: "__constellation__"),
   ]
 }
