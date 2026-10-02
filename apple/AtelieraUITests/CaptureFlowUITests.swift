@@ -270,17 +270,24 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(room.waitForExistence(timeout: 8))
     room.tap()
     XCTAssertTrue(app.navigationBars["Reflection Garden"].waitForExistence(timeout: 5))
-    // Capture a reflection (default kind) — it shows in the Garden.
-    type("Reflection alpha", into: app.textViews["reflection-editor"], in: app)
-    app.buttons["reflection-keep"].tap()
+    // The guided Reflect entry (default) captures the opener — leave the follow-up thread;
+    // the entry already shows in the Garden.
+    type("Reflection alpha", into: app.textViews["guided-opening-editor"], in: app)
+    app.buttons["guided-opening-begin"].tap()
+    let leaveReflect = app.buttons["guided-leave"]
+    XCTAssertTrue(leaveReflect.waitForExistence(timeout: 8))
+    leaveReflect.tap()
     XCTAssertTrue(app.staticTexts["Reflection alpha"].firstMatch.waitForExistence(timeout: 5))
-    // The Celebration tab filters it out.
+    // The Celebration tab filters the reflection out.
     app.segmentedControls["reflection-tabs"].buttons["Celebration"].tap()
     XCTAssertFalse(app.staticTexts["Reflection alpha"].exists)
-    // Capture a celebration → it shows under the Celebration tab.
-    app.segmentedControls["reflection-kind"].buttons["Celebration"].tap()
-    type("Celebration beta", into: app.textViews["reflection-editor"], in: app)
-    app.buttons["reflection-keep"].tap()
+    // Switch the entry to Celebrate → its entry shows under the Celebration tab.
+    app.segmentedControls["reflection-kind"].buttons["Celebrate"].tap()
+    type("Celebration beta", into: app.textViews["guided-opening-editor"], in: app)
+    app.buttons["guided-opening-begin"].tap()
+    let leaveCelebrate = app.buttons["guided-leave"]
+    XCTAssertTrue(leaveCelebrate.waitForExistence(timeout: 8))
+    leaveCelebrate.tap()
     XCTAssertTrue(app.staticTexts["Celebration beta"].firstMatch.waitForExistence(timeout: 5))
   }
 
