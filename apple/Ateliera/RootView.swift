@@ -347,15 +347,10 @@ struct RootView: View {
     NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: 30) {
-          VStack(alignment: .leading, spacing: 30) {
-            BrandLockup()
-              .padding(.bottom, 2)
-            HStack(alignment: .top, spacing: 12) {
-              RoomHeading(eyebrow: greeting, title: "The Foyer", intro: "A calm place to begin.")
-              Spacer(minLength: 0)
-              ProfileAvatar(store: store, size: 48)
-            }
-          }
+          FoyerHero(
+            store: store, greeting: greeting, onOpen: openPath,
+            onBegin: { activeSheet = .placement }
+          )
           .padding(.horizontal, 28)
 
           // Full-bleed seasonal hero with the Today card lifted over its lower edge.

@@ -466,14 +466,14 @@ final class CaptureFlowUITests: XCTestCase {
 
   func testRichFoyerShowsIdentitySections() {
     let app = launchWith(["ATELIERA_UITEST_FOYER": "1"])
-    // The identity surfacing lives in the tucked-away "Today" panel — open it first.
+    // The promoted becoming is now the Foyer hero — the first thing you see, no panel.
+    let becoming = app.otherElements["foyer-hero-becoming"]
+    XCTAssertTrue(becoming.waitForExistence(timeout: 8))
+    XCTAssertTrue(becoming.label.contains("Someone who rests"))
+    // The feelings + principles still live in the tucked-away "Today" panel.
     let today = app.buttons["today-panel-toggle"]
     XCTAssertTrue(today.waitForExistence(timeout: 8))
     today.tap()
-    // The promoted becoming, a desired feeling, and a principle all surface.
-    let becoming = app.buttons["foyer-becoming"]
-    XCTAssertTrue(becoming.waitForExistence(timeout: 8))
-    XCTAssertTrue(becoming.label.contains("Someone who rests"))
     XCTAssertTrue(app.staticTexts["HOW I WANT TO FEEL"].exists)
     XCTAssertTrue(app.staticTexts["Unhurried"].firstMatch.exists)
     XCTAssertTrue(app.staticTexts["Depth over breadth"].firstMatch.exists)
