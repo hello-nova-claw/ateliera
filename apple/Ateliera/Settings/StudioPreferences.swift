@@ -100,3 +100,25 @@ struct InvitationDismissalStore {
     defaults.set(Array(dismissed), forKey: key(studioId))
   }
 }
+
+// Which Sky-ahead event families are shown, keyed per vault. Ephemeral UI state like the
+// dismissal store: a raw bitmask of SkyLayers. Unset falls back to the sensible defaults
+// (turning points, moon phases, micro-seasons on); a saved empty set is honoured as empty.
+struct SkyLayerStore {
+  private let defaults: UserDefaults
+
+  init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+
+  private func key(_ studioId: String) -> String {
+    "studio:sky-layers:\(studioId.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? studioId)"
+  }
+
+  func load(studioId: String) -> SkyLayers {
+    guard let raw = defaults.object(forKey: key(studioId)) as? Int else { return .defaults }
+    return SkyLayers(rawValue: raw)
+  }
+
+  func save(_ layers: SkyLayers, studioId: String) {
+    defaults.set(layers.rawValue, forKey: key(studioId))
+  }
+}
