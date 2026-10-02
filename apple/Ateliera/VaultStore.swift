@@ -653,6 +653,23 @@ final class VaultStore {
     return saveEdit(editable, updatedNote: note)
   }
 
+  /// Capture the opening answer of a room's guided thread as a real note at that kind's
+  /// destination, returning its vault path (nil if the body is empty or the write fails).
+  /// Backs the one inviting entry point the Reflection and celebration rooms lead with —
+  /// the follow-up prompts then `appendGuidedAnswer` onto this same note.
+  func captureGuidedOpening(kind: GuidedThreadKind, title: String?, body: String) -> String? {
+    let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+      error = "Write a little first."
+      return nil
+    }
+    let named = (title?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap {
+      $0.isEmpty ? nil : $0
+    }
+    guard capture(title: named, body: trimmed, destination: kind.destination) else { return nil }
+    return lastCapturedPath
+  }
+
   /// Deepen an entry with a guided follow-up: append a `**heading**` + answer block to
   /// the note's body through the one save rail. An empty answer is a no-op (a skipped
   /// step leaves the note untouched). Backs the gratitude / dream guided threads.
