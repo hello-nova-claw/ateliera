@@ -23,11 +23,10 @@ final class FoyerHeroTests: XCTestCase {
       sections: [:],
       activeBecomings: [becoming("B1", "Someone wealthy", created: "2026-05-01T00:00:00.000Z")])
     let hero = FoyerHeroModel(board)
-    guard case .becoming(let statement, let excerpt, let path, _) = hero else {
+    guard case .becoming(let statement, let path) = hero else {
       return XCTFail("expected a becoming hero, got \(hero)")
     }
     XCTAssertEqual(statement, "Someone who rests")
-    XCTAssertEqual(excerpt, "A gentler pace.")
     XCTAssertEqual(path, "PN.md")
   }
 
@@ -39,7 +38,7 @@ final class FoyerHeroTests: XCTestCase {
         becoming("OLD", "Someone brave", created: "2026-01-01T00:00:00.000Z"),
       ])
     let hero = FoyerHeroModel(board)
-    guard case .becoming(let statement, _, let path, _) = hero else {
+    guard case .becoming(let statement, let path) = hero else {
       return XCTFail("expected a becoming hero, got \(hero)")
     }
     // activeBecomings arrive newest-first from the projector; the hero takes the first.
