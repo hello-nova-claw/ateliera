@@ -451,7 +451,7 @@ function StudioApplication({
           const paths = new Map<string, string>();
           for (const item of items) paths.set(item.noteId, item.path);
           if (active) capturePaths.current = paths;
-          return items.map((item) => ({ id: item.noteId, text: item.excerpt }));
+          return items.map((item) => ({ id: item.noteId, text: item.excerpt || item.title }));
         })
       : service.list();
     void listing

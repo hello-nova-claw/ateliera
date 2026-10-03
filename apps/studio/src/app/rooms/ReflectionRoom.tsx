@@ -1,5 +1,6 @@
 import type { StudioCardProjection, StudioService } from '@studio/application';
 import { markdownToPlainText } from '@studio/content';
+import { hasExplicitTitle } from '@studio/domain';
 import { ReflectionPage } from '../../features/reflection/ReflectionPage';
 import { useReflection } from '../../features/reflection/use-reflection';
 import { canonicalReflectionConnection } from './reflection-connection';
@@ -38,7 +39,7 @@ export default function ReflectionRoom({
               path: saved.path,
               title:
                 saved.note.title?.trim() || plain.slice(0, 80) || 'Untitled',
-              excerpt: plain.slice(0, 240),
+              excerpt: hasExplicitTitle(saved.note) ? plain.slice(0, 240) : '',
               semanticType: saved.note.semanticType,
               cardType: saved.note.cardType,
               status: saved.note.status,

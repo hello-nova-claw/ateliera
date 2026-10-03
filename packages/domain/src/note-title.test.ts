@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { effectiveTitle, firstNonEmptyLine } from './note-title';
+import { effectiveTitle, firstNonEmptyLine, hasExplicitTitle } from './note-title';
 
 describe('firstNonEmptyLine', () => {
   it('returns the first non-empty, trimmed line', () => {
@@ -25,5 +25,18 @@ describe('effectiveTitle', () => {
   it('falls back to the first line when title is absent or blank', () => {
     expect(effectiveTitle({ body: 'learn to sail\nnotes' })).toBe('learn to sail');
     expect(effectiveTitle({ title: '   ', body: 'learn to sail' })).toBe('learn to sail');
+  });
+});
+
+describe('hasExplicitTitle', () => {
+  it('is true only when a non-blank frontmatter title is present', () => {
+    expect(hasExplicitTitle({ title: 'Named' })).toBe(true);
+    expect(hasExplicitTitle({ title: '  spaced  ' })).toBe(true);
+  });
+
+  it('is false when the title is absent or blank (the first line stands in)', () => {
+    expect(hasExplicitTitle({})).toBe(false);
+    expect(hasExplicitTitle({ title: '' })).toBe(false);
+    expect(hasExplicitTitle({ title: '   ' })).toBe(false);
   });
 });

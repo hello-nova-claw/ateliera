@@ -6,6 +6,7 @@ import {
   isDecisionHorizon,
   landscapeAnchors,
   effectiveTitle,
+  hasExplicitTitle,
   type DecisionHorizon,
   type LandscapeAnchor,
   type IdentitySection,
@@ -205,12 +206,13 @@ function fallbackCompare(left: LoadedNote, right: LoadedNote): number {
 }
 
 function toCard(item: LoadedNote): StudioCardProjection {
-  const plain = markdownToPlainText(item.note.body);
   return {
     noteId: item.note.id,
     path: item.path,
     title: effectiveTitle(item.note).slice(0, 80) || 'Untitled',
-    excerpt: plain.slice(0, 240),
+    // A note with no explicit title is one piece of text: its first line already
+    // shows as the title, so there's no separate excerpt to echo underneath.
+    excerpt: hasExplicitTitle(item.note) ? markdownToPlainText(item.note.body).slice(0, 240) : '',
     semanticType: item.note.semanticType,
     cardType: item.note.cardType,
     status: item.note.status,

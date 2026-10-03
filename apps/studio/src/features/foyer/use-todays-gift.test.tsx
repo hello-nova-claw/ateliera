@@ -93,7 +93,7 @@ describe('useTodaysGift', () => {
       kind: 'dream',
       payload: {
         title: 'A door in the hallway.',
-        excerpt: 'A door in the hallway.',
+        excerpt: '',
       },
       body: 'A door in the hallway.',
       sourcePath: 'Uncharted/dream-1.md',

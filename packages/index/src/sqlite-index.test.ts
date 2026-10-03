@@ -50,6 +50,15 @@ describe('SQLite IndexPort', () => {
     expect(hits[0]!.highlightRanges.map((range) => hits[0]!.snippet.slice(range.start, range.end).toLocaleLowerCase('en'))).toContain('calm');
   });
 
+  it('does not echo a titleless note\'s first line inside its own snippet', async () => {
+    await upsert(index, note({ id: '01H0000000000000000000000T', title: '', body: 'I am becoming calm\nand I trust the pace.' }), 'Reflection/becoming.md', 'hash-becoming');
+    const hits = await index.search('trust');
+    const hit = hits.find((candidate) => candidate.id === '01H0000000000000000000000T');
+    expect(hit?.title).toBe('I am becoming calm');
+    const occurrences = hit!.snippet.split('I am becoming calm').length - 1;
+    expect(occurrences).toBe(1);
+  });
+
   it('resolves forward links and backlinks by title, path, and stable ID', async () => {
     const target = note({ id: '01H00000000000000000000009', title: 'Future Anna' });
     const source = note({ id: '01H00000000000000000000008', title: 'Evidence', body: 'See the future.' });

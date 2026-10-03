@@ -11,6 +11,7 @@ struct RootView: View {
   @State private var store: VaultStore
   @State private var giftStore: GiftStore
   @State private var picking = false
+  @State private var selectedTab = 0
 
   init(themeStore: ThemeStore = ThemeStore()) {
     self.themeStore = themeStore
@@ -145,17 +146,31 @@ struct RootView: View {
     if let room = Room.all.first(where: { $0.id == id }) { roomDestination(room) }
   }
 
-  // Three calm tabs give the app a spine: Today (a greeting + one gentle daily
-  // card + capture), Rooms (the directory + what you've captured lately), and Find.
-  // No more one-long-scroll home you must return to in order to go anywhere.
+  // Four calm tabs give the app a spine: Today (a greeting + one gentle daily card),
+  // Browse (the directory + what you've captured lately), a center Capture shortcut,
+  // and Find. No more one-long-scroll home you must return to in order to go anywhere.
   var body: some View {
-    TabView {
+    TabView(selection: $selectedTab) {
       todayTab
         .tabItem { Label("Today", systemImage: "sun.max") }
+        .tag(0)
       roomsTab
         .tabItem { Label("Browse", systemImage: "square.grid.2x2") }
+        .tag(1)
+      // Capture is a shortcut, not a destination: selecting it opens the capture sheet
+      // and bounces selection back to the tab you were on, so no empty screen shows.
+      Color.clear
+        .tabItem { Label("Capture", systemImage: "plus.circle.fill") }
+        .tag(2)
       findTab
         .tabItem { Label("Find", systemImage: "magnifyingglass") }
+        .tag(3)
+    }
+    .onChange(of: selectedTab) { previous, _ in
+      if selectedTab == 2 {
+        selectedTab = previous
+        activeSheet = .placement
+      }
     }
     .tint(theme.link)
     .overlay(alignment: .bottom) {
