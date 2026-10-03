@@ -107,7 +107,8 @@ final class CaptureFlowUITests: XCTestCase {
   // Capture a titled note with a body, then open it for editing.
   private func captureAndOpen(_ app: XCUIApplication, title: String, body: String) {
     captureOnly(app, title: title, body: body)
-    let row = app.staticTexts[title]
+    let staticRow = app.staticTexts[title]
+    let row = staticRow.waitForExistence(timeout: 5) ? staticRow : app.buttons[title]
     XCTAssertTrue(row.waitForExistence(timeout: 5))
     row.tap()
   }
@@ -121,10 +122,10 @@ final class CaptureFlowUITests: XCTestCase {
     if !inbox.isHittable { app.swipeUp() }
     inbox.tap()
     app.buttons["room-capture-button"].tap()
-    type(title, into: app.textFields["note-title-field"], in: app)
-    type(body, into: app.textViews["note-body-editor"], in: app)
+    // A note is one piece of text: its first line is its name (and [[link]] target).
+    type("\(title)\n\(body)", into: app.textViews["note-body-editor"], in: app)
     app.buttons["note-save-button"].tap()
-    XCTAssertTrue(app.staticTexts[title].waitForExistence(timeout: 5))
+    XCTAssertTrue(textVisible(title, in: app))
     dismissDevelopOffer(in: app)
   }
 
@@ -581,7 +582,7 @@ final class CaptureFlowUITests: XCTestCase {
     // We're now editing A — the editor shows its body (the one piece of text).
     let body = app.textViews["note-body-editor"]
     XCTAssertTrue(body.waitForExistence(timeout: 5))
-    XCTAssertEqual(body.value as? String, "alpha")
+    XCTAssertEqual(body.value as? String, "A quiet morning\nalpha")
   }
 
   func testUnresolvedWikilinkShowsAlert() {
@@ -603,15 +604,12 @@ final class CaptureFlowUITests: XCTestCase {
     let add = app.buttons["room-capture-button"]
     XCTAssertTrue(add.waitForExistence(timeout: 5))
     add.tap()
-    let title = app.textFields["note-title-field"]
-    XCTAssertTrue(title.waitForExistence(timeout: 5))
-    type("A kept truth", into: title, in: app)
     let editor = app.textViews["note-body-editor"]
-    type("worth remembering", into: editor, in: app)
+    type("A kept truth\nworth remembering", into: editor, in: app)
     app.buttons["note-save-button"].tap()
 
     // It lands in the Inbox we're standing in (the workshop is only offered, not forced).
-    XCTAssertTrue(app.staticTexts["A kept truth"].waitForExistence(timeout: 5))
+    XCTAssertTrue(textVisible("A kept truth", in: app))
   }
 
   func testJournalCaptureWithTagsShowsTagPill() {
@@ -621,13 +619,12 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(inbox.waitForExistence(timeout: 5))
     inbox.tap()
     app.buttons["room-capture-button"].tap()
-    type("A tagged moment", into: app.textFields["note-title-field"], in: app)
-    type("with a tag", into: app.textViews["note-body-editor"], in: app)
+    type("A tagged moment\nwith a tag", into: app.textViews["note-body-editor"], in: app)
     type("gratitude, nature", into: app.textFields["note-tags-field"], in: app)
     app.buttons["note-save-button"].tap()
     // The entry shows in the Inbox with its tag rendered as a pill.
-    XCTAssertTrue(app.staticTexts["A tagged moment"].waitForExistence(timeout: 5))
-    XCTAssertTrue(app.staticTexts["gratitude"].waitForExistence(timeout: 5))
+    XCTAssertTrue(textVisible("A tagged moment", in: app))
+    XCTAssertTrue(textVisible("gratitude", in: app))
   }
 
   func testWorkshopFromCaptureWritesALandscapeCard() {
@@ -637,8 +634,7 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(inbox.waitForExistence(timeout: 5))
     inbox.tap()
     app.buttons["room-capture-button"].tap()
-    type("More space", into: app.textFields["note-title-field"], in: app)
-    type("I want more space than I thought.", into: app.textViews["note-body-editor"], in: app)
+    type("More space\nI want more space than I thought.", into: app.textViews["note-body-editor"], in: app)
     app.buttons["note-save-button"].tap()
 
     // A gentle offer appears — accept it to open the workshop on the seed.
@@ -697,16 +693,17 @@ final class CaptureFlowUITests: XCTestCase {
     // First capture a note to edit. (Captured via the Inbox sheet, which still carries
     // a title; the note editor only edits the one body text.)
     captureOnly(app, title: "A found moment", body: "One quiet line.")
-    let row = app.staticTexts["A found moment"]
+    let staticRow = app.staticTexts["A found moment"]
+    let row = staticRow.waitForExistence(timeout: 5) ? staticRow : app.buttons["A found moment"]
     XCTAssertTrue(row.waitForExistence(timeout: 5))
 
-    // Open it, edit the body, save; the room still shows the note by its preserved
-    // title, confirming the edit round-tripped through the write rail without losing it.
+    // Open it, edit the body, save; the room still shows the note by its first line
+    // (its one piece of text), confirming the edit round-tripped without losing it.
     row.tap()
     let editBody = app.textViews["note-body-editor"]
     XCTAssertTrue(editBody.waitForExistence(timeout: 5))
     type(" Now a little longer.", into: editBody, in: app)
     app.buttons["note-save-button"].tap()
-    XCTAssertTrue(app.staticTexts["A found moment"].waitForExistence(timeout: 5))
+    XCTAssertTrue(textVisible("A found moment", in: app))
   }
 }

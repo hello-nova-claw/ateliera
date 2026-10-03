@@ -48,13 +48,53 @@ enum Projection {
     return manualItems + sorted.filter { !placed.contains($0.note.id) }
   }
 
-  // toCard's title/excerpt: title, else the first 80 plain-text chars, else Untitled;
+  // A note is one piece of text: when it carries no explicit `title`, its first
+  // non-empty line stands in as the title — for display, `[[wiki]]` resolution,
+  // backlinks and search. Mirrors `@studio/domain`'s effectiveTitle; keep identical.
+  static func firstNonEmptyLine(_ body: String) -> String {
+    for raw in body.components(separatedBy: "\n") {
+      let line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !line.isEmpty {
+        let stripped = stripLeadingMarker(line)
+        return stripped.isEmpty ? line : stripped
+      }
+    }
+    return ""
+  }
+
+  // Remove a single leading Markdown marker so `# Calm morning` reads as `Calm
+  // morning`: `^#{1,6}\s+` then `^[-*>]\s+`, matching the web helper's two replaces.
+  private static func stripLeadingMarker(_ line: String) -> String {
+    let chars = Array(line)
+    var i = 0
+    var hashes = 0
+    while i < chars.count, chars[i] == "#", hashes < 6 { i += 1; hashes += 1 }
+    if hashes > 0, i < chars.count, chars[i] == " " || chars[i] == "\t" {
+      while i < chars.count, chars[i] == " " || chars[i] == "\t" { i += 1 }
+    } else {
+      i = 0
+    }
+    if i < chars.count, chars[i] == "-" || chars[i] == "*" || chars[i] == ">" {
+      let j = i + 1
+      if j < chars.count, chars[j] == " " || chars[j] == "\t" {
+        i = j
+        while i < chars.count, chars[i] == " " || chars[i] == "\t" { i += 1 }
+      }
+    }
+    return String(chars[i...]).trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  static func effectiveTitle(_ note: StudioNote) -> String {
+    let explicit = note.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    if !explicit.isEmpty { return explicit }
+    return firstNonEmptyLine(note.body)
+  }
+
+  // toCard's title/excerpt: the effective title capped at 80 chars, else Untitled;
   // excerpt = first 240 plain-text chars.
   static func title(_ note: StudioNote) -> String {
-    let trimmed = note.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    if !trimmed.isEmpty { return trimmed }
-    let plain = String(plainText(note.body).prefix(80))
-    return plain.isEmpty ? "Untitled" : plain
+    let effective = effectiveTitle(note)
+    return effective.isEmpty ? "Untitled" : String(effective.prefix(80))
   }
 
   static func excerpt(_ note: StudioNote) -> String {

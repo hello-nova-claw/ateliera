@@ -5,6 +5,7 @@ import {
   identitySectionForCardType,
   isDecisionHorizon,
   landscapeAnchors,
+  effectiveTitle,
   type DecisionHorizon,
   type LandscapeAnchor,
   type IdentitySection,
@@ -208,7 +209,7 @@ function toCard(item: LoadedNote): StudioCardProjection {
   return {
     noteId: item.note.id,
     path: item.path,
-    title: item.note.title?.trim() || plain.slice(0, 80) || 'Untitled',
+    title: effectiveTitle(item.note).slice(0, 80) || 'Untitled',
     excerpt: plain.slice(0, 240),
     semanticType: item.note.semanticType,
     cardType: item.note.cardType,
