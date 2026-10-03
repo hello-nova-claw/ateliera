@@ -582,7 +582,7 @@ final class CaptureFlowUITests: XCTestCase {
     // We're now editing A — the editor shows its body (the one piece of text).
     let body = app.textViews["note-body-editor"]
     XCTAssertTrue(body.waitForExistence(timeout: 5))
-    XCTAssertEqual(body.value as? String, "alpha")
+    XCTAssertEqual(body.value as? String, "A quiet morning\nalpha")
   }
 
   func testUnresolvedWikilinkShowsAlert() {
@@ -693,16 +693,17 @@ final class CaptureFlowUITests: XCTestCase {
     // First capture a note to edit. (Captured via the Inbox sheet, which still carries
     // a title; the note editor only edits the one body text.)
     captureOnly(app, title: "A found moment", body: "One quiet line.")
-    let row = app.staticTexts["A found moment"]
+    let staticRow = app.staticTexts["A found moment"]
+    let row = staticRow.waitForExistence(timeout: 5) ? staticRow : app.buttons["A found moment"]
     XCTAssertTrue(row.waitForExistence(timeout: 5))
 
-    // Open it, edit the body, save; the room still shows the note by its preserved
-    // title, confirming the edit round-tripped through the write rail without losing it.
+    // Open it, edit the body, save; the room still shows the note by its first line
+    // (its one piece of text), confirming the edit round-tripped without losing it.
     row.tap()
     let editBody = app.textViews["note-body-editor"]
     XCTAssertTrue(editBody.waitForExistence(timeout: 5))
     type(" Now a little longer.", into: editBody, in: app)
     app.buttons["note-save-button"].tap()
-    XCTAssertTrue(app.staticTexts["A found moment"].waitForExistence(timeout: 5))
+    XCTAssertTrue(textVisible("A found moment", in: app))
   }
 }
