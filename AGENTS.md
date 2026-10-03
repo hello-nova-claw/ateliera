@@ -3,7 +3,9 @@
 ## Product sources of truth
 
 - Read `docs/product/The-Studio-PRD-Design-Bible.md` before implementation.
-- Read `docs/superpowers/plans/2026-07-13-the-studio-mvp.md` before implementation.
+- Read `docs/superpowers/plans/2026-07-13-the-studio-mvp.md` (original MVP, shipped) before implementation.
+- For new feature work, read `docs/product/Ateliera-v2-roadmap.md` — the active forward roadmap.
+- The native app is at full P1–P9 parity (`docs/superpowers/plans/2026-08-28-ateliera-native-parity.md`).
 - Check `development-log.md` for the current phase and completed work.
 
 ## Workflow
@@ -11,7 +13,7 @@
 - Use test-driven development: write and observe a failing test before production code.
 - Make small, atomic commits with one-line conventional commit messages.
 - Commits are authored solely by Anna McPhee, with no co-author or AI attribution.
-- Verify visible changes in a real browser with Playwright screenshots at desktop and mobile widths.
+- Verify visible changes in a real browser with Playwright screenshots at desktop and mobile widths (web app); for the native app, use colocated XCUITests on a booted simulator.
 - Preserve user-authored and unrelated changes.
 
 ## CSS and accessibility
@@ -23,6 +25,7 @@
 ## Product constraints
 
 - Markdown and ordinary media files are authoritative; indexes are disposable.
+- A note is a single piece of text: with no explicit `title`, its first non-empty line is the effective title (display, `[[wiki]]` links, backlinks, search).
 - Core behavior works offline and without AI.
 - No streaks, overdue badges, gamification, compulsory check-ins, or guilt-inducing counts.
 - Unknown YAML frontmatter keys survive read/write cycles.

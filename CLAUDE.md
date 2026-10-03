@@ -13,7 +13,9 @@ Order of precedence when resolving conflicts (from the PRD): data ownership & pr
 - `AGENTS.md` — condensed working agreement (TDD, commit style, CSS/a11y, product constraints). **Follow it.**
 - `docs/product/The-Studio-PRD-Design-Bible.md` — durable product spec.
 - `docs/design/The-Studio-Final-Visual-Design-Addendum.md` — authoritative visual system, themes, typography, component states.
-- `docs/superpowers/plans/2026-07-13-the-studio-mvp.md` — task sequencing, package boundaries, acceptance gates.
+- `docs/superpowers/plans/2026-07-13-the-studio-mvp.md` — original MVP task sequencing, package boundaries, acceptance gates (shipped).
+- `docs/superpowers/plans/2026-08-28-ateliera-native-parity.md` — the native-app parity roadmap (P1–P9, now complete).
+- `docs/product/Ateliera-v2-roadmap.md` — the **active forward roadmap** (brand → Journal → Workshop → Landscape spine → Constellation; Phase 0 audit done). Consult this for new feature work.
 - `docs/architecture/decisions/ADR-*.md` — accepted architecture decisions.
 - `development-log.md` — current phase and completed work; check it to orient.
 
@@ -40,7 +42,7 @@ Rust/Tauri: `pnpm rust:clippy`, `pnpm rust:fmt`, `pnpm tauri:test`, `pnpm tauri:
 
 A pnpm workspace (`packages/*`, `apps/*`). The dependency graph is a strict layering **enforced by ESLint** (`eslint.config.js` via the custom `no-cross-package-relative-imports` rule plus per-package `no-restricted-imports`). A package may only import the workspace packages listed for its layer; violating this fails lint.
 
-- `@studio/domain` — pure domain model (notes, identity, seasons, life-areas, landscape, wisdom, view-projection). **No workspace dependencies.**
+- `@studio/domain` — pure domain model (notes, identity, seasons, life-areas, landscape, wisdom, view-projection). A note is a **single piece of text**: with no explicit frontmatter `title`, its first non-empty line is the *effective title* used for display, `[[wiki]]` links, backlinks and search (`note-title.ts`). **No workspace dependencies.**
 - `@studio/rhythm` — seasonal/astronomical rhythm calc (`astronomia`). **No workspace dependencies.**
 - `@studio/content` — Markdown parsing/serialization (mdast/micromark + GFM, `yaml`, `zod`). → domain only.
 - `@studio/index` — disposable SQLite FTS5 search/link index behind an **injected synchronous driver** port. → domain only. Node adapter (`@studio/index/node-sqlite`, uses `node:sqlite`, refuses to run with a `document` present) and a browser SQLite-WASM adapter that **must run in a Web Worker**; rebuild must never occupy the renderer thread. See ADR-008.

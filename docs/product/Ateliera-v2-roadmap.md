@@ -53,13 +53,18 @@ is a **projection over existing links** — neither needs new data plumbing.
    new key. No schema change.
 3. **Configurable dimensions:** per-area stack config extends the existing life-area config
    (cf. `LifeAreaConfig`, `.studio/config/*`), **not** note frontmatter.
+4. **Possibility containers (Phase 9):** a Possibility can graduate into its own container keyed by
+   a measurable title, holding typed child artifacts — `future-self-letter`, `eft-script`,
+   `meditation` — alongside its reverse-workshop cards. New types **ride `extraFrontmatter`** so the
+   web app tolerates them with no schema change; the seed links its children via `sourceNoteIds`.
 
 Net: Phase 0 requires **no breaking format change**. Later phases add optional frontmatter/config
 only, and every existing note keeps working.
 
 ## Phases (revised in light of the audit)
 
-Legend: ⭐ = signature payoff. Critical path: **0 → 2 → 3 → 4 → 7**. Phases 1/5/6/8 slot around it.
+Legend: ⭐ = signature payoff. Critical path: **0 → 2 → 3 → 4 → 7**. Phases 1/5/6/8 slot around it;
+Phase 9 extends Phase 3 (needs the workshop + the shipped reverse workshop first).
 
 - **Phase 0 — Groundwork.** ✅ This document. Format is ready; deltas are small + optional.
 - **Phase 1 — Brand & atmosphere** *(parallel, independent).* Constellation-A logo + light/dark
@@ -83,6 +88,17 @@ Legend: ⭐ = signature payoff. Critical path: **0 → 2 → 3 → 4 → 7**. Ph
 - **Phase 8 — Archive & browse polish.** The filterable "what you've learned" pattern
   (Notes / Images / Reflections) applied across Journal / Reflection / Wisdom — a shared browse
   layer, no redundant room.
+- **Phase 9 — Possibility → manifestation container** ⭐ *(extends Phase 3; builds on the shipped
+  reverse workshop).* A Possibility is first **refined from vague to measurable** — "$20M", not
+  "incredibly wealthy" — a concrete, nameable Big Thing. That statement becomes the **title and
+  root of its own container**, holding everything oriented toward making it real: the
+  working-backwards plan (the shipped 90 → 60 → 30d → this week → today reverse workshop) **plus**
+  a growing set of manifestation artifacts, each its own guided sub-flow — future-self letters, EFT
+  tapping scripts, guided meditations (room for more). Each Possibility graduates from a single
+  Uncharted note into a small manifestation workspace. Reuses `WorkshopView.Mode.possibility` /
+  `ReverseWorkshopPlan` for the spine and the `GuidedThreadView` rail for the artifacts; the
+  refine-to-measurable prompt is the new front door. AI-authored scripts/audio stay **optional and
+  gated** (Inner Studio, AI scopes); the core writes-your-own and works offline.
 
 ## Notes for building
 
