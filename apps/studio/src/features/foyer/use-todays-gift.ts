@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { StudioService } from '@studio/application';
 import { buildResurfacePool } from '@studio/application';
 import { markdownToPlainText } from '@studio/content';
+import { hasExplicitTitle } from '@studio/domain';
 import {
   computeRhythmContext,
   selectResurface,
@@ -103,7 +104,7 @@ export function useTodaysGift(
           kind: card.kind === 'dream' ? 'dream' : 'resurfaced',
           payload: {
             title: loaded.note.title?.trim() || plain.slice(0, 80) || 'Untitled',
-            excerpt: plain.slice(0, 240),
+            excerpt: hasExplicitTitle(loaded.note) ? plain.slice(0, 240) : '',
           },
           body: loaded.note.body,
           sourcePath: card.sourcePath,

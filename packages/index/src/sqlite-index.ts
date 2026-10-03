@@ -85,7 +85,14 @@ function rangesFor(source: string, queryTokens: string[]): HighlightRange[] {
 }
 
 function makeSnippet(note: NoteRow, queryTokens: string[]): { snippet: string; highlightRanges: HighlightRange[] } {
-  const source = `${note.title}. ${note.body}`.replace(/\s+/g, ' ').trim();
+  const title = note.title.replace(/\s+/g, ' ').trim();
+  let body = note.body.replace(/\s+/g, ' ').trim();
+  // A titleless note's indexed body begins with the first line that stands in as its
+  // title; drop that echo so the title isn't shown twice in the snippet.
+  if (title && body.startsWith(title)) {
+    body = body.slice(title.length).replace(/^[\s.,;:—–-]+/u, '').trim();
+  }
+  const source = body ? `${title}. ${body}` : title;
   const first = rangesFor(source, queryTokens)[0]?.start ?? 0;
   const start = Math.max(0, first - 60);
   const end = Math.min(source.length, start + 180);

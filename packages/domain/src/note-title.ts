@@ -26,3 +26,11 @@ export function effectiveTitle(note: Pick<StudioNote, 'title' | 'body'>): string
   if (explicit) return explicit;
   return firstNonEmptyLine(note.body ?? '');
 }
+
+// Whether a note carries its own frontmatter `title`, as opposed to borrowing its
+// first non-empty line as the title. A card shows a separate excerpt only when this
+// is true — otherwise the title IS the note's text and an excerpt would merely echo
+// the heading. Mirrors the native app's `Projection.hasExplicitTitle`; keep identical.
+export function hasExplicitTitle(note: Pick<StudioNote, 'title'>): boolean {
+  return (note.title?.trim() ?? '') !== '';
+}
