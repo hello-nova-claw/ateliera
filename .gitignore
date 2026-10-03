@@ -29,6 +29,8 @@ packages/ui/dist/
 apple/Ateliera.xcodeproj/
 apple/build*/
 apple/**/xcuserdata/
+# Xcode DerivedData when xcodebuild -derivedDataPath build is run from the repo root
+/build/
 
 # Native vault core: build products (regenerate with apple/AtelieraVaultCore/build.sh)
 apple/AtelieraVaultCore/generated/
