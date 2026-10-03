@@ -26,11 +26,14 @@ struct SearchView: View {
         let facets = store.facets(query, filters: filters)
         ScrollView {
           VStack(alignment: .leading, spacing: 0) {
-            facetRail(facets)
+            // In the empty state the hint sits ABOVE the facet rail so "or filter below"
+            // actually points at the filters; once searching, filters lead the results.
             if showResults {
+              facetRail(facets)
               resultsList
             } else {
               hint("Find a note by its title or words inside it — or filter below.")
+              facetRail(facets)
             }
           }
         }

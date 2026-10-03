@@ -78,6 +78,16 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.staticTexts["A found moment"].waitForExistence(timeout: 5))
   }
 
+  // The center "Capture" tab is a shortcut, not a destination: tapping it opens the
+  // capture sheet rather than switching to an empty screen.
+  func testCaptureTabOpensTheCaptureSheet() {
+    let app = launchEmptyApp()
+    let capture = app.tabBars.buttons["Capture"]
+    XCTAssertTrue(capture.waitForExistence(timeout: 10))
+    capture.tap()
+    XCTAssertTrue(app.textViews["classified-body"].waitForExistence(timeout: 5))
+  }
+
   func testRhythmSheetShowsTheChart() {
     let app = launchEmptyApp()
     // Rhythm lives in the tucked-away "Today" panel — open it first.
