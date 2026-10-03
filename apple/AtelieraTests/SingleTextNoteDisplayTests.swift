@@ -108,9 +108,8 @@ final class SingleTextNoteDisplayTests: XCTestCase {
 
   // MARK: Foyer hero model
 
-  func testFoyerHeroCarriesHasExplicitTitleFromBecoming() {
-    // A becoming with no explicit title: the statement is the text, there is no excerpt
-    // worth showing.
+  func testFoyerHeroShowsBecomingStatement() {
+    // A becoming with no explicit title: the statement is the text, nothing more.
     let board = IdentityBoardModel(
       currentlyBecoming: nil, sections: [:],
       activeBecomings: [
@@ -118,26 +117,27 @@ final class SingleTextNoteDisplayTests: XCTestCase {
           id: "B", path: "B.md", title: "Someone who rests", excerpt: "Someone who rests",
           lifeAreaId: nil, created: "2026-01-01T00:00:00.000Z", hasExplicitTitle: false)
       ])
-    let hero = FoyerHeroModel(board)
-    guard case .becoming(let statement, _, _, let hasTitle) = hero else {
-      return XCTFail("expected a becoming hero, got \(hero)")
+    guard case .becoming(let statement, let path) = FoyerHeroModel(board) else {
+      return XCTFail("expected a becoming hero")
     }
     XCTAssertEqual(statement, "Someone who rests")
-    XCTAssertFalse(hasTitle)
+    XCTAssertEqual(path, "B.md")
   }
 
-  func testFoyerHeroKeepsExplicitTitleSignal() {
+  func testFoyerHeroShowsOnlyTheStatementEvenWithExplicitTitleAndBody() {
+    // The regression this guards: a web-authored becoming carries an explicit title AND a
+    // body, but the hero is a statement — it must not surface the body paragraph beneath.
     let board = IdentityBoardModel(
       currentlyBecoming: IdentityCardModel(
         id: "PN", path: "PN.md", title: "Someone who rests", excerpt: "A gentler pace.",
         semanticType: "growth", hash: "", created: "2026-01-01T00:00:00.000Z", evidence: [],
         hasExplicitTitle: true),
       sections: [:])
-    let hero = FoyerHeroModel(board)
-    guard case .becoming(_, let excerpt, _, let hasTitle) = hero else {
-      return XCTFail("expected a becoming hero, got \(hero)")
+    guard case .becoming(let statement, let path) = FoyerHeroModel(board) else {
+      return XCTFail("expected a becoming hero")
     }
-    XCTAssertTrue(hasTitle)
-    XCTAssertEqual(excerpt, "A gentler pace.")
+    // Only the statement + path are carried; the body excerpt is not part of the hero.
+    XCTAssertEqual(statement, "Someone who rests")
+    XCTAssertEqual(path, "PN.md")
   }
 }

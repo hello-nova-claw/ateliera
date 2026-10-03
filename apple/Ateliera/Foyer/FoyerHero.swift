@@ -9,9 +9,10 @@ import SwiftUI
 // without a view. A becoming hero carries the statement, an optional excerpt, and the
 // note path to open; otherwise it invites you to begin one.
 enum FoyerHeroModel: Equatable {
-  // `hasExplicitTitle` false means the statement IS the note's text (not a separate
-  // title), so the excerpt would just repeat it and is dropped.
-  case becoming(statement: String, excerpt: String, path: String, hasExplicitTitle: Bool)
+  // The hero is a statement, not a card: it carries only the becoming's text and the note
+  // to open. Any body the note holds (e.g. a web-authored becoming with an explicit title)
+  // stays on the note — it isn't echoed beneath the statement here.
+  case becoming(statement: String, path: String)
   case invite
 
   init(_ board: IdentityBoardModel) {
@@ -21,17 +22,13 @@ enum FoyerHeroModel: Equatable {
     if let card = board.currentlyBecoming,
       !card.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     {
-      self = .becoming(
-        statement: card.title, excerpt: card.excerpt, path: card.path,
-        hasExplicitTitle: card.hasExplicitTitle)
+      self = .becoming(statement: card.title, path: card.path)
       return
     }
     if let first = board.activeBecomings.first(where: {
       !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }) {
-      self = .becoming(
-        statement: first.title, excerpt: first.excerpt, path: first.path,
-        hasExplicitTitle: first.hasExplicitTitle)
+      self = .becoming(statement: first.title, path: first.path)
       return
     }
     self = .invite
@@ -58,9 +55,8 @@ struct FoyerHero: View {
     VStack(alignment: .leading, spacing: 18) {
       wordmarkRail
       switch model {
-      case .becoming(let statement, let excerpt, let path, let hasExplicitTitle):
-        becomingHero(
-          statement: statement, excerpt: hasExplicitTitle ? excerpt : "", path: path)
+      case .becoming(let statement, let path):
+        becomingHero(statement: statement, path: path)
       case .invite:
         inviteHero
       }
@@ -86,9 +82,10 @@ struct FoyerHero: View {
   }
 
   // The hero: "you are becoming" over the statement itself, large and high-contrast, in
-  // the display serif. Tapping it opens the becoming. The greeting sits beneath as a
+  // the display serif. A becoming is one statement, so only that shows here — any body the
+  // note carries lives on the note, reached by tapping. The greeting sits beneath as a
   // quiet welcome, never competing with the statement.
-  private func becomingHero(statement: String, excerpt: String, path: String) -> some View {
+  private func becomingHero(statement: String, path: String) -> some View {
     Button { onOpen(path) } label: {
       VStack(alignment: .leading, spacing: 8) {
         Text("YOU ARE BECOMING")
@@ -98,11 +95,6 @@ struct FoyerHero: View {
           .tracking(-0.4)
           .foregroundStyle(theme.inkStrong)
           .fixedSize(horizontal: false, vertical: true)
-        if !excerpt.isEmpty {
-          Text(excerpt)
-            .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkMuted)
-            .fixedSize(horizontal: false, vertical: true)
-        }
         Text(greeting)
           .font(StudioFont.greeting).foregroundStyle(theme.script)
           .padding(.top, 2)
@@ -112,9 +104,7 @@ struct FoyerHero: View {
     }
     .buttonStyle(.plain)
     .accessibilityElement(children: .ignore)
-    .accessibilityLabel(
-      excerpt.isEmpty
-        ? "You are becoming \(statement)." : "You are becoming \(statement). \(excerpt)")
+    .accessibilityLabel("You are becoming \(statement).")
     .accessibilityHint("Opens this becoming")
     .accessibilityIdentifier("foyer-hero-becoming")
   }
