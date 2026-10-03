@@ -38,6 +38,10 @@ struct ClassifiedCaptureSheet: View {
     var confirmLabel: String { self == .lifePlanning ? "Begin" : "Keep" }
   }
 
+  // A fixed opening for the becoming capture: shown as a lead-in and prepended on save, so
+  // the person only completes the sentence (the field itself stays an ordinary editor).
+  private let becomingLeadIn = "I am becoming someone who"
+
   @State private var intention: Intention = .lifePlanning
   @State private var draft = ""
 
@@ -59,6 +63,13 @@ struct ClassifiedCaptureSheet: View {
           Text(guidance.description)
             .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
             .fixedSize(horizontal: false, vertical: true)
+
+          // The becoming's fixed opening: you complete the sentence in the field below.
+          if intention == .lifePlanning {
+            Text("\(becomingLeadIn)…")
+              .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkStrong)
+              .accessibilityIdentifier("becoming-lead-in")
+          }
 
           ZStack(alignment: .topLeading) {
             if draft.isEmpty {
@@ -101,11 +112,13 @@ struct ClassifiedCaptureSheet: View {
     let body = draft.trimmingCharacters(in: .whitespacesAndNewlines)
     switch intention {
     case .lifePlanning:
-      // Capture the becoming (it surfaces as "Currently becoming"), then open the thread.
-      guard store.capture(title: nil, body: body, destination: .foyer(.becoming)),
+      // The becoming statement is the fixed lead-in completed by what was typed; capture
+      // it (it surfaces as "Currently becoming"), then open the thread on that statement.
+      let statement = "\(becomingLeadIn) \(body)"
+      guard store.capture(title: nil, body: statement, destination: .foyer(.becoming)),
         let path = store.lastCapturedPath
       else { return }
-      onStartThread(path, body)
+      onStartThread(path, statement)
       onClose()
     case .gratitude:
       guard store.capture(title: nil, body: body, destination: .celebration),
