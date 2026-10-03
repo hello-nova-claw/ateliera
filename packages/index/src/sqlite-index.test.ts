@@ -65,7 +65,7 @@ describe('SQLite IndexPort', () => {
   });
 
   it('resolves a wiki link by the effective title — a titleless note’s first line', async () => {
-    const target = note({ id: '01H00000000000000000000011', body: 'Calm morning\nand what followed' });
+    const target = note({ id: '01H00000000000000000000011', title: '', body: 'Calm morning\nand what followed' });
     const source = note({ id: '01H00000000000000000000012', body: 'See [[Calm morning]].' });
     await upsert(index, target, 'Foyer/calm.md', 'target');
     await upsert(index, source, 'Reflection/source.md', 'source', [
