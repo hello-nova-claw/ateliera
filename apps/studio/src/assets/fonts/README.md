@@ -4,7 +4,7 @@ These WOFF2 files are self-hosted for privacy and offline use under the SIL Open
 
 | Family | Upstream asset version | Included declarations | Local subsets |
 |---|---:|---|---|
-| Cormorant Garamond | v21 | 500 normal, 400 italic | Latin, Latin Extended |
+| Cormorant Garamond | v21 | 400, 500 normal, 400 italic | Latin, Latin Extended |
 | Figtree | v9 | 400, 500, 600 normal | Latin, Latin Extended |
 | Nothing You Could Do | v21 | 400 normal | Latin |
 
@@ -12,7 +12,7 @@ The upstream WOFF2 binaries are variable fonts, so declarations for approved wei
 
 ## Sources
 
-- Cormorant Garamond CSS: `https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,400&display=swap`
+- Cormorant Garamond CSS: `https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400..500;1,400&display=swap`
 - Figtree CSS: `https://fonts.googleapis.com/css2?family=Figtree:wght@400..600&display=swap`
 - Nothing You Could Do CSS: `https://fonts.googleapis.com/css2?family=Nothing+You+Could+Do&display=swap`
 - Licenses: the corresponding `ofl/cormorantgaramond`, `ofl/figtree`, and `ofl/nothingyoucoulddo` directories at `google/fonts`.
