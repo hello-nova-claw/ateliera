@@ -1,7 +1,10 @@
+import landscapeGuidance from '../../content/landscape-guidance.json';
+
 /**
  * Writing guidance for the Landscape surface: a one-line description of what
  * belongs in each field, plus a concrete greyed example shown as the control's
- * placeholder. Copy is data, not scattered JSX, so it stays easy to review.
+ * placeholder. The copy itself is content, kept in
+ * src/content/landscape-guidance.json.
  */
 export interface FieldGuidance {
   /** Always-visible, one-line explanation of what belongs in the field. */
@@ -10,14 +13,7 @@ export interface FieldGuidance {
   readonly example: string;
 }
 
-export const landscapeFieldGuidance = {
-  newArea: {
-    description:
-      'A part of your life you want to tend. Five to ten keeps the Landscape spacious.',
-    example: 'e.g. Body & energy',
-  },
-  renameArea: {
-    description: 'A name that feels like yours.',
-    example: 'e.g. Home & belonging',
-  },
-} as const satisfies Record<string, FieldGuidance>;
+export const landscapeFieldGuidance = landscapeGuidance satisfies Record<
+  string,
+  FieldGuidance
+>;
