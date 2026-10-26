@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
 const fixtureArgument = process.argv.slice(2).find((argument) => argument !== '--')
-  ?? 'fixtures/vaults/anna-sample';
+  ?? 'fixtures/vaults/sample';
 const fixture = resolve(process.cwd(), fixtureArgument);
 const command = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 const result = spawnSync(

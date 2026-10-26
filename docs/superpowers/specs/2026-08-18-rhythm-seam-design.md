@@ -1,4 +1,4 @@
-# The Almara seam — folding the rhythm engine into Ateliera
+# The rhythm seam — folding the rhythm engine into Ateliera
 
 **Status:** Approved design, not yet started
 **Date:** 18 August 2026
@@ -6,14 +6,14 @@
 
 ## 1. Purpose and scope
 
-Almara (internally "the Almanac," at `~/Sites/almara`) is a separate personal
+The rhythm prototype (internally "the Almanac") was a separate personal
 app fusing natal chart, moon phase, menstrual cycle, and season into a
 resurfacing engine that hands the user one well-chosen thing each visit. Its
 own product brief already names the wedge: "nobody cleanly fuses personal
 cycle + moon + local season + astrology into one orientation surface that
-learns." Rather than maintaining Almara as a second app, the agreed direction
+learns." Rather than maintaining the rhythm prototype as a second app, the agreed direction
 is to fold its rhythm engine into Ateliera as a new capability feeding the
-Foyer and Current Season room — Ateliera becomes the house, Almara becomes
+Foyer and Current Season room — Ateliera becomes the house, the rhythm prototype becomes
 its weather.
 
 **In scope:** the Gift model (what a resurfaced item becomes in Ateliera),
@@ -28,16 +28,16 @@ platform-agnostic and slots into either shell unchanged.
 
 **Supersedes:** an earlier draft of this design assumed a cheaper "ambient
 astrology" Gift computed from `RhythmContext` alone, deferring real
-vault-backed resurfacing to a theoretical Phase 2. Tracing Almara's actual
-`reflections-assembly.ts` disproved that assumption — Almara has no such
+vault-backed resurfacing to a theoretical Phase 2. Tracing the rhythm prototype's actual
+`reflections-assembly.ts` disproved that assumption — the rhythm prototype has no such
 ambient Gift. A Gift is always either a real resurfaced vault entry or a
 single hardcoded fallback sentence. This spec designs the real thing in one
 pass, since Ateliera's existing `packages/index` infrastructure makes that a
-modest addition rather than the ground-up build Almara required.
+modest addition rather than the ground-up build the rhythm prototype required.
 
 ## 2. What already exists
 
-`packages/rhythm` was extracted from Almara's `src/domain` into Ateliera's
+`packages/rhythm` was extracted from the rhythm prototype's `src/domain` into Ateliera's
 monorepo on branch `feat/rhythm-extraction` (5 commits, not yet merged to
 `main`). It is pure computation — no vault access, no platform APIs:
 
@@ -61,14 +61,14 @@ including 60/60 in `packages/rhythm`) all pass on that branch.
 
 ## 3. The Gift model
 
-Matching Almara's actual model (`app/reflections-assembly.ts`), not the
+Matching the rhythm prototype's actual model (`app/reflections-assembly.ts`), not the
 ambient ideas floated earlier: a Gift is one of two things.
 
 1. **A real resurfaced card** — the highest-ranked due `ResurfaceCard` from
    the candidate pool, per `selectResurface`. Its `kind` is one of `evidence`
    / `reframe` / `wish` / `dream`.
 2. **A calm static fallback** — shown when nothing is due or the pool is
-   empty. Almara's own fallback text ("A quiet place to begin.") is a
+   empty. The rhythm prototype's own fallback text ("A quiet place to begin.") is a
    reasonable default; final copy is Anna's call at implementation time, not
    fixed by this spec.
 
@@ -79,7 +79,7 @@ preserved as-is: the rhythm engine orients, it doesn't author.
 
 ## 4. The resurfacing candidate pool
 
-New work, since Ateliera has no equivalent to Almara's `buildResurfacePool`
+New work, since Ateliera has no equivalent to the rhythm prototype's `buildResurfacePool`
 yet. `packages/index`'s `SearchFilters` already supports querying by `rooms`,
 `statuses`, and date range — this is a query against existing infrastructure,
 not a new query engine.
@@ -129,7 +129,7 @@ pattern already used for Wisdom theme preferences (not a markdown card — this
 is structured config, not prose). Stores:
 
 - Raw birth inputs (date, local time, timezone, birthplace, lat/lon) — kept
-  so the natal chart can be recomputed if corrected, matching Almara's own
+  so the natal chart can be recomputed if corrected, matching the rhythm prototype's own
   documented reason for retaining raw inputs.
 - The computed `natal.placements` cache, so day-to-day rhythm computation
   doesn't recompute the chart on every load.
@@ -148,7 +148,7 @@ current order: Becoming → SeasonPreview → Principles → Feelings → Return
 → Legend). This respects Ateliera's existing priority (identity first) while
 still giving the Gift near-top prominence.
 
-The internal name for Almara's ambient season concept (distinct from
+The internal name for the rhythm prototype's ambient season concept (distinct from
 Ateliera's user-authored Current Season room) is **"the year-wheel"** — used
 in code/types for the rhythm engine's seasonal input, never surfaced as a
 room label or anywhere it could be confused with Current Season.

@@ -195,7 +195,7 @@ ateliera/
 │       └── a11y.ts
 ├── fixtures/vaults/
 │   ├── empty/
-│   ├── anna-sample/
+│   ├── sample/
 │   ├── malformed-frontmatter/
 │   ├── broken-links/
 │   └── large-generated/
@@ -1338,7 +1338,7 @@ Desktop supports user-chosen ZIP destination; browser downloads locally. Restore
 
 - [ ] **Step 5: Destructive recovery drill**
 
-Run: `pnpm test:e2e -- portability.spec.ts && pnpm verify:restore -- fixtures/vaults/anna-sample`  
+Run: `pnpm test:e2e -- portability.spec.ts && pnpm verify:restore -- fixtures/vaults/sample`  
 Expected: PASS after deleting the test vault and index, restoring only the ZIP, and rebuilding all views.
 
 - [ ] **Step 6: Commit**
@@ -1527,7 +1527,7 @@ The design addendum is authoritative for visual intent. The PRD remains authorit
 
 ## 8. Test data specification
 
-The `anna-sample` fixture must contain at least:
+The `sample` fixture must contain at least:
 
 - 6 semantic types.
 - 10 life areas.

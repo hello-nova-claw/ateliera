@@ -45,7 +45,7 @@ xcodegen generate
 
 # 3. Run the unit tests on a simulator.
 xcodebuild test -project Ateliera.xcodeproj -scheme Ateliera \
-  -destination "platform=iOS Simulator,name=iPhone 15 Pro Max" \
+  -destination "platform=iOS Simulator,name=iPhone 17 Pro" \
   -derivedDataPath build CODE_SIGNING_ALLOWED=NO
 ```
 
