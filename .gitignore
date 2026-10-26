@@ -37,3 +37,24 @@ apple/AtelieraVaultCore/generated/
 apple/AtelieraVaultCore/headers/
 apple/AtelieraVaultCore/VaultCore.xcframework/
 apple/Ateliera/Generated/
+
+# Signing material, keys and local secrets: never commit these
+*.p8
+*.p12
+*.cer
+*.certSigningRequest
+*.mobileprovision
+*.provisionprofile
+AuthKey_*
+.env
+.env.*
+!.env.example
+
+# Exported journals and local vaults
+*.ateliera-backup.zip
+Ateliera-backup*.zip
+/vaults/
+
+# Simulator and device data copied out for debugging
+*.xcappdata/
+simulator-data/
