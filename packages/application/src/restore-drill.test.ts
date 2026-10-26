@@ -35,7 +35,7 @@ const encoder = new TextEncoder();
 it('destructively restores the fixture and rebuilds every MVP room', async () => {
   const root = resolve(
     process.env.STUDIO_RESTORE_FIXTURE ??
-      resolve(import.meta.dirname, '../../../fixtures/vaults/anna-sample'),
+      resolve(import.meta.dirname, '../../../fixtures/vaults/sample'),
   );
   const expected = await fixtureFiles(root);
   expected.set(
