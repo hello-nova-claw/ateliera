@@ -113,13 +113,28 @@ enum SkyAhead {
     return events
   }
 
-  private static func phaseDetail(_ phase: Sky.MoonPhase) -> String {
-    switch phase {
-    case .new: return "the dark, a seed — a time to set an intention"
-    case .firstQuarter: return "waxing — building momentum"
-    case .full: return "fullness at its height — what has grown"
-    case .lastQuarter: return "waning — a time to release"
+  // The timeline's moon-phase and solar-return lines are content: Content/sky-ahead.json.
+  private struct Copy: Decodable {
+    struct SolarReturn: Decodable {
+      let title: String
+      let detail: String
     }
+
+    let moonPhases: [String: String]
+    let solarReturn: SolarReturn
+  }
+
+  private static let copy: Copy = ContentLibrary.load("sky-ahead")
+
+  private static func phaseDetail(_ phase: Sky.MoonPhase) -> String {
+    let key: String
+    switch phase {
+    case .new: key = "new"
+    case .firstQuarter: key = "firstQuarter"
+    case .full: key = "full"
+    case .lastQuarter: key = "lastQuarter"
+    }
+    return copy.moonPhases[key] ?? ""
   }
 
   // The 24 solar micro-seasons turn on fixed day-of-year boundaries, so a forward scan
@@ -163,8 +178,8 @@ enum SkyAhead {
       if ms > now && ms <= cutoff {
         return [
           SkyEvent(
-            id: "solar:\(year)", family: .astrology, ms: ms, title: "Your solar return",
-            detail: "a year around the sun")
+            id: "solar:\(year)", family: .astrology, ms: ms, title: copy.solarReturn.title,
+            detail: copy.solarReturn.detail)
         ]
       }
     }

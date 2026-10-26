@@ -80,10 +80,18 @@ struct AlmanacView: View {
     return "\(context.lunarSeason.label) · \(pct)% through the lunar month"
   }
 
+  // The day lines are content: Content/almanac.json, the same file as
+  // apps/studio/src/content/almanac.json.
+  private struct Copy: Decodable {
+    let orientation: [String: String]
+  }
+
+  private static let copy: Copy = ContentLibrary.load("almanac")
+
   private var orientationCopy: String {
     switch Rhythm.orientation(context) {
-    case .inward: return "A gathering day — a good time to notice how far you have come."
-    case .outward: return "An opening day — a good time to name what you want to make room for."
+    case .inward: return Self.copy.orientation["inward"] ?? ""
+    case .outward: return Self.copy.orientation["outward"] ?? ""
     }
   }
 
