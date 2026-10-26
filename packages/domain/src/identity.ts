@@ -1,52 +1,53 @@
 import type { SemanticType } from './semantic-type';
+import identityPrompts from './content/identity-prompts.json';
 
 export const identitySectionDefinitions = [
   {
     id: 'already-true',
     label: 'Already true',
-    prompt: 'What already feels quietly and honestly true?',
+    prompt: identityPrompts['already-true'],
     cardType: 'identity-truth',
     semanticType: 'foundations',
   },
   {
     id: 'practicing-now',
     label: 'Practicing now',
-    prompt: 'What quality are you practicing in this season?',
+    prompt: identityPrompts['practicing-now'],
     cardType: 'identity-emerging',
     semanticType: 'growth',
   },
   {
     id: 'values-principles',
     label: 'Values & principles',
-    prompt: 'What helps you recognise a life that feels like yours?',
+    prompt: identityPrompts['values-principles'],
     cardType: 'principle',
     semanticType: 'foundations',
   },
   {
     id: 'desired-feelings',
     label: 'How I want to feel',
-    prompt: 'What feeling would you like to make room for?',
+    prompt: identityPrompts['desired-feelings'],
     cardType: 'feeling',
     semanticType: 'vision',
   },
   {
     id: 'beliefs-practice',
     label: 'Beliefs in practice',
-    prompt: 'What belief are you testing, strengthening, or revising?',
+    prompt: identityPrompts['beliefs-practice'],
     cardType: 'belief',
     semanticType: 'foundations',
   },
   {
     id: 'embodiment-cues',
     label: 'Embodiment cues',
-    prompt: 'What does this look like in an ordinary hour?',
+    prompt: identityPrompts['embodiment-cues'],
     cardType: 'embodiment-cue',
     semanticType: 'growth',
   },
   {
     id: 'identity-shifts',
     label: 'Identity shifts',
-    prompt: 'What language or assumption has changed over time?',
+    prompt: identityPrompts['identity-shifts'],
     cardType: 'identity-shift',
     semanticType: 'reflection',
   },
