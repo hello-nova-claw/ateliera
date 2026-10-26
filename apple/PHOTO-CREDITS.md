@@ -3,7 +3,7 @@
 The four atmospheric landscapes behind the Foyer's greeting are chosen by the felt
 season. All four are released under **CC0 1.0 (Public Domain Dedication)**, so no
 attribution is required; they are recorded here for provenance. Sourced from
-Wikimedia Commons (Unsplash-donated originals), downscaled to 1200px and shipped in
+Wikimedia Commons, downscaled to 1200px and shipped in
 `Ateliera/Assets.xcassets/Hero-<season>.imageset`.
 
 | Season | Asset | Title | Photographer | License | Source |
@@ -12,5 +12,8 @@ Wikimedia Commons (Unsplash-donated originals), downscaled to 1200px and shipped
 | Summer | `Hero-summer` | Glowing meadow in summer | James Pritchett | CC0 1.0 | https://commons.wikimedia.org/wiki/File:Glowing_meadow_in_summer_(Unsplash).jpg |
 | Autumn | `Hero-autumn` | Forest sunrise | Peter Heeling | CC0 1.0 | https://commons.wikimedia.org/wiki/File:Forest_sunrise.jpg |
 | Winter | `Hero-winter` | Imposing mountain under snow | Maximilian Wachter | CC0 1.0 | https://commons.wikimedia.org/wiki/File:Imposing_mountain_under_snow_(Unsplash).jpg |
+
+Spring, Summer and Winter were donated to Commons from Unsplash. Autumn was
+posted to Commons from Skitterphoto (its Commons source is "Foggy forest").
 
 CC0 1.0: https://creativecommons.org/publicdomain/zero/1.0/
