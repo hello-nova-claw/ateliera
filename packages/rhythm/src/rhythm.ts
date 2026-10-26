@@ -11,6 +11,7 @@ import type {
   RhythmProfile,
   Season,
 } from './types';
+import microSeasonTable from './content/micro-seasons.json';
 
 function parseDateUTC(date: string): { year: number; month: number; day: number; ms: number } {
   const year = Number(date.slice(0, 4));
@@ -132,32 +133,9 @@ interface MicroSeasonTerm {
   gloss: string;
 }
 
-const MICRO_SEASONS: readonly MicroSeasonTerm[] = [
-  { month: 1, day: 5, term: 'The Deep Quiet', gloss: 'the year at its stillest, everything held' },
-  { month: 1, day: 20, term: 'The Long Cold', gloss: 'the coldest stretch, roots waiting' },
-  { month: 2, day: 4, term: 'First Turning', gloss: 'the first tilt back toward the light' },
-  { month: 2, day: 19, term: 'The Softening', gloss: 'frost loosening into rain' },
-  { month: 3, day: 5, term: 'First Stirring', gloss: 'the sleeping world begins to move' },
-  { month: 3, day: 20, term: 'The Even Light', gloss: 'day and night in balance, tipping bright' },
-  { month: 4, day: 4, term: 'Clear and Green', gloss: 'clear skies, the green returning' },
-  { month: 4, day: 20, term: 'The Feeding Rains', gloss: 'rains that feed the new growth' },
-  { month: 5, day: 5, term: 'The Warming', gloss: 'warmth settling in, days lengthening' },
-  { month: 5, day: 21, term: 'The Filling', gloss: 'seedheads filling, abundance gathering' },
-  { month: 6, day: 5, term: 'The Gathering Light', gloss: 'the long days building toward their peak' },
-  { month: 6, day: 21, term: 'The Long Light', gloss: 'the longest day, fullness at its height' },
-  { month: 7, day: 7, term: 'The Slow Heat', gloss: 'rising warmth, the slow simmer of summer' },
-  { month: 7, day: 22, term: 'The High Heat', gloss: 'the hottest stretch, everything ripening' },
-  { month: 8, day: 7, term: 'First Cool', gloss: 'the first cool edge to the air' },
-  { month: 8, day: 23, term: 'The Easing', gloss: 'the heat releasing its grip' },
-  { month: 9, day: 7, term: 'First Dew', gloss: 'cool mornings, dew on the grass' },
-  { month: 9, day: 23, term: 'The Even Dark', gloss: 'balance again, tipping toward the dark' },
-  { month: 10, day: 8, term: 'The Cooling Dew', gloss: 'dew turning cold, leaves letting go' },
-  { month: 10, day: 23, term: 'First Frost', gloss: 'the first frosts, the world drawing in' },
-  { month: 11, day: 7, term: 'The Withdrawing', gloss: 'stillness arriving, the light pulling back' },
-  { month: 11, day: 22, term: 'First Snow', gloss: 'the first snows, the hush before deep cold' },
-  { month: 12, day: 7, term: 'The Deep Snow', gloss: 'snow deepening, the long dark' },
-  { month: 12, day: 21, term: 'The Long Night', gloss: 'the longest night, the seed of returning light' },
-];
+// The table itself is content, kept in ./content/micro-seasons.json (shared verbatim
+// with the native app's apple/Ateliera/Content/micro-seasons.json).
+const MICRO_SEASONS: readonly MicroSeasonTerm[] = microSeasonTable;
 
 const CUMULATIVE_DAYS: readonly number[] = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
 
