@@ -20,20 +20,10 @@ enum TourStep: String, CaseIterable {
     }
   }
 
-  var body: String {
-    switch self {
-    case .foyer:
-      return "Your calm front room — today's rhythm, a gift to reflect on, and the way into every other room. Start here."
-    case .landscape:
-      return "The shape of a life across its areas: vision, identity, decisions, practices, and the structures that hold them."
-    case .season:
-      return "Name what matters now as a gentle chapter. A season is a humane present focus, not a deadline."
-    case .uncharted:
-      return "Keep possibilities that don't need a plan yet. Leave room for what if — near, or beyond the gate."
-    case .reflection:
-      return "Notice what is changing. Gather reflections and celebrations so the Studio remembers with you."
-    }
-  }
+  // The room descriptions are content: Content/tour-steps.json.
+  private static let bodies: [String: String] = ContentLibrary.load("tour-steps")
+
+  var body: String { Self.bodies[rawValue] ?? "" }
 }
 
 struct OnboardingStore {
