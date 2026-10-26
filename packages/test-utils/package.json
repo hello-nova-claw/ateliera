@@ -1,1 +1,1 @@
-{"name":"@studio/test-utils","version":"0.0.0","private":true,"type":"module","exports":"./src/index.ts","scripts":{"build":"tsc --build","typecheck":"tsc --build"}}
+{"name":"@studio/test-utils","version":"0.0.0","license":"MIT","private":true,"type":"module","exports":"./src/index.ts","scripts":{"build":"tsc --build","typecheck":"tsc --build"}}
