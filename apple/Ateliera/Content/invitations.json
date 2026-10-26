@@ -1,0 +1,76 @@
+{
+  "solarReturn": {
+    "title": "Your solar return",
+    "body": "A year around the sun today — begin a new personal year in step with it?",
+    "accept": "Begin a season"
+  },
+  "seasonClosing": {
+    "title": "A season is closing",
+    "body": "“{title}” is drawing to a close — reflect and close it?",
+    "untitled": "your season",
+    "accept": "Close the season"
+  },
+  "newMoon": {
+    "title": "A new moon",
+    "body": "New moon {when} — set an intention to carry through the month?",
+    "when": {
+      "today": "today",
+      "tomorrow": "tomorrow",
+      "passed": "just passed"
+    },
+    "accept": "Set an intention"
+  },
+  "fullMoon": {
+    "title": "A full moon",
+    "body": "Full moon {when} — what has grown, and what's ready to release?",
+    "when": {
+      "tonight": "tonight",
+      "tomorrow": "tomorrow"
+    },
+    "accept": "Reflect"
+  },
+  "seasonTurning": {
+    "title": "A season is turning",
+    "body": "The {turningPoint} is {when} — {season} begins. Begin a personal season in step with it?",
+    "when": {
+      "today": "today",
+      "tomorrow": "tomorrow",
+      "inDays": "in {days} days"
+    },
+    "accept": "Begin a season"
+  },
+  "microSeasonShift": {
+    "title": "The season has turned",
+    "body": "“{term}” — {gloss}. A moment to notice it?",
+    "accept": "Reflect"
+  },
+  "cyclePhase": {
+    "title": "Your rhythm is shifting",
+    "body": {
+      "menstrual": "A time to rest and let go — what wants to be released?",
+      "follicular": "Energy is returning — what would you like to begin?",
+      "ovulation": "A brighter, outward stretch — what are you ready to share?",
+      "luteal": "A time to complete and tend — what deserves closing well?"
+    },
+    "accept": "Reflect"
+  },
+  "inboxWaiting": {
+    "title": "Notes to sort",
+    "body": {
+      "one": "{count} note is waiting in the Inbox — sort it into place?",
+      "other": "{count} notes are waiting in the Inbox — sort them into place?"
+    },
+    "accept": "Open the Inbox"
+  },
+  "synthesizeWisdom": {
+    "title": "A thread to weave",
+    "body": "You've kept a few ideas about “{theme}” — weave them into one?",
+    "accept": "Open Wisdom"
+  },
+  "promoteIdentity": {
+    "title": "Becoming true",
+    "body": "“{title}” has been with you a while — is it becoming true?",
+    "untitled": "what you're practicing",
+    "accept": "Open Identity"
+  }
+}
