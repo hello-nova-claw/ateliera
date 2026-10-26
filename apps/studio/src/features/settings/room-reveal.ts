@@ -1,4 +1,5 @@
 import type { StoredStudioPreferences } from '@studio/application';
+import roomReveals from '../../content/room-reveals.json';
 import { resolveRoomVisibility, type RoomId } from './room-visibility';
 
 /**
@@ -34,34 +35,34 @@ export interface ActivitySignals {
  */
 const REVEALABLE_ROOMS: readonly {
   id: Extract<RoomId, 'identity' | 'season' | 'reflection' | 'wisdom' | 'uncharted'>;
-  /** The invitation copy, in Anna's voice. */
+  /** The invitation copy, in Anna's voice (src/content/room-reveals.json). */
   copy: string;
   /** Whether the person's activity makes this room relevant now. */
   qualifies: (signals: ActivitySignals) => boolean;
 }[] = [
   {
     id: 'identity',
-    copy: 'There is a room for who you are becoming — Identity Studio.',
+    copy: roomReveals.identity,
     qualifies: (signals) => signals.captureCount >= 3,
   },
   {
     id: 'season',
-    copy: "When you're ready to name what matters now, Current Season is here.",
+    copy: roomReveals.season,
     qualifies: (signals) => signals.hasPlacedLifeAreaCard,
   },
   {
     id: 'reflection',
-    copy: 'The Studio can begin to remember with you — Reflection Garden.',
+    copy: roomReveals.reflection,
     qualifies: (signals) => signals.hasSeason || signals.captureCount >= 5,
   },
   {
     id: 'wisdom',
-    copy: 'A place for ideas worth keeping — Wisdom Garden.',
+    copy: roomReveals.wisdom,
     qualifies: (signals) => signals.hasWisdomSource,
   },
   {
     id: 'uncharted',
-    copy: 'For possibilities without a plan yet — What if…?',
+    copy: roomReveals.uncharted,
     qualifies: (signals) => signals.captureCount >= 7,
   },
 ];

@@ -1,10 +1,14 @@
 import Foundation
 
 // Writing guidance for the Reflection surface, ported verbatim from
-// `apps/studio/src/features/reflection/field-guidance.ts`.
+// `apps/studio/src/features/reflection/field-guidance.ts`. The copy itself is content:
+// Content/reflection-guidance.json, the same file as apps/studio/src/content/.
 enum ReflectionGuidance {
-  static let sentenceToKeep = FieldGuidance(
-    description:
-      "One thing you noticed, learned, or want to remember. A single sentence is plenty.",
-    example: "e.g. I do my clearest thinking in the first hour, before messages.")
+  private struct Library: Decodable {
+    let sentenceToKeep: FieldGuidance
+  }
+
+  private static let library: Library = ContentLibrary.load("reflection-guidance")
+
+  static let sentenceToKeep = library.sentenceToKeep
 }

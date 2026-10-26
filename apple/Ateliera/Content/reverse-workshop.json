@@ -1,0 +1,15 @@
+{
+  "seed": {
+    "empty": "this possibility",
+    "quoted": "“{seed}”"
+  },
+  "decisions": {
+    "90d": "Three months from now, on the way to {it} — what big decision would already be made?",
+    "60d": "Two months from now, on the way to {it} — what decision would already be made?",
+    "30d": "A month from now, on the way to {it} — what smaller decision would already be made?",
+    "this-week": "A week from now, on the way to {it} — what small decision would already be made?",
+    "today": "By the end of today, on the way to {it} — what first decision would already be made?"
+  },
+  "practices": "What gentle rhythm would keep {it} alive between those steps?",
+  "structure-strategy": "What time, space, help, or money would give {it} room to happen?"
+}

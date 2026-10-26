@@ -1,0 +1,40 @@
+{
+  "generic": {
+    "title": "Hold this thought",
+    "prompt": "What would you like remembered?",
+    "description": "Anything you want the Studio to hold — a thought, a line, a fragment. It doesn't need to be finished.",
+    "example": "e.g. Kept choosing rest today instead of pushing through."
+  },
+  "celebration": {
+    "title": "Celebrate something",
+    "prompt": "What's one thing that went well?",
+    "description": "A win, a small mercy, or something you're grateful for. Naming it lets the Studio remember it with you.",
+    "example": "e.g. Finished the hard email — and someone thanked me for it."
+  },
+  "possibilities": {
+    "title": "Leave a possibility",
+    "prompt": "What if…?",
+    "description": "A possibility you want to keep, with no plan attached. It can stay a question.",
+    "example": "e.g. What if we spent a whole winter somewhere warm?"
+  },
+  "foyer": {
+    "foyer-becoming": {
+      "title": "Name a becoming",
+      "prompt": "What are you currently becoming?",
+      "description": "A short sentence about who you're growing into — present tense, as if it is already beginning. It can change any time.",
+      "example": "e.g. I'm becoming someone who rests before they're depleted."
+    },
+    "foyer-feeling": {
+      "title": "Make room for a feeling",
+      "prompt": "What feeling would you like to make room for?",
+      "description": "A feeling you want more of in ordinary days. One word or a short phrase is plenty.",
+      "example": "e.g. Unhurried."
+    },
+    "foyer-principle": {
+      "title": "Name a guiding principle",
+      "prompt": "What supports this life?",
+      "description": "A value or principle you want to steer by.",
+      "example": "e.g. Depth over breadth — a few things, done with care."
+    }
+  }
+}

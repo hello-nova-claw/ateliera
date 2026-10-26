@@ -1,0 +1,68 @@
+{
+  "quickNote": {
+    "description": "Anything you want the Studio to hold — a thought, a line, a fragment. It doesn't need to be finished.",
+    "example": "e.g. Kept choosing rest today instead of pushing through."
+  },
+  "generic": {
+    "title": "Hold this thought",
+    "prompt": "What would you like remembered?"
+  },
+  "foyer": {
+    "foyer-becoming": {
+      "title": "Name a becoming",
+      "prompt": "What are you currently becoming?",
+      "description": "A short sentence about who you're growing into — present tense, as if it is already beginning. It can change any time.",
+      "example": "e.g. I'm becoming someone who rests before they're depleted."
+    },
+    "foyer-feeling": {
+      "title": "Make room for a feeling",
+      "prompt": "What feeling would you like to make room for?",
+      "description": "A feeling you want more of in ordinary days. One word or a short phrase is plenty.",
+      "example": "e.g. Unhurried."
+    },
+    "foyer-principle": {
+      "title": "Name a guiding principle",
+      "prompt": "What supports this life?",
+      "description": "A value or principle you want to steer by.",
+      "example": "e.g. Depth over breadth — a few things, done with care."
+    }
+  },
+  "uncharted": {
+    "title": "Leave a possibility",
+    "prompt": "What if…?",
+    "description": "A possibility that doesn't need a plan, an answer, or a reason yet. Begin anywhere.",
+    "example": "e.g. What if I only worked mornings?"
+  },
+  "landscape": {
+    "vision": {
+      "title": "Add to Vision",
+      "prompt": "What would an ordinary Tuesday look like if this were true?",
+      "description": "A picture of the life you're creating in this area — concrete and ordinary, not grand.",
+      "example": "e.g. Mornings unhurried, one deep-work block, home by six."
+    },
+    "identity-values-feelings": {
+      "title": "Add to Identity, values & feelings",
+      "prompt": "Who is the version of me living this?",
+      "description": "Who you are being in this area, and what you value here.",
+      "example": "e.g. Someone who says no without a long explanation."
+    },
+    "decisions": {
+      "title": "Add a decision",
+      "prompt": "What can I choose in the next 30, 60, or 90 days?",
+      "description": "A choice or experiment you can act on soon.",
+      "example": "e.g. Try a four-day writing week for a month."
+    },
+    "practices": {
+      "title": "Add a practice",
+      "prompt": "What rhythm lets this be lived repeatedly?",
+      "description": "A repeatable rhythm that keeps this alive.",
+      "example": "e.g. Walk before screens."
+    },
+    "structure-strategy": {
+      "title": "Add to Structure & strategy",
+      "prompt": "What supports it — time, environment, help, boundary, money, system?",
+      "description": "The time, space, help, boundary, or system that holds this up.",
+      "example": "e.g. Phone charges outside the bedroom."
+    }
+  }
+}

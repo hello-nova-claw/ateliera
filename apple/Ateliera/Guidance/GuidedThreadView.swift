@@ -1,10 +1,37 @@
 import SwiftUI
 
 // A calm follow-up prompt in a guided thread.
-struct ThreadPrompt {
+struct ThreadPrompt: Decodable {
   let eyebrow: String
   let prompt: String
   let placeholder: String
+}
+
+// The guided threads' wording is content: Content/guided-threads.json.
+struct GuidedThreadCopy: Decodable {
+  struct Thread: Decodable {
+    struct Closing: Decodable {
+      let title: String
+      let body: String
+    }
+
+    let opening: ThreadPrompt
+    let steps: [ThreadPrompt]
+    let closing: Closing
+  }
+
+  struct WorkForward: Decodable {
+    let prompt: String
+    let body: String
+  }
+
+  let reflection: Thread
+  let gratitude: Thread
+  let possibilities: Thread
+  let workForward: WorkForward
+  let stepFooter: String
+
+  static let library: GuidedThreadCopy = ContentLibrary.load("guided-threads")
 }
 
 // The guided threads that deepen a just-captured entry a prompt at a time. Reflection
@@ -26,23 +53,16 @@ enum GuidedThreadKind: Hashable {
     }
   }
 
-  // The single inviting prompt a room leads with. Answering it captures the seed note.
-  var opening: ThreadPrompt {
+  private var copy: GuidedThreadCopy.Thread {
     switch self {
-    case .reflection:
-      return ThreadPrompt(
-        eyebrow: "reflection", prompt: "What's on your mind as you look back?",
-        placeholder: "One thing from today or lately — no need to tidy it.")
-    case .gratitude:
-      return ThreadPrompt(
-        eyebrow: "celebration", prompt: "What's one thing that went well?",
-        placeholder: "A win, a small mercy, something you're grateful for.")
-    case .possibilities:
-      return ThreadPrompt(
-        eyebrow: "possibility", prompt: "What if…?",
-        placeholder: "A possibility you want to keep — no plan attached.")
+    case .reflection: return GuidedThreadCopy.library.reflection
+    case .gratitude: return GuidedThreadCopy.library.gratitude
+    case .possibilities: return GuidedThreadCopy.library.possibilities
     }
   }
+
+  // The single inviting prompt a room leads with. Answering it captures the seed note.
+  var opening: ThreadPrompt { copy.opening }
 
   // Where answering the opener writes the seed note.
   var destination: CaptureDestination {
@@ -56,53 +76,11 @@ enum GuidedThreadKind: Hashable {
     }
   }
 
-  var steps: [ThreadPrompt] {
-    switch self {
-    case .reflection:
-      return [
-        ThreadPrompt(
-          eyebrow: "reflection", prompt: "What did you notice or learn in it?",
-          placeholder: "A pattern, a feeling, a small realisation."),
-        ThreadPrompt(
-          eyebrow: "reflection", prompt: "What does it tell you about what matters to you?",
-          placeholder: "The thread from this to who you're becoming."),
-      ]
-    case .gratitude:
-      return [
-        ThreadPrompt(
-          eyebrow: "gratitude", prompt: "Who or what helped make it happen?",
-          placeholder: "A person, a circumstance, a small mercy."),
-        ThreadPrompt(
-          eyebrow: "gratitude", prompt: "What does this tell you about the life you're building?",
-          placeholder: "The thread from this moment to who you're becoming."),
-      ]
-    case .possibilities:
-      return [
-        ThreadPrompt(
-          eyebrow: "possibility", prompt: "What draws you to it?",
-          placeholder: "The feeling underneath — no plan needed."),
-        ThreadPrompt(
-          eyebrow: "possibility", prompt: "What's the smallest hint of it you could notice or try?",
-          placeholder: "A tiny nudge, if any. It can stay a question."),
-      ]
-    }
-  }
+  var steps: [ThreadPrompt] { copy.steps }
 
-  var closingTitle: String {
-    switch self {
-    case .reflection: return "Noticed."
-    case .gratitude: return "Kept."
-    case .possibilities: return "Left as a possibility."
-    }
-  }
+  var closingTitle: String { copy.closing.title }
 
-  var closingBody: String {
-    switch self {
-    case .reflection: return "This is on your Reflection Garden."
-    case .gratitude: return "This is on your Reflection Garden."
-    case .possibilities: return "It's in Uncharted — no plan attached."
-    }
-  }
+  var closingBody: String { copy.closing.body }
 }
 
 // Walks a seed note through a kind's follow-up prompts, appending each answer to its
@@ -188,10 +166,10 @@ struct GuidedThreadView: View {
         // A gentle fork: leave the Possibility in Uncharted, or work it forward into a
         // backwards-in-time Landscape thread. Neither is urged over the other.
         VStack(alignment: .leading, spacing: 12) {
-          Text("Would you like to work it forward?")
+          Text(GuidedThreadCopy.library.workForward.prompt)
             .font(StudioFont.section).foregroundStyle(theme.inkStrong)
             .fixedSize(horizontal: false, vertical: true)
-          Text("Trace a gentle path back from the far horizon to this week — or leave it to breathe.")
+          Text(GuidedThreadCopy.library.workForward.body)
             .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
             .fixedSize(horizontal: false, vertical: true)
           HStack(spacing: 20) {

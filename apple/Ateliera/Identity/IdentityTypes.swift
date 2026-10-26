@@ -30,17 +30,11 @@ enum IdentitySection: String, CaseIterable {
     }
   }
 
-  var prompt: String {
-    switch self {
-    case .alreadyTrue: return "What already feels quietly and honestly true?"
-    case .practicingNow: return "What quality are you practicing in this season?"
-    case .valuesPrinciples: return "What helps you recognise a life that feels like yours?"
-    case .desiredFeelings: return "What feeling would you like to make room for?"
-    case .beliefsPractice: return "What belief are you testing, strengthening, or revising?"
-    case .embodimentCues: return "What does this look like in an ordinary hour?"
-    case .identityShifts: return "What language or assumption has changed over time?"
-    }
-  }
+  // The section prompts are content: Content/identity-prompts.json, the same file as
+  // packages/domain/src/content/identity-prompts.json.
+  private static let prompts: [String: String] = ContentLibrary.load("identity-prompts")
+
+  var prompt: String { Self.prompts[rawValue] ?? "" }
 
   // The card_type a note captured into this section carries.
   var cardType: String {
