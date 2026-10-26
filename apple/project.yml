@@ -70,6 +70,9 @@ targets:
       - path: Ateliera/Rhythm/Sky.swift
       - path: Ateliera/Intents/RhythmSummary.swift
       - path: Ateliera/Shared/SharedStore.swift
+      # The widget names today's micro-season, so it bundles its own copy of that table.
+      - path: Ateliera/Shared/ContentLibrary.swift
+      - path: Ateliera/Content/micro-seasons.json
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: au.com.annamcphee.ateliera.native.widgets
