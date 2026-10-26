@@ -12,7 +12,7 @@ Say what you found, which version or commit, which device and OS, and the steps 
 
 Report these the same way:
 
-- Data leaves the device without the user turning that on, or goes somewhere other than what [docs/privacy.md](docs/privacy.md) says.
+- Data leaves the device without the user turning that on, or goes anywhere the app's privacy documentation does not describe.
 - Entry text, cycle data or birth details appear where they should not: logs, notifications, widgets, Spotlight, Siri, the app switcher, or another app.
 - Files holding personal data are written without file protection.
 - Export leaves something out, or delete leaves something behind.
