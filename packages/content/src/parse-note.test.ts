@@ -290,7 +290,7 @@ describe('parseNote', () => {
   it('round trips the representative vault fixture', () => {
     const fixture = readFileSync(
       new URL(
-        '../../../fixtures/vaults/anna-sample/2026-07-13--a-calm-home--abc123.md',
+        '../../../fixtures/vaults/sample/2026-07-13--a-calm-home--abc123.md',
         import.meta.url,
       ),
       'utf8',

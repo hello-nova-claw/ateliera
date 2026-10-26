@@ -1,3 +1,5 @@
+import landscapePrompts from './content/landscape-prompts.json';
+
 export const landscapeAnchors = [
   'vision',
   'identity-values-feelings',
@@ -25,28 +27,27 @@ export const landscapeAnchorDefinitions = [
   {
     id: 'vision',
     label: 'Vision',
-    prompt: 'What would an ordinary Tuesday look like if this were true?',
+    prompt: landscapePrompts['vision'],
   },
   {
     id: 'identity-values-feelings',
     label: 'Identity, values & feelings',
-    prompt: 'Who is the version of me living this? How does she move in rooms?',
+    prompt: landscapePrompts['identity-values-feelings'],
   },
   {
     id: 'decisions',
     label: 'Decisions',
-    prompt: 'What can I choose in the next 30, 60, or 90 days?',
+    prompt: landscapePrompts['decisions'],
   },
   {
     id: 'practices',
     label: 'Practices',
-    prompt: 'What rhythm lets this be lived repeatedly?',
+    prompt: landscapePrompts['practices'],
   },
   {
     id: 'structure-strategy',
     label: 'Structure & strategy',
-    prompt:
-      'What time, environment, help, boundary, money, or system supports it?',
+    prompt: landscapePrompts['structure-strategy'],
   },
 ] as const satisfies readonly {
   id: LandscapeAnchor;

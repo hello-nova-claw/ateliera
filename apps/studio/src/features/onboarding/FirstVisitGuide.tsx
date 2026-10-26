@@ -1,29 +1,30 @@
+import tourSteps from '../../content/tour-steps.json';
 import type { TourStep } from './onboarding-state';
 
 const guide = {
   foyer: {
     name: 'Foyer',
-    copy: 'The Foyer holds a few things you want to meet again: who you are becoming, how you want life to feel, and the season you are living now.',
+    copy: tourSteps.foyer,
     next: 'Next room · Life Landscape',
   },
   landscape: {
     name: 'Life Landscape',
-    copy: 'The Landscape looks across life areas through Vision; Identity, values & feelings; Decisions; Practices; and Structure & strategy.',
+    copy: tourSteps.landscape,
     next: 'Next room · Current Season',
   },
   season: {
     name: 'Current Season',
-    copy: 'A season is a gentle boundary around what matters now. It can hold priorities, experiments, practices, support, and what is deliberately Not Now.',
+    copy: tourSteps.season,
     next: 'Next room · Uncharted',
   },
   uncharted: {
     name: 'Uncharted',
-    copy: 'Uncharted is for possibilities that do not need a plan yet. Begin with “What if…?” and let the idea remain open.',
+    copy: tourSteps.uncharted,
     next: 'Next room · Reflection Garden',
   },
   reflection: {
     name: 'Reflection Garden',
-    copy: 'Reflection Garden gathers what you are learning, celebrating, and seeing differently over time. It is where the Studio begins to remember with you.',
+    copy: tourSteps.reflection,
     next: 'Finish tour · Return to Foyer',
   },
 } satisfies Record<TourStep, { name: string; copy: string; next: string }>;

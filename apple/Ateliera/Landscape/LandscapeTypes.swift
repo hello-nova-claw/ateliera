@@ -22,20 +22,13 @@ extension LandscapeAnchor {
     }
   }
 
-  var prompt: String {
-    switch self {
-    case .vision:
-      return "What would an ordinary Tuesday look like if this were true?"
-    case .identityValuesFeelings:
-      return "Who is the version of me living this? How does she move in rooms?"
-    case .decisions:
-      return "What can I choose in the next 30, 60, or 90 days?"
-    case .practices:
-      return "What rhythm lets this be lived repeatedly?"
-    case .structureStrategy:
-      return "What time, environment, help, boundary, money, or system supports it?"
-    }
-  }
+  // The anchor prompts are content: Content/landscape-prompts.json (the same file as
+  // packages/domain/src/content/) and the native-only Content/landscape-seeded-prompts.json.
+  private static let prompts: [String: String] = ContentLibrary.load("landscape-prompts")
+  private static let seededPrompts: [String: String] =
+    ContentLibrary.load("landscape-seeded-prompts")
+
+  var prompt: String { Self.prompts[rawValue] ?? "" }
 
   /// The dimension prompt personalised to a becoming statement, so a guided thread
   /// carries the person's own words forward. The statement is quoted so any phrasing
@@ -43,19 +36,8 @@ extension LandscapeAnchor {
   /// `prompt`. Apple-only guided copy — no golden to match.
   func prompt(seed: String) -> String {
     let s = seed.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !s.isEmpty else { return prompt }
-    switch self {
-    case .vision:
-      return "If “\(s)” were already true, what would an ordinary Tuesday look like?"
-    case .identityValuesFeelings:
-      return "Picture the version of you living “\(s)”. How does she move in rooms?"
-    case .decisions:
-      return "To grow into “\(s)”, what could you choose in the next 30, 60, or 90 days?"
-    case .practices:
-      return "What daily rhythm would let “\(s)” be lived, not just wished?"
-    case .structureStrategy:
-      return "What time, space, help, boundary, or money would support “\(s)”?"
-    }
+    guard !s.isEmpty, let template = Self.seededPrompts[rawValue] else { return prompt }
+    return template.filled(["seed": s])
   }
 
   // semanticTypeForLandscapeAnchor in domain/landscape.ts. Written to the note's

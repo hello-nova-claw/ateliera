@@ -143,7 +143,7 @@
   AND its IANA time zone, so the natal chart reads the birth time in the
   birthplace's zone (fixing the earlier device-zone caveat) and the rising sign is
   right. "Use my location" remains as a shortcut; both persist a place label + zone
-  in `BirthData`. Installed on Anna's iPhone. Both platforms build; 31 unit + 3 UI
+  in `BirthData`. Installed on a physical iPhone. Both platforms build; 31 unit + 3 UI
   tests green.
 
 ## 2026-08-27 — Native Apple app, Phase N4b: HealthKit drives the cycle layer
@@ -167,9 +167,9 @@
   entitlement** (automatic provisioning added the capability to the App ID); on the
   unsigned simulator the request errors and the almanac degrades gracefully with no
   crash (`artifacts/ios/native-n4b-almanac.png`); 29 unit + 2 UI tests green.
-- **Verified on Anna's iPhone (device):** installed the signed HealthKit build,
+- **Verified on a physical iPhone:** installed the signed HealthKit build,
   granted Cycle Tracking read access, and the almanac showed the cycle line from
-  her real Health data. The N4 gate is met end-to-end — the cycle layer is driven
+  the device's Health data. The N4 gate is met end-to-end — the cycle layer is driven
   by Health, the almanac renders natively.
 
 ## 2026-08-27 — Native Apple app, Phase N4a: native rhythm engine + Today's almanac
@@ -198,8 +198,8 @@
 
 ## 2026-08-27 — Native Apple app: running on a real iPhone (device install + on-device capture)
 
-- Ran the app on a physical **iPhone 15 Pro Max** (iOS 26.5.2). Signed with Anna's
-  Apple Development identity / team `W2UCHS9WV3` via automatic provisioning
+- Ran the app on a physical iPhone. Signed with an
+  Apple Development identity via automatic provisioning
   (`-allowProvisioningUpdates`, team passed on the xcodebuild command line so it
   isn't baked into the committed project), installed and launched with `devicectl`.
   The Reflection Garden renders natively with the real fonts, and **capturing and
@@ -716,7 +716,7 @@
 - Hardened OPFS listing with metadata-only sidecars so normal asset scans do not allocate attachment bodies. Legacy or stale metadata is healed through bounded verified reads, atomic target sizes are preflighted before journal mutation, and create/update conditions remain authoritative throughout the recovered write.
 - Streamed native metadata and ordinary large attachments through bounded raw IPC chunks rather than JSON-expanded payloads. Tauri assembles chunks into the export only after exact length and SHA-256 verification; archive construction remains bounded even when metadata changes between stat and read.
 - Added a private native backup destination with atomic filesystem publication and no vault-path disclosure. Browser backups remain explicit local downloads; no private Markdown, attachments, export bytes, or restored content enters the service-worker cache.
-- Added an all-room destructive restore drill against `fixtures/vaults/anna-sample`, verifying semantic recovery of Foyer, Identity, Life Landscape, Current Season, Uncharted, Wisdom, Reflection/Celebration, relationships, structured Studio state, Trash, attachments, and backups after the target is destroyed and rebuilt from the archive.
+- Added an all-room destructive restore drill against `fixtures/vaults/sample`, verifying semantic recovery of Foyer, Identity, Life Landscape, Current Season, Uncharted, Wisdom, Reflection/Celebration, relationships, structured Studio state, Trash, attachments, and backups after the target is destroyed and rebuilt from the archive.
 - Final integrity review found that IndexedDB could return same-length corrupted bytes alongside a stale persisted hash, allowing restore preview to classify damaged content as unchanged. IndexedDB records now require an exact schema, canonical vault/key/path/timestamp/hash fields, and recomputed SHA-256 agreement on both listing and direct read; corruption fails closed before preview or mutation. A real direct-IndexedDB corruption journey proves the old failure and the repaired behavior in Chromium and WebKit.
 - Final current-head verification passed typecheck, ESLint/stylelint, all 1,190 workspace tests, the production build, the exact destructive restore drill, 48 Rust tests, `cargo fmt --check`, `cargo clippy -D warnings`, all 12 portability journeys across desktop Chromium, mobile Chromium, and desktop WebKit, and all 7 focused visual/axe checks. Independent final re-review approved Task 17 with no P0–P2 findings.
 
@@ -903,13 +903,13 @@
   journey. Direct screenshot review covered the integrated Identity Studio,
   Wisdom Garden, and Life Landscape.
 
-## 2026-08-21 — The Almara Seam: rhythm engine and Today's Gift
+## 2026-08-21 — The rhythm seam: rhythm engine and Today's Gift
 
-- Folded Almara's rhythm/resurfacing engine into Ateliera. A Gift — a real
+- Folded the rhythm prototype's rhythm/resurfacing engine into Ateliera. A Gift — a real
   resurfaced card or a calm fallback line — now appears in the Foyer, ranked by
   moon/cycle/year-wheel/natal position, and can be kept as an ordinary card
   through the existing capture-placement system. Implemented as the eight-task
-  `docs/superpowers/plans/2026-08-18-almara-seam.md` plan; every task is one
+  `docs/superpowers/plans/2026-08-18-rhythm-seam.md` plan; every task is one
   atomic commit and the feature branch is not yet merged pending a live try.
 - Merged the extracted, dependency-free `@studio/rhythm` package (natal chart,
   resurfacing selection, year-wheel/moon/cycle context, timezone) with its 60

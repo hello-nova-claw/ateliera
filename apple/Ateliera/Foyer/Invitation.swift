@@ -38,6 +38,37 @@ struct InvitationContext {
 enum InvitationEngine {
   private static let day: Int64 = 86_400_000
 
+  // The invitations' wording is content: Content/invitations.json, whose `{name}`
+  // placeholders are filled here.
+  private struct Copy: Decodable {
+    let title: String
+    let body: String
+    let accept: String
+    var untitled: String?
+    var when: [String: String]?
+  }
+
+  private struct Library: Decodable {
+    struct Varied: Decodable {
+      let title: String
+      let body: [String: String]
+      let accept: String
+    }
+
+    let solarReturn: Copy
+    let seasonClosing: Copy
+    let newMoon: Copy
+    let fullMoon: Copy
+    let seasonTurning: Copy
+    let microSeasonShift: Copy
+    let cyclePhase: Varied
+    let inboxWaiting: Varied
+    let synthesizeWisdom: Copy
+    let promoteIdentity: Copy
+  }
+
+  private static let copy: Library = ContentLibrary.load("invitations")
+
   // The single invitation to show — the first, in priority order, that isn't dismissed.
   static func current(_ ctx: InvitationContext) -> Invitation? {
     let candidates: [Invitation?] = [
@@ -71,10 +102,10 @@ enum InvitationEngine {
     guard let birth = ctx.birthDate, birth.count >= 10 else { return nil }
     guard String(ctx.date.suffix(5)) == String(birth.suffix(5)) else { return nil }  // MM-DD match
     let year = Sky.civil(fromMs: Rhythm.dayMillis(date: ctx.date)).year
+    let c = copy.solarReturn
     return Invitation(
-      id: "solar:\(year)", kind: .solarReturn(year: year), title: "Your solar return",
-      body: "A year around the sun today — begin a new personal year in step with it?",
-      acceptLabel: "Begin a season")
+      id: "solar:\(year)", kind: .solarReturn(year: year), title: c.title, body: c.body,
+      acceptLabel: c.accept)
   }
 
   private static func seasonClosing(_ ctx: InvitationContext) -> Invitation? {
@@ -84,11 +115,11 @@ enum InvitationEngine {
       let endMs = Rhythm.dayMillis(date: end)
       guard endMs <= ms + 7 * day else { continue }  // within a week, or already past
       let seasonId = note.frontmatterScalar("season_id") ?? note.id
-      let title = note.title ?? "your season"
+      let c = copy.seasonClosing
+      let title = note.title ?? c.untitled ?? ""
       return Invitation(
         id: "season-close:\(seasonId)", kind: .seasonClosing(seasonId: seasonId),
-        title: "A season is closing", body: "“\(title)” is drawing to a close — reflect and close it?",
-        acceptLabel: "Close the season")
+        title: c.title, body: c.body.filled(["title": title]), acceptLabel: c.accept)
     }
     return nil
   }
@@ -103,11 +134,11 @@ enum InvitationEngine {
       $0.cardType == "moon-intention" && $0.frontmatterScalar("moon_lunation") == lunation
     }
     guard !already else { return nil }
-    let when = days == 0 ? "today" : (days == 1 ? "tomorrow" : "just passed")
+    let c = copy.newMoon
+    let when = c.when?[days == 0 ? "today" : (days == 1 ? "tomorrow" : "passed")] ?? ""
     return Invitation(
-      id: "newmoon:\(lunation)", kind: .newMoonIntention(lunation: lunation), title: "A new moon",
-      body: "New moon \(when) — set an intention to carry through the month?",
-      acceptLabel: "Set an intention")
+      id: "newmoon:\(lunation)", kind: .newMoonIntention(lunation: lunation), title: c.title,
+      body: c.body.filled(["when": when]), acceptLabel: c.accept)
   }
 
   private static func fullMoon(_ ctx: InvitationContext) -> Invitation? {
@@ -116,11 +147,11 @@ enum InvitationEngine {
     let days = Int(moon / day - ms / day)
     guard (-1...1).contains(days) else { return nil }
     let lunation = Sky.isoDate(ms: moon)
+    let c = copy.fullMoon
+    let when = c.when?[days == 1 ? "tomorrow" : "tonight"] ?? ""
     return Invitation(
       id: "fullmoon:\(lunation)", kind: .fullMoonReflection(lunation: lunation),
-      title: "A full moon",
-      body: "Full moon \(days == 1 ? "tomorrow" : "tonight") — what has grown, and what's ready to release?",
-      acceptLabel: "Reflect")
+      title: c.title, body: c.body.filled(["when": when]), acceptLabel: c.accept)
   }
 
   private static func seasonBegin(_ ctx: InvitationContext) -> Invitation? {
@@ -133,12 +164,17 @@ enum InvitationEngine {
     }
     guard !underway else { return nil }
     let local = ctx.hemisphere == .south ? next.point.beginsSeason.opposite : next.point.beginsSeason
-    let when = days == 0 ? "today" : (days == 1 ? "tomorrow" : "in \(days) days")
+    let c = copy.seasonTurning
+    let when =
+      (c.when?[days == 0 ? "today" : (days == 1 ? "tomorrow" : "inDays")] ?? "")
+      .filled(["days": String(days)])
     return Invitation(
       id: "season:\(Sky.isoDate(ms: next.ms))", kind: .seasonAtTurningPoint(next.point),
-      title: "A season is turning",
-      body: "The \(next.point.title) is \(when) — \(local.rawValue) begins. Begin a personal season in step with it?",
-      acceptLabel: "Begin a season")
+      title: c.title,
+      body: c.body.filled([
+        "turningPoint": next.point.title, "when": when, "season": local.rawValue,
+      ]),
+      acceptLabel: c.accept)
   }
 
   private static func microSeasonShift(_ ctx: InvitationContext) -> Invitation? {
@@ -147,10 +183,11 @@ enum InvitationEngine {
     let before = microSeason(atMs: ms - 2 * day, ctx.hemisphere)
     guard now.term != before.term else { return nil }  // turned within the last ~2 days
     let year = Sky.civil(fromMs: ms).year
+    let c = copy.microSeasonShift
     return Invitation(
       id: "microseason:\(now.term):\(year)", kind: .microSeasonShift(term: now.term),
-      title: "The season has turned",
-      body: "“\(now.term)” — \(now.gloss). A moment to notice it?", acceptLabel: "Reflect")
+      title: c.title, body: c.body.filled(["term": now.term, "gloss": now.gloss]),
+      acceptLabel: c.accept)
   }
 
   private static func cyclePhase(_ ctx: InvitationContext) -> Invitation? {
@@ -159,11 +196,11 @@ enum InvitationEngine {
       let yesterday = Rhythm.computeCycle(ctx.cycle, dateMs: ms - day),
       today.phase != yesterday.phase
     else { return nil }
-    let (body, _) = cycleCopy(today.phase)
+    let c = copy.cyclePhase
     return Invitation(
       id: "cycle:\(today.phase.rawValue):\(ms / (28 * day))",
-      kind: .cyclePhase(today.phase), title: "Your rhythm is shifting", body: body,
-      acceptLabel: "Reflect")
+      kind: .cyclePhase(today.phase), title: c.title, body: c.body[today.phase.rawValue] ?? "",
+      acceptLabel: c.accept)
   }
 
   private static func inboxWaiting(_ ctx: InvitationContext) -> Invitation? {
@@ -172,11 +209,11 @@ enum InvitationEngine {
     let waiting = ctx.notes.filter { $0.rooms.contains("inbox") && $0.status == "draft" }
     guard !waiting.isEmpty else { return nil }
     let count = waiting.count
+    let c = copy.inboxWaiting
     return Invitation(
-      id: "inbox:\(week(ctx.date))", kind: .inboxWaiting, title: "Notes to sort",
-      body:
-        "\(count) note\(count == 1 ? "" : "s") \(count == 1 ? "is" : "are") waiting in the Inbox — sort \(count == 1 ? "it" : "them") into place?",
-      acceptLabel: "Open the Inbox")
+      id: "inbox:\(week(ctx.date))", kind: .inboxWaiting, title: c.title,
+      body: (c.body[count == 1 ? "one" : "other"] ?? "").filled(["count": String(count)]),
+      acceptLabel: c.accept)
   }
 
   private static func synthesizeWisdom(_ ctx: InvitationContext) -> Invitation? {
@@ -185,11 +222,10 @@ enum InvitationEngine {
       for tag in Set(note.tags) { byTag[tag, default: 0] += 1 }
     }
     guard let theme = byTag.filter({ $0.value >= 3 }).keys.sorted().first else { return nil }
+    let c = copy.synthesizeWisdom
     return Invitation(
       id: "synth:\(theme):\(week(ctx.date))", kind: .synthesizeWisdom(theme: theme),
-      title: "A thread to weave",
-      body: "You've kept a few ideas about “\(theme)” — weave them into one?",
-      acceptLabel: "Open Wisdom")
+      title: c.title, body: c.body.filled(["theme": theme]), acceptLabel: c.accept)
   }
 
   private static func promoteIdentity(_ ctx: InvitationContext) -> Invitation? {
@@ -199,11 +235,11 @@ enum InvitationEngine {
         && Rhythm.dayMillis(date: $0.created) <= ms - 30 * day
     }
     guard let card = aged else { return nil }
-    let title = card.title ?? "what you're practicing"
+    let c = copy.promoteIdentity
+    let title = card.title ?? c.untitled ?? ""
     return Invitation(
       id: "promote:\(card.id)", kind: .promoteIdentity(noteId: card.id),
-      title: "Becoming true", body: "“\(title)” has been with you a while — is it becoming true?",
-      acceptLabel: "Open Identity")
+      title: c.title, body: c.body.filled(["title": title]), acceptLabel: c.accept)
   }
 
   // MARK: - Helpers
@@ -214,13 +250,4 @@ enum InvitationEngine {
   }
 
   private static func week(_ date: String) -> Int { Int(Rhythm.dayMillis(date: date) / (7 * day)) }
-
-  private static func cycleCopy(_ phase: CyclePhase) -> (body: String, label: String) {
-    switch phase {
-    case .menstrual: return ("A time to rest and let go — what wants to be released?", "Reflect")
-    case .follicular: return ("Energy is returning — what would you like to begin?", "Reflect")
-    case .ovulation: return ("A brighter, outward stretch — what are you ready to share?", "Reflect")
-    case .luteal: return ("A time to complete and tend — what deserves closing well?", "Reflect")
-    }
-  }
 }

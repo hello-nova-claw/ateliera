@@ -18,27 +18,43 @@ struct ReverseWorkshopStep: Identifiable, Equatable {
   // horizons ask for larger moves; the near ones narrow to the next real step. An empty
   // seed still yields a usable prompt.
   func prompt(seed: String) -> String {
+    let copy = ReverseWorkshopCopy.library
     let s = seed.trimmingCharacters(in: .whitespacesAndNewlines)
-    let it = s.isEmpty ? "this possibility" : "“\(s)”"
+    let it = s.isEmpty ? copy.seed.empty : copy.seed.quoted.filled(["seed": s])
+    let template: String?
     switch (anchor, horizon) {
-    case (.decisions, .d90):
-      return "Three months from now, on the way to \(it) — what big decision would already be made?"
-    case (.decisions, .d60):
-      return "Two months from now, on the way to \(it) — what decision would already be made?"
-    case (.decisions, .d30):
-      return "A month from now, on the way to \(it) — what smaller decision would already be made?"
-    case (.decisions, .thisWeek):
-      return "A week from now, on the way to \(it) — what small decision would already be made?"
-    case (.decisions, .today):
-      return "By the end of today, on the way to \(it) — what first decision would already be made?"
+    case (.decisions, let horizon?):
+      template = copy.decisions[horizon.rawValue]
     case (.practices, _):
-      return "What gentle rhythm would keep \(it) alive between those steps?"
+      template = copy.practices
     case (.structureStrategy, _):
-      return "What time, space, help, or money would give \(it) room to happen?"
+      template = copy.structureStrategy
     default:
-      return anchor.prompt
+      template = nil
     }
+    return template?.filled(["it": it]) ?? anchor.prompt
   }
+}
+
+// The workshop's prompts are content: Content/reverse-workshop.json, where `{it}` stands
+// for the possibility (quoted, or a gentle stand-in when the seed is empty).
+private struct ReverseWorkshopCopy: Decodable {
+  struct Seed: Decodable {
+    let empty: String
+    let quoted: String
+  }
+
+  let seed: Seed
+  let decisions: [String: String]
+  let practices: String
+  let structureStrategy: String
+
+  enum CodingKeys: String, CodingKey {
+    case seed, decisions, practices
+    case structureStrategy = "structure-strategy"
+  }
+
+  static let library: ReverseWorkshopCopy = ContentLibrary.load("reverse-workshop")
 }
 
 enum ReverseWorkshopPlan {

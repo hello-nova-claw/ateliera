@@ -23,7 +23,7 @@ const gates = [
   ['security-tests', 'pnpm', ['test:security']],
   ['npm-production-audit', 'pnpm', ['audit:npm:production']],
   ['rust-macos-audit', 'pnpm', ['audit:rust:macos']],
-  ['restore-drill', 'pnpm', ['verify:restore', '--', 'fixtures/vaults/anna-sample']],
+  ['restore-drill', 'pnpm', ['verify:restore', '--', 'fixtures/vaults/sample']],
   ['rust-tests', 'pnpm', ['tauri:test']],
   ['rust-format', 'pnpm', ['rust:fmt']],
   ['rust-clippy', 'pnpm', ['rust:clippy']],

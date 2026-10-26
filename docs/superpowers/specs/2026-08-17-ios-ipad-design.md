@@ -16,11 +16,11 @@ intent.
 trackpad support, Apple Pencil capture, Stage Manager / multitasking support,
 iCloud Drive-based vault sync.
 
-**Out of scope for this spec:** folding Almara's rhythm/astrology engine into
+**Out of scope for this spec:** folding the rhythm prototype's rhythm/astrology engine into
 Ateliera. That is a separate, later effort and does not block or shape this
 design — it is mentioned here only so the architecture isn't accidentally
 closed off from it (it isn't; the domain/adapter layering keeps any future
-Almara integration independent of the iOS shell work).
+the rhythm prototype integration independent of the iOS shell work).
 
 **Sequencing:** this work does not start until Mac v1 ships — the 66 files
 currently uncommitted in the `feat/studio-mvp` worktree (capture flow, room

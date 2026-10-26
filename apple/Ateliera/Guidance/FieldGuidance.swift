@@ -3,8 +3,8 @@ import SwiftUI
 // Writing guidance for an input field: a one-line description of what belongs there,
 // plus a concrete greyed "e.g. …" example shown as the control's placeholder. Ported
 // verbatim from the web `field-guidance.ts` files so mobile guides as clearly as the
-// desktop app. Copy is data, not scattered through views.
-struct FieldGuidance: Equatable {
+// desktop app. The copy itself is content, under Content/.
+struct FieldGuidance: Equatable, Decodable {
   let description: String
   let example: String
 }
