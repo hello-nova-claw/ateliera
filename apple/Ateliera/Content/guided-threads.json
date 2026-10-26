@@ -1,0 +1,76 @@
+{
+  "reflection": {
+    "opening": {
+      "eyebrow": "reflection",
+      "prompt": "What's on your mind as you look back?",
+      "placeholder": "One thing from today or lately — no need to tidy it."
+    },
+    "steps": [
+      {
+        "eyebrow": "reflection",
+        "prompt": "What did you notice or learn in it?",
+        "placeholder": "A pattern, a feeling, a small realisation."
+      },
+      {
+        "eyebrow": "reflection",
+        "prompt": "What does it tell you about what matters to you?",
+        "placeholder": "The thread from this to who you're becoming."
+      }
+    ],
+    "closing": {
+      "title": "Noticed.",
+      "body": "This is on your Reflection Garden."
+    }
+  },
+  "gratitude": {
+    "opening": {
+      "eyebrow": "celebration",
+      "prompt": "What's one thing that went well?",
+      "placeholder": "A win, a small mercy, something you're grateful for."
+    },
+    "steps": [
+      {
+        "eyebrow": "gratitude",
+        "prompt": "Who or what helped make it happen?",
+        "placeholder": "A person, a circumstance, a small mercy."
+      },
+      {
+        "eyebrow": "gratitude",
+        "prompt": "What does this tell you about the life you're building?",
+        "placeholder": "The thread from this moment to who you're becoming."
+      }
+    ],
+    "closing": {
+      "title": "Kept.",
+      "body": "This is on your Reflection Garden."
+    }
+  },
+  "possibilities": {
+    "opening": {
+      "eyebrow": "possibility",
+      "prompt": "What if…?",
+      "placeholder": "A possibility you want to keep — no plan attached."
+    },
+    "steps": [
+      {
+        "eyebrow": "possibility",
+        "prompt": "What draws you to it?",
+        "placeholder": "The feeling underneath — no plan needed."
+      },
+      {
+        "eyebrow": "possibility",
+        "prompt": "What's the smallest hint of it you could notice or try?",
+        "placeholder": "A tiny nudge, if any. It can stay a question."
+      }
+    ],
+    "closing": {
+      "title": "Left as a possibility.",
+      "body": "It's in Uncharted — no plan attached."
+    }
+  },
+  "workForward": {
+    "prompt": "Would you like to work it forward?",
+    "body": "Trace a gentle path back from the far horizon to this week — or leave it to breathe."
+  },
+  "stepFooter": "Take what's useful, leave the rest. You can always come back."
+}

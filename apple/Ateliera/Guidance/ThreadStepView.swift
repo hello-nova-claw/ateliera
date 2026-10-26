@@ -47,7 +47,7 @@ struct ThreadStepView: View {
           .font(StudioFont.control).foregroundStyle(theme.link)
           .accessibilityIdentifier("workshop-next")
       }
-      Text("Take what's useful, leave the rest. You can always come back.")
+      Text(GuidedThreadCopy.library.stepFooter)
         .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
     }
   }
