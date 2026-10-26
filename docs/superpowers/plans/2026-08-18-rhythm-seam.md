@@ -1,8 +1,8 @@
-# The Almara Seam Implementation Plan
+# The Rhythm Seam Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Fold Almara's rhythm/resurfacing engine into Ateliera — a Gift (a real resurfaced card or a calm fallback) appears in the Foyer, ranked by moon/cycle/season/natal position, and can be kept as a real card via the existing capture-placement system.
+**Goal:** Fold the rhythm prototype's rhythm/resurfacing engine into Ateliera — a Gift (a real resurfaced card or a calm fallback) appears in the Foyer, ranked by moon/cycle/season/natal position, and can be kept as a real card via the existing capture-placement system.
 
 **Architecture:** `packages/rhythm` (already extracted, pure computation, no vault access) is merged in first. A resurfacing candidate pool is built by querying Ateliera's existing `packages/index` for cards with new opt-in frontmatter fields. A new rhythm-profile repository stores birth/location/cycle config the same way Wisdom theme preferences are stored. A new Foyer component wires all of it together and routes "Keep" through the existing `capturePlacements` table.
 
@@ -16,7 +16,7 @@
 - Every commit message is a single line, imperative mood, no "Co-Authored-By" or any Claude attribution (repo owner's standing instruction — this applies to every commit in this plan, no exceptions).
 - Follow existing precedent exactly where one exists — this repo already solved "add an optional frontmatter field" (commit `5fc7f65`) and "atomic versioned config file" (`packages/application/src/wisdom-theme-repository.ts`). Match their shape, don't invent a new one.
 - `resurface_kind` is opt-in, never auto-assigned (spec §4) — no task in this plan should add automatic classification logic.
-- Almara's ambient season concept is called "the year-wheel" in any new code/comments that need to distinguish it from Ateliera's Current Season room — never call it "season" in a context that could collide.
+- The rhythm prototype's ambient season concept is called "the year-wheel" in any new code/comments that need to distinguish it from Ateliera's Current Season room — never call it "season" in a context that could collide.
 
 ---
 
@@ -688,7 +688,7 @@ git commit -m "ui: add the mark-for-resurfacing card editor action"
 
 This is the one task in the plan that touches an existing hand-authored file's render tree (`FoyerPage.tsx`), so do it last and by itself, not fanned out alongside anything else that also touches Foyer.
 
-**Gift-kind mapping** (from spec §3-5): if `selectResurface` returns a card, its `payload.text` is read from the vault at `card.sourcePath` (reuse whatever note-loading the `StudioService` already exposes — check `service.load(path): Promise<SavedNote>`, already listed in `StudioService`, `packages/application/src/studio-service.ts:256`), and `Gift.kind` is `'dream'` when `card.kind === 'dream'`, else `'resurfaced'`. If no card is due (or the profile isn't set yet), the Gift is the calm static fallback (`{ kind: 'line', payload: { text: 'A quiet place to begin.' } }`, matching Almara's own `CALM_GIFT` — same copy, since it's already well-considered product writing, not a placeholder).
+**Gift-kind mapping** (from spec §3-5): if `selectResurface` returns a card, its `payload.text` is read from the vault at `card.sourcePath` (reuse whatever note-loading the `StudioService` already exposes — check `service.load(path): Promise<SavedNote>`, already listed in `StudioService`, `packages/application/src/studio-service.ts:256`), and `Gift.kind` is `'dream'` when `card.kind === 'dream'`, else `'resurfaced'`. If no card is due (or the profile isn't set yet), the Gift is the calm static fallback (`{ kind: 'line', payload: { text: 'A quiet place to begin.' } }`, matching the rhythm prototype's own `CALM_GIFT` — same copy, since it's already well-considered product writing, not a placeholder).
 
 - [ ] **Step 1: Write the failing hook test**
 
