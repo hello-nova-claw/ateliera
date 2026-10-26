@@ -1,3 +1,4 @@
+import almanac from '../../content/almanac.json';
 import { DEFAULT_RHYTHM_LAYERS, type RhythmLayers } from '../settings/rhythm-layers';
 import type { Almanac, RhythmOrientation } from './use-almanac';
 import './TodaysAlmanac.css';
@@ -7,10 +8,7 @@ export interface TodaysAlmanacProps {
   layers?: RhythmLayers;
 }
 
-const ORIENTATION_COPY: Record<RhythmOrientation, string> = {
-  inward: 'A gathering day — a good time to notice how far you have come.',
-  outward: 'An opening day — a good time to name what you want to make room for.',
-};
+const ORIENTATION_COPY: Record<RhythmOrientation, string> = almanac.orientation;
 
 function sentenceCase(value: string): string {
   const spaced = value.replace(/-/g, ' ');
