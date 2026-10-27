@@ -18,17 +18,18 @@ custom_rules:
   no_print:
     name: No print
     regex: '(^|[^\w.]|\bSwift\.)(print|debugPrint|NSLog|os_log)\('
-    match_kinds: [identifier]
+    excluded_match_kinds: [comment, doccomment, string]
     message: Use os.Logger with privacy .private (CONTRIBUTING.md, Privacy).
     severity: error
   network_api:
     name: Network API
     regex: '\b(URLSession|WKWebView|NWConnection|SFSafariViewController)\b'
-    match_kinds: [identifier, typeidentifier]
+    excluded_match_kinds: [comment, doccomment, string]
     message: Network access must be on the bin/check-privacy allowlist (CONTRIBUTING.md, Privacy).
     severity: error
   fixed_font_size:
     name: Fixed font size
     regex: '\.system\(\s*size:'
+    excluded_match_kinds: [comment, doccomment, string]
     message: Use a Dynamic Type text style (CONTRIBUTING.md, Code).
     severity: error
