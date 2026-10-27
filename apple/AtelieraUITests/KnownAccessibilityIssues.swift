@@ -25,9 +25,11 @@ enum KnownAccessibilityIssues {
     74 contrast today
     74 contrast today-panel
     78 hitRegion rhythm
+    78 hitRegion room-current-season
     78 hitRegion room-identity-studio
     78 hitRegion room-landscape
     78 hitRegion room-reflection-garden
+    78 hitRegion room-uncharted
     78 hitRegion room-wisdom-garden
     78 hitRegion settings
     78 hitRegion today
@@ -73,6 +75,7 @@ enum KnownAccessibilityIssues {
     83 sufficientElementDescription today-panel
     168 elementDetection rhythm
     168 elementDetection room-reflection-garden
+    168 elementDetection room-uncharted
     168 elementDetection settings
     168 elementDetection sky-ahead
     168 elementDetection today
