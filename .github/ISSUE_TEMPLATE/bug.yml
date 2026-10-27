@@ -1,0 +1,52 @@
+name: Bug report
+description: Something in the app doesn't work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Don't paste journal entries, dreams, cycle data, birth details or screenshots of your own entries. Describe them instead, or reproduce the bug with made-up entries.**
+
+        This repository is public. If the bug lets data leave the device, shows it where it shouldn't, or bypasses the app lock, report it privately instead: see SECURITY.md.
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      description: For example "iPhone 15", "iPad Air (M2)", "MacBook Air", or a browser and its version.
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+      description: For example "iOS 26.1" or "macOS 26.0".
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      description: Settings > About in the app, or the commit you built from.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps, using made-up content.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: What should have happened.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      description: What happened instead. Describe screenshots rather than attaching ones of your own journal.
+    validations:
+      required: true
