@@ -33,8 +33,11 @@
   border-inline-start: 1px solid var(--studio-color-line);
 }
 
+/* Without a sized track, the hero-size query input sets its own width and
+   overflows a phone screen. */
 .search-page__search {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--studio-space-2);
   margin-block-start: clamp(var(--studio-space-8), 7vw, var(--studio-space-12));
 }
