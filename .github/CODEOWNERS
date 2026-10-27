@@ -1,0 +1,14 @@
+# Anna reviews anything that touches the principles, privacy or licensing.
+/docs/design.md                @annacmc
+/docs/privacy.md               @annacmc
+/docs/privacy-policy.md        @annacmc
+/apple/**/PrivacyInfo.xcprivacy @annacmc
+/apple/*.entitlements          @annacmc
+/apple/project.yml             @annacmc
+/LICENSE                       @annacmc
+/CONTENT-LICENSE.md            @annacmc
+/TRADEMARKS.md                 @annacmc
+/apple/Ateliera/Content/       @annacmc
+/apps/studio/src/content/      @annacmc
+/packages/domain/src/content/  @annacmc
+/packages/rhythm/src/content/  @annacmc
