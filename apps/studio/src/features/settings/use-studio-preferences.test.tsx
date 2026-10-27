@@ -76,4 +76,50 @@ describe('useStudioPreferences', () => {
     expect(result.current.revision).toBe('r0-next');
     expect(result.current.preferences).toEqual(next);
   });
+
+  it('shares a save with every other user of the same Studio', async () => {
+    const save = vi.fn(async (preferences: unknown, revision: string | null) => ({
+      preferences,
+      revision: `${revision ?? 'new'}-next`,
+      repairRequired: false,
+    }));
+    const svc = service({
+      load: vi.fn(async () => ({
+        preferences: { rooms: { wisdom: 'off' as const } },
+        revision: 'r0',
+        repairRequired: false,
+      })),
+      save: save as never,
+    });
+    const navigation = renderHook(() => useStudioPreferences(svc));
+    const settings = renderHook(() => useStudioPreferences(svc));
+    await waitFor(() => expect(navigation.result.current.revision).toBe('r0'));
+    await waitFor(() => expect(settings.result.current.revision).toBe('r0'));
+
+    const next = { rooms: { wisdom: 'on' } } as const;
+    await act(async () => settings.result.current.save(next));
+
+    expect(navigation.result.current.preferences).toEqual(next);
+    expect(navigation.result.current.revision).toBe('r0-next');
+  });
+
+  it('stops sharing saves with a user that has unmounted', async () => {
+    const save = vi.fn(async (preferences: unknown) => ({
+      preferences,
+      revision: 'r1',
+      repairRequired: false,
+    }));
+    const svc = service({ save: save as never });
+    const gone = renderHook(() => useStudioPreferences(svc));
+    const settings = renderHook(() => useStudioPreferences(svc));
+    await waitFor(() =>
+      expect(svc.preferences.load as ReturnType<typeof vi.fn>).toHaveBeenCalledTimes(2),
+    );
+    gone.unmount();
+
+    await act(async () => settings.result.current.save({ rooms: { inbox: 'on' } }));
+
+    expect(gone.result.current.revision).toBeNull();
+    expect(settings.result.current.revision).toBe('r1');
+  });
 });
