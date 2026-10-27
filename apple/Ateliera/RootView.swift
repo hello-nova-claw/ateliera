@@ -106,7 +106,7 @@ struct RootView: View {
     formatter.locale = Locale(identifier: "en_US_POSIX")
     formatter.timeZone = .current
     formatter.dateFormat = "yyyy-MM-dd"
-    let today = formatter.string(from: Date())
+    let today = formatter.string(from: AppClock.now())
     return Rhythm.computeContext(
       profile: RhythmProfile(hemisphere: hemisphere, cycle: cycle), date: today)
   }
@@ -464,7 +464,7 @@ struct RootView: View {
 
   private var greeting: String {
     let base: String
-    switch Calendar.current.component(.hour, from: Date()) {
+    switch Calendar.current.component(.hour, from: AppClock.now()) {
     case 5..<12: base = "good morning"
     case 12..<17: base = "good afternoon"
     case 17..<22: base = "good evening"

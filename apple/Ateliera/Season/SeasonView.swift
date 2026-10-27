@@ -43,7 +43,7 @@ struct SeasonView: View {
     return f
   }()
 
-  private var today: String { Self.isoDay.string(from: Date()) }
+  private var today: String { Self.isoDay.string(from: AppClock.now()) }
 
   private var context: RhythmContext {
     Rhythm.computeContext(

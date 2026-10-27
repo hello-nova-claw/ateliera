@@ -156,7 +156,7 @@ struct RhythmSettingsView: View {
     let zone = timeZoneId.flatMap(TimeZone.init(identifier:)) ?? .current
     let d = Self.iso(date).split(separator: "-").compactMap { Int($0) }
     let t = knowsTime ? Self.hhmm(time).split(separator: ":").compactMap { Int($0) } : [12, 0]
-    guard d.count == 3 else { return Date() }
+    guard d.count == 3 else { return AppClock.now() }
     var components = DateComponents()
     components.year = d[0]
     components.month = d[1]
@@ -165,7 +165,7 @@ struct RhythmSettingsView: View {
     components.minute = t.count > 1 ? t[1] : 0
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = zone
-    return calendar.date(from: components) ?? Date()
+    return calendar.date(from: components) ?? AppClock.now()
   }
 
   private static func offsetLabel(_ seconds: Int) -> String {
