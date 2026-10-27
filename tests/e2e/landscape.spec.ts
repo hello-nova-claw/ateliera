@@ -441,24 +441,27 @@ test('touch long-press shows a destination preview, cancels safely, then moves',
     .getByRole('textbox', { name: 'What would an ordinary Tuesday look like if this were true?' })
     .fill('A calm home');
   await page.getByRole('button', { name: 'Remember' }).click();
+  // Measure once the card has replaced the empty Vision note, or the layout
+  // can still shift under the drag targets.
+  await expect(
+    page
+      .getByRole('region', { name: 'Vision' })
+      .getByRole('button', { name: 'A calm home', exact: true }),
+  ).toBeVisible();
 
   const handle = page.getByRole('button', { name: 'Drag A calm home' });
   const destination = page.getByRole('region', {
     name: 'Identity, values & feelings',
   });
+  // Bring the card and its destination on screen together. A touch held
+  // below the viewport makes the page auto-scroll mid-drag, so the drop would
+  // land wherever the scrolling stopped.
+  await handle.evaluate((element) => element.scrollIntoView({ block: 'start' }));
   const handleBox = await handle.boundingBox();
-  const destinationBox = await destination
-    .locator('.life-landscape__section-drop')
-    .boundingBox();
-  if (!handleBox || !destinationBox)
-    throw new Error('Touch drag targets were not rendered.');
+  if (!handleBox) throw new Error('Touch drag handle was not rendered.');
   const start = {
     x: handleBox.x + handleBox.width / 2,
     y: handleBox.y + handleBox.height / 2,
-  };
-  const target = {
-    x: destinationBox.x + destinationBox.width / 2,
-    y: destinationBox.y + destinationBox.height / 2,
   };
   const dispatchTouch = async (
     type: 'touchstart' | 'touchmove' | 'touchend',
@@ -487,7 +490,6 @@ test('touch long-press shows a destination preview, cancels safely, then moves',
   };
 
   await dispatchTouch('touchstart', start);
-  await page.waitForTimeout(550);
   await expect(
     page.getByRole('status', { name: 'Drag preview for A calm home' }),
   ).toBeVisible();
@@ -503,9 +505,22 @@ test('touch long-press shows a destination preview, cancels safely, then moves',
       .getByRole('button', { name: 'A calm home', exact: true }),
   ).toBeVisible();
 
+  const drop = destination.locator('.life-landscape__section-drop');
+  const destinationBox = await drop.boundingBox();
+  if (!destinationBox) throw new Error('Touch destination was not rendered.');
+  // Aim at the top of the drop area, which is on screen.
+  const target = {
+    x: destinationBox.x + destinationBox.width / 2,
+    y: destinationBox.y + Math.min(destinationBox.height / 2, 24),
+  };
+  expect(target.y).toBeLessThan(page.viewportSize()!.height * 0.75);
   await dispatchTouch('touchstart', start);
-  await page.waitForTimeout(550);
+  await expect(
+    page.getByRole('status', { name: 'Drag preview for A calm home' }),
+  ).toBeVisible();
   await dispatchTouch('touchmove', target);
+  // Lift only once the destination shows it will take the drop.
+  await expect(drop).toHaveClass(/--drop-preview/);
   await dispatchTouch('touchend', target);
   await expect(
     destination.getByRole('button', { name: 'A calm home', exact: true }),
