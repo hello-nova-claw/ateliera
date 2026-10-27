@@ -120,24 +120,34 @@ test('meets warm local interaction budgets on the reference browser', async ({
     page.getByRole('textbox', { name: 'Title' }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Close editor' }).click();
-  // Time the open inside the page, frame by frame. Timing it from the test
-  // runner adds Playwright's own polling, whose 100ms retry step alone can
-  // spend the whole budget.
-  const noteOpenMs = await card.evaluate(
-    (element) =>
-      new Promise<number>((resolve) => {
-        const start = performance.now();
-        const check = () => {
-          const title = document.querySelector('.card-editor__title-field input');
-          if (title !== null && title.getClientRects().length > 0) {
-            resolve(performance.now() - start);
-          } else {
-            requestAnimationFrame(check);
-          }
-        };
-        (element as HTMLElement).click();
-        check();
-      }),
+  await expect(page.getByRole('dialog', { name: 'Edit note' })).toHaveCount(0);
+  // Time the open inside the page, frame by frame, from the click itself.
+  // Timing it from the test runner adds Playwright's own polling, whose 100ms
+  // retry step alone can spend the whole budget.
+  await page.evaluate(() => {
+    const opened = new Promise<number>((resolve) => {
+      document.addEventListener(
+        'click',
+        () => {
+          const start = performance.now();
+          const check = () => {
+            const title = document.querySelector('.card-editor__title-field input');
+            if (title !== null && title.getClientRects().length > 0) {
+              resolve(performance.now() - start);
+            } else {
+              requestAnimationFrame(check);
+            }
+          };
+          check();
+        },
+        { capture: true, once: true },
+      );
+    });
+    Reflect.set(window, '__studioNoteOpenMs', opened);
+  });
+  await card.click();
+  const noteOpenMs = await page.evaluate(
+    () => Reflect.get(window, '__studioNoteOpenMs') as Promise<number>,
   );
   await expect(
     page.getByRole('textbox', { name: 'Title' }),
