@@ -1,0 +1,60 @@
+name: Pull request rules
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Job names are required-check names on main. Never rename one.
+jobs:
+  tests-with-code:
+    name: Tests change with code
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+      - run: node bin/pr-rules.mjs tests "$BASE_REF"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+
+  changelog:
+    name: Changelog fragment
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-changelog') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+      - run: node bin/pr-rules.mjs changelog "$BASE_REF"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+
+  privacy-doc:
+    name: Privacy doc changes with privacy files
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+      - run: node bin/pr-rules.mjs privacy-doc "$BASE_REF"
+        env:
+          BASE_REF: ${{ github.base_ref }}
