@@ -13,16 +13,27 @@ import {
 async function fixture(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'studio-release-'));
   await mkdir(join(root, 'assets'));
-  await writeFile(join(root, 'index.html'), '<script src="/assets/app.js"></script>');
+  await writeFile(
+    join(root, 'index.html'),
+    '<script src="/assets/app.js"></script>',
+  );
   await writeFile(join(root, 'assets/app.js'), 'console.log("studio")');
-  await writeFile(join(root, 'service-worker.js'), 'const cache = "studio-app-shell-test";');
+  await writeFile(
+    join(root, 'service-worker.js'),
+    'const cache = "studio-app-shell-test";',
+  );
   await writeFile(
     join(root, 'manifest.webmanifest'),
     JSON.stringify({
       display: 'standalone',
       icons: [
         { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml' },
-        { src: '/maskable.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
+        {
+          src: '/maskable.svg',
+          sizes: 'any',
+          type: 'image/svg+xml',
+          purpose: 'maskable',
+        },
       ],
       name: 'Ateliera',
       scope: '/',
@@ -30,8 +41,14 @@ async function fixture(): Promise<string> {
       start_url: '/',
     }),
   );
-  await writeFile(join(root, 'icon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
-  await writeFile(join(root, 'maskable.svg'), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+  await writeFile(
+    join(root, 'icon.svg'),
+    '<svg xmlns="http://www.w3.org/2000/svg"/>',
+  );
+  await writeFile(
+    join(root, 'maskable.svg'),
+    '<svg xmlns="http://www.w3.org/2000/svg"/>',
+  );
   const entries = [
     '/',
     '/assets/app.js',
@@ -62,12 +79,13 @@ describe('PWA release artifact inspection', () => {
       'fetch("https://example.com") /* Ateliera.dc.html */',
     );
     const manifest = JSON.parse(
-      await (await import('node:fs/promises')).readFile(
-        join(root, 'studio-precache-manifest.json'),
-        'utf8',
-      ),
+      await (
+        await import('node:fs/promises')
+      ).readFile(join(root, 'studio-precache-manifest.json'), 'utf8'),
     ) as { entries: Array<{ revision: string; url: string }>; version: string };
-    manifest.entries = manifest.entries.filter(({ url }) => url !== '/assets/app.js');
+    manifest.entries = manifest.entries.filter(
+      ({ url }) => url !== '/assets/app.js',
+    );
     await writeFile(
       join(root, 'studio-precache-manifest.json'),
       JSON.stringify(manifest),

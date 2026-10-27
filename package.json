@@ -13,6 +13,7 @@
     "audit:rust:macos": "node scripts/audit-rust-macos.mjs",
     "build:pwa": "pnpm --filter @studio/app build && node scripts/inspect-pwa.mjs",
     "build": "pnpm -r build",
+    "changelog": "node bin/changelog.mjs",
     "lint": "eslint . && stylelint \"**/*.css\"",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build -o artifacts/storybook",
