@@ -31,7 +31,7 @@ reviews:
     - path: "**/*.swift"
       instructions: |
         Flag as blocking:
-        - any new network call (URLSession, WKWebView, NWConnection, URL literals) or SDK;
+        - any new network call (URLSession, WKWebView, NWConnection, URL literals) or SDK that is not on the bin/check-privacy allowlist with its reason in docs/privacy.md (until bin/check-privacy exists, the reason in docs/privacy.md and Anna's approval in the PR);
         - any logging of personal data (print, or a Logger interpolation without privacy: .private);
         - any file write without file protection;
         - personal data shown in notifications, widgets, Spotlight, Siri or Shortcuts;
@@ -60,7 +60,7 @@ reviews:
     - path: "{apple/Ateliera/Content,apps/studio/src/content,packages/domain/src/content,packages/rhythm/src/content}/**"
       instructions: Reserved written content (CONTENT-LICENSE.md). Flag any change as needing Anna's review. Contributions of new written content are not accepted without a written agreement.
     - path: "{**/package.json,pnpm-lock.yaml,**/Cargo.toml,**/Cargo.lock}"
-      instructions: New dependencies must be on the allowlist in bin/check-privacy, have an MIT-compatible licence, have a reason in the pull request, and collect nothing. Flag analytics, crash-reporting, advertising and attribution packages as blocking.
+      instructions: New dependencies must be on the allowlist in bin/check-privacy (until it exists, justified in the pull request and approved by Anna), have an MIT-compatible licence, have a reason in the pull request, and collect nothing. Flag analytics, crash-reporting, advertising and attribution packages as blocking.
     - path: "{apple/AtelieraTests,apple/AtelieraUITests}/**"
       instructions: XCTest or Swift Testing only. Fixtures are obviously invented. Time, calendar, time zone and locale are injected. No sleeps, no real network, no writes to UserDefaults.standard.
     - path: "**/*.test.{ts,tsx}"
