@@ -1,6 +1,6 @@
 # Contributing to Ateliera
 
-These rules apply to everyone, human or agent. The reviewer enforces them, and CI enforces the parts a machine can check.
+These rules apply to everyone, human or agent. The reviewer enforces them. CI enforces the parts a machine can check, and the checks still being built are linked to their issues below.
 
 ## The rule above all others
 
@@ -15,10 +15,10 @@ Ateliera holds some of the most private things a person writes. Before you build
 
 ## How work flows
 
-1. **Issue first.** Every change starts as an issue made from the task template. An issue is not ready until all five fields are filled in: problem, scope, out of scope, acceptance criteria, how to test. Agents fill the template before writing code. Outside contributors open an issue and wait until it is accepted before writing code.
+1. **Issue first.** Every change starts as an issue made from the task template (added in #144; until then, use its five headings in the issue body). An issue is not ready until all five fields are filled in: problem, scope, out of scope, acceptance criteria, how to test. Agents fill the template before writing code. Outside contributors open an issue and wait until it is accepted before writing code.
 2. **Board.** Issues move across the project board: Backlog, Ready, In progress, In review, Done. Move the issue, not the pull request. Whoever files an issue adds it to the board and sets its milestone, Priority and Status together.
 3. **One branch and one pull request per issue.** Name the branch `<issue number>-<short-slug>`, for example `132-delete-everything`.
-4. **Pull request.** Use the template. Link the issue with `Fixes #132`. Add your changelog line as a fragment, `changelog/<issue>-<slug>.txt`. Don't edit `CHANGELOG.md`: parallel pull requests would conflict over it. At release time `bin/changelog` folds every fragment in. If the change has no user-facing effect, say so and a maintainer adds the `no-changelog` label.
+4. **Pull request.** Use the template (added in #144: `Fixes #N`, What, Why, How to test, a VoiceOver note for UI, and a checklist). Link the issue with `Fixes #132`. Add your changelog line as a fragment, `changelog/<issue>-<slug>.txt`. Don't edit `CHANGELOG.md`: parallel pull requests would conflict over it. At release time `bin/changelog` (added in #145) folds every fragment in. If the change has no user-facing effect, say so and a maintainer adds the `no-changelog` label.
 5. **Review.** CodeRabbit reviews every pull request, and its approval is the required review. Anna reviews anything that touches the design principles, `docs/privacy.md`, the privacy manifests, entitlements, usage strings or the licence files. `main` is protected: no direct pushes, all checks green.
 
 ## Licensing of contributions
@@ -52,7 +52,7 @@ Prefixes: `Journal`, `Capture`, `Dreams`, `Intentions`, `Reflection`, `Cycle`, `
 These rules carry the design principles into code. [docs/privacy.md](docs/privacy.md) describes how data is handled today.
 
 - **File protection.** New files that hold personal data use `.complete` file protection, or `docs/privacy.md` records why not. Secrets and the app-lock state live in the keychain, never in `UserDefaults`.
-- **No new network calls.** Nothing talks to the network except through an entry on the allowlist in `bin/check-privacy`, and each entry has its reason in `docs/privacy.md`. No analytics, crash-reporting, advertising or attribution SDK, ever.
+- **No new network calls.** Nothing talks to the network except through an entry on the allowlist in `bin/check-privacy` (added in #146), and each entry has its reason in `docs/privacy.md`. Until it lands, reviewers check this by hand. No analytics, crash-reporting, advertising or attribution SDK, ever.
 - **Personal data stays out of side channels.** Entry text, cycle data and birth details never appear in logs, crash reports, notifications, widgets, Spotlight, Siri or Shortcuts unless the user turned that on. The defaults are a neutral notification ("Time to write") and a widget that shows no entries.
 - **The app switcher shows a privacy screen** while the app lock is on.
 - **Export and delete stay complete.** Every new kind of data is added to both, with a test.
@@ -74,7 +74,7 @@ Use what Apple already has. Before you write anything custom, use the system equ
 - **Platform services.** LocalAuthentication for the lock, UserNotifications, WidgetKit, App Intents, HealthKit (read only), CoreLocation and Foundation Models, each behind a protocol so tests can replace it.
 - **Vault writes.** Go through the Rust vault core. Never write vault files directly from Swift.
 - **Safety.** No force unwraps, `try!` or `fatalError` outside tests. UI state is `@MainActor`.
-- **Dependencies.** Any third-party dependency needs an entry on the allowlist in `bin/check-privacy`, an MIT-compatible licence, a reason in the pull request, and confirmation that it collects nothing.
+- **Dependencies.** Any third-party dependency needs an entry on the allowlist in `bin/check-privacy` (#146), an MIT-compatible licence, a reason in the pull request, and confirmation that it collects nothing.
 
 ### Web and desktop app
 
@@ -99,10 +99,10 @@ Dates, the moon and the cycle are where this app breaks. These rules hold in bot
 ## Tests
 
 - Write the test first, and commit it first.
-- A pull request that changes app sources (`apple/Ateliera/`, `apple/AtelieraWidgets/`, `apple/AtelieraVaultCore/src/`, `apps/*/src/`, `packages/*/src/`) must also change a test. CI checks this.
+- A pull request that changes app sources (`apple/Ateliera/`, `apple/AtelieraWidgets/`, `apple/AtelieraVaultCore/src/`, `apps/*/src/`, `packages/*/src/`) must also change a test. Reviewers check this, and CI will once #145 lands.
 - Apple: XCTest or Swift Testing for unit tests, XCUITest for flows. TypeScript: Vitest, with `fast-check` for property tests; Playwright for end-to-end.
 - Inject time, calendar, time zone and locale. No sleeps. No real network.
-- Apple app line coverage must not drop below the figure in `.github/coverage-baseline`. When it rises by more than half a point, raise the baseline in the same pull request. The TypeScript packages keep their own Vitest coverage thresholds.
+- Apple app line coverage must not drop below the figure in `.github/coverage-baseline` (the gate arrives with #147). When it rises by more than half a point, raise the baseline in the same pull request. The TypeScript packages keep their own Vitest coverage thresholds.
 
 How to run everything is in [CLAUDE.md](CLAUDE.md#running-checks).
 
@@ -126,7 +126,7 @@ How to run everything is in [CLAUDE.md](CLAUDE.md#running-checks).
 
 - Every pull request from this repository that touches UI gets a **Screenshots** comment. It shows before and after images of every screen and state that changed, plus a collapsed list of the ones that didn't. Reviewers look at it before approving. A visual change never fails the check, so nothing else catches one.
 - Screenshots are taken from fixture vaults with a fixed clock and time zone, in every state the catalogue lists. They are named `<screen>--<state>--<locale>--<device>.png`. All data in them is invented.
-- When you add a screen or a state, add it to the screenshot catalogue.
+- When you add a screen or a state, add it to the screenshot catalogue. The catalogue and the comment arrive with #148.
 
 ## Security and privacy bugs
 
