@@ -55,9 +55,25 @@ export async function fold(root) {
   const entries = [];
   for (const name of names)
     entries.push(...parseFragment(await readFile(join(dir, name), 'utf8')));
+
+  // Stage the fragments first, so a failed run can be retried without folding
+  // any of them twice, then replace CHANGELOG.md atomically.
+  const staged = names.map((name) => [
+    join(dir, name),
+    join(dir, `${name}.folding`),
+  ]);
+  for (const [from, to] of staged) await rename(from, to);
   const file = join(root, 'CHANGELOG.md');
-  await writeFile(file, foldInto(await readFile(file, 'utf8'), entries));
-  await Promise.all(names.map((name) => unlink(join(dir, name))));
+  const temp = `${file}.tmp`;
+  try {
+    await writeFile(temp, foldInto(await readFile(file, 'utf8'), entries));
+    await rename(temp, file);
+  } catch (error) {
+    await unlink(temp).catch(() => {});
+    for (const [from, to] of staged) await rename(to, from);
+    throw error;
+  }
+  await Promise.all(staged.map(([, to]) => unlink(to)));
   return names.length;
 }
 
