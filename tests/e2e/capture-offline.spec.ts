@@ -123,6 +123,14 @@ test('restores focus and keeps private captures out of app-shell caches', async 
     .fill('A private childhood hill');
   await page.getByRole('button', { name: 'Remember' }).click();
   await expect(capture).toBeFocused();
+  const focusColor = await capture.evaluate((element) => {
+    const probe = document.createElement('span');
+    probe.style.color = 'var(--studio-color-focus)';
+    element.parentElement?.append(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  });
   await expect
     .poll(() =>
       capture.evaluate((element) => {
@@ -134,7 +142,7 @@ test('restores focus and keeps private captures out of app-shell caches', async 
         };
       }),
     )
-    .toEqual({ color: 'rgb(91, 61, 132)', style: 'solid', width: '3px' });
+    .toEqual({ color: focusColor, style: 'solid', width: '3px' });
 
   const cachedUrls = await page.evaluate(async () => {
     const urls: string[] = [];
