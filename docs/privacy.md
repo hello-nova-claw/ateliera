@@ -79,7 +79,7 @@ The location permission text says location "stays on your device". That is wrong
 - **Siri and Shortcuts:** one intent, "Today's rhythm", which reads out the season and moon. No cycle data. `Ateliera/Intents/TodaysRhythmIntent.swift`.
 - **Notifications, Spotlight, Handoff, Live Activities, clipboard writes:** none. There is no `UserNotifications`, `CoreSpotlight`, `NSUserActivity`, `ActivityKit` or `UIPasteboard` anywhere in `apple/Ateliera/` or `apple/AtelieraWidgets/`. The user can select and copy text themselves (`Ateliera/Note/BodyPreviewView.swift`).
 - **App switcher:** shows the last screen, including entry text. There is no `scenePhase` handling and no app lock (`Ateliera/AtelieraApp.swift`). Gap: #133.
-- **Logs:** the app writes no logs. There is no `print`, `os_log` or `Logger` in Swift, and no logging in `AtelieraVaultCore/src/`. A diagnostics buffer holds operation names and error codes in memory only (`Ateliera/DataManagement/DiagnosticsRecorder.swift`).
+- **Logs:** the app writes no logs. There is no `print`, `os_log` or `Logger` in Swift, and no logging in `AtelieraVaultCore/src/`. A diagnostics buffer holds operation names, outcomes, error codes and note IDs in memory only, never note content (`Ateliera/DataManagement/DiagnosticsRecorder.swift`, fed by `VaultStore.saveEdit`).
 - To recheck: `git grep -n -E "UserNotifications|CoreSpotlight|NSUserActivity|ActivityKit|UIPasteboard|scenePhase|os_log|Logger\(|print\(" -- 'apple/*.swift'`.
 
 ### On-device AI

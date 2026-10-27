@@ -52,7 +52,7 @@ These are requirements, not a description of today's code. Where the apps fall s
 ### Rhythm
 
 - Seasons, solstices and moon phases are computed on the device from Jean Meeus's formulas. Nothing is fetched.
-- In the Apple app, the cycle is read from Health (menstrual flow only), on the device, and kept in memory. It is never written to the vault.
+- In the Apple app, the cycle is read from Health (menstrual flow only), on the device, and kept in memory. It is never written to the vault. One derived trace persists on the device: a dismissed cycle invitation's ID, in `UserDefaults`, names the phase it was shown in.
 - The web app has no Health access. The user can type a last period start and an average length, which are stored in the vault's rhythm profile (see #151).
 - The natal chart is computed on the device from birth details the user types in.
 
