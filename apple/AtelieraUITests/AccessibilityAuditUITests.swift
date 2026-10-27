@@ -36,15 +36,33 @@ final class AccessibilityAuditUITests: XCTestCase {
     for screen in AppScreens.all {
       XCTContext.runActivity(named: screen.name) { _ in
         screen.open(app)
-        do {
-          try app.performAccessibilityAudit { issue in
-            KnownAccessibilityIssues.isKnown(issue, on: screen.name)
-          }
-        } catch {
-          XCTFail("\(screen.name): \(error)")
+        // The audit sees only what's on screen, so scroll through and audit each position.
+        for _ in 0..<8 {
+          auditVisible(app, on: screen.name)
+          let before = app.debugDescription
+          app.swipeUp()
+          if app.debugDescription == before { break }
         }
+        AppScreens.scrollToTop(app)
         screen.close(app)
       }
+    }
+  }
+
+  private func auditVisible(_ app: XCUIApplication, on screen: String) {
+    do {
+      try app.performAccessibilityAudit { issue in
+        let finding = KnownAccessibilityIssues.finding(issue, on: screen)
+        if KnownAccessibilityIssues.isKnown(finding) { return true }
+        // The audit's own message doesn't name the element; this gives the baseline line.
+        XCTFail(
+          "\(issue.compactDescription). Fix it, or if an open issue covers it, list it in "
+            + "KnownAccessibilityIssues as: <issue> \(finding.type) \(finding.screen) \(finding.element)"
+        )
+        return true
+      }
+    } catch {
+      XCTFail("\(screen): \(error)")
     }
   }
 }

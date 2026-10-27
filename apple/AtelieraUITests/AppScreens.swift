@@ -62,6 +62,16 @@ enum AppScreens {
             tap(button)
           },
           close: dismissSheet),
+        AppScreen(
+          name: "sky-ahead",
+          open: { app in
+            tab(app, .today)
+            let button = app.buttons["sky-ahead-button"]
+            if !button.exists { tap(app.buttons["today-panel-toggle"]) }
+            scrollTo(button, in: app)
+            tap(button)
+          },
+          close: dismissSheet),
       ]
   }
 
@@ -86,14 +96,28 @@ enum AppScreens {
     }
   }
 
+  /// Swipes down until nothing on screen moves, so the next screen starts from the top.
+  static func scrollToTop(_ app: XCUIApplication) {
+    for _ in 0..<8 {
+      let before = app.debugDescription
+      app.swipeDown()
+      if app.debugDescription == before { return }
+    }
+  }
+
   static func back(_ app: XCUIApplication) {
     app.navigationBars.buttons.element(boundBy: 0).tap()
   }
 
+  // Matches by the start of the label, because doubled strings turn "Done" into "Done Done".
   static func dismissSheet(_ app: XCUIApplication) {
-    for label in ["Done", "Cancel", "Close"] where app.buttons[label].exists {
-      app.buttons[label].firstMatch.tap()
-      return
+    for label in ["Done", "Cancel", "Close"] {
+      let button = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", label))
+        .firstMatch
+      if button.exists {
+        button.tap()
+        return
+      }
     }
     app.swipeDown(velocity: .fast)
   }

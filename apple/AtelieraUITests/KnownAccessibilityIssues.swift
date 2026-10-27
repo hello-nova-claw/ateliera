@@ -1,52 +1,69 @@
 import XCTest
 
-// Accessibility problems the audit already knows about, each tied to an open issue.
-// A broad entry covers a whole audit type while its issue is open; every other entry
-// names one element, by identifier or (when it has none) by the start of its label.
-// When an issue closes, delete its entries, and the audit then enforces the fix.
+// Accessibility findings the audit already knows about, each tied to an open issue.
+// One line per finding: `<issue> <audit type> <screen> <element>`, where the element is
+// its identifier, or the start of its label when it has none, or `-` when the audit
+// names no element. A finding that isn't listed fails with the line that would list it.
+// Fix a new finding rather than listing it. When an issue closes, delete its lines.
 enum KnownAccessibilityIssues {
-  struct Entry {
-    let issue: Int
-    let type: XCUIAccessibilityAuditType
-    var screen: String?
-    var identifier: String?
-    var label: String?
+  static let baseline = """
+    78 hitRegion today foyer-hero-begin
+    78 hitRegion today-panel invitation-card
+    78 hitRegion today-panel today-panel-toggle
+    78 hitRegion settings profile-photo-picker
+    78 hitRegion rhythm Use my location
+    78 sufficientElementDescription room-reflection-garden guided-opening-editor
+    78 sufficientElementDescription room-uncharted uncharted-editor
+    78 sufficientElementDescription room-current-season season-feelings-field
+    78 sufficientElementDescription capture classified-body
+    83 sufficientElementDescription today-panel sun.max
+    83 sufficientElementDescription room-constellation constellation-empty
+    83 sufficientElementDescription settings profile-avatar
+    168 elementDetection rhythm -
+    """
+
+  struct Finding: Equatable {
+    let type: String
+    let screen: String
+    let element: String
   }
 
-  static let entries: [Entry] = [
-    // Text colours fail WCAG AA contrast in every theme: #74, #75, #85.
-    Entry(issue: 74, type: .contrast),
-    // Dynamic Type scales on the wrong curves; fixed sizes and truncation: #79, #80.
-    Entry(issue: 79, type: .dynamicType),
-    Entry(issue: 80, type: .textClipped),
-    // Targets under 44pt: #78.
-    Entry(issue: 78, type: .hitRegion, identifier: "foyer-hero-begin"),
-    Entry(issue: 78, type: .hitRegion, identifier: "invitation-card"),
-    Entry(issue: 78, type: .hitRegion, identifier: "today-panel-toggle"),
-    Entry(issue: 78, type: .hitRegion, identifier: "profile-photo-picker"),
-    Entry(issue: 78, type: .hitRegion, screen: "rhythm", label: "Use my location"),
-    // Text editors with no accessible label: #78.
-    Entry(issue: 78, type: .sufficientElementDescription, identifier: "guided-opening-editor"),
-    Entry(issue: 78, type: .sufficientElementDescription, identifier: "uncharted-editor"),
-    Entry(issue: 78, type: .sufficientElementDescription, identifier: "season-feelings-field"),
-    Entry(issue: 78, type: .sufficientElementDescription, identifier: "classified-body"),
-    // Decorative images with empty or symbol labels that VoiceOver still reads: #83.
-    Entry(issue: 83, type: .sufficientElementDescription, identifier: "sun.max"),
-    Entry(issue: 83, type: .sufficientElementDescription, identifier: "constellation-empty"),
-    Entry(issue: 83, type: .sufficientElementDescription, identifier: "profile-avatar"),
-    // Text the audit can't reach on the Rhythm sheet in Arabic: #168.
-    Entry(issue: 168, type: .elementDetection, screen: "rhythm"),
-  ]
+  static let known: [Finding] = baseline.split(separator: "\n").map { line in
+    let parts = line.split(separator: " ", maxSplits: 3).map(String.init)
+    return Finding(type: parts[1], screen: parts[2], element: parts[3])
+  }
 
-  static func isKnown(_ issue: XCUIAccessibilityAuditIssue, on screen: String) -> Bool {
-    entries.contains { entry in
-      guard entry.type == issue.auditType else { return false }
-      if let name = entry.screen, name != screen { return false }
-      if let identifier = entry.identifier, issue.element?.identifier != identifier {
-        return false
-      }
-      if let label = entry.label, issue.element?.label.hasPrefix(label) != true { return false }
-      return true
+  static func finding(_ issue: XCUIAccessibilityAuditIssue, on screen: String) -> Finding {
+    let element = issue.element
+    let name: String
+    if let identifier = element?.identifier, !identifier.isEmpty {
+      name = identifier
+    } else if let label = element?.label, !label.isEmpty {
+      name = String(label.prefix(40))
+    } else {
+      name = "-"
+    }
+    return Finding(type: typeName(issue.auditType), screen: screen, element: name)
+  }
+
+  static func isKnown(_ finding: Finding) -> Bool {
+    // Doubled strings repeat a label, so a recorded label matches the start of it.
+    known.contains {
+      $0.type == finding.type && $0.screen == finding.screen
+        && ($0.element == finding.element || finding.element.hasPrefix($0.element + " "))
+    }
+  }
+
+  static func typeName(_ type: XCUIAccessibilityAuditType) -> String {
+    switch type {
+    case .contrast: "contrast"
+    case .elementDetection: "elementDetection"
+    case .hitRegion: "hitRegion"
+    case .sufficientElementDescription: "sufficientElementDescription"
+    case .dynamicType: "dynamicType"
+    case .textClipped: "textClipped"
+    case .trait: "trait"
+    default: "type\(type.rawValue)"
     }
   }
 }
