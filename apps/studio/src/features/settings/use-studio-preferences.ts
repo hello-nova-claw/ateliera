@@ -31,6 +31,11 @@ function subscribe(service: StudioService, listener: Listener): () => void {
   };
 }
 
+/** How many hooks share saves for this Studio. Exposed for tests. */
+export function sharedPreferencesListenerCount(service: StudioService): number {
+  return listeners.get(service)?.size ?? 0;
+}
+
 export function useStudioPreferences(
   service: StudioService | undefined,
 ): UseStudioPreferences {
@@ -40,14 +45,18 @@ export function useStudioPreferences(
   useEffect(() => {
     if (service === undefined) return undefined;
     let current = true;
+    // A save shared while the load is in flight is newer than what the load
+    // will return, so the load result is dropped.
+    let shared = false;
     const unsubscribe = subscribe(service, (snapshot) => {
+      shared = true;
       setPreferences(snapshot.preferences);
       setRevision(snapshot.revision);
     });
     void service.preferences
       .load()
       .then((snapshot) => {
-        if (!current) return;
+        if (!current || shared) return;
         setPreferences(snapshot.preferences);
         setRevision(snapshot.revision);
       })
