@@ -129,3 +129,17 @@ test('a blank line in the packages block hides nothing', () => {
     rulesFor('apple/project.yml', yml, { allowSwiftPackages: ['Allowed'] }),
   ).toEqual(['spm']);
 });
+
+test('a dynamic font call just before a fixed one counts once', () => {
+  expect(rulesFor(app, 'Font.system(.body)\nFont.system(size: 12)')).toEqual([
+    'font-size',
+  ]);
+});
+
+test('a comment line in the packages block hides nothing', () => {
+  const yml =
+    'packages:\n  Allowed:\n    url: a\n# reviewed\n  Hidden:\n    url: b\ntargets:\n  App: {}\n';
+  expect(
+    rulesFor('apple/project.yml', yml, { allowSwiftPackages: ['Allowed'] }),
+  ).toEqual(['spm']);
+});
