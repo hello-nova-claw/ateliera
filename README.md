@@ -2,11 +2,11 @@
 
 A private journal for designing a life from the inside out: journal entries, reflections, dreams, gratitude, intentions and possibilities, set against the season, the moon and your own cycle.
 
-Ateliera comes as a native app for iPhone and iPad, and as a web and desktop app. Both keep your journal as a folder of Markdown files that you own.
+Ateliera comes as a native app for iPhone and iPad, and as a web and desktop app. Your journal is Markdown files that you own. The iPhone, iPad and desktop apps keep them in a folder you choose. The web app keeps them in your browser's private storage, and you move them in and out with export and import.
 
 ## Privacy
 
-Your journal stays with you. Ateliera has no account, no server, no analytics and no tracking, and it collects nothing. Your entries are files in a folder you choose. Your cycle is read from Apple Health on your device and never stored. You can export everything and delete everything. [docs/privacy.md](docs/privacy.md) sets out exactly what each app stores, where, and what (if anything) leaves your device.
+Your journal stays with you. Ateliera has no account, no server, no analytics and no tracking, and it collects nothing. Your entries are files you own, in a folder you choose or in your browser's private storage. Your cycle is read from Apple Health on your device and never stored. You can export everything and delete everything. [docs/privacy.md](docs/privacy.md) sets out exactly what each app stores, where, and what (if anything) leaves your device.
 
 The code is public so that anyone can check this.
 
