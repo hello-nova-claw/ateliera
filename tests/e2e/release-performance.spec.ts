@@ -120,12 +120,28 @@ test('meets warm local interaction budgets on the reference browser', async ({
     page.getByRole('textbox', { name: 'Title' }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'Close editor' }).click();
-  const noteStart = performance.now();
-  await card.click();
+  // Time the open inside the page, frame by frame. Timing it from the test
+  // runner adds Playwright's own polling, whose 100ms retry step alone can
+  // spend the whole budget.
+  const noteOpenMs = await card.evaluate(
+    (element) =>
+      new Promise<number>((resolve) => {
+        const start = performance.now();
+        const check = () => {
+          const title = document.querySelector('.card-editor__title-field input');
+          if (title !== null && title.getClientRects().length > 0) {
+            resolve(performance.now() - start);
+          } else {
+            requestAnimationFrame(check);
+          }
+        };
+        (element as HTMLElement).click();
+        check();
+      }),
+  );
   await expect(
     page.getByRole('textbox', { name: 'Title' }),
   ).toBeVisible();
-  const noteOpenMs = performance.now() - noteStart;
   expect(noteOpenMs).toBeLessThan(100);
   await page.getByRole('button', { name: 'Close editor' }).click();
 
