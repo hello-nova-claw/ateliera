@@ -56,6 +56,7 @@ These rules carry the design principles into code. [docs/privacy.md](docs/privac
 - **Personal data stays out of side channels.** Entry text, cycle data and birth details never appear in logs, crash reports, notifications, widgets, Spotlight, Siri or Shortcuts unless the user turned that on. The defaults are a neutral notification ("Time to write") and a widget that shows no entries.
 - **The app switcher shows a privacy screen** while the app lock is on.
 - **Export and delete stay complete.** Every new kind of data is added to both, with a test.
+- **The vault format is tested for loss.** `apple/AtelieraTests/VaultFormatMigrationTests.swift` round-trips the current format and opens every released format under `fixtures/vaults/released/`.
 - **The schema is versioned.** Every note carries `schema_version`. Until 1.0 ships, the format can change freely. At release it is frozen as version 1, and a fixture vault made with it is committed. From then on, every format change ships a migration and a test that opens a fixture vault from every released version and checks that nothing was lost.
 - **Health data is read, never stored.** Nothing derived from Health is written to the vault, `UserDefaults` or anywhere else. The vault may be in iCloud, and App Review Guideline 5.1.3 forbids health data there.
 - **`docs/privacy.md` changes with the code.** Any pull request that changes what is stored, where, with which protection, what is sent, what is shown outside the app, or what a permission is for, updates `docs/privacy.md` in the same pull request. So does any change to `PrivacyInfo.xcprivacy`, an entitlements file, or a usage-description string.
@@ -102,7 +103,7 @@ Dates, the moon and the cycle are where this app breaks. These rules hold in bot
 - A pull request that changes app sources (`apple/Ateliera/`, `apple/AtelieraWidgets/`, `apple/AtelieraVaultCore/src/`, `apps/*/src/`, `packages/*/src/`) must also change a test. Reviewers check this, and CI will once #145 lands.
 - Apple: XCTest or Swift Testing for unit tests, XCUITest for flows. TypeScript: Vitest, with `fast-check` for property tests; Playwright for end-to-end.
 - Inject time, calendar, time zone and locale. No sleeps. No real network.
-- Apple app line coverage must not drop below the figure in `.github/coverage-baseline` (the gate arrives with #147). When it rises by more than half a point, raise the baseline in the same pull request. The TypeScript packages keep their own Vitest coverage thresholds.
+- Apple app line coverage must not drop below the figure in `.github/coverage-baseline`. The "Apple build and test" job prints the figure. When it rises by more than half a point, raise the baseline in the same pull request. The TypeScript packages keep their own Vitest coverage thresholds.
 
 How to run everything is in [CLAUDE.md](CLAUDE.md#running-checks).
 
