@@ -49,18 +49,21 @@ final class AccessibilityAuditUITests: XCTestCase {
     }
   }
 
-  private func auditVisible(_ app: XCUIApplication, on screen: String) {
+  private func auditVisible(_ app: XCUIApplication, on screen: String, retry: Bool = true) {
     do {
       try app.performAccessibilityAudit { issue in
         let finding = KnownAccessibilityIssues.finding(issue, on: screen)
         if KnownAccessibilityIssues.isKnown(finding) { return true }
         // The audit's own message doesn't name the element; this gives the baseline line.
         XCTFail(
-          "\(issue.compactDescription). Fix it, or if an open issue covers it, list it in "
-            + "KnownAccessibilityIssues as: <issue> \(finding.type) \(finding.screen) \(finding.element)"
+          "\(issue.compactDescription) (\(finding.element)). Fix it, or if an open issue covers "
+            + "it, list it in KnownAccessibilityIssues as: <issue> \(finding.type) \(finding.screen)"
         )
         return true
       }
+    } catch let error as NSError where retry && error.code == -56 {
+      // -56 is the audit timing out on a busy simulator, not a finding: try once more.
+      auditVisible(app, on: screen, retry: false)
     } catch {
       XCTFail("\(screen): \(error)")
     }
