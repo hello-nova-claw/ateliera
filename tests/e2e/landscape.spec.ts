@@ -88,17 +88,27 @@ test('keeps matrix headings fixed inside the Landscape scrollport', async ({
 
   const region = page.getByRole('region', { name: 'Life Landscape matrix' });
   const heading = page.getByRole('button', { name: 'Open Family' });
-  const before = await heading.boundingBox();
+  await expect(heading).toBeVisible();
+  // Measure against the scrollport, so content settling above it while the
+  // room loads cannot read as the heading moving.
+  const offsetInScrollport = () =>
+    heading.evaluate((element) => {
+      const scrollport = element.closest('[aria-label="Life Landscape matrix"]');
+      if (scrollport === null) throw new Error('No Landscape scrollport.');
+      return (
+        element.getBoundingClientRect().top -
+        scrollport.getBoundingClientRect().top
+      );
+    });
+  const before = await offsetInScrollport();
   const scrollTop = await region.evaluate((element) => {
     element.scrollTop = 320;
     return element.scrollTop;
   });
-  const after = await heading.boundingBox();
+  const after = await offsetInScrollport();
 
   expect(scrollTop).toBeGreaterThan(0);
-  expect(before).not.toBeNull();
-  expect(after).not.toBeNull();
-  expect(Math.abs(after!.y - before!.y)).toBeLessThanOrEqual(2);
+  expect(Math.abs(after - before)).toBeLessThanOrEqual(2);
 });
 
 test('persists custom and renamed life areas across reload', async ({
