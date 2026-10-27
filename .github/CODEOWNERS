@@ -8,6 +8,12 @@
 /LICENSE                       @annacmc
 /CONTENT-LICENSE.md            @annacmc
 /TRADEMARKS.md                 @annacmc
+/NOTICE.md                     @annacmc
+/apple/Ateliera/Assets.xcassets/AppIcon.appiconset/ @annacmc
+/apps/studio/public/apple-touch-icon.png @annacmc
+/apps/studio/public/studio-icon.svg @annacmc
+/apps/studio/public/studio-maskable.svg @annacmc
+/apps/studio/src-tauri/icons/  @annacmc
 /apple/Ateliera/Content/       @annacmc
 /apps/studio/src/content/      @annacmc
 /packages/domain/src/content/  @annacmc
