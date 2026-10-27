@@ -7,7 +7,7 @@
 // "## Unreleased", in issue order, and deletes the fragments.
 //
 // Usage: pnpm changelog
-import { readFile, readdir, unlink, writeFile } from 'node:fs/promises';
+import { readFile, readdir, rename, unlink, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -16,7 +16,7 @@ const UNRELEASED = '## Unreleased';
 export function parseFragment(text) {
   return text
     .split(/\r?\n/)
-    .map((line) => line.trim().replace(/^[*-]\s*/, ''))
+    .map((line) => line.trim().replace(/^[*-]\s+/, ''))
     .filter(Boolean);
 }
 
