@@ -58,6 +58,16 @@ Ateliera is a private journal for designing a life from the inside out. It ships
 
 Requires Node 22 and pnpm 10 (`pnpm install --frozen-lockfile`), Xcode, `xcodegen`, and the hermetic Rust toolchain in `.toolchains/`.
 
+`.toolchains/` is ignored, so a fresh clone has to create it once:
+
+```bash
+export CARGO_HOME="$PWD/.toolchains/cargo" RUSTUP_HOME="$PWD/.toolchains/rustup"
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile minimal --default-toolchain stable
+.toolchains/cargo/bin/rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios aarch64-apple-darwin
+```
+
+`apple/AtelieraVaultCore/build.sh` and `scripts/run-rust.mjs` pick it up from there. The Tauri desktop build may need more targets; `pnpm tauri:build` says which.
+
 ```bash
 pnpm lint            # ESLint (with the layering rule) and Stylelint
 pnpm typecheck
@@ -100,7 +110,7 @@ Run date-sensitive tests under other zones too: prefix with `TZ=Pacific/Auckland
 
 ## Pull requests
 
-- Every pull request needs an issue with all five template fields, a branch named `<issue>-<slug>`, and a changelog fragment `changelog/<issue>-<slug>.txt`. A pull request with no user-facing change, such as docs or tooling only, gets the `no-changelog` label instead.
+- Every pull request needs an issue with all five template fields, a branch named `<issue>-<slug>`, and a changelog fragment `changelog/<issue>-<slug>.txt` (`bin/changelog` arrives with #145). A pull request with no user-facing change, such as docs or tooling only, gets the `no-changelog` label instead.
 - Commits use the repo-local Novaclaw git identity, in WordPress core style. Don't add `Co-Authored-By` or any AI attribution lines.
 - The `gh` CLI has two accounts. Use Novaclaw for this repository: `GH_TOKEN=$(gh auth token --user hello-nova-claw) gh …`.
 - CodeRabbit's approval is the required review. It allows about 10 reviews an hour per repository, so batch fixes into one push. When it says "Review paused", comment `@coderabbitai resume`, then `@coderabbitai review`.
