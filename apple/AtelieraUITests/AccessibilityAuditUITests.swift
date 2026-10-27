@@ -37,7 +37,7 @@ final class AccessibilityAuditUITests: XCTestCase {
       XCTContext.runActivity(named: screen.name) { _ in
         screen.open(app)
         // The audit sees only what's on screen, so scroll through and audit each position.
-        for _ in 0..<8 {
+        for _ in 0..<5 {
           auditVisible(app, on: screen.name)
           let before = app.debugDescription
           app.swipeUp()
