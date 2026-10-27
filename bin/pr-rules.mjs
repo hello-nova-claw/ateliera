@@ -17,7 +17,7 @@ const testFile = [
   /^apple\/AtelieraTests\//,
   /^apple\/AtelieraUITests\//,
   /^apple\/AtelieraVaultCore\/tests\//,
-  /^tests\//,
+  /^tests\/.*\.(spec|test)\.tsx?$/,
   /\.test\.tsx?$/,
   /(^|\/)[^/]*tests?\.rs$/,
 ];
@@ -75,7 +75,8 @@ const lines = (text) => text.split('\n').filter(Boolean);
 
 function main([rule, base]) {
   const range = `origin/${base}...HEAD`;
-  const changed = lines(git('diff', '--name-only', range));
+  // Deleted files can't satisfy a rule: a deleted test is no test.
+  const changed = lines(git('diff', '--name-only', '--diff-filter=d', range));
   const messages = {
     tests:
       'This pull request changes app sources but no test. Write the test first (CONTRIBUTING.md, Tests).',
@@ -88,7 +89,7 @@ function main([rule, base]) {
     tests: () => missingTests(changed),
     changelog: () =>
       missingChangelogFragment(
-        lines(git('diff', '--name-only', '--diff-filter=AM', range)),
+        lines(git('diff', '--name-only', '--diff-filter=A', range)),
       ),
     'privacy-doc': () =>
       missingPrivacyDoc(changed, (path) => git('diff', range, '--', path)),
