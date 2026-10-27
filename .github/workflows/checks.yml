@@ -1,0 +1,90 @@
+name: Checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Job names are required-check names on main. Never rename one.
+jobs:
+  privacy:
+    name: Privacy check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+      - run: node bin/check-privacy.mjs
+
+  licence:
+    name: Licence files intact
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+      - run: node bin/check-licence.mjs
+
+  swiftlint:
+    name: SwiftLint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container: ghcr.io/realm/swiftlint:0.65.1
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: swiftlint lint --strict --baseline .swiftlint-baseline.json --reporter github-actions-logging
+
+  swift-format:
+    # Only the Swift files a pull request touches: format what you touch.
+    name: Swift format
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container: swift:6.2
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git diff --name-only --diff-filter=d "origin/${BASE_REF}...HEAD" -- 'apple/*.swift' ':!apple/Ateliera/Generated/*' > changed.txt
+          if [ ! -s changed.txt ]; then echo "No Swift files changed."; exit 0; fi
+          xargs swift format lint --strict < changed.txt
+
+  gitleaks:
+    name: Gitleaks
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+      - env:
+          BASE_REF: ${{ github.base_ref }}
+          VERSION: 8.30.1
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
+          ./gitleaks git --redact --no-banner --log-opts="origin/${BASE_REF}..HEAD" .
+
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    container: rhysd/actionlint:1.7.12
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - run: actionlint -color
