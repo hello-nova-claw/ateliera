@@ -16,7 +16,7 @@ const UNRELEASED = '## Unreleased';
 export function parseFragment(text) {
   return text
     .split(/\r?\n/)
-    .map((line) => line.trim().replace(/^[*-]\s+/, ''))
+    .map((line) => line.trim().replace(/^[*-](\s+|$)/, ''))
     .filter(Boolean);
 }
 
