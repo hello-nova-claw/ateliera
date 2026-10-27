@@ -124,7 +124,7 @@ The location permission text says location "stays on your device". That is wrong
 
 ### What leaves the device
 
-Nothing. The content security policy allows connections only to the app's own origin (`apps/studio/index.html`) and, on desktop, to Tauri's internal IPC (`apps/studio/src-tauri/tauri.conf.json`). Fonts are self-hosted (`apps/studio/src/assets/fonts/`). The places list for birthplace search is a bundled file loaded from the app's own origin (`packages/rhythm/src/places-data.js`). The service worker caches and serves only the app's own files (`apps/studio/src/app/service-worker.ts`).
+Nothing. The content security policy allows connections only to the app's own origin (`apps/studio/index.html`) and, on desktop, to Tauri's internal IPC (`apps/studio/src-tauri/tauri.conf.json`). Fonts are self-hosted (`apps/studio/src/assets/fonts/`). The places list for birthplace search is a bundled file loaded from the app's own origin (`packages/rhythm/src/places-data.js`). The service worker caches and serves only the app's own files (`apps/studio/src/app/service-worker.ts`). The only `fetch` calls are to the app's own origin: the app-shell version check in `apps/studio/src/app/App.tsx` and the service worker. `bin/check-privacy` allows network code in these two files only.
 
 ### Permissions
 
