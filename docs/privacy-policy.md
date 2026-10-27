@@ -17,7 +17,7 @@ Ateliera is a private journal. What you write in it is yours, and it stays with 
 
 ## The short version
 
-- We don't collect anything. There is no account, no server, no analytics, no advertising and no tracking.
+- We don't collect anything. There is no account, no server, no analytics, no advertising and no tracking. The one exception is anonymous crash reports, which Apple passes on only if you have chosen to share them (see below).
 - Your journal is a folder of files on your device, or in your own iCloud Drive if you choose.
 - Your cycle is read from Apple Health on your device and is never saved by Ateliera.
 - You can export everything and delete everything at any time.
@@ -39,7 +39,7 @@ If you choose to share crash reports with app developers in your device's settin
 - **Your settings**, such as theme and which rooms are shown.
 - **Unsaved drafts**, so you don't lose writing if the app closes. They are removed when you save or discard the entry.
 
-The app uses your device's file protection, so these files can't be read while your device is locked.
+On iPhone and iPad, the app asks the system to keep the files it writes unreadable while your device is locked. How a vault folder is protected also depends on where you keep it: a vault in iCloud Drive is covered by Apple's iCloud security as well.
 
 ## Apple Health
 
