@@ -20,7 +20,7 @@ Fixes #
 - [ ] Test committed before the code
 - [ ] String Catalog updated if user-facing strings changed
 - [ ] Screenshots comment reviewed, if UI changed
-- [ ] `docs/privacy.md` updated if data storage, protection, egress, permissions or out-of-app surfaces changed
+- [ ] `docs/privacy.md` updated if data storage, protection, egress, permissions, out-of-app surfaces, `PrivacyInfo.xcprivacy`, an entitlements file or a usage-description string changed
 - [ ] Export and delete still cover every kind of data
 - [ ] Migration test added if the vault format changed (after 1.0)
 - [ ] No real personal data in code, fixtures, screenshots or this description
