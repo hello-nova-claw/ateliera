@@ -1,5 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
-import { enterCreatedStudio, openExistingStudio } from './helpers/studio';
+import {
+  enterCreatedStudio,
+  openExistingStudio,
+  showEveryRoom,
+} from './helpers/studio';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -16,6 +20,7 @@ async function createStudio(page: Page, name: string): Promise<void> {
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await enterCreatedStudio(page);
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
+  await showEveryRoom(page);
 }
 
 async function openRoom(page: Page, name: string): Promise<void> {
@@ -101,7 +106,7 @@ test('meets warm local interaction budgets on the reference browser', async ({
     .getByRole('button', { name: '+ Add' })
     .click();
   await page
-    .getByRole('textbox', { name: 'What would you like remembered?' })
+    .getByRole('textbox', { name: 'What would an ordinary Tuesday look like if this were true?' })
     .fill('A calm home');
   const saveStart = performance.now();
   await page.getByRole('button', { name: 'Remember' }).click();
@@ -163,7 +168,7 @@ test('canonical rooms survive destruction of the disposable in-memory index', as
     .getByRole('button', { name: '+ Add' })
     .click();
   await page
-    .getByRole('textbox', { name: 'What would you like remembered?' })
+    .getByRole('textbox', { name: 'What would an ordinary Tuesday look like if this were true?' })
     .fill('A calm home');
   await page.getByRole('button', { name: 'Remember' }).click();
   await expect(

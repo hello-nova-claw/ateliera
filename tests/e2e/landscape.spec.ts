@@ -18,7 +18,7 @@ async function addHomeVision(page: Page, title = 'A calm home'): Promise<void> {
     .getByRole('button', { name: '+ Add' })
     .click();
   await page
-    .getByRole('textbox', { name: 'What would you like remembered?' })
+    .getByRole('textbox', { name: 'What would an ordinary Tuesday look like if this were true?' })
     .fill(title);
   await page.getByRole('button', { name: 'Remember' }).click();
   await expect(
@@ -32,7 +32,7 @@ async function addHomeVisionFromMatrix(
 ): Promise<void> {
   await page.getByRole('button', { name: 'Add to Home Vision' }).click();
   await page
-    .getByRole('textbox', { name: 'What would you like remembered?' })
+    .getByRole('textbox', { name: 'What would an ordinary Tuesday look like if this were true?' })
     .fill(title);
   await page.getByRole('button', { name: 'Remember' }).click();
   await expect(
@@ -147,7 +147,7 @@ test('authors and displays a decision horizon', async ({ page }, testInfo) => {
     .getByRole('button', { name: '+ Add' })
     .click();
   await page
-    .getByRole('textbox', { name: 'What would you like remembered?' })
+    .getByRole('textbox', { name: 'What can I choose in the next 30, 60, or 90 days?' })
     .fill('Choose a weekly family rhythm');
   await page.getByLabel('Decision horizon').selectOption('60d');
   await page.getByRole('button', { name: 'Remember' }).click();
@@ -254,7 +254,7 @@ test('keyboard menu restores focus after reorder, link, and reparented move', as
   const vision = page.getByRole('region', { name: 'Vision' });
   await vision.getByRole('button', { name: '+ Add' }).click();
   await page
-    .getByRole('textbox', { name: 'What would you like remembered?' })
+    .getByRole('textbox', { name: 'What would an ordinary Tuesday look like if this were true?' })
     .fill('Second keyboard note');
   await page.getByRole('button', { name: 'Remember' }).click();
 
@@ -428,7 +428,7 @@ test('touch long-press shows a destination preview, cancels safely, then moves',
     .getByRole('button', { name: '+ Add' })
     .click();
   await page
-    .getByRole('textbox', { name: 'What would you like remembered?' })
+    .getByRole('textbox', { name: 'What would an ordinary Tuesday look like if this were true?' })
     .fill('A calm home');
   await page.getByRole('button', { name: 'Remember' }).click();
 
