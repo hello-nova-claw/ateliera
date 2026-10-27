@@ -32,3 +32,8 @@ test('asks for a higher baseline when coverage rises by more than half a point',
 test('a missing app target is an error', () => {
   expect(() => appCoverage({ targets: [] })).toThrow(/Ateliera\.app/);
 });
+
+test('rounding never lifts coverage over the baseline', () => {
+  const coverage = appCoverage({ targets: [{ name: 'Ateliera.app', lineCoverage: 0.33496 }] });
+  expect(gate(coverage, 33.5).pass).toBe(false);
+});
