@@ -36,3 +36,11 @@ test('the content licence must name reserved paths that exist', () => {
     'CONTENT-LICENSE.md is missing.',
   ]);
 });
+
+test('a reserved path without backticks is refused', () => {
+  const text =
+    '## Reserved paths\n\n- `apple/Ateliera/Content/`\n- docs/missing/\n\n## Other\n\n- prose is fine here\n';
+  expect(checkContentLicence(text, () => true)).toEqual([
+    'CONTENT-LICENSE.md lists "docs/missing/" without backticks, so it cannot be checked.',
+  ]);
+});

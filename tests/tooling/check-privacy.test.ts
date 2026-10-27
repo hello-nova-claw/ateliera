@@ -102,3 +102,30 @@ test('an exception allows up to its count in one file, and names its issue', () 
     }),
   ).toEqual(['font-size']);
 });
+
+test('qualified and global forms are caught too', () => {
+  expect(rulesFor('packages/ui/src/X.tsx', 'window.fetch(u)')).toEqual([
+    'network',
+  ]);
+  expect(rulesFor('packages/ui/src/X.tsx', 'globalThis.fetch(u)')).toEqual([
+    'network',
+  ]);
+  expect(rulesFor('apps/studio/src/sw.ts', 'self.fetch(u)')).toEqual([
+    'network',
+  ]);
+  expect(rulesFor(app, 'Swift.print(entry)')).toEqual(['logging']);
+  expect(rulesFor(app, 'Text(t).font(Font.system(size: 12))')).toEqual([
+    'font-size',
+  ]);
+  expect(rulesFor(app, '.font(\n  .system(\n    size: 12))')).toEqual([
+    'font-size',
+  ]);
+});
+
+test('a blank line in the packages block hides nothing', () => {
+  const yml =
+    'packages:\n  Allowed:\n    url: a\n\n  Hidden:\n    url: b\ntargets:\n  App: {}\n';
+  expect(
+    rulesFor('apple/project.yml', yml, { allowSwiftPackages: ['Allowed'] }),
+  ).toEqual(['spm']);
+});
