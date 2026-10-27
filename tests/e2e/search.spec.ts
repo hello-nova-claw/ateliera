@@ -169,8 +169,9 @@ test('searches the production local index, persists filters, and renders importe
   await expect(page.getByRole('article', { name: 'A quiet morning that worked' })).toBeVisible();
   await expect(page.getByRole('article', { name: 'What if I created a retreat?' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Filters' }).click();
-  const reflection = page.getByRole('checkbox', { name: /^Reflection \d+$/u });
+  // The filters stay open in an aside beside the results.
+  const filters = page.getByRole('complementary', { name: 'Search filters' });
+  const reflection = filters.getByRole('checkbox', { name: /^Reflection \d+$/u });
   await reflection.check();
   await expect(page).toHaveURL(/(?:\?|&)q=calm(?:&|$)/u);
   await expect(page).toHaveURL(/(?:\?|&)type=reflection(?:&|$)/u);
@@ -180,8 +181,7 @@ test('searches the production local index, persists filters, and renders importe
   await page.reload();
   await openPersistedStudio(page);
   await expect(search).toHaveValue('calm');
-  await page.getByRole('button', { name: /Filters/u }).click();
-  await expect(page.getByRole('checkbox', { name: /^Reflection \d+$/u })).toBeChecked();
+  await expect(reflection).toBeChecked();
   await expect(page.getByRole('article', { name: 'What if I created a retreat?' })).toHaveCount(0);
 
   await search.fill('Markup');

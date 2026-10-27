@@ -1,0 +1,1 @@
+Rooms you turn on in Settings now appear in the navigation straight away, the search field fits on a phone screen, and text past the Uncharted gate is easier to read.

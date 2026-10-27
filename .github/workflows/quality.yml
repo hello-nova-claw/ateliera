@@ -18,7 +18,13 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
+      # The WebKit system packages come from the Ubuntu mirror, where a
+      # download can stall for good. Time stalled fetches out and retry them.
+      - name: Install Playwright browsers
+        timeout-minutes: 15
+        run: |
+          printf 'Acquire::http::Timeout "30";\nAcquire::Retries "5";\n' | sudo tee /etc/apt/apt.conf.d/99-ci-timeouts
+          pnpm exec playwright install --with-deps chromium webkit
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test

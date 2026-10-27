@@ -220,8 +220,10 @@ test('manually merges both versions and immediately saves through the browser va
   await page.getByRole('button', { name: 'Close editor' }).click();
 
   await expect(page.getByRole('dialog', { name: 'Edit note' })).toHaveCount(0);
+  // A merged note is titled by its first line, so the card shows the local
+  // version; the body below proves both versions were kept.
   await page
-    .getByRole('button', { name: /Manual local version.*Manual remote version/ })
+    .getByRole('button', { name: 'Manual local version', exact: true })
     .click();
   await expect(page.getByRole('dialog', { name: 'Edit note' })).toBeVisible();
   await expect(page.getByRole('textbox', { name: 'Markdown body' })).toContainText(

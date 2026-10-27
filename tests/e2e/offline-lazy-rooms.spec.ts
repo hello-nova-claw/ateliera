@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { enterCreatedStudio } from './helpers/studio';
+import { enterCreatedStudio, showEveryRoom } from './helpers/studio';
 
 async function createLocalStudio(page: Page): Promise<void> {
   await page.goto('/');
@@ -8,6 +8,7 @@ async function createLocalStudio(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await enterCreatedStudio(page);
   await expect(page.getByText('Ready offline')).toBeVisible();
+  await showEveryRoom(page);
 }
 
 test('opens a never-visited lazy room after Ready offline', async ({

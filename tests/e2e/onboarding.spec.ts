@@ -1,6 +1,11 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { enterCreatedStudio, openExistingStudio } from './helpers/studio';
+import {
+  enterCreatedStudio,
+  openExistingStudio,
+  openFromNavigation,
+  showEveryRoom,
+} from './helpers/studio';
 
 async function createLocalStudio(
   page: Page,
@@ -82,11 +87,15 @@ test('wanders through five furnished rooms without persisting examples', async (
   page,
 }, testInfo) => {
   await page.goto('/');
-  await createLocalStudio(page, 'Tour Studio', false);
-  await expect(
-    page.getByRole('heading', { name: 'Your Studio Space is ready.' }),
-  ).toBeVisible();
-  await page.getByRole('button', { name: 'Take a gentle tour' }).click();
+  await createLocalStudio(page, 'Tour Studio');
+  // A new Studio tours only the rooms it shows, so open the whole house first
+  // and take the tour from Settings.
+  await showEveryRoom(page, ['Feelings', 'Principles']);
+  await openFromNavigation(page, 'Settings');
+  await page
+    .getByRole('region', { name: 'First visit' })
+    .getByRole('button', { name: /tour/u })
+    .click();
 
   await expect(page).toHaveURL(/\/foyer$/u);
   await expect(page.getByRole('heading', { name: 'Foyer' })).toBeVisible();
@@ -142,7 +151,7 @@ test('wanders through five furnished rooms without persisting examples', async (
     })
     .click();
   await expect(
-    page.getByRole('textbox', { name: 'What would you like remembered?' }),
+    page.getByRole('textbox', { name: 'What are you currently becoming?' }),
   ).toHaveValue('Someone who creates from calm and trusts her own timing.');
   await page.getByRole('button', { name: 'Not now' }).click();
   await expect(
@@ -271,8 +280,9 @@ test('keeps the first visit clear with keyboard, reduced motion, forced colors, 
   await expectSeparatedTourStage(page);
 
   await page.emulateMedia({ forcedColors: 'active', reducedMotion: 'reduce' });
+  // A new Studio shows only the Foyer and Life Landscape, so the tour ends here.
   await expect(
-    page.getByRole('button', { name: 'Next room · Current Season' }),
+    page.getByRole('button', { name: 'Finish tour · Return to Foyer' }),
   ).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
