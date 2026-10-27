@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { enterCreatedStudio, openExistingStudio } from './helpers/studio';
+import { enterCreatedStudio, openExistingStudio, showEveryRoom } from './helpers/studio';
 
 async function createLocalStudio(page: Page): Promise<void> {
   await page.goto('/');
@@ -8,6 +8,7 @@ async function createLocalStudio(page: Page): Promise<void> {
   await page.getByLabel('Studio name').fill('Inner Life Studio');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await enterCreatedStudio(page);
+  await showEveryRoom(page);
 }
 
 async function openIdentityStudio(page: Page): Promise<void> {

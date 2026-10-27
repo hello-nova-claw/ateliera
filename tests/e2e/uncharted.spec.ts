@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { enterCreatedStudio, openExistingStudio } from './helpers/studio';
+import { enterCreatedStudio, openExistingStudio, showEveryRoom } from './helpers/studio';
 
 async function createLocalStudio(page: Page): Promise<void> {
   await page.goto('/');
@@ -9,6 +9,7 @@ async function createLocalStudio(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await enterCreatedStudio(page);
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
+  await showEveryRoom(page);
 }
 
 async function openUncharted(page: Page): Promise<void> {
