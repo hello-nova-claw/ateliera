@@ -37,11 +37,13 @@ final class AccessibilityAuditUITests: XCTestCase {
       XCTContext.runActivity(named: screen.name) { _ in
         screen.open(app)
         // The audit sees only what's on screen, so scroll through and audit each position.
+        // Five swipes bound the run's time; every position reached is audited.
+        auditVisible(app, on: screen.name)
         for _ in 0..<5 {
-          auditVisible(app, on: screen.name)
           let before = app.debugDescription
           app.swipeUp()
           if app.debugDescription == before { break }
+          auditVisible(app, on: screen.name)
         }
         AppScreens.scrollToTop(app)
         screen.close(app)
