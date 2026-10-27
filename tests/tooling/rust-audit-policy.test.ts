@@ -6,13 +6,23 @@ import { expect, it } from 'vitest';
 const root = resolve(import.meta.dirname, '../..');
 
 it('keeps the macOS Rust audit exceptions target-scoped and documented', () => {
-  const packageJson = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {
+  const packageJson = JSON.parse(
+    readFileSync(resolve(root, 'package.json'), 'utf8'),
+  ) as {
     scripts?: Record<string, string>;
   };
-  const script = readFileSync(resolve(root, 'scripts/audit-rust-macos.mjs'), 'utf8');
-  const triage = readFileSync(resolve(root, 'docs/security/dependency-audit.md'), 'utf8');
+  const script = readFileSync(
+    resolve(root, 'scripts/audit-rust-macos.mjs'),
+    'utf8',
+  );
+  const triage = readFileSync(
+    resolve(root, 'docs/security/dependency-audit.md'),
+    'utf8',
+  );
 
-  expect(packageJson.scripts?.['audit:rust:macos']).toBe('node scripts/audit-rust-macos.mjs');
+  expect(packageJson.scripts?.['audit:rust:macos']).toBe(
+    'node scripts/audit-rust-macos.mjs',
+  );
   expect(script).toContain('aarch64-apple-darwin');
   expect(script).toContain('x86_64-apple-darwin');
   expect(script).toContain("'RUSTSEC-2026-0194'");

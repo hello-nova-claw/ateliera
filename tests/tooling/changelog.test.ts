@@ -35,6 +35,23 @@ test('an Unreleased heading is opened above the latest release when missing', ()
   );
 });
 
+test('an empty fragment stops the fold and keeps every fragment', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'changelog-'));
+  await mkdir(join(root, 'changelog'));
+  await writeFile(join(root, 'CHANGELOG.md'), '# Changelog\n\n## Unreleased\n');
+  await writeFile(join(root, 'changelog', '7-empty.txt'), '\n\n');
+  await writeFile(join(root, 'changelog', '8-real.txt'), 'Real.\n');
+
+  await expect(fold(root)).rejects.toThrow(/7-empty\.txt/);
+  expect((await readdir(join(root, 'changelog'))).sort()).toEqual([
+    '7-empty.txt',
+    '8-real.txt',
+  ]);
+  expect(await readFile(join(root, 'CHANGELOG.md'), 'utf8')).toBe(
+    '# Changelog\n\n## Unreleased\n',
+  );
+});
+
 test('fold adds fragments in issue order and deletes them', async () => {
   const root = await mkdtemp(join(tmpdir(), 'changelog-'));
   await mkdir(join(root, 'changelog'));

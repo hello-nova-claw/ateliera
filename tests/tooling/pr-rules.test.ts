@@ -47,6 +47,27 @@ test('only spec and test files under tests/ count as tests', () => {
   ).toBe(false);
 });
 
+test('deleting source or a privacy file still triggers its rule', () => {
+  const kept = ['apple/AtelieraTests/RhythmTests.swift'];
+  // The test was deleted, so only the source change remains present.
+  expect(
+    missingTests(
+      ['apple/Ateliera/Rhythm/Rhythm.swift', ...kept],
+      ['apple/Ateliera/Rhythm/Rhythm.swift'],
+    ),
+  ).toBe(true);
+  expect(missingPrivacyDoc(['apple/Ateliera.entitlements'], noUsage, [])).toBe(
+    true,
+  );
+  expect(
+    missingPrivacyDoc(
+      ['apple/Ateliera.entitlements', 'docs/privacy.md'],
+      noUsage,
+      [],
+    ),
+  ).toBe(true);
+});
+
 test('tests alone, docs, content and assets need no test', () => {
   expect(missingTests(['packages/rhythm/src/rhythm.test.ts'])).toBe(false);
   expect(missingTests(['docs/privacy.md', 'README.md'])).toBe(false);
