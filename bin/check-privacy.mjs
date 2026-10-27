@@ -139,7 +139,7 @@ const lineRules = [
         line,
       ) ||
       /URL\(string:\s*"https?:/.test(line) ||
-      /(^|[^\w.])fetch\(|\bXMLHttpRequest\b|\bWebSocket\(|\bEventSource\(|sendBeacon\(/.test(
+      /(^|[^\w.])fetch\(|\b(window|self|globalThis)\.fetch\(|\bXMLHttpRequest\b|\bWebSocket\(|\bEventSource\(|sendBeacon\(/.test(
         line,
       ),
     message:
@@ -149,7 +149,7 @@ const lineRules = [
     rule: 'logging',
     applies: isSwift,
     test: (line) =>
-      /(^|[^\w.])(print|debugPrint|dump|NSLog|os_log)\(/.test(line) ||
+      /(^|[^\w.]|\bSwift\.)(print|debugPrint|dump|NSLog|os_log)\(/.test(line) ||
       (/\b(logger|log|Logger)\.(debug|info|notice|log|warning|error|fault|critical|trace)\(/.test(
         line,
       ) &&
@@ -171,7 +171,10 @@ const lineRules = [
   {
     rule: 'font-size',
     applies: isSwift,
-    test: (line) => /\.font\(\.system\(size:/.test(line),
+    // Joined with the next two lines, so a call split across lines is caught.
+    multiline: true,
+    start: /\.system\(/,
+    test: (line) => /\.system\(\s*size:/.test(line),
     message:
       'Use a Dynamic Type text style, not a fixed size (CONTRIBUTING.md, Code).',
   },
@@ -195,7 +198,14 @@ export function scan(
   for (const { path, text } of files) {
     if (isTest(path)) continue;
     const lines = text.split('\n');
-    for (const { rule, applies, test, message } of lineRules) {
+    for (const {
+      rule,
+      applies,
+      test,
+      message,
+      multiline = false,
+      start,
+    } of lineRules) {
       if (!applies(path)) continue;
       if (
         rule === 'network' &&
@@ -204,7 +214,12 @@ export function scan(
         continue;
       const hits = [];
       lines.forEach((line, i) => {
-        if (test(code(line))) hits.push(i + 1);
+        const text = multiline
+          ? [line, lines[i + 1] ?? '', lines[i + 2] ?? ''].map(code).join(' ')
+          : code(line);
+        // A call split across lines counts once, on the line where it starts.
+        if (test(text) && (!multiline || start.test(code(line))))
+          hits.push(i + 1);
       });
       const exception = exceptions.find(
         (e) => e.rule === rule && e.path === path,
@@ -238,10 +253,16 @@ export function scan(
         }
       }
       if (path === 'apple/project.yml') {
-        const block = /^packages:\s*\n((?:[ \t]+.*\n?)*)/m.exec(text);
-        const names = block
-          ? [...block[1].matchAll(/^ {2}([\w-]+):/gm)].map((m) => m[1])
-          : [];
+        // The packages block runs until the next unindented line; blank lines don't end it.
+        const names = [];
+        let inPackages = false;
+        for (const line of text.split('\n')) {
+          if (/^\S/.test(line)) inPackages = /^packages:\s*$/.test(line);
+          else if (inPackages) {
+            const match = /^ {2}([\w-]+):/.exec(line);
+            if (match) names.push(match[1]);
+          }
+        }
         for (const name of names) {
           if (!allowSwiftPackages.includes(name)) {
             findings.push({
