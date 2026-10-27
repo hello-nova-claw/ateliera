@@ -35,6 +35,18 @@ test('app source with a test passes', () => {
   ).toBe(false);
 });
 
+test('only spec and test files under tests/ count as tests', () => {
+  expect(
+    missingTests([
+      'packages/rhythm/src/rhythm.ts',
+      'tests/e2e/helpers/studio.ts',
+    ]),
+  ).toBe(true);
+  expect(
+    missingTests(['packages/rhythm/src/rhythm.ts', 'tests/e2e/foyer.spec.ts']),
+  ).toBe(false);
+});
+
 test('tests alone, docs, content and assets need no test', () => {
   expect(missingTests(['packages/rhythm/src/rhythm.test.ts'])).toBe(false);
   expect(missingTests(['docs/privacy.md', 'README.md'])).toBe(false);

@@ -14,6 +14,12 @@ test('a fragment gives one entry per non-empty line, without bullets', () => {
   ]);
 });
 
+test('emphasis at the start of a line is not a bullet', () => {
+  expect(parseFragment('*Important* change.\n')).toEqual([
+    '*Important* change.',
+  ]);
+});
+
 test('entries go under an existing Unreleased heading, after its entries', () => {
   const before =
     '# Changelog\n\n## Unreleased\n\n- Old.\n\n## 0.1.0\n\n- Shipped.\n';
@@ -48,4 +54,5 @@ test('fold adds fragments in issue order and deletes them', async () => {
     '# Changelog\n\n## Unreleased\n\n- Drafts stay private.\n- Delete everything.\n',
   );
   expect(await readdir(join(root, 'changelog'))).toEqual(['.gitkeep']);
+  expect(await readdir(root)).toEqual(['CHANGELOG.md', 'changelog']);
 });
