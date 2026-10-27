@@ -53,8 +53,12 @@ export async function fold(root) {
     .filter((name) => name.endsWith('.txt'))
     .sort((a, b) => issue(a) - issue(b) || a.localeCompare(b));
   const entries = [];
-  for (const name of names)
-    entries.push(...parseFragment(await readFile(join(dir, name), 'utf8')));
+  for (const name of names) {
+    const parsed = parseFragment(await readFile(join(dir, name), 'utf8'));
+    if (parsed.length === 0)
+      throw new Error(`changelog/${name} is empty. Add its line or delete it.`);
+    entries.push(...parsed);
+  }
 
   // Stage the fragments first, so a failed run can be retried without folding
   // any of them twice, then replace CHANGELOG.md atomically.
@@ -62,15 +66,19 @@ export async function fold(root) {
     join(dir, name),
     join(dir, `${name}.folding`),
   ]);
-  for (const [from, to] of staged) await rename(from, to);
+  const moved = [];
   const file = join(root, 'CHANGELOG.md');
   const temp = `${file}.tmp`;
   try {
+    for (const pair of staged) {
+      await rename(pair[0], pair[1]);
+      moved.push(pair);
+    }
     await writeFile(temp, foldInto(await readFile(file, 'utf8'), entries));
     await rename(temp, file);
   } catch (error) {
     await unlink(temp).catch(() => {});
-    for (const [from, to] of staged) await rename(to, from);
+    for (const [from, to] of moved) await rename(to, from);
     throw error;
   }
   await Promise.all(staged.map(([, to]) => unlink(to)));
