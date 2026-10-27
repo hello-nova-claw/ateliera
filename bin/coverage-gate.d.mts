@@ -5,3 +5,4 @@ export function gate(
   coverage: number,
   baseline: number,
 ): { pass: boolean; raise: boolean };
+export function suggestedBaseline(coverage: number): string;
