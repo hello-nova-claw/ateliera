@@ -16,12 +16,15 @@ final class VaultFormatMigrationTests: XCTestCase {
       .sorted { $0.path < $1.path }
   }
 
-  // The top-level frontmatter keys of a note, read from its text.
+  // The top-level frontmatter keys of a note: the lines between the opening and
+  // closing `---` lines, which works for LF and CRLF notes alike.
   private func keys(_ text: String) -> Set<String> {
-    let parts = text.components(separatedBy: "---")
-    guard parts.count > 2 else { return [] }
+    let lines = text.components(separatedBy: .newlines).map {
+      $0.trimmingCharacters(in: CharacterSet(charactersIn: "\r"))
+    }
+    guard lines.first == "---", let end = lines.dropFirst().firstIndex(of: "---") else { return [] }
     return Set(
-      parts[1].split(separator: "\n").compactMap { line in
+      lines[1..<end].compactMap { line in
         guard let first = line.first, first.isLetter, let colon = line.firstIndex(of: ":") else {
           return nil
         }
@@ -79,7 +82,11 @@ final class VaultFormatMigrationTests: XCTestCase {
     """
 
   func testCurrentFormatRoundTripsWithoutLoss() throws {
+    XCTAssertEqual(keys(canonical).count, 16, "keys(_:) must read the canonical note")
     try assertNoLoss(canonical, "canonical note")
+    let crlf = canonical.replacingOccurrences(of: "\n", with: "\r\n")
+    XCTAssertEqual(keys(crlf), keys(canonical), "keys(_:) must read CRLF notes")
+    try assertNoLoss(crlf, "canonical note with CRLF endings")
     let files = try notes(in: repo.appendingPathComponent("fixtures/vaults/sample"))
     XCTAssertFalse(files.isEmpty, "The sample fixture vault has no notes.")
     for file in files {
@@ -108,7 +115,9 @@ final class VaultFormatMigrationTests: XCTestCase {
           "\(version.lastPathComponent)/\(file.lastPathComponent) did not open")
         let want = try XCTUnwrap(byFile[file.lastPathComponent])
         XCTAssertEqual(note.id, want["id"], "\(file.lastPathComponent): id lost")
+        XCTAssertEqual(note.title, want["title"], "\(file.lastPathComponent): title lost")
         XCTAssertEqual(note.body, want["body"], "\(file.lastPathComponent): body lost")
+        try assertNoLoss(text, "\(version.lastPathComponent)/\(file.lastPathComponent)")
       }
     }
   }
