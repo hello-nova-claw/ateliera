@@ -17,7 +17,7 @@ disabled_rules:
 custom_rules:
   no_print:
     name: No print
-    regex: '(^|[^\w.])(print|debugPrint|NSLog|os_log)\('
+    regex: '(^|[^\w.]|\bSwift\.)(print|debugPrint|NSLog|os_log)\('
     match_kinds: [identifier]
     message: Use os.Logger with privacy .private (CONTRIBUTING.md, Privacy).
     severity: error
@@ -29,6 +29,6 @@ custom_rules:
     severity: error
   fixed_font_size:
     name: Fixed font size
-    regex: '\.font\(\.system\(size:'
+    regex: '\.system\(\s*size:'
     message: Use a Dynamic Type text style (CONTRIBUTING.md, Code).
     severity: error
