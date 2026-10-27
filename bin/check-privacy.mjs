@@ -173,7 +173,7 @@ const lineRules = [
     applies: isSwift,
     // Joined with the next two lines, so a call split across lines is caught.
     multiline: true,
-    start: /\.system\(/,
+    pattern: /\.system\(\s*size:/,
     test: (line) => /\.system\(\s*size:/.test(line),
     message:
       'Use a Dynamic Type text style, not a fixed size (CONTRIBUTING.md, Code).',
@@ -204,7 +204,7 @@ export function scan(
       test,
       message,
       multiline = false,
-      start,
+      pattern,
     } of lineRules) {
       if (!applies(path)) continue;
       if (
@@ -218,8 +218,10 @@ export function scan(
           ? [line, lines[i + 1] ?? '', lines[i + 2] ?? ''].map(code).join(' ')
           : code(line);
         // A call split across lines counts once, on the line where it starts.
-        if (test(text) && (!multiline || start.test(code(line))))
-          hits.push(i + 1);
+        if (multiline) {
+          const match = pattern.exec(text);
+          if (match && match.index < code(line).length) hits.push(i + 1);
+        } else if (test(text)) hits.push(i + 1);
       });
       const exception = exceptions.find(
         (e) => e.rule === rule && e.path === path,
@@ -257,6 +259,7 @@ export function scan(
         const names = [];
         let inPackages = false;
         for (const line of text.split('\n')) {
+          if (/^\s*(#|$)/.test(line)) continue;
           if (/^\S/.test(line)) inPackages = /^packages:\s*$/.test(line);
           else if (inPackages) {
             const match = /^ {2}([\w-]+):/.exec(line);
