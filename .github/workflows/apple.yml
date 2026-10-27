@@ -173,7 +173,7 @@ jobs:
             -derivedDataPath build CODE_SIGNING_ALLOWED=NO \
             -only-testing:AtelieraUITests/AccessibilityAuditUITests \
             -resultBundlePath ../results/audit.xcresult \
-            | grep -E 'error:|Test Case .*(passed|failed)|Executed|TEST (SUCCEEDED|FAILED)'
+            | grep -E 'error:|unaudited|Test Case .*(passed|failed)|Executed|TEST (SUCCEEDED|FAILED)'
       - uses: actions/upload-artifact@v7.0.0
         if: failure()
         with:
