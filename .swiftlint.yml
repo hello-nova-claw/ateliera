@@ -1,0 +1,33 @@
+# SwiftLint for the Apple app. Existing violations are recorded in
+# .swiftlint-baseline.json, so only new ones fail. Remove entries from the
+# baseline as code is fixed; never add to it to get a pull request through.
+included:
+  - apple/Ateliera
+  - apple/AtelieraWidgets
+  - apple/AtelieraTests
+  - apple/AtelieraUITests
+excluded:
+  - apple/Ateliera/Generated
+
+disabled_rules:
+  # swift-format decides trailing commas.
+  - trailing_comma
+
+custom_rules:
+  no_print:
+    name: No print
+    regex: '(^|[^\w.])(print|debugPrint|NSLog|os_log)\('
+    match_kinds: [identifier]
+    message: Use os.Logger with privacy .private (CONTRIBUTING.md, Privacy).
+    severity: error
+  network_api:
+    name: Network API
+    regex: '\b(URLSession|WKWebView|NWConnection|SFSafariViewController)\b'
+    match_kinds: [identifier, typeidentifier]
+    message: Network access must be on the bin/check-privacy allowlist (CONTRIBUTING.md, Privacy).
+    severity: error
+  fixed_font_size:
+    name: Fixed font size
+    regex: '\.font\(\.system\(size:'
+    message: Use a Dynamic Type text style (CONTRIBUTING.md, Code).
+    severity: error
