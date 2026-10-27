@@ -18,20 +18,25 @@ jobs:
     runs-on: macos-14
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6.1.0
         with:
           version: 10.28.2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: 22
           cache: pnpm
 
-      - uses: dtolnay/rust-toolchain@stable
+      # dtolnay/rust-toolchain has no releases, so it is pinned to a commit of its stable branch.
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
+        with:
+          toolchain: stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2.9.3
         with:
           workspaces: apps/studio/src-tauri
 
@@ -42,7 +47,7 @@ jobs:
 
       - name: Upload release evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: studio-release-evidence-${{ github.run_id }}
           path: artifacts/release-evidence
@@ -51,7 +56,7 @@ jobs:
 
       - name: Upload unsigned macOS bundle
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: studio-macos-unsigned-${{ github.run_id }}
           path: apps/studio/src-tauri/target/release/bundle
