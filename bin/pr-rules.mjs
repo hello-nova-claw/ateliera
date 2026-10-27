@@ -34,14 +34,16 @@ const notCode = [
 
 const isTest = (path) => testFile.some((re) => re.test(path));
 
-export function missingTests(changed) {
+// `changed` includes deleted files, which still trigger a rule; `present` excludes
+// them, because a deleted test or doc can't satisfy one.
+export function missingTests(changed, present = changed) {
   const code = changed.filter(
     (path) =>
       appSource.some((re) => re.test(path)) &&
       !isTest(path) &&
       !notCode.some((re) => re.test(path)),
   );
-  return code.length > 0 && !changed.some(isTest);
+  return code.length > 0 && !present.some(isTest);
 }
 
 export function missingChangelogFragment(added) {
@@ -58,8 +60,8 @@ const privacyFile = [
 
 // `usageDiff(path)` returns the diff of a project spec, so a project.yml change
 // counts only when it touches a usage-description string.
-export function missingPrivacyDoc(changed, usageDiff) {
-  if (changed.includes('docs/privacy.md')) return false;
+export function missingPrivacyDoc(changed, usageDiff, present = changed) {
+  if (present.includes('docs/privacy.md')) return false;
   if (changed.some((path) => privacyFile.some((re) => re.test(path))))
     return true;
   return changed
@@ -75,8 +77,8 @@ const lines = (text) => text.split('\n').filter(Boolean);
 
 function main([rule, base]) {
   const range = `origin/${base}...HEAD`;
-  // Deleted files can't satisfy a rule: a deleted test is no test.
-  const changed = lines(git('diff', '--name-only', '--diff-filter=d', range));
+  const changed = lines(git('diff', '--name-only', range));
+  const present = lines(git('diff', '--name-only', '--diff-filter=d', range));
   const messages = {
     tests:
       'This pull request changes app sources but no test. Write the test first (CONTRIBUTING.md, Tests).',
@@ -86,13 +88,17 @@ function main([rule, base]) {
       'This pull request changes a privacy manifest, entitlements, Info.plist or a usage-description string without updating docs/privacy.md (CONTRIBUTING.md, Privacy).',
   };
   const failed = {
-    tests: () => missingTests(changed),
+    tests: () => missingTests(changed, present),
     changelog: () =>
       missingChangelogFragment(
         lines(git('diff', '--name-only', '--diff-filter=A', range)),
       ),
     'privacy-doc': () =>
-      missingPrivacyDoc(changed, (path) => git('diff', range, '--', path)),
+      missingPrivacyDoc(
+        changed,
+        (path) => git('diff', range, '--', path),
+        present,
+      ),
   }[rule];
   if (!failed) {
     console.error(`Unknown rule: ${rule}`);
