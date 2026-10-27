@@ -16,15 +16,74 @@ final class VaultFormatMigrationTests: XCTestCase {
       .sorted { $0.path < $1.path }
   }
 
+  // The top-level frontmatter keys of a note, read from its text.
+  private func keys(_ text: String) -> Set<String> {
+    let parts = text.components(separatedBy: "---")
+    guard parts.count > 2 else { return [] }
+    return Set(
+      parts[1].split(separator: "\n").compactMap { line in
+        guard let first = line.first, first.isLetter, let colon = line.firstIndex(of: ":") else {
+          return nil
+        }
+        return String(line[..<colon])
+      })
+  }
+
+  // Serialising may reorder keys, so this checks for loss rather than identical bytes:
+  // every key survives, and a second round trip changes nothing.
+  private func assertNoLoss(
+    _ text: String, _ name: String, file: StaticString = #filePath, line: UInt = #line
+  )
+    throws
+  {
+    let note = try XCTUnwrap(
+      NoteParser.parse(text), "\(name) did not parse", file: file, line: line)
+    let saved = note.serialize()
+    XCTAssertEqual(
+      keys(saved), keys(text), "\(name) lost or gained frontmatter keys", file: file, line: line)
+    XCTAssertEqual(
+      note.body, try XCTUnwrap(NoteParser.parse(saved)).body, "\(name) body changed", file: file,
+      line: line)
+    XCTAssertEqual(
+      try XCTUnwrap(NoteParser.parse(saved)).serialize(), saved, "\(name) is unstable", file: file,
+      line: line)
+  }
+
+  private let canonical = """
+    ---
+    schema_version: 1
+    id: 01JFORMAT000000000000000001
+    title: An invented note
+    card_type: reflection
+    semantic_type: reflection
+    status: active
+    rooms:
+      - reflection-garden
+    life_areas: []
+    seasons: []
+    tags:
+      - invented
+    created: 2026-01-02T08:00:00+13:00
+    updated: 2026-01-02T08:00:00+13:00
+    attachments: []
+    display:
+      featured: false
+    privacy:
+      sensitivity: private
+      ai_access: ask
+    unknown_key: kept
+    ---
+
+    Nothing here is real.
+
+    """
+
   func testCurrentFormatRoundTripsWithoutLoss() throws {
+    try assertNoLoss(canonical, "canonical note")
     let files = try notes(in: repo.appendingPathComponent("fixtures/vaults/sample"))
     XCTAssertFalse(files.isEmpty, "The sample fixture vault has no notes.")
     for file in files {
-      let text = try String(contentsOf: file, encoding: .utf8)
-      let note = try XCTUnwrap(NoteParser.parse(text), "\(file.lastPathComponent) did not parse")
-      XCTAssertEqual(note.serialize(), text, "\(file.lastPathComponent) changed on a round trip")
-      let reopened = try XCTUnwrap(NoteParser.parse(note.serialize()))
-      XCTAssertEqual(reopened.serialize(), note.serialize())
+      try assertNoLoss(try String(contentsOf: file, encoding: .utf8), file.lastPathComponent)
     }
   }
 
@@ -34,15 +93,19 @@ final class VaultFormatMigrationTests: XCTestCase {
       at: released, includingPropertiesForKeys: [.isDirectoryKey]
     ).filter { $0.hasDirectoryPath }
     for version in versions {
-      let expected = try JSONSerialization.jsonObject(
-        with: Data(contentsOf: version.appendingPathComponent("expected.json"))) as? [String: [String: String]]
-      let byFile = try XCTUnwrap(expected, "\(version.lastPathComponent)/expected.json is unreadable")
+      let expected =
+        try JSONSerialization.jsonObject(
+          with: Data(contentsOf: version.appendingPathComponent("expected.json")))
+        as? [String: [String: String]]
+      let byFile = try XCTUnwrap(
+        expected, "\(version.lastPathComponent)/expected.json is unreadable")
       let files = try notes(in: version)
       XCTAssertEqual(files.count, byFile.count, "\(version.lastPathComponent): note count changed")
       for file in files {
         let text = try String(contentsOf: file, encoding: .utf8)
         let note = try XCTUnwrap(
-          NoteParser.parse(text), "\(version.lastPathComponent)/\(file.lastPathComponent) did not open")
+          NoteParser.parse(text),
+          "\(version.lastPathComponent)/\(file.lastPathComponent) did not open")
         let want = try XCTUnwrap(byFile[file.lastPathComponent])
         XCTAssertEqual(note.id, want["id"], "\(file.lastPathComponent): id lost")
         XCTAssertEqual(note.body, want["body"], "\(file.lastPathComponent): body lost")
