@@ -10,8 +10,9 @@ excluded:
   - apple/Ateliera/Generated
 
 disabled_rules:
-  # swift-format decides trailing commas.
+  # swift-format decides trailing commas and where braces go.
   - trailing_comma
+  - opening_brace
 
 custom_rules:
   no_print:
