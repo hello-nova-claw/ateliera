@@ -227,11 +227,11 @@ test('exports, destroys the active selection, and cleanly restores a portable St
   await openExistingStudio(page, 'Portable Restore');
   await openSearch(page);
   await page.getByRole('searchbox', { name: 'Search your Studio' }).fill('childhood hill');
-  await expect(page.getByRole('article', { name: 'Untitled note' }).filter({
+  await expect(page.getByRole('article').filter({
     hasText: 'The childhood hill is still here',
   })).toBeVisible();
   await page.getByRole('searchbox', { name: 'Search your Studio' }).fill('quiet minutes');
-  await expect(page.getByRole('article', { name: 'Untitled note' }).filter({
+  await expect(page.getByRole('article').filter({
     hasText: 'Five quiet minutes still count',
   })).toBeVisible();
   const restoredNotes = (await activeVaultRecords(page)).filter(({ path }) =>

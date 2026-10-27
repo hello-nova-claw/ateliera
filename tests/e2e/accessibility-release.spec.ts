@@ -113,7 +113,9 @@ test('completes create, capture, edit, search, and backup without a pointer', as
   await tabTo(page, query, { key });
   await page.keyboard.type('quiet keyboard');
   await expect(
-    page.getByRole('button', { name: 'Untitled note' }),
+    page
+      .getByRole('main')
+      .getByRole('button', { name: 'A quiet keyboard journey' }),
   ).toBeVisible();
 
   const settings = page.getByRole('link', { name: 'Settings' });
