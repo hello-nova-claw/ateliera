@@ -1,32 +1,9 @@
-# Ateliera — Agent Instructions
+# Ateliera: agent instructions
 
-## Product sources of truth
+Read these before any change. They replace the instructions that used to be here.
 
-- Read `docs/product/The-Studio-PRD-Design-Bible.md` before implementation.
-- Read `docs/superpowers/plans/2026-07-13-the-studio-mvp.md` (original MVP, shipped) before implementation.
-- For new feature work, read `docs/product/Ateliera-v2-roadmap.md` — the active forward roadmap.
-- The native app is at full P1–P9 parity (`docs/superpowers/plans/2026-08-28-ateliera-native-parity.md`).
-- Check `development-log.md` for the current phase and completed work.
-
-## Workflow
-
-- Use test-driven development: write and observe a failing test before production code.
-- Make small, atomic commits with one-line conventional commit messages.
-- Commits are authored solely by Anna McPhee, with no co-author or AI attribution.
-- Verify visible changes in a real browser with Playwright screenshots at desktop and mobile widths (web app); for the native app, use colocated XCUITests on a booted simulator.
-- Preserve user-authored and unrelated changes.
-
-## CSS and accessibility
-
-- Use BEM CSS naming, semantic classes, and CSS custom properties.
-- Never use `!important`.
-- Target WCAG 2.2 AA and provide keyboard alternatives for drag-and-drop.
-
-## Product constraints
-
-- Markdown and ordinary media files are authoritative; indexes are disposable.
-- A note is a single piece of text: with no explicit `title`, its first non-empty line is the effective title (display, `[[wiki]]` links, backlinks, search).
-- Core behavior works offline and without AI.
-- No streaks, overdue badges, gamification, compulsory check-ins, or guilt-inducing counts.
-- Unknown YAML frontmatter keys survive read/write cycles.
-- All file writes are atomic, path-contained, schema-validated, recoverable, and tested.
+- [CONTRIBUTING.md](CONTRIBUTING.md): the process, commit style, and the privacy, code, domain, test, localisation and accessibility rules.
+- [CLAUDE.md](CLAUDE.md): repository layout, how the apps fit together, invariants, how to run every check, and known traps.
+- [docs/design.md](docs/design.md): the design record. Its section 2 principles are not negotiable.
+- [docs/privacy.md](docs/privacy.md): what the apps store and send.
+- For product context: `docs/product/The-Studio-PRD-Design-Bible.md`, `docs/product/Ateliera-v2-roadmap.md` (the active roadmap), `docs/design/The-Studio-Final-Visual-Design-Addendum.md`, and `development-log.md`.

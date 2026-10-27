@@ -1,30 +1,50 @@
 # Ateliera
 
-A private studio for designing a life from the inside out.
+A private journal for designing a life from the inside out: journal entries, reflections, dreams, gratitude, intentions and possibilities, set against the season, the moon and your own cycle.
 
-## Development
+Ateliera comes as a native app for iPhone and iPad, and as a web and desktop app. Your journal is Markdown files that you own. The iPhone, iPad and desktop apps keep them in a folder you choose. The web app keeps them in your browser's private storage, and you move them in and out with export and import.
 
-Use Node.js 22 and pnpm 10.
+## Privacy
+
+Your journal stays with you. Ateliera has no account, no server, no analytics and no tracking, and it collects nothing. Your entries are files you own, in a folder you choose or in your browser's private storage. Your cycle is read from Apple Health on your device and never stored. You can export everything and delete everything. [docs/privacy.md](docs/privacy.md) sets out exactly what each app stores, where, and what (if anything) leaves your device.
+
+The code is public so that anyone can check this.
+
+## App Store
+
+Not released yet. A TestFlight beta comes first.
+
+## Building
+
+### iPhone and iPad app
+
+Needs Xcode, [XcodeGen](https://github.com/yonaskolb/XcodeGen) and the repository's Rust toolchain (`.toolchains/`).
+
+```sh
+cd apple
+./AtelieraVaultCore/build.sh
+xcodegen generate
+open Ateliera.xcodeproj
+```
+
+See [apple/README.md](apple/README.md) for tests and device builds.
+
+### Web and desktop app
+
+Needs Node 22 and pnpm 10.
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm lint
-pnpm typecheck
+pnpm --filter @studio/app build
+pnpm --filter @studio/app exec vite preview --host 127.0.0.1 --port 4173
 pnpm test
-pnpm build
-pnpm test:e2e
 ```
 
-Workspace dependencies follow the architecture documented in the implementation plan and are enforced by ESLint.
+`pnpm tauri:build` builds the desktop app. [CLAUDE.md](CLAUDE.md#running-checks) lists every check.
 
-## Native Apple app
+## Contributing
 
-A native SwiftUI app for iPhone, iPad, and Mac lives in [`apple/`](apple/README.md). It
-operates on the same user-owned iCloud Markdown vault as the web/PWA Studio — the vault
-format, not shared code, is the contract between them (see
-`docs/architecture/decisions/ADR-012-native-apple-app.md`). It is at full P1–P9 feature
-parity, golden-matched to the `@studio/*` packages, and reuses the Rust vault core via
-UniFFI. See [`apple/README.md`](apple/README.md) for build and test commands.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) first. Every change starts as an issue. Report security and privacy problems privately: see [SECURITY.md](SECURITY.md).
 
 ## Licensing
 

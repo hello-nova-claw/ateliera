@@ -36,6 +36,8 @@ export default tseslint.config(
       '**/dist/**',
       '**/node_modules/**',
       '**/.toolchains/**',
+      // Agent worktrees: each one is linted from inside itself.
+      '.claude/**',
       'apps/studio/src-tauri/target/**',
       'artifacts/**',
       'playwright-report/**',

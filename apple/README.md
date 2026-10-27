@@ -33,7 +33,8 @@ progressive disclosure).
 ## Build & test
 
 Prereqs: `xcodegen` (Homebrew), Xcode, and the repo's hermetic Rust toolchain under
-`.toolchains/` (used by the vault-core build).
+`.toolchains/` (used by the vault-core build). A fresh clone has to create that toolchain once: see
+[Running checks in CLAUDE.md](../CLAUDE.md#running-checks).
 
 ```sh
 # 1. Build the Rust vault core → VaultCore.xcframework + Swift bindings

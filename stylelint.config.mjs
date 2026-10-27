@@ -7,6 +7,7 @@ export default {
     '**/target/**',
     'artifacts/**',
     'ds-bundle/**',
+    '.claude/**',
   ],
   rules: {
     'studio/no-undefined-token': true,
