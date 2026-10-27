@@ -25,18 +25,18 @@ Do these once, before the first build goes to App Review.
   - The description makes no medical, fertility or contraceptive claims.
 - [ ] **Review notes for App Review:**
   - The app has no account and needs no login.
-  - It collects nothing; entries stay on the device or in the user's own iCloud Drive.
-  - Health access is read-only menstrual flow, used on the device and never stored.
+  - The developer collects nothing. Entries stay on the device, or in the user's own iCloud Drive if they keep the vault there.
+  - Data leaves the device only through Apple services and the user's own actions: place names and coordinates go to Apple's geocoder, the vault syncs through the user's iCloud Drive, the user can export or share a backup, and links the user taps open in their browser.
+  - Health access is read-only menstrual flow, used on the device, never written to the vault or sent anywhere. Check that #165 is closed, so nothing derived from Health is stored.
   - Cycle days and phases are estimates, not medical advice.
-  - Location is used for the hemisphere and the user's home place. Place names are looked up with Apple's geocoder.
-  - The on-device model words the season and never sees journal text.
+  - The on-device model words the season and never sees journal text, cycle data or birth details.
 - [ ] **Export compliance.** `ITSAppUsesNonExemptEncryption` is `false` (#51).
 
 ## Every release
 
 - [ ] All issues in the release's milestone are closed or moved to a later one.
 - [ ] `main` is green: every required check passed on the release commit.
-- [ ] `pnpm changelog` has folded the fragments into `CHANGELOG.md`, and the `## Unreleased` heading is renamed to the version and date.
+- [ ] `pnpm changelog` (`bin/changelog.mjs`) has folded the fragments into `CHANGELOG.md`, and the `## Unreleased` heading is renamed to the version and date.
 - [ ] `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` in `apple/project.yml` are bumped.
 - [ ] **Privacy:**
   - `PrivacyInfo.xcprivacy` (app and widget) lists every required-reason API the code uses, with the right reason.
