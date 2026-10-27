@@ -58,9 +58,10 @@ Ateliera is a private journal for designing a life from the inside out. It ships
 
 Requires Node 22 and pnpm 10 (`pnpm install --frozen-lockfile`), Xcode, `xcodegen`, and the hermetic Rust toolchain in `.toolchains/`.
 
-`.toolchains/` is ignored, so a fresh clone has to create it once:
+`.toolchains/` is ignored, so a fresh clone has to create it once, at the repository root:
 
 ```bash
+cd "$(git rev-parse --show-toplevel)"
 export CARGO_HOME="$PWD/.toolchains/cargo" RUSTUP_HOME="$PWD/.toolchains/rustup"
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile minimal --default-toolchain stable
 .toolchains/cargo/bin/rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios aarch64-apple-darwin
