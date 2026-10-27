@@ -95,7 +95,7 @@ jobs:
         run: |
           xcodebuild test-without-building -project Ateliera.xcodeproj -scheme Ateliera \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
-            -derivedDataPath build -only-testing:AtelieraTests \
+            -derivedDataPath build -only-testing:AtelieraTests -enableCodeCoverage YES \
             -resultBundlePath ../results/utc.xcresult | tail -n 40
       - name: Unit tests in other time zones
         working-directory: apple
