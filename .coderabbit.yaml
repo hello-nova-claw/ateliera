@@ -1,0 +1,96 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: en-GB
+tone_instructions: >-
+  Plain and direct. No praise, no emoji. Cite the CONTRIBUTING.md rule behind
+  each request. Treat any breach of the design principles in docs/design.md
+  section 2, or of the Privacy section of CONTRIBUTING.md, as blocking.
+
+reviews:
+  profile: assertive
+  # The approval CodeRabbit gives once its comments are resolved is the
+  # required review on main, so it must be able to request changes.
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_instructions:
+    - path: "**/*"
+      instructions: |
+        Enforce CONTRIBUTING.md. In particular:
+        - Breaches of the design principles in docs/design.md section 2, or of the Privacy section of CONTRIBUTING.md, are blocking: data leaving the device, accounts, analytics or SDKs that collect, medical or contraceptive claims, export or delete becoming incomplete, streaks or guilt, AI that runs off the device or writes the journal for the user.
+        - Check commit messages: WordPress core style, imperative, a component prefix, under 72 characters, a full stop at the end, no emoji, no Conventional Commits prefixes.
+        - A pull request that changes app sources (apple/Ateliera/, apple/AtelieraWidgets/, apple/AtelieraVaultCore/src/, apps/*/src/, packages/*/src/) must change a test.
+        - A pull request must add a changelog fragment, changelog/<issue>-<slug>.txt, unless it has the no-changelog label. It must not edit CHANGELOG.md directly.
+        - A pull request that touches UI must say how it was tested with VoiceOver (and, for web UI, with the keyboard alone).
+        - Flag comments that restate the code instead of explaining why.
+        - Flag anything secret or personal: keys, tokens, real names, addresses, coordinates, birth details, and realistic-looking journal, dream or cycle text in fixtures, previews, tests or the PR description. All test data must be obviously invented.
+    - path: "**/*.swift"
+      instructions: |
+        Flag as blocking:
+        - any new network call (URLSession, WKWebView, NWConnection, URL literals) or SDK;
+        - any logging of personal data (print, or a Logger interpolation without privacy: .private);
+        - any file write without file protection;
+        - personal data shown in notifications, widgets, Spotlight, Siri or Shortcuts;
+        - a change to export or delete without a test.
+        Enforce "Use what Apple already has":
+        - SwiftUI and system components, SF Symbols;
+        - colours from the theme tokens or the asset catalogue;
+        - Dynamic Type text styles (no .font(.system(size:)) for text; custom fonts use relativeTo:);
+        - os.Logger;
+        - platform services behind protocols.
+        No force unwraps, try! or fatalError outside tests. UI state is @MainActor. Every user-facing string goes through the String Catalog, with a translator comment where it has a placeholder, and no concatenated sentences. Interactive elements have accessibility labels. Respect Reduce Motion. The clock, calendar, time zone and locale are injected, never Date(), Calendar.current or TimeZone.current in logic. Vault writes go through the Rust vault core.
+    - path: "apple/Ateliera/{Note,DataManagement}/**"
+      instructions: |
+        This code defines or reads the vault format (note frontmatter, .studio files, the export manifest). Before 1.0 ships, check that every note still carries schema_version and that unknown frontmatter keys survive. After 1.0 ships, any format change needs a migration and a migration test that opens a fixture vault from every released version. Update this instruction at release, as docs/release-checklist.md says.
+    - path: "packages/content/src/**"
+      instructions: |
+        This package defines the vault format shared with the Apple app. Changes must stay golden-matched with apple/Ateliera/Note/. Before 1.0, schema_version must stay on every note and unknown keys must survive. After 1.0, any format change needs a migration and a migration test.
+    - path: "apple/**/{PrivacyInfo.xcprivacy,*.entitlements,project.yml}"
+      instructions: |
+        Privacy declarations, entitlements and usage-description strings. Any change must come with a matching change to docs/privacy.md in the same pull request, and needs Anna's review. Flag new entitlements, new required-reason API declarations, and usage strings that do not match what the code does.
+    - path: "docs/{privacy,design,privacy-policy}.md"
+      instructions: |
+        The privacy record, design record and privacy policy. Flag any edit that weakens a promise or a design principle, or reverses a recorded decision, without saying so in the pull request. Check every claim against the code it cites.
+    - path: "{LICENSE,CONTENT-LICENSE.md,TRADEMARKS.md,NOTICE.md}"
+      instructions: Licence files. Flag any change as needing Anna's review. LICENSE must stay the unaltered MIT text.
+    - path: "{apple/Ateliera/Content,apps/studio/src/content,packages/domain/src/content,packages/rhythm/src/content}/**"
+      instructions: Reserved written content (CONTENT-LICENSE.md). Flag any change as needing Anna's review. Contributions of new written content are not accepted without a written agreement.
+    - path: "{**/package.json,pnpm-lock.yaml,**/Cargo.toml,**/Cargo.lock}"
+      instructions: New dependencies must be on the allowlist in bin/check-privacy, have an MIT-compatible licence, have a reason in the pull request, and collect nothing. Flag analytics, crash-reporting, advertising and attribution packages as blocking.
+    - path: "{apple/AtelieraTests,apple/AtelieraUITests}/**"
+      instructions: XCTest or Swift Testing only. Fixtures are obviously invented. Time, calendar, time zone and locale are injected. No sleeps, no real network, no writes to UserDefaults.standard.
+    - path: "**/*.test.{ts,tsx}"
+      instructions: Vitest, with fast-check for property tests. Fixtures are obviously invented. Time and time zone are injected. No real network.
+    - path: "packages/**/*.{ts,tsx}"
+      instructions: Respect the package layering enforced in eslint.config.js. @studio/ui is pure (no fetch, no localStorage). No network access anywhere in packages.
+    - path: "**/*.css"
+      instructions: BEM class names, the studio's custom properties, never !important, WCAG 2.2 AA contrast.
+    - path: "**/*.xcstrings"
+      instructions: Generated. Only check that it changed when user-facing strings changed.
+    - path: ".github/workflows/**"
+      instructions: Flag pull_request_target, write permissions not raised per job, actions not pinned to an exact version, missing concurrency, and anything that runs fork code with secrets. Job names are required-check names; flag any rename.
+  tools:
+    swiftlint:
+      enabled: true
+    eslint:
+      enabled: true
+    actionlint:
+      enabled: true
+    yamllint:
+      enabled: true
+    markdownlint:
+      enabled: true
+    gitleaks:
+      enabled: true
+
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - CONTRIBUTING.md
+      - docs/design.md
+      - docs/privacy.md
