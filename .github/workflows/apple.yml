@@ -13,9 +13,16 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Pull requests share a group per branch; every other run gets its own, so a push
+  # to main never cancels a pending weekly or main run.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   # Only pull request runs are cancelled, so every commit on main keeps its results.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    # Explicit bash turns on pipefail, so `xcodebuild … | tail` fails when xcodebuild does.
+    shell: bash
 
 env:
   DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer

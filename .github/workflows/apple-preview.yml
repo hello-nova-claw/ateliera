@@ -10,6 +10,11 @@ on:
 permissions:
   contents: read
 
+# One comment update at a time per branch, so two runs never both post a new comment.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
 jobs:
   comment:
     name: Build preview comment
@@ -20,13 +25,24 @@ jobs:
       actions: read
       pull-requests: write
     steps:
+      # Pull requests that don't touch the Apple app skip the build, so there may be no artifact.
+      - id: artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          count=$(gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts" --jq '[.artifacts[] | select(.name == "ateliera-simulator-app")] | length')
+          echo "found=$([ "$count" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v7.0.0
+        if: steps.artifact.outputs.found == 'true'
         with:
           name: ateliera-simulator-app
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
           path: preview
-      - env:
+      - if: steps.artifact.outputs.found == 'true'
+        env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           RUN_ID: ${{ github.event.workflow_run.id }}
