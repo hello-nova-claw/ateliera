@@ -93,9 +93,9 @@ jobs:
     name: actionlint
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    container: rhysd/actionlint:1.7.12
     steps:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - run: actionlint -color
+      # The image runs as a non-root user, so it can't host actions/checkout as a job container.
+      - run: docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.12 -color
