@@ -17,7 +17,7 @@ export async function openExistingStudio(
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
 }
 
-async function openFromNavigation(page: Page, name: string): Promise<void> {
+export async function openFromNavigation(page: Page, name: string): Promise<void> {
   const link = page
     .getByRole('navigation', { name: /^Studio (rooms|utilities)$/u })
     .getByRole('link', { name, exact: true });
