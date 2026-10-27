@@ -128,7 +128,12 @@ jobs:
             echo "::error::Building changed a String Catalog. Build locally and commit the updated catalog."
             exit 1
           fi
-          if git ls-files -z '*.xcstrings' | xargs -0 grep -l '"extractionState" : "stale"' 2>/dev/null; then
+          stale=""
+          while IFS= read -r catalog; do
+            if grep -q '"extractionState" : "stale"' "$catalog"; then stale="$stale $catalog"; fi
+          done < <(git ls-files '*.xcstrings')
+          if [ -n "$stale" ]; then
+            echo "Stale entries in:$stale"
             echo "::error::A String Catalog has stale entries. Remove them in Xcode and commit."
             exit 1
           fi
