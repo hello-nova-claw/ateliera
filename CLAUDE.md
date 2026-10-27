@@ -76,6 +76,9 @@ pnpm test            # Vitest across every package
 pnpm build
 pnpm test:e2e        # Playwright: builds, previews on :4173, runs tests/e2e
 pnpm rust:fmt && pnpm rust:clippy && pnpm tauri:test
+node bin/check-privacy.mjs && node bin/check-licence.mjs
+swiftlint lint --strict --baseline .swiftlint-baseline.json
+xcrun swift-format lint --strict <changed .swift files>
 ```
 
 One TypeScript test:
