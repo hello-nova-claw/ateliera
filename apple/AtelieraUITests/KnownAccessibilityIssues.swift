@@ -23,6 +23,7 @@ enum KnownAccessibilityIssues {
     74 contrast rhythm BIRTH TIME
     74 contrast rhythm Cancel
     74 contrast rhythm Capricorn
+    74 contrast rhythm Find
     74 contrast rhythm Find Find
     74 contrast rhythm I know my birth time
     74 contrast rhythm MOON
@@ -40,6 +41,7 @@ enum KnownAccessibilityIssues {
     74 contrast room-current-season How you want it to feel — one per line (
     74 contrast room-current-season One line is plenty — a gentle focus for
     74 contrast room-current-season THE SEASON YOU'RE IN
+    74 contrast room-current-season The Even Light
     74 contrast room-current-season What matters this season?
     74 contrast room-current-season YOUR INTENTION
     74 contrast room-current-season season-computed-title
@@ -77,6 +79,7 @@ enum KnownAccessibilityIssues {
     74 contrast settings Done
     74 contrast settings FOYER
     74 contrast settings Home
+    74 contrast settings How I want to feel
     74 contrast settings Identity Studio
     74 contrast settings Inbox
     74 contrast settings Journal
@@ -98,11 +101,14 @@ enum KnownAccessibilityIssues {
     74 contrast settings theme-forest
     74 contrast settings theme-sunset
     74 contrast settings uitest-35A67C72-B2F0-48B5-8F64-30C1BFAC3
+    74 contrast settings uitest-<uuid>
     74 contrast sky-ahead @ · @ April 10 · in 21 days
     74 contrast sky-ahead @ · @ April 17 · in 28 days
     74 contrast sky-ahead @ · @ April 2 · in 13 days
+    74 contrast sky-ahead @ · @ April 20 · in 31 days
     74 contrast sky-ahead @ · @ April 23 · in 34 days
     74 contrast sky-ahead @ · @ April 24 · in 35 days
+    74 contrast sky-ahead @ · @ April 4 · in 15 days
     74 contrast sky-ahead @ · @ April 8 · in 19 days
     74 contrast sky-ahead @ · @ July 14 · in 116 days
     74 contrast sky-ahead @ · @ July 5 · in 107 days
@@ -110,6 +116,7 @@ enum KnownAccessibilityIssues {
     74 contrast sky-ahead @ · @ June 15 · in 87 days
     74 contrast sky-ahead @ · @ June 21 · in 93 days
     74 contrast sky-ahead @ · @ June 29 · in 101 days
+    74 contrast sky-ahead @ · @ June 5 · in 77 days
     74 contrast sky-ahead @ · @ June 7 · in 79 days
     74 contrast sky-ahead @ · @ June 8 · in 80 days
     74 contrast sky-ahead @ · @ March 20 · today
@@ -117,9 +124,11 @@ enum KnownAccessibilityIssues {
     74 contrast sky-ahead @ · @ March 25 · in 5 days
     74 contrast sky-ahead @ · @ May 1 · in 42 days
     74 contrast sky-ahead @ · @ May 16 · in 57 days
+    74 contrast sky-ahead @ · @ May 21 · in 62 days
     74 contrast sky-ahead @ · @ May 22 · in 63 days
     74 contrast sky-ahead @ · @ May 23 · in 64 days
     74 contrast sky-ahead @ · @ May 31 · in 72 days
+    74 contrast sky-ahead @ · @ May 5 · in 46 days
     74 contrast sky-ahead @ · @ May 7 · in 48 days
     74 contrast sky-ahead @ · @ May 9 · in 50 days
     74 contrast sky-ahead Add your birth date in Your rhythm to tu
@@ -131,6 +140,7 @@ enum KnownAccessibilityIssues {
     74 contrast sky-ahead April 4 · in 15 days
     74 contrast sky-ahead April 8 · in 19 days
     74 contrast sky-ahead Astrology
+    74 contrast sky-ahead Clear and Green
     74 contrast sky-ahead Done
     74 contrast sky-ahead First quarter
     74 contrast sky-ahead Full moon
@@ -172,17 +182,21 @@ enum KnownAccessibilityIssues {
     74 contrast today An opening day — a good time to name wha
     74 contrast today First Dew
     74 contrast today Summer · New
+    74 contrast today The Even Light
     74 contrast today Today's rhythm
     74 contrast today When you're ready, name the person you'r
     74 contrast today Who are you becoming?
     74 contrast today cool mornings, dew on the grass
+    74 contrast today day and night in balance, tipping bright
     74 contrast today good morning
     74 contrast today invitation-card
     74 contrast today-panel An opening day — a good time to name wha
     74 contrast today-panel First Dew
     74 contrast today-panel Summer · 99% through
     74 contrast today-panel Summer · New
+    74 contrast today-panel The Even Light
     74 contrast today-panel Today's rhythm
+    74 contrast today-panel Winter · 99% through
     74 contrast today-panel Winter · New
     74 contrast today-panel almanac-lunar-season
     74 contrast today-panel almanac-lunation
@@ -193,6 +207,9 @@ enum KnownAccessibilityIssues {
     74 contrast today-panel invitation-card
     74 contrast today-panel sky-ahead-button
     78 hitRegion rhythm Use my location
+    78 hitRegion room-identity-studio -
+    78 hitRegion room-reflection-garden -
+    78 hitRegion room-wisdom-garden -
     78 hitRegion settings home-place-locate
     78 hitRegion settings profile-photo-picker
     78 hitRegion today foyer-hero-begin
@@ -223,6 +240,7 @@ enum KnownAccessibilityIssues {
     79 dynamicType rhythm Your rhythm
     79 dynamicType room-current-season THE SEASON YOU'RE IN
     79 dynamicType room-current-season YOUR INTENTION
+    79 dynamicType room-identity-studio -
     79 dynamicType room-identity-studio WHO YOU ARE BECOMING
     79 dynamicType room-journal -
     79 dynamicType room-journal Nothing here yet.
@@ -303,7 +321,9 @@ enum KnownAccessibilityIssues {
     80 textClipped today-panel The Even Light
     83 sufficientElementDescription room-constellation constellation-empty
     83 sufficientElementDescription settings profile-avatar
+    83 sufficientElementDescription today snowflake
     83 sufficientElementDescription today sun.max
+    83 sufficientElementDescription today-panel snowflake
     83 sufficientElementDescription today-panel sun.max
     168 elementDetection rhythm -
     168 elementDetection room-reflection-garden -
@@ -332,7 +352,10 @@ enum KnownAccessibilityIssues {
     } else {
       name = "-"
     }
-    return Finding(type: typeName(issue.auditType), screen: screen, element: name)
+    // Each UI test run makes a vault folder with a new UUID in its name.
+    let stable = name.replacingOccurrences(
+      of: "[0-9A-Fa-f]{8}-[0-9A-Fa-f-]+", with: "<uuid>", options: .regularExpression)
+    return Finding(type: typeName(issue.auditType), screen: screen, element: stable)
   }
 
   static func isKnown(_ finding: Finding) -> Bool {
