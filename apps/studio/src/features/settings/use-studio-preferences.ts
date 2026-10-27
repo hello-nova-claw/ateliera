@@ -7,6 +7,30 @@ export interface UseStudioPreferences {
   save: (next: StoredStudioPreferences) => Promise<void>;
 }
 
+interface PreferencesSnapshot {
+  preferences: StoredStudioPreferences;
+  revision: string | null;
+}
+
+type Listener = (snapshot: PreferencesSnapshot) => void;
+
+// The navigation, the Foyer and Settings each hold their own copy. A save in one
+// must reach the others, or a room turned on in Settings stays out of the
+// navigation and the next save from a stale copy conflicts on its old revision.
+const listeners = new WeakMap<StudioService, Set<Listener>>();
+
+function subscribe(service: StudioService, listener: Listener): () => void {
+  let set = listeners.get(service);
+  if (set === undefined) {
+    set = new Set();
+    listeners.set(service, set);
+  }
+  set.add(listener);
+  return () => {
+    set.delete(listener);
+  };
+}
+
 export function useStudioPreferences(
   service: StudioService | undefined,
 ): UseStudioPreferences {
@@ -16,6 +40,10 @@ export function useStudioPreferences(
   useEffect(() => {
     if (service === undefined) return undefined;
     let current = true;
+    const unsubscribe = subscribe(service, (snapshot) => {
+      setPreferences(snapshot.preferences);
+      setRevision(snapshot.revision);
+    });
     void service.preferences
       .load()
       .then((snapshot) => {
@@ -29,6 +57,7 @@ export function useStudioPreferences(
       });
     return () => {
       current = false;
+      unsubscribe();
     };
   }, [service]);
 
@@ -38,8 +67,11 @@ export function useStudioPreferences(
     async save(next) {
       if (service === undefined) return;
       const snapshot = await service.preferences.save(next, revision);
-      setPreferences(snapshot.preferences);
-      setRevision(snapshot.revision);
+      const shared = {
+        preferences: snapshot.preferences,
+        revision: snapshot.revision,
+      };
+      for (const listener of listeners.get(service) ?? []) listener(shared);
     },
   };
 }
