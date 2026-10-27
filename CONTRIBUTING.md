@@ -121,6 +121,7 @@ How to run everything is in [CLAUDE.md](CLAUDE.md#running-checks).
 - Layouts survive the largest accessibility Dynamic Type sizes.
 - Respect Reduce Motion. Never use colour as the only signal, especially for cycle phases.
 - The web app targets WCAG 2.2 AA and gives a keyboard alternative for every drag.
+- CI runs Xcode's accessibility audit on every screen in `apple/AtelieraUITests/AppScreens.swift`, at the largest accessibility text size, right to left, and with doubled strings. It runs when the app or its UI tests change. When you add a screen, add it to `AppScreens`. A finding fails the job unless `KnownAccessibilityIssues.swift` lists it against an open issue. Fix a new finding rather than listing it. When you fix a listed one, delete its entry.
 - **Every pull request that touches UI says how it was tested with VoiceOver**: what was focused, what was read out, what was activated. For web UI, also say how it was tested with the keyboard alone.
 
 ## Screenshots

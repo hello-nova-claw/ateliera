@@ -1,0 +1,28 @@
+name: Apple setup
+description: Restores or creates the Rust toolchain, builds the vault core and generates the Xcode project.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache@v5.0.1
+      with:
+        path: |
+          .toolchains
+          apple/AtelieraVaultCore/target
+        key: rust-${{ runner.os }}-${{ hashFiles('apple/AtelieraVaultCore/Cargo.lock', 'apple/AtelieraVaultCore/build.sh') }}
+        restore-keys: rust-${{ runner.os }}-
+    - name: Create the Rust toolchain
+      shell: bash
+      run: |
+        if [ ! -x .toolchains/cargo/bin/cargo ]; then
+          export CARGO_HOME="$PWD/.toolchains/cargo" RUSTUP_HOME="$PWD/.toolchains/rustup"
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile minimal --default-toolchain stable
+          .toolchains/cargo/bin/rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios aarch64-apple-darwin
+        fi
+    - name: Build the vault core and generate the project
+      shell: bash
+      working-directory: apple
+      run: |
+        brew install xcodegen
+        ./AtelieraVaultCore/build.sh
+        xcodegen generate
