@@ -13,7 +13,8 @@ const APP = 'Ateliera.app';
 export function appCoverage(report) {
   const app = report.targets.find((target) => target.name === APP);
   if (!app) throw new Error(`No ${APP} target in the coverage report.`);
-  return Math.round(app.lineCoverage * 10000) / 100;
+  // Unrounded, so 33.496% never passes a 33.5% baseline. Round only for display.
+  return app.lineCoverage * 100;
 }
 
 export function gate(coverage, baseline) {
@@ -32,18 +33,17 @@ function main([bundle]) {
     readFileSync('.github/coverage-baseline', 'utf8'),
   );
   const { pass, raise } = gate(coverage, baseline);
-  console.log(
-    `Ateliera.app line coverage: ${coverage}% (baseline ${baseline}%).`,
-  );
+  const shown = coverage.toFixed(2);
+  console.log(`Ateliera.app line coverage: ${shown}% (baseline ${baseline}%).`);
   if (!pass) {
     console.log(
-      `::error::Line coverage fell from ${baseline}% to ${coverage}%. Add tests (CONTRIBUTING.md, Tests).`,
+      `::error::Line coverage fell from ${baseline}% to ${shown}%. Add tests (CONTRIBUTING.md, Tests).`,
     );
     process.exit(1);
   }
   if (raise) {
     console.log(
-      `::notice::Coverage rose by more than half a point. Set .github/coverage-baseline to ${coverage} in this pull request.`,
+      `::notice::Coverage rose by more than half a point. Set .github/coverage-baseline to ${shown} in this pull request.`,
     );
   }
 }

@@ -15,7 +15,7 @@ const report = {
 };
 
 test('reads the app target, not tests or extensions', () => {
-  expect(appCoverage(report)).toBe(62.34);
+  expect(appCoverage(report)).toBeCloseTo(62.34, 10);
 });
 
 test('fails when coverage drops below the baseline', () => {
@@ -34,6 +34,8 @@ test('a missing app target is an error', () => {
 });
 
 test('rounding never lifts coverage over the baseline', () => {
-  const coverage = appCoverage({ targets: [{ name: 'Ateliera.app', lineCoverage: 0.33496 }] });
+  const coverage = appCoverage({
+    targets: [{ name: 'Ateliera.app', lineCoverage: 0.33496 }],
+  });
   expect(gate(coverage, 33.5).pass).toBe(false);
 });
