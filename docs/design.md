@@ -11,18 +11,20 @@ It ships as two apps that share a file format and no code:
 - a native SwiftUI app for iPhone and iPad (and Mac, later), in `apple/`;
 - a web app (PWA) and a Tauri desktop app, in `apps/` and `packages/`.
 
-Both read and write the same **vault**: a folder of Markdown files the user owns.
+Both use the same **vault** format: Markdown files and ordinary media that the user owns. The Apple and desktop apps keep the vault in a folder the user picks. The browser keeps it in the browser's private storage, and the user moves it in and out by export and import.
 
 ## 2. Design principles (not negotiable)
 
 These hold for every change. A pull request that breaks one is closed, however good the code is. Changing a principle needs a decision from Anna, recorded in section 5.
 
-1. **The data stays with the user.** Entries live as files in a vault the user owns. Nothing leaves the device except to Apple services the user has turned on, and each one is named in [docs/privacy.md](privacy.md). Sync happens only when the user puts the vault in their own iCloud Drive.
+1. **The data stays with the user.** Entries live as files in a vault the user owns. Ateliera sends nothing to its developer or to any third party. The only data that leaves the device goes to Apple services the user has turned on, each named in [docs/privacy.md](privacy.md), or goes where the user sends it: their own iCloud Drive if the vault is kept there, a backup they export or share, or a link they open.
 2. **No accounts, no analytics, no ads, no tracking.** No third-party SDK that collects anything, ever.
 3. **No medical or contraceptive claims.** Cycle days and phases are estimates from the user's Health data, and the app says so wherever it shows them.
 4. **Export everything, delete everything.** The user can export all their data in an open format, and delete all of it, in two taps each.
 5. **No guilt.** No streaks, overdue badges, punishing counts, guilt notifications or dark patterns.
 6. **AI on the device only, speaking to the user.** Any model runs on the device. It may suggest, reflect and ask. It never writes the journal for the user, and nothing it produces is saved as if the user wrote it.
+
+These are requirements, not a description of today's code. Where the apps fall short, [docs/privacy.md](privacy.md) names the gap and its issue.
 
 ## 3. Architecture
 
@@ -32,12 +34,13 @@ These hold for every change. A pull request that breaks one is closed, however g
 - The Markdown files are the source of truth. Everything else (the search index, caches, projections) can be rebuilt from them without loss.
 - Every note carries `schema_version: 1`. The frontmatter schema is defined in `packages/content/src/frontmatter-schema.ts` and mirrored in `apple/Ateliera/Note/NoteParser.swift`.
 - Unknown frontmatter keys survive every read and write, in their original order.
-- App state lives in the vault's `.studio/` folder: settings, view configuration, revisions (`backups/`), trash, caches and export manifests.
+- App state that belongs to the vault lives in its `.studio/` folder: settings, configuration, views, revisions (`backups/`), trash, caches and export manifests. Some state stays on the device instead, in `UserDefaults` (Apple) or `localStorage` and `sessionStorage` (web). [docs/privacy.md](privacy.md) lists it.
 - A note is a single piece of text. With no `title` key, its first non-empty line is its title for display, links, backlinks and search.
 
 ### Writes
 
-- Every write is atomic (temp file, sync, rename), contained in the vault (no path can escape the root), validated and recoverable from a revision.
+- Every vault write is atomic (temp file, sync, rename), contained in the vault (no path can escape the root), validated and recoverable from a revision.
+- Files the app writes outside the vault, such as the export ZIP, are listed in [docs/privacy.md](privacy.md) with how they are written.
 - On Apple platforms the Rust vault core in `apple/AtelieraVaultCore` performs these writes. Swift calls it through UniFFI. The Tauri app uses the same approach in `apps/studio/src-tauri`.
 
 ### The two apps
@@ -49,7 +52,8 @@ These hold for every change. A pull request that breaks one is closed, however g
 ### Rhythm
 
 - Seasons, solstices and moon phases are computed on the device from Jean Meeus's formulas. Nothing is fetched.
-- The cycle is read from Health (menstrual flow only), on the device, and kept in memory. It is never written to the vault.
+- In the Apple app, the cycle is read from Health (menstrual flow only), on the device, and kept in memory. It is never written to the vault.
+- The web app has no Health access. The user can type a last period start and an average length, which are stored in the vault's rhythm profile (see #151).
 - The natal chart is computed on the device from birth details the user types in.
 
 ### On-device AI
@@ -62,7 +66,7 @@ These hold for every change. A pull request that breaks one is closed, however g
 ## 4. Product invariants
 
 - Markdown and media are authoritative; indexes and caches are disposable.
-- Writes are atomic, path-contained, schema-validated, recoverable and tested.
+- Vault writes are atomic, path-contained, schema-validated, recoverable and tested.
 - Unknown YAML keys survive.
 - Core behaviour works offline and without AI.
 - No streaks, overdue badges, gamification, compulsory check-ins or guilt-inducing counts.
@@ -81,7 +85,7 @@ Rejected: CloudKit and any backend. The vault is a folder of files, so the user 
 
 ### HealthKit is read-only, and cycle data is never stored
 
-The app reads menstrual flow from Health, works out the cycle in memory, and writes nothing to Health or to the vault. App Review Guideline 5.1.3 forbids storing personal health information in iCloud. A vault can live in iCloud Drive, so cycle data must never enter it. Rejected: logging periods inside Ateliera, and caching the derived cycle.
+The Apple app reads menstrual flow from Health, works out the cycle in memory, and writes nothing to Health or to the vault. App Review Guideline 5.1.3 forbids storing personal health information in iCloud. A vault can live in iCloud Drive, so Health data must never enter it. Rejected: logging periods inside the Apple app, and caching the derived cycle. The web app's typed-in cycle dates are an open question (#151).
 
 ### No medical or contraceptive features
 

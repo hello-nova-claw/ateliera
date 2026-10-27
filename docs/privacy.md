@@ -10,11 +10,13 @@ Last checked against the code: 27 October 2026.
 
 - The developer collects nothing. There is no account, server, analytics, crash-reporting, advertising or attribution SDK.
 - Journal entries live in a vault: a folder of Markdown files the user chooses.
-- Data leaves the device in only three ways:
-  - the vault syncs if the user keeps it in iCloud Drive;
+- Data leaves the device in only these ways:
   - place lookups go to Apple's geocoder;
-  - the user exports or shares a backup themselves.
-- Cycle data is read from Health on the device, kept in memory, and never stored.
+  - the vault syncs if the user keeps it in iCloud Drive;
+  - the user exports or shares a backup;
+  - the user opens a link from an entry in their browser.
+- Apple app: Health samples are read on the device and the derived cycle is kept in memory. One trace persists: a dismissed invitation's ID can name the cycle phase it was shown in (see the `UserDefaults` row).
+- Web app: no Health access. A last period start and average length the user types in are stored in the vault (#151).
 
 ## What is personal here
 
@@ -30,7 +32,7 @@ Last checked against the code: 27 October 2026.
 
 | Data | Where | Protection | Source |
 |---|---|---|---|
-| Notes, media, `.studio/` settings, views and config | The vault folder the user picks. The app keeps a bookmark to it. | The iOS default class, `completeUntilFirstUserAuthentication`. No class is set. Gap: #130. | `Ateliera/VaultStore.swift`, `AtelieraVaultCore/src/lib.rs` |
+| Notes, media, and the vault's `.studio/` settings, views and config | The vault folder the user picks. The app keeps a bookmark to it. | The iOS default class, `completeUntilFirstUserAuthentication`. No class is set. Gap: #130. | `Ateliera/VaultStore.swift`, `AtelieraVaultCore/src/lib.rs` |
 | Revisions (30 days) and trash | Vault `.studio/backups/`, `.studio/trash/` | Default. Gap: #130. | `Ateliera/DataManagement/RevisionStore.swift` |
 | On-device AI wording cache | Vault `.studio/cache/micro-seasons.json`. Its key includes the home place name. Gap: #134. | Default | `Ateliera/Rhythm/MicroSeasonStore.swift` |
 | Vault bookmark | `UserDefaults` `ateliera.vault.bookmark` | Default | `Ateliera/VaultStore.swift` |
@@ -52,10 +54,11 @@ Last checked against the code: 27 October 2026.
 
 | Where it goes | What is sent | When | Source |
 |---|---|---|---|
-| Apple's geocoder (`CLGeocoder`) | Device coordinates, to find the place name and hemisphere | On every launch when location is allowed. Gap: #34. | `Ateliera/Rhythm/LocationHemisphere.swift`, `Ateliera/Rhythm/PlaceGeocoder.swift` |
-| Apple's geocoder | The birthplace or home place the user types | When the user searches for a place | `Ateliera/Rhythm/PlaceGeocoder.swift` |
+| Apple's geocoder (`CLGeocoder`), reverse lookup | Device coordinates, to name the home place. The hemisphere is worked out on the device from the latitude, without the geocoder. | On every launch when location is allowed, and from "Use my location". Gap: #34. | `Ateliera/Rhythm/LocationHemisphere.swift`, `Ateliera/Rhythm/PlaceGeocoder.swift` |
+| Apple's geocoder, forward lookup | The birthplace or home place name the user types | When the user searches for a place | `Ateliera/Rhythm/PlaceGeocoder.swift` (`search`) |
+| Apple's geocoder, reverse lookup | The coordinates of the place just found | During a place search, when the first answer has no time zone | `Ateliera/Rhythm/PlaceGeocoder.swift` (`search`) |
 | The user's iCloud Drive | The whole vault, including `.studio/` | Only if the user picked a vault in iCloud Drive. Apple syncs it to the user's own account. | Folder chosen in `Ateliera/RootView.swift` |
-| Wherever the user shares it | The export ZIP: every note, revision and trashed note | When the user taps Export and chooses a destination | `Ateliera/DataManagement/ExportView.swift`, `PortableManifest.swift` |
+| Wherever the user shares it | The export ZIP (contents below) | When the user taps Export and chooses a destination | `Ateliera/DataManagement/ExportView.swift`, `PortableManifest.swift` |
 | The default browser | A link the user taps in an entry | When the user taps it | `Ateliera/Note/BodyPreviewView.swift` |
 
 The app contains no `URLSession`, web view, analytics or third-party SDK. The macOS build has the `network.client` entitlement; the geocoder is the only thing that uses it.
@@ -74,11 +77,10 @@ The location permission text says location "stays on your device". That is wrong
 
 - **Widget:** shows the season, micro-season and moon only. No cycle data, no entries, no AI wording. `AtelieraWidgets/RhythmWidget.swift`.
 - **Siri and Shortcuts:** one intent, "Today's rhythm", which reads out the season and moon. No cycle data. `Ateliera/Intents/TodaysRhythmIntent.swift`.
-- **Notifications:** none.
-- **Spotlight, Handoff, Live Activities:** none.
-- **Clipboard:** the app never writes to it. The user can select and copy text.
-- **App switcher:** shows the last screen, including entry text. There is no app lock. Gap: #133.
-- **Logs:** the app writes no logs. There is no `print`, `os_log` or `Logger` in Swift and no logging in the Rust core. A diagnostics buffer holds operation names and error codes in memory only.
+- **Notifications, Spotlight, Handoff, Live Activities, clipboard writes:** none. There is no `UserNotifications`, `CoreSpotlight`, `NSUserActivity`, `ActivityKit` or `UIPasteboard` anywhere in `apple/Ateliera/` or `apple/AtelieraWidgets/`. The user can select and copy text themselves (`Ateliera/Note/BodyPreviewView.swift`).
+- **App switcher:** shows the last screen, including entry text. There is no `scenePhase` handling and no app lock (`Ateliera/AtelieraApp.swift`). Gap: #133.
+- **Logs:** the app writes no logs. There is no `print`, `os_log` or `Logger` in Swift, and no logging in `AtelieraVaultCore/src/`. A diagnostics buffer holds operation names and error codes in memory only (`Ateliera/DataManagement/DiagnosticsRecorder.swift`).
+- To recheck: `git grep -n -E "UserNotifications|CoreSpotlight|NSUserActivity|ActivityKit|UIPasteboard|scenePhase|os_log|Logger\(|print\(" -- 'apple/*.swift'`.
 
 ### On-device AI
 
@@ -89,7 +91,11 @@ The location permission text says location "stays on your device". That is wrong
 
 ### Export and delete
 
-- **Export:** a ZIP of every note, media file, revision and trashed note, with a SHA-256 manifest. It is four taps from the main screen. Settings, birth data and home place are not included (#131).
+- **Export:** a ZIP with a SHA-256 manifest, four taps from the main screen. It includes:
+  - every note and media file, except active file types the export refuses (`html`, `js`, `svg`, `sh` and others; full list in `Ateliera/DataManagement/PortableManifest.swift`);
+  - the vault's `.studio/` settings, config, views, seasons, revisions and trash.
+
+  It leaves out caches and the index, and everything in `UserDefaults`: birth data, home place and preferences (#131).
 - **Delete:** a note can be moved to the trash. There is no "delete everything" (#132). Deleting the app removes `UserDefaults` and the app container. It does not remove a vault in iCloud Drive or another folder the user picked.
 
 ### Privacy manifests
@@ -109,7 +115,7 @@ The location permission text says location "stays on your device". That is wrong
 |---|---|---|
 | Vault (browser) | The browser's origin-private storage (OPFS), or IndexedDB `ateliera-browser-vaults` where OPFS is missing | `packages/storage/src/browser-vault.ts` |
 | Vault (desktop) | A folder the user picks on disk, written by the Rust core | `apps/studio/src-tauri/src/` |
-| Birth details and home place | The vault, `.studio/config/rhythm-profile.json` (exported with it) | `packages/application/src/rhythm-profile-repository.ts` |
+| Rhythm profile: hemisphere, birth details, natal placements, and a typed-in last period start and average cycle length | The vault, `.studio/config/rhythm-profile.json`, exported with it. The cycle dates are #151. | `packages/application/src/rhythm-profile-repository.ts` |
 | Settings | The vault, `.studio/settings.json` | `packages/application/src/onboarding-settings.ts` |
 | List of browser studios, active studio, studio name, theme | `localStorage` `studio:browser-studios`, `studio:active-browser-studio`, `studio:name`, `studio:theme` | `apps/studio/src/app/browser-studios.ts`, `App.tsx`, `providers.tsx` |
 | Unsaved capture draft | `sessionStorage`, cleared when the tab closes | `apps/studio/src/features/capture/browser-draft-recovery.ts` |
@@ -118,7 +124,7 @@ The location permission text says location "stays on your device". That is wrong
 
 ### What leaves the device
 
-Nothing. The content security policy allows connections only to the app's own origin (`apps/studio/index.html`) and, on desktop, to Tauri's internal IPC (`apps/studio/src-tauri/tauri.conf.json`). Fonts are self-hosted. The places list for birthplace search is bundled, not fetched. The service worker fetches only the app's own files.
+Nothing. The content security policy allows connections only to the app's own origin (`apps/studio/index.html`) and, on desktop, to Tauri's internal IPC (`apps/studio/src-tauri/tauri.conf.json`). Fonts are self-hosted (`apps/studio/src/assets/fonts/`). The places list for birthplace search is a bundled file loaded from the app's own origin (`packages/rhythm/src/places-data.js`). The service worker caches and serves only the app's own files (`apps/studio/src/app/service-worker.ts`).
 
 ### Permissions
 
