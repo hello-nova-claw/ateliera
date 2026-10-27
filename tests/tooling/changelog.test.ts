@@ -73,3 +73,7 @@ test('fold adds fragments in issue order and deletes them', async () => {
   expect(await readdir(join(root, 'changelog'))).toEqual(['.gitkeep']);
   expect(await readdir(root)).toEqual(['CHANGELOG.md', 'changelog']);
 });
+
+test('a line that is only a bullet marker is not an entry', () => {
+  expect(parseFragment('-\n*\n- \n* Real.\n')).toEqual(['Real.']);
+});
