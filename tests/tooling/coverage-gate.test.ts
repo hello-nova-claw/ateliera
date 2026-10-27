@@ -1,6 +1,10 @@
 import { expect, test } from 'vitest';
 
-import { appCoverage, gate } from '../../bin/coverage-gate.mjs';
+import {
+  appCoverage,
+  gate,
+  suggestedBaseline,
+} from '../../bin/coverage-gate.mjs';
 
 const report = {
   targets: [
@@ -38,4 +42,17 @@ test('rounding never lifts coverage over the baseline', () => {
     targets: [{ name: 'Ateliera.app', lineCoverage: 0.33496 }],
   });
   expect(gate(coverage, 33.5).pass).toBe(false);
+});
+
+test('coverage equal to the baseline passes despite binary rounding', () => {
+  const coverage = appCoverage({
+    targets: [{ name: 'Ateliera.app', lineCoverage: 0.3409 }],
+  });
+  expect(gate(coverage, 34.09).pass).toBe(true);
+});
+
+test('never suggests a baseline above the measured coverage', () => {
+  expect(suggestedBaseline(34.126)).toBe('34.12');
+  expect(suggestedBaseline(34.07)).toBe('34.07');
+  expect(gate(34.126, Number(suggestedBaseline(34.126))).pass).toBe(true);
 });

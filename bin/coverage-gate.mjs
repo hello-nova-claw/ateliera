@@ -13,8 +13,15 @@ const APP = 'Ateliera.app';
 export function appCoverage(report) {
   const app = report.targets.find((target) => target.name === APP);
   if (!app) throw new Error(`No ${APP} target in the coverage report.`);
-  // Unrounded, so 33.496% never passes a 33.5% baseline. Round only for display.
-  return app.lineCoverage * 100;
+  // Kept to four decimal places of a percent: enough that 33.496% never passes a
+  // 33.5% baseline, and it drops binary noise such as 0.3409 * 100 = 34.0899….
+  return Math.round(app.lineCoverage * 1e6) / 1e4;
+}
+
+// Rounds down to two decimal places, so the suggested baseline never fails the
+// coverage that suggested it.
+export function suggestedBaseline(coverage) {
+  return (Math.floor(Math.round(coverage * 1e4) / 100) / 100).toFixed(2);
 }
 
 export function gate(coverage, baseline) {
@@ -43,7 +50,7 @@ function main([bundle]) {
   }
   if (raise) {
     console.log(
-      `::notice::Coverage rose by more than half a point. Set .github/coverage-baseline to ${shown} in this pull request.`,
+      `::notice::Coverage rose by more than half a point. Set .github/coverage-baseline to ${suggestedBaseline(coverage)} in this pull request.`,
     );
   }
 }
