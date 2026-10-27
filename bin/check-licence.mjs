@@ -40,7 +40,19 @@ export function checkMitLicence(text) {
 
 export function checkContentLicence(text, exists) {
   if (text === undefined) return ['CONTENT-LICENSE.md is missing.'];
-  const paths = [...text.matchAll(/^- `([^`]+)`/gm)].map((m) => m[1]);
+  // Read the Reserved paths section when there is one, so every bullet in it is checked.
+  const section =
+    /^## Reserved paths\s*\n([\s\S]*?)(?=^## |$(?![\s\S]))/m.exec(text)?.[1] ??
+    text;
+  const bullets = [...section.matchAll(/^- (.+)$/gm)].map((m) => m[1].trim());
+  const unformatted = bullets.filter((b) => !/^`[^`]+`/.test(b));
+  if (section !== text && unformatted.length > 0) {
+    return unformatted.map(
+      (b) =>
+        `CONTENT-LICENSE.md lists "${b}" without backticks, so it cannot be checked.`,
+    );
+  }
+  const paths = bullets.flatMap((b) => /^`([^`]+)`/.exec(b)?.[1] ?? []);
   if (paths.length === 0)
     return ['CONTENT-LICENSE.md names no reserved paths.'];
   return paths
