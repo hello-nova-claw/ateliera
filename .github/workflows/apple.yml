@@ -153,7 +153,7 @@ jobs:
           retention-days: 14
 
   accessibility:
-    # Its own job, so the audit's ten-odd minutes run beside the unit tests, not after them.
+    # Its own jobs, so the audit runs beside the unit tests, not after them.
     name: Apple accessibility audit (${{ matrix.variant }})
     needs: changes
     if: needs.changes.outputs.ui == 'true' && github.event_name != 'schedule'
@@ -191,6 +191,23 @@ jobs:
           name: apple-accessibility-audit-${{ matrix.test }}
           path: results/
           retention-days: 14
+
+  accessibility-result:
+    # One check name for branch protection to require, whatever the matrix holds.
+    name: Apple accessibility audit
+    needs: [changes, accessibility]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check every variant passed
+        env:
+          RESULT: ${{ needs.accessibility.result }}
+          UI: ${{ needs.changes.outputs.ui }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          echo "Audit: $RESULT (UI changed: $UI)."
+          # Skipped is fine only when nothing the audit covers changed, or on the weekly run.
+          [ "$RESULT" = success ] || { [ "$RESULT" = skipped ] && { [ "$UI" != true ] || [ "$EVENT" = schedule ]; }; }
 
   minimum-ios:
     name: Apple tests on iOS 17
