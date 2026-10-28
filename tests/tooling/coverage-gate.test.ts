@@ -52,6 +52,14 @@ test('rounding never lifts coverage over the tolerance', () => {
   expect(gate(coverage, 33.5).pass).toBe(false);
 });
 
+test('a drop just past the tolerance fails', () => {
+  // 1,337 of 4,003 lines is 33.39995%, a drop of 0.10005 of a point.
+  const coverage = appCoverage({
+    targets: [{ name: 'Ateliera.app', lineCoverage: 1337 / 4003 }],
+  });
+  expect(gate(coverage, 33.5).pass).toBe(false);
+});
+
 test('coverage equal to the baseline passes despite binary rounding', () => {
   const coverage = appCoverage({
     targets: [{ name: 'Ateliera.app', lineCoverage: 0.3409 }],

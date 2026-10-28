@@ -13,15 +13,15 @@ const APP = 'Ateliera.app';
 export function appCoverage(report) {
   const app = report.targets.find((target) => target.name === APP);
   if (!app) throw new Error(`No ${APP} target in the coverage report.`);
-  // Kept to four decimal places of a percent: enough that 33.496% never passes a
-  // 33.5% baseline, and it drops binary noise such as 0.3409 * 100 = 34.0899….
-  return Math.round(app.lineCoverage * 1e6) / 1e4;
+  // Kept to six decimal places of a percent: enough that a drop just past the
+  // tolerance still fails, and it drops binary noise such as 0.3409 * 100 = 34.0899….
+  return Math.round(app.lineCoverage * 1e8) / 1e6;
 }
 
 // Rounds down to two decimal places, so the suggested baseline never fails the
 // coverage that suggested it.
 export function suggestedBaseline(coverage) {
-  return (Math.floor(Math.round(coverage * 1e4) / 100) / 100).toFixed(2);
+  return (Math.floor(Math.round(coverage * 1e6) / 1e4) / 100).toFixed(2);
 }
 
 // Coverage moves by a few hundredths of a point between runs with no Swift change, so
@@ -29,9 +29,9 @@ export function suggestedBaseline(coverage) {
 export const TOLERANCE = 0.1;
 
 export function gate(coverage, baseline) {
-  // Compared in ten-thousandths of a percent, so 33.5 - 0.1 can't land just above 33.4.
-  const drop = Math.round((baseline - coverage) * 1e4);
-  return { pass: drop <= TOLERANCE * 1e4, raise: coverage - baseline > 0.5 };
+  // Compared in millionths of a percent, so 33.5 - 0.1 can't land just above 33.4.
+  const drop = Math.round((baseline - coverage) * 1e6);
+  return { pass: drop <= TOLERANCE * 1e6, raise: coverage - baseline > 0.5 };
 }
 
 function main([bundle]) {
