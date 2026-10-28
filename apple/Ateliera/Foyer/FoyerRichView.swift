@@ -28,7 +28,9 @@ struct FoyerRichView: View {
         Text(title.uppercased())
           .font(StudioFont.eyebrow).tracking(1.4).foregroundStyle(theme.inkFaint)
         ForEach(cards) { card in
-          Button { onOpen(card.path) } label: {
+          Button {
+            onOpen(card.path)
+          } label: {
             VStack(alignment: .leading, spacing: 3) {
               Text(card.title).font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
               if card.hasExplicitTitle, !card.excerpt.isEmpty {

@@ -35,7 +35,9 @@ struct DesiredFeelingsCard: View {
           .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
         VStack(alignment: .leading, spacing: 0) {
           ForEach(feelings) { feeling in
-            Button { onOpen(feeling.path) } label: {
+            Button {
+              onOpen(feeling.path)
+            } label: {
               VStack(alignment: .leading, spacing: 3) {
                 Text(feeling.title).font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
                 if feeling.hasExplicitTitle, !feeling.excerpt.isEmpty {
