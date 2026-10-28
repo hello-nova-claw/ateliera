@@ -31,18 +31,18 @@ jobs:
 
   changelog:
     name: Changelog fragment
-    if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-changelog') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
     steps:
-      # The event's labels can predate labels added a moment after opening,
-      # and a rerun replays the same event, so read the labels as they are now.
+      # The event's labels can predate labels added a moment after opening, and
+      # a rerun replays the same event, so only the labels as they are now count.
       - id: labels
         run: |
-          if gh pr view "$NUMBER" --repo "$REPO" --json labels --jq '.labels[].name' | grep -qx no-changelog; then
+          labels=$(gh pr view "$NUMBER" --repo "$REPO" --json labels --jq '.labels[].name')
+          if grep -qx no-changelog <<< "$labels"; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
         env:
