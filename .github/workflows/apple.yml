@@ -139,13 +139,13 @@ jobs:
           mkdir -p preview
           ditto -c -k --keepParent apple/build/Build/Products/Debug-iphonesimulator/Ateliera.app preview/Ateliera.app.zip
           printf '%s\n%s\n' "$PR_NUMBER" "$HEAD_SHA" > preview/pr.txt
-      - uses: actions/upload-artifact@v7.0.0
+      - uses: actions/upload-artifact@v7.0.2
         if: github.event_name == 'pull_request'
         with:
           name: ateliera-simulator-app
           path: preview/
           retention-days: 14
-      - uses: actions/upload-artifact@v7.0.0
+      - uses: actions/upload-artifact@v7.0.2
         if: failure()
         with:
           name: apple-test-results
