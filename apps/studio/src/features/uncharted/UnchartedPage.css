@@ -193,12 +193,6 @@
   text-align: center;
 }
 
-/* Everything past the gate is held a step back. */
-.uncharted-page__beyond .uncharted-page__grid,
-.uncharted-page__beyond .uncharted-page__empty {
-  opacity: 0.86;
-}
-
 @media (width < 45rem) {
   .uncharted-page {
     min-block-size: auto;

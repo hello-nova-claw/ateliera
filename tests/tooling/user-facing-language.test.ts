@@ -42,7 +42,9 @@ test('keeps internal vault terminology out of user-visible application copy', as
           ? node.text
           : undefined;
       if (text !== undefined && /\bvault\b/iu.test(text)) {
-        const { line } = file.getLineAndCharacterOfPosition(node.getStart(file));
+        const { line } = file.getLineAndCharacterOfPosition(
+          node.getStart(file),
+        );
         findings.push(`${path.slice(root.length + 1)}:${line + 1}: ${text}`);
       }
       ts.forEachChild(node, visit);

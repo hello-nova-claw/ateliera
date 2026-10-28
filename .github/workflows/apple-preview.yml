@@ -1,0 +1,68 @@
+name: Apple preview comment
+
+# Runs after "Apple" on the base repository's code, so it may comment on pull
+# requests from forks without ever checking out or running their code.
+on:
+  workflow_run:
+    workflows: [Apple]
+    types: [completed]
+
+permissions:
+  contents: read
+
+# One comment update at a time per branch, so two runs never both post a new comment.
+# The head repository is in the group, so forks with the same branch name don't collide.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  comment:
+    name: Build preview comment
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      pull-requests: write
+    steps:
+      # Pull requests that don't touch the Apple app skip the build, so there may be no artifact.
+      - id: artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          count=$(gh api "repos/$REPO/actions/runs/$RUN_ID/artifacts" --jq '[.artifacts[] | select(.name == "ateliera-simulator-app")] | length')
+          echo "found=$([ "$count" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v7.0.0
+        if: steps.artifact.outputs.found == 'true'
+        with:
+          name: ateliera-simulator-app
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+          path: preview
+      - if: steps.artifact.outputs.found == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          pr=$(sed -n 1p preview/pr.txt)
+          sha=$(sed -n 2p preview/pr.txt)
+          # The artifact comes from untrusted code: accept only a number whose
+          # pull request really has this run's head commit.
+          case "$pr" in ''|*[!0-9]*) echo "::error::Bad PR number."; exit 1;; esac
+          head=$(gh api "repos/$REPO/pulls/$pr" --jq .head.sha)
+          if [ "$head" != "$RUN_SHA" ] || [ "$sha" != "$RUN_SHA" ]; then echo "Run is not the PR's head; skipping."; exit 0; fi
+          marker='<!-- ateliera-build-preview -->'
+          # The backticks in the comment body are Markdown, not shell.
+          # shellcheck disable=SC2016
+          body=$(printf '%s\n### Build preview\n\nThe simulator build for %s is attached to [this run](https://github.com/%s/actions/runs/%s) as `ateliera-simulator-app`.\n\n```bash\ngh run download %s -R %s -n ateliera-simulator-app -D ateliera-preview\nunzip -o ateliera-preview/Ateliera.app.zip -d ateliera-preview\nxcrun simctl install booted ateliera-preview/Ateliera.app\nxcrun simctl launch booted au.com.annamcphee.ateliera.native\n```\n\nIn the simulator the app opens a demo vault of invented notes. Nothing in it is real.\n' "$marker" "${RUN_SHA:0:7}" "$REPO" "$RUN_ID" "$RUN_ID" "$REPO")
+          existing=$(gh api "repos/$REPO/issues/$pr/comments" --paginate --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n 1)
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$existing" -f body="$body" > /dev/null
+          else
+            gh api -X POST "repos/$REPO/issues/$pr/comments" -f body="$body" > /dev/null
+          fi

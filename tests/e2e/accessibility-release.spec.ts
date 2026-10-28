@@ -113,7 +113,9 @@ test('completes create, capture, edit, search, and backup without a pointer', as
   await tabTo(page, query, { key });
   await page.keyboard.type('quiet keyboard');
   await expect(
-    page.getByRole('button', { name: 'Untitled note' }),
+    page
+      .getByRole('main')
+      .getByRole('button', { name: 'A quiet keyboard journey' }),
   ).toBeVisible();
 
   const settings = page.getByRole('link', { name: 'Settings' });
@@ -164,5 +166,9 @@ test('mobile navigation and More menu remain keyboard operable and focus-visible
   await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(more).toBeFocused();
+  // Audit the Foyer once it has rendered, not the shell while it loads.
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Ateliera' }),
+  ).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });

@@ -1,0 +1,190 @@
+name: Apple
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly run on the minimum supported iOS, which the runner doesn't ship.
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Pull requests share a group per branch; every other run gets its own, so a push
+  # to main never cancels a pending weekly or main run.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  # Only pull request runs are cancelled, so every commit on main keeps its results.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    # Explicit bash turns on pipefail, so `xcodebuild … | tail` fails when xcodebuild does.
+    shell: bash
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+
+# Job names are required-check names on main. Never rename one. A skipped job
+# counts as passing, so pull requests that don't touch the Apple app aren't held up.
+jobs:
+  changes:
+    name: Apple changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      apple: ${{ steps.diff.outputs.apple }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then echo "apple=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if git diff --name-only "origin/${BASE_REF}...HEAD" \
+            | grep -E '^(apple/|fixtures/vaults/|packages/(content|domain|rhythm)/src/|bin/coverage-gate|\.github/(coverage-baseline|workflows/apple\.yml)|\.swiftlint)' >/dev/null; then
+            echo "apple=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "apple=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    # One job builds once and runs everything that needs that build, to fit
+    # GitHub Free's five concurrent macOS jobs.
+    name: Apple build and test
+    needs: changes
+    if: needs.changes.outputs.apple == 'true' && github.event_name != 'schedule'
+    runs-on: macos-26
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+      - uses: actions/cache@v5.0.1
+        with:
+          path: |
+            .toolchains
+            apple/AtelieraVaultCore/target
+          key: rust-${{ runner.os }}-${{ hashFiles('apple/AtelieraVaultCore/Cargo.lock', 'apple/AtelieraVaultCore/build.sh') }}
+          restore-keys: rust-${{ runner.os }}-
+      - name: Create the Rust toolchain
+        run: |
+          if [ ! -x .toolchains/cargo/bin/cargo ]; then
+            export CARGO_HOME="$PWD/.toolchains/cargo" RUSTUP_HOME="$PWD/.toolchains/rustup"
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile minimal --default-toolchain stable
+            .toolchains/cargo/bin/rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios aarch64-apple-darwin
+          fi
+      - name: Build the vault core and generate the project
+        working-directory: apple
+        run: |
+          brew install xcodegen
+          ./AtelieraVaultCore/build.sh
+          xcodegen generate
+      - name: Build for testing
+        working-directory: apple
+        run: |
+          xcodebuild build-for-testing -project Ateliera.xcodeproj -scheme Ateliera \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
+            -derivedDataPath build -enableCodeCoverage YES CODE_SIGNING_ALLOWED=NO | tail -n 25
+      - name: Unit tests in UTC, with coverage
+        working-directory: apple
+        env:
+          TEST_RUNNER_TZ: UTC
+        run: |
+          xcodebuild test-without-building -project Ateliera.xcodeproj -scheme Ateliera \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
+            -derivedDataPath build -only-testing:AtelieraTests -enableCodeCoverage YES \
+            -resultBundlePath ../results/utc.xcresult | tail -n 40
+      - name: Unit tests in other time zones
+        working-directory: apple
+        run: |
+          for zone in Pacific/Auckland America/Los_Angeles Asia/Kolkata; do
+            echo "::group::$zone"
+            TEST_RUNNER_TZ="$zone" xcodebuild test-without-building -project Ateliera.xcodeproj -scheme Ateliera \
+              -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
+              -derivedDataPath build -only-testing:AtelieraTests | tail -n 20
+            echo "::endgroup::"
+          done
+      - name: Vault format migration tests
+        working-directory: apple
+        run: |
+          xcodebuild test-without-building -project Ateliera.xcodeproj -scheme Ateliera \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
+            -derivedDataPath build -only-testing:AtelieraTests/VaultFormatMigrationTests | tail -n 20
+      - name: Coverage gate
+        run: node bin/coverage-gate.mjs results/utc.xcresult
+      - name: Strings are up to date
+        run: |
+          if ! git diff --exit-code --stat -- '*.xcstrings'; then
+            echo "::error::Building changed a String Catalog. Build locally and commit the updated catalog."
+            exit 1
+          fi
+          stale=""
+          while IFS= read -r catalog; do
+            if grep -Eq '"extractionState"[[:space:]]*:[[:space:]]*"stale"' "$catalog"; then
+              stale="$stale $catalog"
+            fi
+          done < <(git ls-files '*.xcstrings')
+          if [ -n "$stale" ]; then
+            echo "Stale entries in:$stale"
+            echo "::error::A String Catalog has stale entries. Remove them in Xcode and commit."
+            exit 1
+          fi
+      - name: Package the simulator app
+        if: github.event_name == 'pull_request'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p preview
+          ditto -c -k --keepParent apple/build/Build/Products/Debug-iphonesimulator/Ateliera.app preview/Ateliera.app.zip
+          printf '%s\n%s\n' "$PR_NUMBER" "$HEAD_SHA" > preview/pr.txt
+      - uses: actions/upload-artifact@v7.0.0
+        if: github.event_name == 'pull_request'
+        with:
+          name: ateliera-simulator-app
+          path: preview/
+          retention-days: 14
+      - uses: actions/upload-artifact@v7.0.0
+        if: failure()
+        with:
+          name: apple-test-results
+          path: results/
+          retention-days: 14
+
+  minimum-ios:
+    name: Apple tests on iOS 17
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Create the Rust toolchain
+        run: |
+          export CARGO_HOME="$PWD/.toolchains/cargo" RUSTUP_HOME="$PWD/.toolchains/rustup"
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile minimal --default-toolchain stable
+          .toolchains/cargo/bin/rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios aarch64-apple-darwin
+      - name: Install the iOS 17 simulator
+        run: |
+          xcodebuild -downloadPlatform iOS -buildVersion 17.5
+          xcrun simctl create "iPhone 15 (iOS 17)" "iPhone 15" com.apple.CoreSimulator.SimRuntime.iOS-17-5
+      - name: Build and test
+        working-directory: apple
+        run: |
+          brew install xcodegen
+          ./AtelieraVaultCore/build.sh
+          xcodegen generate
+          xcodebuild test -project Ateliera.xcodeproj -scheme Ateliera \
+            -destination 'platform=iOS Simulator,name=iPhone 15 (iOS 17)' \
+            -derivedDataPath build -only-testing:AtelieraTests CODE_SIGNING_ALLOWED=NO | tail -n 40

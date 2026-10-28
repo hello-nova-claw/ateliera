@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { enterCreatedStudio, openExistingStudio } from './helpers/studio';
+import { enterCreatedStudio, openExistingStudio, showEveryRoom } from './helpers/studio';
 
 async function createLocalStudio(page: Page): Promise<void> {
   await page.goto('/');
@@ -9,6 +9,7 @@ async function createLocalStudio(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await enterCreatedStudio(page);
   await expect(page.getByRole('button', { name: 'Capture' })).toBeEnabled();
+  await showEveryRoom(page, ['Feelings', 'Principles']);
 }
 
 test('builds the three Foyer foundations atomically and remembers them after reload', async ({
@@ -17,21 +18,29 @@ test('builds the three Foyer foundations atomically and remembers them after rel
   await createLocalStudio(page);
   await expect(page.getByRole('button', { name: /^Add / })).toHaveCount(3);
 
-  for (const [action, value] of [
-    ['Add a becoming sentence', 'A woman who creates from calm'],
-    ['Add a desired feeling', 'Spacious'],
+  for (const [action, prompt, value] of [
+    [
+      'Add a becoming sentence',
+      'What are you currently becoming?',
+      'A woman who creates from calm',
+    ],
+    [
+      'Add a desired feeling',
+      'What feeling would you like to make room for?',
+      'Spacious',
+    ],
     [
       'Add a principle',
+      'What supports this life?',
       'Create enough structure for imagination to surprise me',
     ],
   ] as const) {
     await page.getByRole('button', { name: action }).click();
-    await expect(
-      page.getByRole('textbox', { name: 'What would you like remembered?' }),
-    ).toBeFocused();
-    await page
-      .getByRole('textbox', { name: 'What would you like remembered?' })
-      .fill(value);
+    const field = page
+      .getByRole('dialog')
+      .getByRole('textbox', { name: prompt });
+    await expect(field).toBeFocused();
+    await field.fill(value);
     await page.getByRole('button', { name: 'Remember' }).click();
     await expect(page.getByText(value, { exact: true })).toBeVisible();
   }

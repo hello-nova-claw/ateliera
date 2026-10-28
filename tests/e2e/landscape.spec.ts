@@ -18,7 +18,7 @@ async function addHomeVision(page: Page, title = 'A calm home'): Promise<void> {
     .getByRole('button', { name: '+ Add' })
     .click();
   await page
-    .getByRole('textbox', { name: 'What would you like remembered?' })
+    .getByRole('textbox', { name: 'What would an ordinary Tuesday look like if this were true?' })
     .fill(title);
   await page.getByRole('button', { name: 'Remember' }).click();
   await expect(
@@ -32,7 +32,7 @@ async function addHomeVisionFromMatrix(
 ): Promise<void> {
   await page.getByRole('button', { name: 'Add to Home Vision' }).click();
   await page
-    .getByRole('textbox', { name: 'What would you like remembered?' })
+    .getByRole('textbox', { name: 'What would an ordinary Tuesday look like if this were true?' })
     .fill(title);
   await page.getByRole('button', { name: 'Remember' }).click();
   await expect(
@@ -88,17 +88,27 @@ test('keeps matrix headings fixed inside the Landscape scrollport', async ({
 
   const region = page.getByRole('region', { name: 'Life Landscape matrix' });
   const heading = page.getByRole('button', { name: 'Open Family' });
-  const before = await heading.boundingBox();
+  await expect(heading).toBeVisible();
+  // Measure against the scrollport, so content settling above it while the
+  // room loads cannot read as the heading moving.
+  const offsetInScrollport = () =>
+    heading.evaluate((element) => {
+      const scrollport = element.closest('[aria-label="Life Landscape matrix"]');
+      if (scrollport === null) throw new Error('No Landscape scrollport.');
+      return (
+        element.getBoundingClientRect().top -
+        scrollport.getBoundingClientRect().top
+      );
+    });
+  const before = await offsetInScrollport();
   const scrollTop = await region.evaluate((element) => {
     element.scrollTop = 320;
     return element.scrollTop;
   });
-  const after = await heading.boundingBox();
+  const after = await offsetInScrollport();
 
   expect(scrollTop).toBeGreaterThan(0);
-  expect(before).not.toBeNull();
-  expect(after).not.toBeNull();
-  expect(Math.abs(after!.y - before!.y)).toBeLessThanOrEqual(2);
+  expect(Math.abs(after - before)).toBeLessThanOrEqual(2);
 });
 
 test('persists custom and renamed life areas across reload', async ({
@@ -147,7 +157,7 @@ test('authors and displays a decision horizon', async ({ page }, testInfo) => {
     .getByRole('button', { name: '+ Add' })
     .click();
   await page
-    .getByRole('textbox', { name: 'What would you like remembered?' })
+    .getByRole('textbox', { name: 'What can I choose in the next 30, 60, or 90 days?' })
     .fill('Choose a weekly family rhythm');
   await page.getByLabel('Decision horizon').selectOption('60d');
   await page.getByRole('button', { name: 'Remember' }).click();
@@ -254,7 +264,7 @@ test('keyboard menu restores focus after reorder, link, and reparented move', as
   const vision = page.getByRole('region', { name: 'Vision' });
   await vision.getByRole('button', { name: '+ Add' }).click();
   await page
-    .getByRole('textbox', { name: 'What would you like remembered?' })
+    .getByRole('textbox', { name: 'What would an ordinary Tuesday look like if this were true?' })
     .fill('Second keyboard note');
   await page.getByRole('button', { name: 'Remember' }).click();
 
@@ -428,27 +438,30 @@ test('touch long-press shows a destination preview, cancels safely, then moves',
     .getByRole('button', { name: '+ Add' })
     .click();
   await page
-    .getByRole('textbox', { name: 'What would you like remembered?' })
+    .getByRole('textbox', { name: 'What would an ordinary Tuesday look like if this were true?' })
     .fill('A calm home');
   await page.getByRole('button', { name: 'Remember' }).click();
+  // Measure once the card has replaced the empty Vision note, or the layout
+  // can still shift under the drag targets.
+  await expect(
+    page
+      .getByRole('region', { name: 'Vision' })
+      .getByRole('button', { name: 'A calm home', exact: true }),
+  ).toBeVisible();
 
   const handle = page.getByRole('button', { name: 'Drag A calm home' });
   const destination = page.getByRole('region', {
     name: 'Identity, values & feelings',
   });
+  // Bring the card and its destination on screen together. A touch held
+  // below the viewport makes the page auto-scroll mid-drag, so the drop would
+  // land wherever the scrolling stopped.
+  await handle.evaluate((element) => element.scrollIntoView({ block: 'start' }));
   const handleBox = await handle.boundingBox();
-  const destinationBox = await destination
-    .locator('.life-landscape__section-drop')
-    .boundingBox();
-  if (!handleBox || !destinationBox)
-    throw new Error('Touch drag targets were not rendered.');
+  if (!handleBox) throw new Error('Touch drag handle was not rendered.');
   const start = {
     x: handleBox.x + handleBox.width / 2,
     y: handleBox.y + handleBox.height / 2,
-  };
-  const target = {
-    x: destinationBox.x + destinationBox.width / 2,
-    y: destinationBox.y + destinationBox.height / 2,
   };
   const dispatchTouch = async (
     type: 'touchstart' | 'touchmove' | 'touchend',
@@ -477,7 +490,6 @@ test('touch long-press shows a destination preview, cancels safely, then moves',
   };
 
   await dispatchTouch('touchstart', start);
-  await page.waitForTimeout(550);
   await expect(
     page.getByRole('status', { name: 'Drag preview for A calm home' }),
   ).toBeVisible();
@@ -493,9 +505,22 @@ test('touch long-press shows a destination preview, cancels safely, then moves',
       .getByRole('button', { name: 'A calm home', exact: true }),
   ).toBeVisible();
 
+  const drop = destination.locator('.life-landscape__section-drop');
+  const destinationBox = await drop.boundingBox();
+  if (!destinationBox) throw new Error('Touch destination was not rendered.');
+  // Aim at the top of the drop area, which is on screen.
+  const target = {
+    x: destinationBox.x + destinationBox.width / 2,
+    y: destinationBox.y + Math.min(destinationBox.height / 2, 24),
+  };
+  expect(target.y).toBeLessThan(page.viewportSize()!.height * 0.75);
   await dispatchTouch('touchstart', start);
-  await page.waitForTimeout(550);
+  await expect(
+    page.getByRole('status', { name: 'Drag preview for A calm home' }),
+  ).toBeVisible();
   await dispatchTouch('touchmove', target);
+  // Lift only once the destination shows it will take the drop.
+  await expect(drop).toHaveClass(/--drop-preview/);
   await dispatchTouch('touchend', target);
   await expect(
     destination.getByRole('button', { name: 'A calm home', exact: true }),
