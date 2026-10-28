@@ -36,6 +36,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       apple: ${{ steps.diff.outputs.apple }}
+      ui: ${{ steps.diff.outputs.ui }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -46,12 +47,21 @@ jobs:
           EVENT: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
         run: |
-          if [ "$EVENT" != "pull_request" ]; then echo "apple=true" >> "$GITHUB_OUTPUT"; exit 0; fi
-          if git diff --name-only "origin/${BASE_REF}...HEAD" \
-            | grep -E '^(apple/|fixtures/vaults/|packages/(content|domain|rhythm)/src/|bin/coverage-gate|\.github/(coverage-baseline|workflows/apple\.yml)|\.swiftlint)' >/dev/null; then
+          if [ "$EVENT" != "pull_request" ]; then
+            printf 'apple=true\nui=true\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only "origin/${BASE_REF}...HEAD")
+          if grep -E '^(apple/|fixtures/vaults/|packages/(content|domain|rhythm)/src/|bin/coverage-gate|\.github/(coverage-baseline|workflows/apple\.yml|actions/apple-setup/)|\.swiftlint)' >/dev/null <<< "$changed"; then
             echo "apple=true" >> "$GITHUB_OUTPUT"
           else
             echo "apple=false" >> "$GITHUB_OUTPUT"
+          fi
+          # The accessibility audit runs only when what's on screen can change.
+          if grep -E '^(apple/(Ateliera/|AtelieraUITests/|project\.yml)|\.github/(workflows/apple\.yml|actions/apple-setup/))' >/dev/null <<< "$changed"; then
+            echo "ui=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ui=false" >> "$GITHUB_OUTPUT"
           fi
 
   test:
@@ -69,26 +79,7 @@ jobs:
       - uses: actions/setup-node@v7.1.0
         with:
           node-version: 22
-      - uses: actions/cache@v5.0.1
-        with:
-          path: |
-            .toolchains
-            apple/AtelieraVaultCore/target
-          key: rust-${{ runner.os }}-${{ hashFiles('apple/AtelieraVaultCore/Cargo.lock', 'apple/AtelieraVaultCore/build.sh') }}
-          restore-keys: rust-${{ runner.os }}-
-      - name: Create the Rust toolchain
-        run: |
-          if [ ! -x .toolchains/cargo/bin/cargo ]; then
-            export CARGO_HOME="$PWD/.toolchains/cargo" RUSTUP_HOME="$PWD/.toolchains/rustup"
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path --profile minimal --default-toolchain stable
-            .toolchains/cargo/bin/rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios aarch64-apple-darwin
-          fi
-      - name: Build the vault core and generate the project
-        working-directory: apple
-        run: |
-          brew install xcodegen
-          ./AtelieraVaultCore/build.sh
-          xcodegen generate
+      - uses: ./.github/actions/apple-setup
       - name: Build for testing
         working-directory: apple
         run: |
@@ -160,6 +151,65 @@ jobs:
           name: apple-test-results
           path: results/
           retention-days: 14
+
+  accessibility:
+    # Its own jobs, so the audit runs beside the unit tests, not after them.
+    name: Apple accessibility audit (${{ matrix.variant }})
+    needs: changes
+    if: needs.changes.outputs.ui == 'true' && github.event_name != 'schedule'
+    runs-on: macos-26
+    # One simulator running all three variants for an hour timed out, so each gets its own job.
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: largest text
+            test: testEveryScreenAtTheLargestTextSize
+          - variant: right to left
+            test: testEveryScreenRightToLeft
+          - variant: doubled strings
+            test: testEveryScreenWithDoubledStrings
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/apple-setup
+      - name: Accessibility audit
+        working-directory: apple
+        # Prints every failure, each naming the baseline line that would list it.
+        run: |
+          xcodebuild test -project Ateliera.xcodeproj -scheme Ateliera \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO \
+            -only-testing:AtelieraUITests/AccessibilityAuditUITests/${{ matrix.test }} \
+            -resultBundlePath ../results/${{ matrix.test }}.xcresult \
+            | grep -E 'error:|unaudited|Test Case .*(passed|failed)|Executed|TEST (SUCCEEDED|FAILED)'
+      - uses: actions/upload-artifact@v7.0.0
+        if: failure()
+        with:
+          name: apple-accessibility-audit-${{ matrix.test }}
+          path: results/
+          retention-days: 14
+
+  accessibility-result:
+    # One check name for branch protection to require, whatever the matrix holds.
+    name: Apple accessibility audit
+    needs: [changes, accessibility]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check every variant passed
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          RESULT: ${{ needs.accessibility.result }}
+          UI: ${{ needs.changes.outputs.ui }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          echo "Change detection: $CHANGES. Audit: $RESULT (UI changed: $UI)."
+          [ "$CHANGES" = success ] || exit 1
+          # Skipped is fine only when nothing the audit covers changed, or on the weekly run.
+          [ "$RESULT" = success ] || { [ "$RESULT" = skipped ] && { [ "$UI" = false ] || [ "$EVENT" = schedule ]; }; }
 
   minimum-ios:
     name: Apple tests on iOS 17

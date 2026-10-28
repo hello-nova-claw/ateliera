@@ -22,7 +22,7 @@ struct TodaysRhythmIntent: AppIntent {
     formatter.locale = Locale(identifier: "en_US_POSIX")
     formatter.timeZone = .current
     formatter.dateFormat = "yyyy-MM-dd"
-    return formatter.string(from: Date())
+    return formatter.string(from: AppClock.now())
   }
 }
 

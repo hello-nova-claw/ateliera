@@ -1,7 +1,10 @@
 version: 2
 updates:
   - package-ecosystem: github-actions
-    directory: /
+    # Workflows are found from /; composite actions are listed one by one.
+    directories:
+      - /
+      - /.github/actions/apple-setup
     schedule:
       interval: weekly
     open-pull-requests-limit: 2

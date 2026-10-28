@@ -23,7 +23,7 @@ enum NoteFactory {
     return prefix + suffix
   }
 
-  static func createNoteId(now: Date = Date()) -> String {
+  static func createNoteId(now: Date = AppClock.now()) -> String {
     let millis = Int64((now.timeIntervalSince1970 * 1000).rounded(.down))
     var bytes = [UInt8](repeating: 0, count: 16)
     for index in bytes.indices { bytes[index] = UInt8.random(in: 0...255) }
@@ -33,7 +33,7 @@ enum NoteFactory {
   /// An ISO-8601 timestamp with fractional seconds and a `Z` offset, matching
   /// JavaScript's `new Date().toISOString()` shape (the frontmatter schema wants
   /// an offset datetime).
-  static func isoTimestamp(_ now: Date = Date()) -> String {
+  static func isoTimestamp(_ now: Date = AppClock.now()) -> String {
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     return formatter.string(from: now)
