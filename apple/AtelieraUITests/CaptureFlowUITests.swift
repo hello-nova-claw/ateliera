@@ -505,13 +505,20 @@ final class CaptureFlowUITests: XCTestCase {
     let becoming = app.otherElements["foyer-hero-becoming"]
     XCTAssertTrue(becoming.waitForExistence(timeout: 8))
     XCTAssertTrue(becoming.label.contains("Someone who rests"))
-    // The feelings + principles still live in the tucked-away "Today" panel.
+    // "How I want to feel" is its own card on Today, visible without opening any panel.
+    let feelings = app.otherElements["feelings-card"]
+    XCTAssertTrue(feelings.waitForExistence(timeout: 8), "feelings card missing")
+    XCTAssertTrue(app.staticTexts["HOW I WANT TO FEEL"].exists)
+    XCTAssertTrue(app.buttons["Unhurried"].firstMatch.exists)
+    // Principles still live in the tucked-away "Today" panel, and the feelings are not
+    // repeated there.
     let today = app.buttons["today-panel-toggle"]
     XCTAssertTrue(today.waitForExistence(timeout: 8))
     today.tap()
-    XCTAssertTrue(app.staticTexts["HOW I WANT TO FEEL"].exists)
-    XCTAssertTrue(app.staticTexts["Unhurried"].firstMatch.exists)
-    XCTAssertTrue(app.staticTexts["Depth over breadth"].firstMatch.exists)
+    XCTAssertTrue(app.staticTexts["Depth over breadth"].firstMatch.waitForExistence(timeout: 5))
+    XCTAssertEqual(
+      app.staticTexts.matching(NSPredicate(format: "label == %@", "HOW I WANT TO FEEL")).count,
+      1, "feelings should appear once, on the card")
   }
 
   func testRhythmLayersGateHidesAlmanac() {
