@@ -1,8 +1,8 @@
 import SwiftUI
 
 // "Today's rhythm" — the native almanac. Two modes so the Foyer can stay minimal:
-// `.summary` is the calm Today card (micro-season term + gloss, a circular season
-// icon with the felt season · moon, and one orientation line); `.detail` is the
+// `.summary` is the calm Today card (micro-season term + gloss, a row of circular
+// badges for the season, the moon and the cycle, the felt line, and one orientation line); `.detail` is the
 // deeper reading (the other calendar's season, the next lunation, the next turning
 // point) that lives in the tucked-away "Today's rhythm" panel. Reads the pure
 // Rhythm engine; no profile is required for moon + season, so it shows for everyone.
@@ -35,15 +35,9 @@ struct AlmanacView: View {
     Rhythm.season(date: context.date, hemisphere: hemisphere, style: seasonStyle)
   }
 
-  // A gentle season glyph for the circular badge — sun at the height of light,
-  // leaf for growth and release, snow for rest.
-  private var seasonSymbol: String {
-    switch feltSeason {
-    case .spring: return "leaf"
-    case .summer: return "sun.max"
-    case .autumn: return "wind"
-    case .winter: return "snowflake"
-    }
+  // The badge row: the felt season, the drawn moon, and the cycle when one is known.
+  private var badges: [RhythmBadge] {
+    RhythmBadge.badges(for: context, feltSeason: feltSeason, hemisphere: hemisphere)
   }
 
   // The inline felt line: "Spring · Waning gibbous" (+ cycle day when known).
@@ -119,11 +113,7 @@ struct AlmanacView: View {
           .font(StudioFont.eyebrow).tracking(1.0).foregroundStyle(theme.inkFaint)
           .accessibilityIdentifier("almanac-personalized")
       }
-      HStack(spacing: 12) {
-        ZStack {
-          Circle().strokeBorder(theme.lineStrong, lineWidth: 1).frame(width: 34, height: 34)
-          Image(systemName: seasonSymbol).font(.system(size: 15)).foregroundStyle(theme.inkMuted)
-        }
+      RhythmBadgeRow(badges: badges) {
         Text(feltLine).font(StudioFont.control).foregroundStyle(theme.inkStrong)
       }
       .padding(.top, 2)
