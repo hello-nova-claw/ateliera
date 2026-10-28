@@ -57,7 +57,8 @@ final class ProfileSheetUITests: XCTestCase {
     XCTAssertEqual(avatar.label, "Profile")
     avatar.tap()
 
-    XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 5), "profile sheet missing")
+    XCTAssertTrue(
+      app.navigationBars["Profile"].waitForExistence(timeout: 5), "profile sheet missing")
     XCTAssertTrue(app.textFields["profile-name-field"].exists)
     XCTAssertTrue(app.buttons["profile-photo-picker"].exists)
     XCTAssertFalse(app.buttons["profile-photo-remove"].exists, "no photo, no remove")

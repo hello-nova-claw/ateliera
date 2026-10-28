@@ -794,6 +794,20 @@ final class VaultStore {
     return saveEdit(editable, updatedNote: note)
   }
 
+  /// Remove the profile picture: drop the note's cover reference, then delete the
+  /// image file. With no picture this is a no-op that still reports success.
+  @discardableResult
+  func removeProfileAvatar() -> Bool {
+    guard let pair = profilePair, let reference = pair.note.display.cover else { return true }
+    guard let editable = beginEdit(path: pair.path) else { return false }
+    var note = editable.note
+    note.display = NoteDisplay(cover: nil, featured: note.display.featured)
+    guard saveEdit(editable, updatedNote: note) else { return false }
+    guard let fullPath = VaultMedia.normalizeCoverPath(notePath: pair.path, reference: reference)
+    else { return true }
+    return removeFile(path: fullPath)
+  }
+
   /// The profile note's path, creating an empty one if it doesn't exist yet.
   private func ensureProfileNote() -> String? {
     if let pair = profilePair { return pair.path }

@@ -69,13 +69,15 @@ final class ProfileTests: XCTestCase {
     defer { try? FileManager.default.removeItem(at: dir) }
     XCTAssertTrue(store.setProfileName("Anna"))
     XCTAssertTrue(store.setProfileAvatar(data: pngData))
-    XCTAssertTrue(store.listAllPaths().contains { $0.hasPrefix("Profile/") && $0.contains("Media/") })
+    XCTAssertTrue(
+      store.listAllPaths().contains { $0.hasPrefix("Profile/") && $0.contains("Media/") })
 
     XCTAssertTrue(store.removeProfileAvatar())
     XCTAssertNil(store.profileAvatar())
     XCTAssertEqual(store.profileName, "Anna")
     // The picture file is gone from the vault, and the note no longer points at it.
-    XCTAssertFalse(store.listAllPaths().contains { $0.hasPrefix("Profile/") && $0.contains("Media/") })
+    XCTAssertFalse(
+      store.listAllPaths().contains { $0.hasPrefix("Profile/") && $0.contains("Media/") })
     let profiles = store.parsedNotesByPath.filter { $0.note.cardType == "profile" }
     XCTAssertEqual(profiles.count, 1)
     XCTAssertNil(profiles.first?.note.display.cover)
