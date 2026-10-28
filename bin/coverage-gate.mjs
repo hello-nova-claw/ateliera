@@ -24,8 +24,14 @@ export function suggestedBaseline(coverage) {
   return (Math.floor(Math.round(coverage * 1e4) / 100) / 100).toFixed(2);
 }
 
+// Coverage moves by a few hundredths of a point between runs with no Swift change, so
+// a dip this small still passes.
+export const TOLERANCE = 0.1;
+
 export function gate(coverage, baseline) {
-  return { pass: coverage >= baseline, raise: coverage - baseline > 0.5 };
+  // Compared in ten-thousandths of a percent, so 33.5 - 0.1 can't land just above 33.4.
+  const drop = Math.round((baseline - coverage) * 1e4);
+  return { pass: drop <= TOLERANCE * 1e4, raise: coverage - baseline > 0.5 };
 }
 
 function main([bundle]) {
@@ -44,7 +50,7 @@ function main([bundle]) {
   console.log(`Ateliera.app line coverage: ${shown}% (baseline ${baseline}%).`);
   if (!pass) {
     console.log(
-      `::error::Line coverage fell from ${baseline}% to ${shown}%. Add tests (CONTRIBUTING.md, Tests).`,
+      `::error::Line coverage fell from ${baseline}% to ${shown}%, more than ${TOLERANCE} of a point. Add tests (CONTRIBUTING.md, Tests).`,
     );
     process.exit(1);
   }
