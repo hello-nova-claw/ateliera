@@ -108,7 +108,7 @@ Dates, the moon and the cycle are where this app breaks. These rules hold in bot
 - A pull request that changes app sources (`apple/Ateliera/`, `apple/AtelieraWidgets/`, `apple/AtelieraVaultCore/src/`, `apps/*/src/`, `packages/*/src/`) must also change a test. Reviewers check this, and CI will once #145 lands.
 - Apple: XCTest or Swift Testing for unit tests, XCUITest for flows. TypeScript: Vitest, with `fast-check` for property tests; Playwright for end-to-end.
 - Inject time, calendar, time zone and locale. No sleeps. No real network.
-- Apple app line coverage must not drop below the figure in `.github/coverage-baseline`. The "Apple build and test" job prints the figure. When it rises by more than half a point, raise the baseline in the same pull request. The TypeScript packages keep their own Vitest coverage thresholds.
+- Apple app line coverage must not drop more than 0.1 of a point below the figure in `.github/coverage-baseline`. Coverage moves that much between runs with no Swift change. The "Apple build and test" job prints the figure. When it rises by more than half a point, raise the baseline in the same pull request. The TypeScript packages keep their own Vitest coverage thresholds.
 
 How to run everything is in [CLAUDE.md](CLAUDE.md#running-checks).
 

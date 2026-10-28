@@ -4,6 +4,7 @@ import {
   appCoverage,
   gate,
   suggestedBaseline,
+  TOLERANCE,
 } from '../../bin/coverage-gate.mjs';
 
 const report = {
@@ -22,10 +23,17 @@ test('reads the app target, not tests or extensions', () => {
   expect(appCoverage(report)).toBeCloseTo(62.34, 10);
 });
 
-test('fails when coverage drops below the baseline', () => {
+test('fails when coverage drops more than the tolerance below the baseline', () => {
   expect(gate(62.34, 62.5).pass).toBe(false);
   expect(gate(62.34, 62.34).pass).toBe(true);
   expect(gate(62.34, 61).pass).toBe(true);
+});
+
+test('passes a dip of up to a tenth of a point', () => {
+  expect(TOLERANCE).toBe(0.1);
+  expect(gate(33.49, 33.5).pass).toBe(true);
+  expect(gate(33.4, 33.5).pass).toBe(true);
+  expect(gate(33.3999, 33.5).pass).toBe(false);
 });
 
 test('asks for a higher baseline when coverage rises by more than half a point', () => {
@@ -37,9 +45,17 @@ test('a missing app target is an error', () => {
   expect(() => appCoverage({ targets: [] })).toThrow(/Ateliera\.app/);
 });
 
-test('rounding never lifts coverage over the baseline', () => {
+test('rounding never lifts coverage over the tolerance', () => {
   const coverage = appCoverage({
-    targets: [{ name: 'Ateliera.app', lineCoverage: 0.33496 }],
+    targets: [{ name: 'Ateliera.app', lineCoverage: 0.33396 }],
+  });
+  expect(gate(coverage, 33.5).pass).toBe(false);
+});
+
+test('a drop just past the tolerance fails', () => {
+  // 1,337 of 4,003 lines is 33.39995%, a drop of 0.10005 of a point.
+  const coverage = appCoverage({
+    targets: [{ name: 'Ateliera.app', lineCoverage: 1337 / 4003 }],
   });
   expect(gate(coverage, 33.5).pass).toBe(false);
 });
