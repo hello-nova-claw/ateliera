@@ -9,7 +9,9 @@ enum RhythmBadge: Equatable {
   case moon(phase: MoonPhase, illumination: Double, litRight: Bool)
   case cycle(day: Int, phase: CyclePhase)
 
-  private static let waxingPhases: Set<MoonPhase> = [.waxingCrescent, .firstQuarter, .waxingGibbous]
+  private static let waxingPhases: Set<MoonPhase> = [
+    .waxingCrescent, .firstQuarter, .waxingGibbous,
+  ]
 
   // Mirrors the web's MoonGuide: a waxing moon is lit on the right in the north and on
   // the left in the south, as the person actually sees it.
@@ -65,14 +67,69 @@ enum RhythmBadge: Equatable {
   func label(locale: Locale) -> String {
     switch self {
     case .season(let season):
-      return RhythmSummary.sentenceCase(season.rawValue)
+      return season.localizedName(locale: locale)
     case .moon(let phase, let illumination, _):
-      let lit = illumination.formatted(
-        .percent.precision(.fractionLength(0)).locale(locale))
-      return "\(RhythmSummary.sentenceCase(phase.rawValue)) moon, \(lit) lit"
+      let lit = illumination.formatted(.percent.precision(.fractionLength(0)).locale(locale))
+      return String(
+        localized: "\(phase.localizedName(locale: locale)) moon, \(lit) lit", locale: locale,
+        comment: "Moon badge label. 1: the phase, like Waning gibbous. 2: the lit share, like 62%.")
     case .cycle(let day, let phase):
-      let dayText = day.formatted(.number.locale(locale))
-      return "Cycle day \(dayText), estimated \(phase.rawValue) phase"
+      return String(
+        localized: "Cycle day \(day), estimated \(phase.localizedName(locale: locale)) phase",
+        locale: locale,
+        comment: "Cycle badge label. 1: the day number. 2: the phase, like follicular.")
+    }
+  }
+}
+
+extension Season {
+  func localizedName(locale: Locale) -> String {
+    switch self {
+    case .spring: return String(localized: "Spring", locale: locale, comment: "Season name")
+    case .summer: return String(localized: "Summer", locale: locale, comment: "Season name")
+    case .autumn: return String(localized: "Autumn", locale: locale, comment: "Season name")
+    case .winter: return String(localized: "Winter", locale: locale, comment: "Season name")
+    }
+  }
+}
+
+extension MoonPhase {
+  // Sentence-initial, as the start of "<phase> moon".
+  func localizedName(locale: Locale) -> String {
+    switch self {
+    case .new: return String(localized: "New", locale: locale, comment: "Moon phase name")
+    case .waxingCrescent:
+      return String(localized: "Waxing crescent", locale: locale, comment: "Moon phase name")
+    case .firstQuarter:
+      return String(localized: "First quarter", locale: locale, comment: "Moon phase name")
+    case .waxingGibbous:
+      return String(localized: "Waxing gibbous", locale: locale, comment: "Moon phase name")
+    case .full: return String(localized: "Full", locale: locale, comment: "Moon phase name")
+    case .waningGibbous:
+      return String(localized: "Waning gibbous", locale: locale, comment: "Moon phase name")
+    case .lastQuarter:
+      return String(localized: "Last quarter", locale: locale, comment: "Moon phase name")
+    case .waningCrescent:
+      return String(localized: "Waning crescent", locale: locale, comment: "Moon phase name")
+    }
+  }
+}
+
+extension CyclePhase {
+  // Mid-sentence, as in "estimated <phase> phase".
+  func localizedName(locale: Locale) -> String {
+    switch self {
+    case .menstrual:
+      return String(
+        localized: "menstrual", locale: locale, comment: "Cycle phase name, mid-sentence")
+    case .follicular:
+      return String(
+        localized: "follicular", locale: locale, comment: "Cycle phase name, mid-sentence")
+    case .ovulation:
+      return String(
+        localized: "ovulation", locale: locale, comment: "Cycle phase name, mid-sentence")
+    case .luteal:
+      return String(localized: "luteal", locale: locale, comment: "Cycle phase name, mid-sentence")
     }
   }
 }
@@ -87,20 +144,25 @@ struct MoonLitShape: Shape {
   let litRight: Bool
 
   func path(in rect: CGRect) -> Path {
-    let k = min(1, max(0, illumination))
-    let r = min(rect.width, rect.height) / 2
+    let lit = min(1, max(0, illumination))
+    let radius = min(rect.width, rect.height) / 2
     let centre = CGPoint(x: rect.midX, y: rect.midY)
-    if k <= 0.02 { return Path() }
+    if lit <= 0.02 { return Path() }
     let disc = Path(
-      ellipseIn: CGRect(x: centre.x - r, y: centre.y - r, width: 2 * r, height: 2 * r))
-    if k >= 0.98 { return disc }
+      ellipseIn: CGRect(
+        x: centre.x - radius, y: centre.y - radius, width: 2 * radius, height: 2 * radius))
+    if lit >= 0.98 { return disc }
     let limb = disc.intersection(
       Path(
-        CGRect(x: litRight ? centre.x : centre.x - r, y: centre.y - r, width: r, height: 2 * r)))
-    let rx = r * abs(1 - 2 * k)
+        CGRect(
+          x: litRight ? centre.x : centre.x - radius, y: centre.y - radius, width: radius,
+          height: 2 * radius)))
+    let terminatorWidth = radius * abs(1 - 2 * lit)
     let terminator = Path(
-      ellipseIn: CGRect(x: centre.x - rx, y: centre.y - r, width: 2 * rx, height: 2 * r))
-    return k < 0.5 ? limb.subtracting(terminator) : limb.union(terminator)
+      ellipseIn: CGRect(
+        x: centre.x - terminatorWidth, y: centre.y - radius, width: 2 * terminatorWidth,
+        height: 2 * radius))
+    return lit < 0.5 ? limb.subtracting(terminator) : limb.union(terminator)
   }
 }
 
@@ -149,7 +211,7 @@ struct RhythmBadgeRow<Trailing: View>: View {
       }
       .frame(width: 16, height: 16)
     } else if let symbol = badge.symbol {
-      Image(systemName: symbol).font(.system(size: 15)).foregroundStyle(theme.inkMuted)
+      Image(systemName: symbol).font(.subheadline).foregroundStyle(theme.inkMuted)
     }
   }
 }

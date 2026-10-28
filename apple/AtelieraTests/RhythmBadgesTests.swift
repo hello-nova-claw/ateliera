@@ -7,7 +7,7 @@ import XCTest
 // when a cycle is known), which glyph each carries, which limb of the moon is lit, and
 // what VoiceOver reads for each. Pure, so the view is a thin render over it.
 final class RhythmBadgesTests: XCTestCase {
-  private let en = Locale(identifier: "en_US")
+  private let english = Locale(identifier: "en_US")
 
   private func context(
     moon: MoonState = MoonState(phase: .waningGibbous, illumination: 0.62),
@@ -101,13 +101,13 @@ final class RhythmBadgesTests: XCTestCase {
   // MARK: Labels
 
   func testLabelsReadNaturallyAndTheCycleSaysEstimated() {
-    XCTAssertEqual(RhythmBadge.season(.spring).label(locale: en), "Spring")
+    XCTAssertEqual(RhythmBadge.season(.spring).label(locale: english), "Spring")
     XCTAssertEqual(
       RhythmBadge.moon(phase: .waningGibbous, illumination: 0.62, litRight: false)
-        .label(locale: en),
+        .label(locale: english),
       "Waning gibbous moon, 62% lit")
     XCTAssertEqual(
-      RhythmBadge.cycle(day: 12, phase: .follicular).label(locale: en),
+      RhythmBadge.cycle(day: 12, phase: .follicular).label(locale: english),
       "Cycle day 12, estimated follicular phase")
   }
 

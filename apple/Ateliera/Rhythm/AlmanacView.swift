@@ -35,7 +35,6 @@ struct AlmanacView: View {
     Rhythm.season(date: context.date, hemisphere: hemisphere, style: seasonStyle)
   }
 
-  // The badge row: the felt season, the drawn moon, and the cycle when one is known.
   private var badges: [RhythmBadge] {
     RhythmBadge.badges(for: context, feltSeason: feltSeason, hemisphere: hemisphere)
   }
