@@ -52,7 +52,7 @@ Prefixes: `Journal`, `Capture`, `Dreams`, `Intentions`, `Reflection`, `Cycle`, `
 These rules carry the design principles into code. [docs/privacy.md](docs/privacy.md) describes how data is handled today.
 
 - **File protection.** New files that hold personal data use `.complete` file protection, or `docs/privacy.md` records why not. Secrets and the app-lock state live in the keychain, never in `UserDefaults`.
-- **No new network calls.** Nothing talks to the network except through an entry on the allowlist in `bin/check-privacy` (added in #146), and each entry has its reason in `docs/privacy.md`. Until it lands, reviewers check this by hand. No analytics, crash-reporting, advertising or attribution SDK, ever.
+- **No new network calls.** Nothing talks to the network except through an entry on the allowlist in `bin/check-privacy.mjs`, and each entry has its reason in `docs/privacy.md`. CI runs the check on every pull request. Existing violations are listed in the script with their issue, and a file may not add more. No analytics, crash-reporting, advertising or attribution SDK, ever.
 - **Personal data stays out of side channels.** Entry text, cycle data and birth details never appear in logs, crash reports, notifications, widgets, Spotlight, Siri or Shortcuts unless the user turned that on. The defaults are a neutral notification ("Time to write") and a widget that shows no entries.
 - **The app switcher shows a privacy screen** while the app lock is on.
 - **Export and delete stay complete.** Every new kind of data is added to both, with a test.
@@ -75,7 +75,7 @@ Use what Apple already has. Before you write anything custom, use the system equ
 - **Platform services.** LocalAuthentication for the lock, UserNotifications, WidgetKit, App Intents, HealthKit (read only), CoreLocation and Foundation Models, each behind a protocol so tests can replace it.
 - **Vault writes.** Go through the Rust vault core. Never write vault files directly from Swift.
 - **Safety.** No force unwraps, `try!` or `fatalError` outside tests. UI state is `@MainActor`.
-- **Dependencies.** Any third-party dependency needs an entry on the allowlist in `bin/check-privacy` (#146), an MIT-compatible licence, a reason in the pull request, and confirmation that it collects nothing.
+- **Dependencies.** Any third-party dependency needs an MIT-compatible licence, a reason in the pull request, and confirmation that it collects nothing. Swift packages also need an entry on the allowlist in `bin/check-privacy.mjs`. The check rejects known analytics, crash-reporting, advertising, attribution and HTTP-client packages in every manifest.
 
 ### Web and desktop app
 
@@ -83,6 +83,11 @@ Use what Apple already has. Before you write anything custom, use the system equ
 - `@studio/ui` is pure: no `fetch`, no `localStorage`. Data arrives through props.
 - CSS uses BEM naming, semantic classes and the studio's custom properties. Never `!important`. Stylelint enforces this.
 - Rust follows `rustfmt` and Clippy (`pnpm rust:fmt`, `pnpm rust:clippy`).
+
+### Lint and format
+
+- SwiftLint runs with `--strict` against `.swiftlint-baseline.json`. The baseline records violations that existed when it was introduced. Remove entries as you fix them; never add to it to get a pull request through.
+- swift-format lints every Swift file a pull request touches. Format what you touch: run `xcrun swift-format format -i <files>` before you commit.
 
 ### Comments
 
