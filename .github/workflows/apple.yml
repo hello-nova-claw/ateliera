@@ -154,11 +154,22 @@ jobs:
 
   accessibility:
     # Its own job, so the audit's ten-odd minutes run beside the unit tests, not after them.
-    name: Apple accessibility audit
+    name: Apple accessibility audit (${{ matrix.variant }})
     needs: changes
     if: needs.changes.outputs.ui == 'true' && github.event_name != 'schedule'
     runs-on: macos-26
-    timeout-minutes: 90
+    # One simulator running all three variants for an hour timed out, so each gets its own job.
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: largest text
+            test: testEveryScreenAtTheLargestTextSize
+          - variant: right to left
+            test: testEveryScreenRightToLeft
+          - variant: doubled strings
+            test: testEveryScreenWithDoubledStrings
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -171,13 +182,13 @@ jobs:
           xcodebuild test -project Ateliera.xcodeproj -scheme Ateliera \
             -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
             -derivedDataPath build CODE_SIGNING_ALLOWED=NO \
-            -only-testing:AtelieraUITests/AccessibilityAuditUITests \
-            -resultBundlePath ../results/audit.xcresult \
+            -only-testing:AtelieraUITests/AccessibilityAuditUITests/${{ matrix.test }} \
+            -resultBundlePath ../results/${{ matrix.test }}.xcresult \
             | grep -E 'error:|unaudited|Test Case .*(passed|failed)|Executed|TEST (SUCCEEDED|FAILED)'
       - uses: actions/upload-artifact@v7.0.0
         if: failure()
         with:
-          name: apple-accessibility-audit
+          name: apple-accessibility-audit-${{ matrix.test }}
           path: results/
           retention-days: 14
 
