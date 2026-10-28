@@ -9,16 +9,20 @@ final class AccessibilityAuditUITests: XCTestCase {
   override func setUp() { continueAfterFailure = true }
 
   func testEveryScreenAtTheLargestTextSize() throws {
-    try audit(variant: "largest text", arguments: [
-      "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
-    ])
+    try audit(
+      variant: "largest text",
+      arguments: [
+        "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+      ])
   }
 
   func testEveryScreenRightToLeft() throws {
-    try audit(variant: "right to left", arguments: [
-      "-AppleLanguages", "(ar)", "-AppleLocale", "ar_SA",
-      "-AppleTextDirection", "YES", "-NSForceRightToLeftWritingDirection", "YES",
-    ])
+    try audit(
+      variant: "right to left",
+      arguments: [
+        "-AppleLanguages", "(ar)", "-AppleLocale", "ar_SA",
+        "-AppleTextDirection", "YES", "-NSForceRightToLeftWritingDirection", "YES",
+      ])
   }
 
   func testEveryScreenWithDoubledStrings() throws {
@@ -52,7 +56,7 @@ final class AccessibilityAuditUITests: XCTestCase {
     }
   }
 
-  private func auditVisible(_ app: XCUIApplication, on screen: String, retry: Bool = true) {
+  private func auditVisible(_ app: XCUIApplication, on screen: String, attempt: Int = 1) {
     do {
       try app.performAccessibilityAudit { issue in
         let finding = KnownAccessibilityIssues.finding(issue, on: screen)
@@ -65,12 +69,15 @@ final class AccessibilityAuditUITests: XCTestCase {
         return true
       }
     } catch let error as NSError where error.code == -56 {
-      // -56 is the audit timing out on a busy simulator: try once more before failing,
-      // since an unaudited position could hide a finding.
-      if retry {
-        auditVisible(app, on: screen, retry: false)
+      // -56 is the audit timing out on a busy simulator. An unaudited position could hide a
+      // finding, so give the simulator a moment and try up to three times before failing.
+      if attempt < 3 {
+        Thread.sleep(forTimeInterval: 2)
+        auditVisible(app, on: screen, attempt: attempt + 1)
       } else {
-        XCTFail("\(screen): the accessibility audit timed out twice, so this position went unaudited.")
+        XCTFail(
+          "\(screen): the accessibility audit timed out three times, so this position went unaudited."
+        )
       }
     } catch {
       XCTFail("\(screen): \(error)")
