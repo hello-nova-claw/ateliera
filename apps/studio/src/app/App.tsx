@@ -1343,7 +1343,6 @@ function StudioApplication({
   const topbar = (
     <div className="studio-topbar">
       <button
-        aria-label="Search"
         className="studio-topbar__search"
         onClick={() => setCommandOpen(true)}
         ref={searchButton}
@@ -1369,7 +1368,7 @@ function StudioApplication({
           </button>
         )}
         <button
-          aria-label="Capture"
+          aria-label="New capture"
           className="studio-topbar__new"
           disabled={!opened || service === null}
           onClick={() => {
@@ -1378,7 +1377,7 @@ function StudioApplication({
           ref={captureButton}
           type="button"
         >
-          ＋ New
+          <span aria-hidden="true">＋</span> New
         </button>
       </div>
     </div>

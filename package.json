@@ -34,7 +34,7 @@
     "verify:restore": "node scripts/verify-restore.mjs"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.12.1",
+    "@axe-core/playwright": "^4.14.0",
     "@eslint/js": "^9.31.0",
     "@playwright/test": "^1.54.1",
     "@storybook/addon-a11y": "^9.1.20",

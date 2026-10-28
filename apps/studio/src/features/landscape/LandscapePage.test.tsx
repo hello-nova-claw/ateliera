@@ -44,7 +44,7 @@ describe('LandscapePage', () => {
     expect(within(matrix).getAllByText('Example')).toHaveLength(5);
     fireEvent.click(
       within(matrix).getByRole('button', {
-        name: /Use Vision as a starting point/,
+        name: 'Use as a starting point: Vision',
       }),
     );
     expect(onUseTourExample).toHaveBeenCalledWith(
