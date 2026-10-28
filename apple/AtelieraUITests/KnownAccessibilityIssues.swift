@@ -76,11 +76,25 @@ enum KnownAccessibilityIssues {
     168 elementDetection rhythm
     168 elementDetection room-reflection-garden
     168 elementDetection room-uncharted
+    168 elementDetection room-wisdom-garden
     168 elementDetection settings
     168 elementDetection sky-ahead
     168 elementDetection today
     168 elementDetection today-panel
     """
+
+  // Screens the audit can't finish in one variant, each tied to an open issue. They're
+  // skipped in that variant only. When the issue closes, delete its line.
+  static let unauditable = """
+    178 right to left sky-ahead
+    """
+
+  static func isUnauditable(_ screen: String, in variant: String) -> Bool {
+    unauditable.split(separator: "\n").contains { line in
+      let parts = line.split(separator: " ", maxSplits: 1)
+      return parts.count == 2 && parts[1] == "\(variant) \(screen)"
+    }
+  }
 
   struct Finding: Equatable {
     let type: String

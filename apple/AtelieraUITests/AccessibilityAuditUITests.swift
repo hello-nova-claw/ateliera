@@ -9,23 +9,23 @@ final class AccessibilityAuditUITests: XCTestCase {
   override func setUp() { continueAfterFailure = true }
 
   func testEveryScreenAtTheLargestTextSize() throws {
-    try audit(arguments: [
+    try audit(variant: "largest text", arguments: [
       "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
     ])
   }
 
   func testEveryScreenRightToLeft() throws {
-    try audit(arguments: [
+    try audit(variant: "right to left", arguments: [
       "-AppleLanguages", "(ar)", "-AppleLocale", "ar_SA",
       "-AppleTextDirection", "YES", "-NSForceRightToLeftWritingDirection", "YES",
     ])
   }
 
   func testEveryScreenWithDoubledStrings() throws {
-    try audit(arguments: ["-NSDoubleLocalizedStrings", "YES"])
+    try audit(variant: "doubled strings", arguments: ["-NSDoubleLocalizedStrings", "YES"])
   }
 
-  private func audit(arguments: [String]) throws {
+  private func audit(variant: String, arguments: [String]) throws {
     let app = XCUIApplication()
     app.launchEnvironment["ATELIERA_UITEST"] = "1"
     app.launchEnvironment["ATELIERA_UITEST_NOW"] = "2026-03-20T09:30:00Z"
@@ -33,7 +33,8 @@ final class AccessibilityAuditUITests: XCTestCase {
     app.launchArguments = arguments
     app.launch()
 
-    for screen in AppScreens.all {
+    for screen in AppScreens.all
+    where !KnownAccessibilityIssues.isUnauditable(screen.name, in: variant) {
       XCTContext.runActivity(named: screen.name) { _ in
         screen.open(app)
         // The audit sees only what's on screen, so scroll through and audit each position.

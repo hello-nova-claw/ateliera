@@ -201,13 +201,15 @@ jobs:
     steps:
       - name: Check every variant passed
         env:
+          CHANGES: ${{ needs.changes.result }}
           RESULT: ${{ needs.accessibility.result }}
           UI: ${{ needs.changes.outputs.ui }}
           EVENT: ${{ github.event_name }}
         run: |
-          echo "Audit: $RESULT (UI changed: $UI)."
+          echo "Change detection: $CHANGES. Audit: $RESULT (UI changed: $UI)."
+          [ "$CHANGES" = success ] || exit 1
           # Skipped is fine only when nothing the audit covers changed, or on the weekly run.
-          [ "$RESULT" = success ] || { [ "$RESULT" = skipped ] && { [ "$UI" != true ] || [ "$EVENT" = schedule ]; }; }
+          [ "$RESULT" = success ] || { [ "$RESULT" = skipped ] && { [ "$UI" = false ] || [ "$EVENT" = schedule ]; }; }
 
   minimum-ios:
     name: Apple tests on iOS 17
