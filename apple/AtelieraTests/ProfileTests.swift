@@ -63,4 +63,34 @@ final class ProfileTests: XCTestCase {
     // Avatar reuses the same singleton note as the name.
     XCTAssertEqual(store.parsedNotesByPath.filter { $0.note.cardType == "profile" }.count, 1)
   }
+
+  func testRemoveProfileAvatarClearsThePictureAndKeepsTheName() throws {
+    let (dir, store) = try makeStore()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.setProfileName("Anna"))
+    XCTAssertTrue(store.setProfileAvatar(data: pngData))
+    XCTAssertTrue(store.listAllPaths().contains { $0.hasPrefix("Profile/") && $0.contains("Media/") })
+
+    XCTAssertTrue(store.removeProfileAvatar())
+    XCTAssertNil(store.profileAvatar())
+    XCTAssertEqual(store.profileName, "Anna")
+    // The picture file is gone from the vault, and the note no longer points at it.
+    XCTAssertFalse(store.listAllPaths().contains { $0.hasPrefix("Profile/") && $0.contains("Media/") })
+    let profiles = store.parsedNotesByPath.filter { $0.note.cardType == "profile" }
+    XCTAssertEqual(profiles.count, 1)
+    XCTAssertNil(profiles.first?.note.display.cover)
+    // A fresh store over the same folder agrees.
+    let reopened = VaultStore()
+    try reopened.openForTesting(at: dir)
+    XCTAssertNil(reopened.profileAvatar())
+    XCTAssertEqual(reopened.profileName, "Anna")
+  }
+
+  func testRemoveProfileAvatarWithoutOneIsANoOp() throws {
+    let (dir, store) = try makeStore()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.removeProfileAvatar())
+    XCTAssertNil(store.profileAvatar())
+    XCTAssertNil(store.error)
+  }
 }
