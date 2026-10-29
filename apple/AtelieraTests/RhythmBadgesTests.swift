@@ -11,12 +11,14 @@ final class RhythmBadgesTests: XCTestCase {
 
   private func context(
     moon: MoonState = MoonState(phase: .waningGibbous, illumination: 0.62),
+    lunarProgress: Double = 0.6,
     cycle: CycleState? = nil
   ) -> RhythmContext {
     RhythmContext(
       date: "2026-04-10", season: .spring,
       microSeason: MicroSeason(term: "The First Green", gloss: "buds unfold"),
-      moon: moon, lunarSeason: .waning, lunarProgress: 0.6, cycle: cycle, placements: [:])
+      moon: moon, lunarSeason: lunarProgress < 0.5 ? .waxing : .waning,
+      lunarProgress: lunarProgress, cycle: cycle, placements: [:])
   }
 
   // MARK: Which badges
@@ -70,30 +72,43 @@ final class RhythmBadgesTests: XCTestCase {
   // MARK: Lit limb
 
   func testWaxingMoonIsLitOnTheRightInTheNorth() {
-    for phase in [MoonPhase.waxingCrescent, .firstQuarter, .waxingGibbous] {
+    for progress in [0.05, 0.25, 0.49] {
       let badges = RhythmBadge.badges(
-        for: context(moon: MoonState(phase: phase, illumination: 0.4)), feltSeason: .spring,
-        hemisphere: .north)
-      XCTAssertEqual(badges[1], .moon(phase: phase, illumination: 0.4, litRight: true), "\(phase)")
+        for: context(
+          moon: MoonState(phase: .waxingCrescent, illumination: 0.4), lunarProgress: progress),
+        feltSeason: .spring, hemisphere: .north)
+      XCTAssertEqual(
+        badges[1], .moon(phase: .waxingCrescent, illumination: 0.4, litRight: true), "\(progress)")
     }
   }
 
   func testWaningMoonIsLitOnTheLeftInTheNorth() {
-    for phase in [MoonPhase.waningGibbous, .lastQuarter, .waningCrescent] {
+    for progress in [0.5, 0.75, 0.95] {
       let badges = RhythmBadge.badges(
-        for: context(moon: MoonState(phase: phase, illumination: 0.4)), feltSeason: .spring,
-        hemisphere: .north)
-      XCTAssertEqual(badges[1], .moon(phase: phase, illumination: 0.4, litRight: false), "\(phase)")
+        for: context(
+          moon: MoonState(phase: .waningGibbous, illumination: 0.4), lunarProgress: progress),
+        feltSeason: .spring, hemisphere: .north)
+      XCTAssertEqual(
+        badges[1], .moon(phase: .waningGibbous, illumination: 0.4, litRight: false), "\(progress)")
     }
+  }
+
+  func testLitSideFollowsTheLunarMonthNotThePhaseName() {
+    // Just before the exact full moon the phase window already says "full", but the moon is
+    // still waxing, so its lit limb stays on the waxing side.
+    let badges = RhythmBadge.badges(
+      for: context(moon: MoonState(phase: .full, illumination: 0.97), lunarProgress: 0.49),
+      feltSeason: .spring, hemisphere: .north)
+    XCTAssertEqual(badges[1], .moon(phase: .full, illumination: 0.97, litRight: true))
   }
 
   func testTheSouthernHemisphereMirrorsTheMoon() {
     let waxing = RhythmBadge.badges(
-      for: context(moon: MoonState(phase: .waxingCrescent, illumination: 0.2)),
+      for: context(moon: MoonState(phase: .waxingCrescent, illumination: 0.2), lunarProgress: 0.2),
       feltSeason: .autumn, hemisphere: .south)
     XCTAssertEqual(waxing[1], .moon(phase: .waxingCrescent, illumination: 0.2, litRight: false))
     let waning = RhythmBadge.badges(
-      for: context(moon: MoonState(phase: .lastQuarter, illumination: 0.5)),
+      for: context(moon: MoonState(phase: .lastQuarter, illumination: 0.5), lunarProgress: 0.75),
       feltSeason: .autumn, hemisphere: .south)
     XCTAssertEqual(waning[1], .moon(phase: .lastQuarter, illumination: 0.5, litRight: true))
   }

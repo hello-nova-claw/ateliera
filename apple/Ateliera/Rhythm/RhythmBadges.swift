@@ -9,16 +9,14 @@ enum RhythmBadge: Equatable {
   case moon(phase: MoonPhase, illumination: Double, litRight: Bool)
   case cycle(day: Int, phase: CyclePhase)
 
-  private static let waxingPhases: Set<MoonPhase> = [
-    .waxingCrescent, .firstQuarter, .waxingGibbous,
-  ]
-
   // Mirrors the web's MoonGuide: a waxing moon is lit on the right in the north and on
-  // the left in the south, as the person actually sees it.
+  // the left in the south, as the person actually sees it. Waxing is read from how far
+  // through the lunar month we are (0 at new, 0.5 at full) rather than the phase name,
+  // because the new and full windows straddle their instants.
   static func badges(for context: RhythmContext, feltSeason: Season, hemisphere: Hemisphere)
     -> [RhythmBadge]
   {
-    let waxesRight = waxingPhases.contains(context.moon.phase)
+    let waxesRight = context.lunarProgress < 0.5
     var badges: [RhythmBadge] = [
       .season(feltSeason),
       .moon(
@@ -171,6 +169,9 @@ struct MoonLitShape: Shape {
 struct RhythmBadgeRow<Trailing: View>: View {
   @Environment(\.studioTheme) private var theme
   @Environment(\.locale) private var locale
+  // The circles grow with the symbol's text style so the glyph never outgrows its border.
+  @ScaledMetric(relativeTo: .subheadline) private var badgeSize: CGFloat = 34
+  @ScaledMetric(relativeTo: .subheadline) private var moonSize: CGFloat = 16
   let badges: [RhythmBadge]
   @ViewBuilder let trailing: () -> Trailing
 
@@ -191,7 +192,8 @@ struct RhythmBadgeRow<Trailing: View>: View {
     HStack(spacing: 8) {
       ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
         ZStack {
-          Circle().strokeBorder(theme.lineStrong, lineWidth: 1).frame(width: 34, height: 34)
+          Circle().strokeBorder(theme.lineStrong, lineWidth: 1).frame(
+            width: badgeSize, height: badgeSize)
           glyph(badge)
         }
         .accessibilityElement(children: .ignore)
@@ -209,7 +211,7 @@ struct RhythmBadgeRow<Trailing: View>: View {
         Circle().strokeBorder(theme.line, lineWidth: 1)
         MoonLitShape(illumination: illumination, litRight: litRight).fill(theme.inkMuted)
       }
-      .frame(width: 16, height: 16)
+      .frame(width: moonSize, height: moonSize)
     } else if let symbol = badge.symbol {
       Image(systemName: symbol).font(.subheadline).foregroundStyle(theme.inkMuted)
     }
