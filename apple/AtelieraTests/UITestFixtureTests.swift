@@ -30,6 +30,11 @@ final class UITestFixtureTests: XCTestCase {
     XCTAssertEqual(wishes.first?.note.resurfaceDue, "2020-01-01", "far in the past, so always due")
     XCTAssertEqual(wishes.first?.note.resurfaceIntervalDays, 6)
     XCTAssertEqual(wishes.first?.note.title, "A wish worth keeping")
+    // And it is in a room the Gift draws from, so the pool actually offers it.
+    let pool = store.resurfacePool()
+    XCTAssertEqual(pool.map(\.sourcePath), ["Reflection Garden/a-wish.md"])
+    XCTAssertEqual(pool.first?.kind, .wish)
+    XCTAssertEqual(pool.first?.dueDate, "2020-01-01")
   }
 
   func testConstellationFixtureSeedsTwoLinkedJournalEntries() throws {
