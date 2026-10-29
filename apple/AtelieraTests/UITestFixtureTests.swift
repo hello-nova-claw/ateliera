@@ -14,7 +14,7 @@ final class UITestFixtureTests: XCTestCase {
   }
 
   private func open(_ dir: URL) throws -> VaultStore {
-    let store = VaultStore()
+    let store = VaultStore(discovering: false)
     try store.openForTesting(at: dir)
     return store
   }
@@ -40,9 +40,14 @@ final class UITestFixtureTests: XCTestCase {
     let journal = store.parsedNotesByPath.filter { $0.path.hasPrefix("Journal/") }
     XCTAssertEqual(journal.count, 2)
     XCTAssertTrue(journal.allSatisfy { $0.note.status == "active" && $0.note.tags == ["calm"] })
+    let first = journal.first { $0.path == "Journal/a-quiet-morning.md" }
+    XCTAssertEqual(first?.note.title, "A quiet morning")
     let later = journal.first { $0.path == "Journal/a-later-thought.md" }
     XCTAssertTrue(
       later?.note.body.contains("[[A quiet morning]]") ?? false, "the line between the dots")
+    XCTAssertEqual(
+      WikilinkNavigator.resolvePath(target: "A quiet morning", in: store.liveNotes),
+      "Journal/a-quiet-morning.md", "the link resolves to the first note")
   }
 
   func testFoyerFixtureSeedsAPromotedBecomingAFeelingAndAPrinciple() throws {

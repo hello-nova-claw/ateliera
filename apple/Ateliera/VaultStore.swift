@@ -173,7 +173,12 @@ final class VaultStore {
     parsedNotesByPath.first { $0.note.id == noteId }?.path
   }
 
-  init() {
+  convenience init() { self.init(discovering: true) }
+
+  /// `discovering: false` opens nothing: a unit test then opens its own temporary vault
+  /// with `openForTesting(at:)` instead of touching a bookmark or the simulator's demo.
+  init(discovering: Bool) {
+    guard discovering else { return }
     // UI tests drive the real capture/edit flow against a fresh, empty vault in
     // the app's own sandbox, so the room starts known-empty and deterministic.
     if let url = Self.uitestVaultURL() {
