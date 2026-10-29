@@ -126,6 +126,30 @@ final class RhythmBadgesTests: XCTestCase {
       "Cycle day 12, estimated follicular phase")
   }
 
+  func testEveryPhaseAndSeasonHasALabelAndADrawnMoon() {
+    for phase in MoonPhase.allCases {
+      for hemisphere in [Hemisphere.north, .south] {
+        let badges = RhythmBadge.badges(
+          for: context(moon: MoonState(phase: phase, illumination: 0.3)), feltSeason: .winter,
+          hemisphere: hemisphere)
+        guard case .moon(let shown, _, _) = badges[1] else { return XCTFail("\(phase)") }
+        XCTAssertEqual(shown, phase)
+        XCTAssertNil(badges[1].symbol, "the moon is always drawn")
+        let label = badges[1].label(locale: english)
+        XCTAssertTrue(label.hasSuffix(" moon, 30% lit"), "\(phase): \(label)")
+        XCTAssertFalse(label.contains("-"), "\(phase): raw value leaked into \(label)")
+      }
+    }
+    for season in [Season.winter, .spring, .summer, .autumn] {
+      XCTAssertFalse(RhythmBadge.season(season).label(locale: english).isEmpty)
+    }
+    for phase in [CyclePhase.menstrual, .follicular, .ovulation, .luteal] {
+      let label = RhythmBadge.cycle(day: 3, phase: phase).label(locale: english)
+      XCTAssertTrue(label.hasPrefix("Cycle day 3, estimated "), label)
+      XCTAssertTrue(label.hasSuffix(" phase"), label)
+    }
+  }
+
   func testIdentifiersNameTheBadgeKind() {
     XCTAssertEqual(RhythmBadge.season(.winter).identifier, "rhythm-badge-season")
     XCTAssertEqual(

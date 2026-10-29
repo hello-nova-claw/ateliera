@@ -176,20 +176,30 @@ struct RhythmBadgeRow<Trailing: View>: View {
   @ViewBuilder let trailing: () -> Trailing
 
   var body: some View {
+    // Side by side where there is room; the text drops below first, and at the largest
+    // accessibility sizes the circles stack in a column rather than overflow the card.
     ViewThatFits(in: .horizontal) {
       HStack(spacing: 12) {
-        circles
+        circles(.horizontal)
         trailing()
       }
       VStack(alignment: .leading, spacing: 10) {
-        circles
+        circles(.horizontal)
+        trailing()
+      }
+      VStack(alignment: .leading, spacing: 10) {
+        circles(.vertical)
         trailing()
       }
     }
   }
 
-  private var circles: some View {
-    HStack(spacing: 8) {
+  private func circles(_ axis: Axis) -> some View {
+    let layout =
+      axis == .horizontal
+      ? AnyLayout(HStackLayout(spacing: 8))
+      : AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+    return layout {
       ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
         ZStack {
           Circle().strokeBorder(theme.lineStrong, lineWidth: 1).frame(
