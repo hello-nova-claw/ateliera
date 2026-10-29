@@ -126,6 +126,25 @@ final class ProfileTests: XCTestCase {
       "the other note's image is untouched")
   }
 
+  // The smallest bytes VaultMedia accepts as a JPEG: the SOI marker and a padding byte.
+  private let jpegData = Data([0xFF, 0xD8, 0xFF, 0xE0])
+
+  func testReplacingThePhotoInAnotherFormatLeavesOneFileAndRemoveClearsAll() throws {
+    let (dir, store) = try makeStore()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.setProfileAvatar(data: pngData))
+    XCTAssertTrue(store.setProfileAvatar(data: jpegData))
+    let media = store.listAllPaths().filter { $0.hasPrefix("Profile/") && $0.contains("Media/") }
+    XCTAssertEqual(media.count, 1, "the superseded PNG must not linger: \(media)")
+    XCTAssertTrue(media.first?.hasSuffix(".jpg") ?? false)
+    XCTAssertEqual(store.profileAvatar(), jpegData)
+
+    XCTAssertTrue(store.removeProfileAvatar())
+    XCTAssertTrue(
+      store.listAllPaths().filter { $0.hasPrefix("Profile/") && $0.contains("Media/") }.isEmpty,
+      "nothing of the profile's media may survive a removal")
+  }
+
   func testRemoveProfileAvatarWithoutOneIsANoOp() throws {
     let (dir, store) = try makeStore()
     defer { try? FileManager.default.removeItem(at: dir) }
