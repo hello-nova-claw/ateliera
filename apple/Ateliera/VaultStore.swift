@@ -799,18 +799,30 @@ final class VaultStore {
     return saveEdit(editable, updatedNote: note)
   }
 
-  /// Remove the profile picture: drop the note's cover reference, then delete the
-  /// image file. With no picture this is a no-op that still reports success.
+  /// Whether the profile note points at a picture, readable or not. The editor offers
+  /// "Remove photo" on this, so a reference whose file is missing or unreadable can
+  /// still be cleared.
+  var hasProfileAvatar: Bool { profilePair?.note.display.cover != nil }
+
+  /// Remove the profile picture. The file goes first and the reference second, so a
+  /// failure part-way leaves a reference the person can still clear: a missing file is a
+  /// no-op on the next try. Only the profile note's own `Media` folder may be touched.
   @discardableResult
   func removeProfileAvatar() -> Bool {
     guard let pair = profilePair, let reference = pair.note.display.cover else { return true }
+    if let fullPath = VaultMedia.normalizeCoverPath(notePath: pair.path, reference: reference) {
+      let folder = (pair.path as NSString).deletingLastPathComponent
+      let mediaPrefix = folder.isEmpty ? "Media/" : "\(folder)/Media/"
+      guard fullPath.hasPrefix(mediaPrefix) else {
+        error = "The profile picture isn't in the profile's own folder, so it was left alone."
+        return false
+      }
+      guard removeFile(path: fullPath) else { return false }
+    }
     guard let editable = beginEdit(path: pair.path) else { return false }
     var note = editable.note
     note.display = NoteDisplay(cover: nil, featured: note.display.featured)
-    guard saveEdit(editable, updatedNote: note) else { return false }
-    guard let fullPath = VaultMedia.normalizeCoverPath(notePath: pair.path, reference: reference)
-    else { return true }
-    return removeFile(path: fullPath)
+    return saveEdit(editable, updatedNote: note)
   }
 
   /// The profile note's path, creating an empty one if it doesn't exist yet.

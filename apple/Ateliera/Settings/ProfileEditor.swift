@@ -11,7 +11,7 @@ struct ProfileEditor: View {
   let onCommitName: () -> Void
   @State private var avatarItem: PhotosPickerItem?
 
-  private var hasAvatar: Bool { store.profileAvatar() != nil }
+  private var hasAvatar: Bool { store.hasProfileAvatar }
 
   var body: some View {
     HStack(spacing: 14) {
@@ -71,6 +71,11 @@ struct ProfileSheet: View {
             .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
             .padding(.bottom, 12)
           ProfileEditor(store: store, name: $name, onCommitName: commitName)
+          if let error = store.error {
+            Text(error).font(StudioFont.meta).foregroundStyle(theme.celebration)
+              .padding(.top, 12)
+              .accessibilityIdentifier("profile-error")
+          }
         }
         .padding(24)
         .frame(maxWidth: .infinity, alignment: .leading)
