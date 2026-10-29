@@ -53,6 +53,13 @@ enum AppScreens {
           },
           close: dismissSheet),
         AppScreen(
+          name: "profile",
+          open: { app in
+            tab(app, .today)
+            tap(app.buttons["profile-avatar"])
+          },
+          close: dismissSheet),
+        AppScreen(
           name: "rhythm",
           open: { app in
             tab(app, .today)
