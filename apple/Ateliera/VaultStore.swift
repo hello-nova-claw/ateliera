@@ -796,7 +796,26 @@ final class VaultStore {
     else { return false }
     var note = editable.note
     note.display = NoteDisplay(cover: reference, featured: note.display.featured)
-    return saveEdit(editable, updatedNote: note)
+    guard saveEdit(editable, updatedNote: note) else { return false }
+    // A new format writes a new file name, so the superseded picture goes too.
+    let keep = VaultMedia.normalizeCoverPath(notePath: path, reference: reference)
+    return removeProfileMedia(ofNoteAt: path, except: keep)
+  }
+
+  /// Every file in the profile note's own `Media` folder, nothing outside it.
+  private func profileMediaPaths(ofNoteAt notePath: String) -> [String] {
+    let folder = (notePath as NSString).deletingLastPathComponent
+    let prefix = folder.isEmpty ? "Media/" : "\(folder)/Media/"
+    return listAllPaths().filter { $0.hasPrefix(prefix) }
+  }
+
+  /// Delete the profile's pictures, keeping at most one. Missing files are no-ops.
+  private func removeProfileMedia(ofNoteAt notePath: String, except keep: String?) -> Bool {
+    var allRemoved = true
+    for path in profileMediaPaths(ofNoteAt: notePath) where path != keep {
+      if !removeFile(path: path) { allRemoved = false }
+    }
+    return allRemoved
   }
 
   /// Whether the profile note points at a picture, readable or not. The editor offers
@@ -804,9 +823,10 @@ final class VaultStore {
   /// still be cleared.
   var hasProfileAvatar: Bool { profilePair?.note.display.cover != nil }
 
-  /// Remove the profile picture. The file goes first and the reference second, so a
+  /// Remove the profile picture. The files go first and the reference second, so a
   /// failure part-way leaves a reference the person can still clear: a missing file is a
-  /// no-op on the next try. Only the profile note's own `Media` folder may be touched.
+  /// no-op on the next try. Only the profile note's own `Media` folder is touched, and
+  /// every picture in it goes, including one a format change superseded.
   @discardableResult
   func removeProfileAvatar() -> Bool {
     guard let pair = profilePair, let reference = pair.note.display.cover else { return true }
@@ -817,8 +837,8 @@ final class VaultStore {
         error = "The profile picture isn't in the profile's own folder, so it was left alone."
         return false
       }
-      guard removeFile(path: fullPath) else { return false }
     }
+    guard removeProfileMedia(ofNoteAt: pair.path, except: nil) else { return false }
     guard let editable = beginEdit(path: pair.path) else { return false }
     var note = editable.note
     note.display = NoteDisplay(cover: nil, featured: note.display.featured)

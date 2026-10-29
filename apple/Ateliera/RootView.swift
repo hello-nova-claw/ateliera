@@ -903,7 +903,7 @@ struct ProfileAvatar: View {
     .frame(width: size, height: size)
     .clipShape(Circle())
     .overlay(Circle().stroke(theme.line, lineWidth: 1))
-    .accessibilityLabel(image == nil ? "No profile photo yet" : "Your profile photo")
+    .accessibilityLabel(image == nil ? Text("No profile photo yet") : Text("Your profile photo"))
     .accessibilityIdentifier(identifier ?? "")
     .task(id: store.profileChangeStamp) {
       image = store.profileAvatar().flatMap(UIImage.init)
@@ -1443,6 +1443,7 @@ private struct SettingsView: View {
             .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
             .padding(.bottom, 12)
           ProfileEditor(store: store, name: $profileName, onCommitName: commitName)
+          ProfileErrorLine(store: store)
           Divider().overlay(theme.line)
 
           Button {

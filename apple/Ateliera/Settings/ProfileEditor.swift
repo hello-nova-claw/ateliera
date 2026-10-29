@@ -10,6 +10,7 @@ struct ProfileEditor: View {
   @Binding var name: String
   let onCommitName: () -> Void
   @State private var avatarItem: PhotosPickerItem?
+  @State private var importTask: Task<Void, Never>?
 
   private var hasAvatar: Bool { store.hasProfileAvatar }
 
@@ -26,14 +27,23 @@ struct ProfileEditor: View {
         // Text actions, but with a full 44pt row to tap.
         HStack(spacing: 16) {
           PhotosPicker(selection: $avatarItem, matching: .images) {
-            Text(hasAvatar ? "Change photo" : "Add a photo")
-              .font(StudioFont.meta).foregroundStyle(theme.link)
-              .frame(minHeight: 44)
-              .contentShape(Rectangle())
+            Group {
+              if hasAvatar {
+                Text("Change photo")
+              } else {
+                Text("Add a photo")
+              }
+            }
+            .font(StudioFont.meta).foregroundStyle(theme.link)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
           }
           .accessibilityIdentifier("profile-photo-picker")
           if hasAvatar {
             Button {
+              // A picture still being imported must not land after the removal.
+              importTask?.cancel()
+              avatarItem = nil
               _ = store.removeProfileAvatar()
             } label: {
               Text("Remove photo")
@@ -51,12 +61,27 @@ struct ProfileEditor: View {
     .padding(.vertical, 6)
     .onChange(of: avatarItem) { _, item in
       guard let item else { return }
-      Task {
-        if let data = try? await item.loadTransferable(type: Data.self) {
-          _ = store.setProfileAvatar(data: data)
-        }
+      importTask?.cancel()
+      importTask = Task {
+        let data = try? await item.loadTransferable(type: Data.self)
+        guard !Task.isCancelled else { return }
+        if let data { _ = store.setProfileAvatar(data: data) }
         avatarItem = nil
       }
+    }
+  }
+}
+
+// What went wrong with the last profile write, shown wherever the editor is.
+struct ProfileErrorLine: View {
+  @Environment(\.studioTheme) private var theme
+  let store: VaultStore
+
+  var body: some View {
+    if let error = store.error {
+      Text(error).font(StudioFont.meta).foregroundStyle(theme.celebration)
+        .padding(.top, 12)
+        .accessibilityIdentifier("profile-error")
     }
   }
 }
@@ -68,8 +93,10 @@ struct ProfileSheet: View {
   let onClose: () -> Void
   @State private var name: String = ""
 
-  private func commitName() {
-    if name != (store.profileName ?? "") { _ = store.setProfileName(name) }
+  @discardableResult
+  private func commitName() -> Bool {
+    guard name != (store.profileName ?? "") else { return true }
+    return store.setProfileName(name)
   }
 
   var body: some View {
@@ -79,12 +106,8 @@ struct ProfileSheet: View {
           Text("PROFILE")
             .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
             .padding(.bottom, 12)
-          ProfileEditor(store: store, name: $name, onCommitName: commitName)
-          if let error = store.error {
-            Text(error).font(StudioFont.meta).foregroundStyle(theme.celebration)
-              .padding(.top, 12)
-              .accessibilityIdentifier("profile-error")
-          }
+          ProfileEditor(store: store, name: $name, onCommitName: { commitName() })
+          ProfileErrorLine(store: store)
         }
         .padding(24)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -99,8 +122,8 @@ struct ProfileSheet: View {
         }
         ToolbarItem(placement: .confirmationAction) {
           Button("Done") {
-            commitName()
-            onClose()
+            // A failed save keeps the sheet open with the error shown, so nothing typed is lost.
+            if commitName() { onClose() }
           }
           .font(StudioFont.control)
         }
