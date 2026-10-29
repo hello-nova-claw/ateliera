@@ -13,6 +13,11 @@ disabled_rules:
   # swift-format decides trailing commas and where braces go.
   - trailing_comma
   - opening_brace
+  # The baseline can't hold these: their reason carries the current line count, so
+  # any edit to a file already over the limit stops matching and fails the job (#202).
+  # Back on once RootView.swift (#89) and VaultStore.swift (#93) are split.
+  - file_length
+  - type_body_length
 
 custom_rules:
   no_print:
