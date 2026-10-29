@@ -512,7 +512,16 @@ final class CaptureFlowUITests: XCTestCase {
     let feelings = app.otherElements["feelings-card"]
     XCTAssertTrue(feelings.waitForExistence(timeout: 8), "feelings card missing")
     XCTAssertTrue(app.staticTexts["HOW I WANT TO FEEL"].exists)
-    XCTAssertTrue(app.buttons["Unhurried"].firstMatch.exists)
+    let unhurried = app.buttons["Unhurried"].firstMatch
+    XCTAssertTrue(unhurried.exists)
+    // Tapping a feeling opens its note in the editor.
+    unhurried.tap()
+    let editor = app.textViews["note-body-editor"]
+    XCTAssertTrue(editor.waitForExistence(timeout: 5), "feeling should open in the editor")
+    XCTAssertTrue(
+      (editor.value as? String ?? "").contains("Unhurried"), "editor should show the feeling")
+    app.buttons["Cancel"].firstMatch.tap()
+    XCTAssertTrue(feelings.waitForExistence(timeout: 5))
     // Principles still live in the tucked-away "Today" panel, and the feelings are not
     // repeated there.
     let today = app.buttons["today-panel-toggle"]
