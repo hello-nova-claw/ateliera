@@ -257,7 +257,8 @@ final class CaptureFlowUITests: XCTestCase {
     let room = roomButton("identity-studio", in: app)
     XCTAssertTrue(room.waitForExistence(timeout: 8))
     room.tap()
-    XCTAssertTrue(app.navigationBars["Identity Studio"].waitForExistence(timeout: 5), "did not navigate")
+    XCTAssertTrue(
+      app.navigationBars["Identity Studio"].waitForExistence(timeout: 5), "did not navigate")
     // All seven sections render; the seeded practicing-now card is visible.
     XCTAssertTrue(app.staticTexts["Already true"].waitForExistence(timeout: 5))
     XCTAssertTrue(app.staticTexts["Practicing now"].exists)
@@ -433,7 +434,8 @@ final class CaptureFlowUITests: XCTestCase {
     let room = roomButton("reflection-garden", in: app)
     XCTAssertTrue(room.waitForExistence(timeout: 8))
     room.tap()
-    XCTAssertTrue(app.staticTexts["Finished the hard email."].firstMatch.waitForExistence(timeout: 5))
+    XCTAssertTrue(
+      app.staticTexts["Finished the hard email."].firstMatch.waitForExistence(timeout: 5))
   }
 
   func testGratitudeThreadDeepensTheEntry() {
@@ -448,7 +450,8 @@ final class CaptureFlowUITests: XCTestCase {
 
     // The gratitude thread opens with a follow-up prompt; answer it, then finish.
     let prompt = app.staticTexts.containing(
-      NSPredicate(format: "label CONTAINS %@", "helped make it happen")).firstMatch
+      NSPredicate(format: "label CONTAINS %@", "helped make it happen")
+    ).firstMatch
     XCTAssertTrue(prompt.waitForExistence(timeout: 8))
     type("My mentor talked me through it.", into: app.textViews["workshop-editor"], in: app)
     app.buttons["workshop-next"].tap()
@@ -651,7 +654,9 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(inbox.waitForExistence(timeout: 5))
     inbox.tap()
     app.buttons["room-capture-button"].tap()
-    type("More space\nI want more space than I thought.", into: app.textViews["note-body-editor"], in: app)
+    type(
+      "More space\nI want more space than I thought.", into: app.textViews["note-body-editor"],
+      in: app)
     app.buttons["note-save-button"].tap()
 
     // A gentle offer appears — accept it to open the workshop on the seed.
