@@ -903,6 +903,7 @@ struct ProfileAvatar: View {
     .frame(width: size, height: size)
     .clipShape(Circle())
     .overlay(Circle().stroke(theme.line, lineWidth: 1))
+    .accessibilityLabel(image == nil ? "No profile photo yet" : "Your profile photo")
     .accessibilityIdentifier(identifier ?? "")
     .task(id: store.profileChangeStamp) {
       image = store.profileAvatar().flatMap(UIImage.init)

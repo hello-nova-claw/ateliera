@@ -23,17 +23,26 @@ struct ProfileEditor: View {
           .submitLabel(.done)
           .onSubmit(onCommitName)
           .accessibilityIdentifier("profile-name-field")
+        // Text actions, but with a full 44pt row to tap.
         HStack(spacing: 16) {
           PhotosPicker(selection: $avatarItem, matching: .images) {
             Text(hasAvatar ? "Change photo" : "Add a photo")
               .font(StudioFont.meta).foregroundStyle(theme.link)
+              .frame(minHeight: 44)
+              .contentShape(Rectangle())
           }
           .accessibilityIdentifier("profile-photo-picker")
           if hasAvatar {
-            Button("Remove photo") { _ = store.removeProfileAvatar() }
-              .font(StudioFont.meta).foregroundStyle(theme.link)
-              .buttonStyle(.plain)
-              .accessibilityIdentifier("profile-photo-remove")
+            Button {
+              _ = store.removeProfileAvatar()
+            } label: {
+              Text("Remove photo")
+                .font(StudioFont.meta).foregroundStyle(theme.link)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("profile-photo-remove")
           }
         }
       }
