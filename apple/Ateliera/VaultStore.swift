@@ -807,17 +807,28 @@ final class VaultStore {
     return removeProfileMedia(ofNoteAt: path, except: keep)
   }
 
-  /// Every file in the profile note's own `Media` folder, nothing outside it.
-  private func profileMediaPaths(ofNoteAt notePath: String) -> [String] {
+  /// The profile's own pictures: `Media/cover.<ext>` beside the note, in a format
+  /// `setCover` writes. Anything else in that folder belongs to someone else and stays.
+  /// Nil when the vault can't be listed, which is not the same as having no pictures.
+  private func profileMediaPaths(ofNoteAt notePath: String) -> [String]? {
+    guard let vault else { return nil }
     let folder = (notePath as NSString).deletingLastPathComponent
-    let prefix = folder.isEmpty ? "Media/" : "\(folder)/Media/"
-    return listAllPaths().filter { $0.hasPrefix(prefix) }
+    let base = folder.isEmpty ? "Media/cover" : "\(folder)/Media/cover"
+    let own = Set(VaultMedia.mimeByExtension.keys.map { base + $0 })
+    do {
+      return try vault.list(prefix: nil).map(\.path).filter(own.contains)
+    } catch {
+      self.error = "\(error)"
+      return nil
+    }
   }
 
-  /// Delete the profile's pictures, keeping at most one. Missing files are no-ops.
+  /// Delete the profile's pictures, keeping at most one. Missing files are no-ops. A
+  /// vault that can't be listed is a failure, so the reference stays until it can be.
   private func removeProfileMedia(ofNoteAt notePath: String, except keep: String?) -> Bool {
+    guard let paths = profileMediaPaths(ofNoteAt: notePath) else { return false }
     var allRemoved = true
-    for path in profileMediaPaths(ofNoteAt: notePath) where path != keep {
+    for path in paths where path != keep {
       if !removeFile(path: path) { allRemoved = false }
     }
     return allRemoved
@@ -830,8 +841,9 @@ final class VaultStore {
 
   /// Remove the profile picture. The files go first and the reference second, so a
   /// failure part-way leaves a reference the person can still clear: a missing file is a
-  /// no-op on the next try. Only the profile note's own `Media` folder is touched, and
-  /// every picture in it goes, including one a format change superseded.
+  /// no-op on the next try. Only the profile's own pictures go (`Media/cover.*` beside
+  /// the note, including one a format change superseded); anything else in that folder
+  /// is left where it is.
   @discardableResult
   func removeProfileAvatar() -> Bool {
     guard let pair = profilePair, let reference = pair.note.display.cover else { return true }

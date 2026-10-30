@@ -145,6 +145,27 @@ final class ProfileTests: XCTestCase {
       "nothing of the profile's media may survive a removal")
   }
 
+  func testProfilePictureCleanupLeavesOtherFilesInTheMediaFolderAlone() throws {
+    let (dir, store) = try makeStore()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.setProfileName("Juniper"))
+    XCTAssertTrue(store.setProfileAvatar(data: pngData))
+    let profile = try XCTUnwrap(store.parsedNotesByPath.first { $0.note.cardType == "profile" })
+    let folder = (profile.path as NSString).deletingLastPathComponent
+    // A stray file beside the picture is not the profile's to delete.
+    let stray = "\(folder)/Media/notes.txt"
+    XCTAssertNotNil(
+      store.writeRawFile(path: stray, text: "Kept.", expectedHash: nil, createNew: true))
+
+    XCTAssertTrue(store.setProfileAvatar(data: jpegData))
+    XCTAssertTrue(store.listAllPaths().contains(stray), "replacing the photo keeps the stray")
+    XCTAssertTrue(store.removeProfileAvatar())
+    XCTAssertTrue(store.listAllPaths().contains(stray), "removing the photo keeps the stray")
+    XCTAssertFalse(
+      store.listAllPaths().contains { $0.hasPrefix("\(folder)/Media/cover.") },
+      "every picture of the profile's own is gone")
+  }
+
   func testRemoveProfileAvatarWithoutOneIsANoOp() throws {
     let (dir, store) = try makeStore()
     defer { try? FileManager.default.removeItem(at: dir) }
