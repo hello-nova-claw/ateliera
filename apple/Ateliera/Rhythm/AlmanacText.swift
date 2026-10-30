@@ -28,7 +28,8 @@ enum AlmanacText {
     case .meteorological:
       return String(
         localized: "By the meteorological calendar, \(text)", locale: locale,
-        comment: "The season by the month-based calendar. 1: a season line, like Spring · 36% through."
+        comment:
+          "The season by the month-based calendar. 1: a season line, like Spring · 36% through."
       )
     case .astronomical:
       return String(
@@ -43,7 +44,8 @@ enum AlmanacText {
   static func lunarSeasonText(context: RhythmContext, locale: Locale) -> String {
     let progress = percent(context.lunarProgress, locale: locale)
     return String(
-      localized: "\(context.lunarSeason.label) · \(progress) through the lunar month",
+      localized:
+        "\(context.lunarSeason.localizedName(locale: locale)) · \(progress) through the lunar month",
       locale: locale,
       comment:
         "The quarter of the lunar month and how far through it today is. 1: the quarter, like Waning. 2: a percentage."
@@ -54,7 +56,9 @@ enum AlmanacText {
   static func lunationCallout(date: String, locale: Locale) -> String {
     let dayStart = Rhythm.dayMillis(date: date)
     let next = Sky.nextLunation(afterMs: dayStart)
-    return eventLine(title: next.phase.title, eventMs: next.ms, fromMs: dayStart, locale: locale)
+    return eventLine(
+      title: next.phase.localizedName(locale: locale), eventMs: next.ms, fromMs: dayStart,
+      locale: locale)
   }
 
   // The next occurrence of one lunation after the date, as a line and an instant.
@@ -64,7 +68,9 @@ enum AlmanacText {
     let dayStart = Rhythm.dayMillis(date: date)
     let eventMs = Sky.nextMoonPhase(afterMs: dayStart, phase: phase)
     return (
-      eventLine(title: phase.title, eventMs: eventMs, fromMs: dayStart, locale: locale), eventMs
+      eventLine(
+        title: phase.localizedName(locale: locale), eventMs: eventMs, fromMs: dayStart,
+        locale: locale), eventMs
     )
   }
 
@@ -78,7 +84,8 @@ enum AlmanacText {
     let dayStart = Rhythm.dayMillis(date: date)
     let next = Sky.nextTurningPoint(afterMs: dayStart)
     let line = eventLine(
-      title: next.point.title, eventMs: next.ms, fromMs: dayStart, locale: locale)
+      title: next.point.localizedName(locale: locale), eventMs: next.ms, fromMs: dayStart,
+      locale: locale)
     let text = String(
       localized: "Next turning point: \(line)", locale: locale,
       comment: "1: an event and when it falls, like June solstice in 51 days.")
@@ -117,5 +124,47 @@ enum AlmanacText {
   // A whole-number percentage in the person's locale, like "42%".
   static func percent(_ fraction: Double, locale: Locale) -> String {
     fraction.formatted(.percent.precision(.fractionLength(0)).locale(locale))
+  }
+}
+
+// The names that go inside the sentences above. Sentence-initial, as they start a line.
+extension LunarSeason {
+  func localizedName(locale: Locale) -> String {
+    switch self {
+    case .new: return String(localized: "New moon", locale: locale, comment: "Lunar quarter name")
+    case .waxing: return String(localized: "Waxing", locale: locale, comment: "Lunar quarter name")
+    case .full: return String(localized: "Full moon", locale: locale, comment: "Lunar quarter name")
+    case .waning: return String(localized: "Waning", locale: locale, comment: "Lunar quarter name")
+    }
+  }
+}
+
+extension Sky.MoonPhase {
+  func localizedName(locale: Locale) -> String {
+    switch self {
+    case .new: return String(localized: "New moon", locale: locale, comment: "Lunation name")
+    case .firstQuarter:
+      return String(localized: "First quarter", locale: locale, comment: "Lunation name")
+    case .full: return String(localized: "Full moon", locale: locale, comment: "Lunation name")
+    case .lastQuarter:
+      return String(localized: "Last quarter", locale: locale, comment: "Lunation name")
+    }
+  }
+}
+
+extension Sky.TurningPoint {
+  func localizedName(locale: Locale) -> String {
+    switch self {
+    case .marchEquinox:
+      return String(localized: "March equinox", locale: locale, comment: "Turning point name")
+    case .juneSolstice:
+      return String(localized: "June solstice", locale: locale, comment: "Turning point name")
+    case .septemberEquinox:
+      return String(
+        localized: "September equinox", locale: locale, comment: "Turning point name")
+    case .decemberSolstice:
+      return String(
+        localized: "December solstice", locale: locale, comment: "Turning point name")
+    }
   }
 }
