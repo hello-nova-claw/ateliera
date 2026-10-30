@@ -257,7 +257,8 @@ final class CaptureFlowUITests: XCTestCase {
     let room = roomButton("identity-studio", in: app)
     XCTAssertTrue(room.waitForExistence(timeout: 8))
     room.tap()
-    XCTAssertTrue(app.navigationBars["Identity Studio"].waitForExistence(timeout: 5), "did not navigate")
+    XCTAssertTrue(
+      app.navigationBars["Identity Studio"].waitForExistence(timeout: 5), "did not navigate")
     // All seven sections render; the seeded practicing-now card is visible.
     XCTAssertTrue(app.staticTexts["Already true"].waitForExistence(timeout: 5))
     XCTAssertTrue(app.staticTexts["Practicing now"].exists)
@@ -433,7 +434,8 @@ final class CaptureFlowUITests: XCTestCase {
     let room = roomButton("reflection-garden", in: app)
     XCTAssertTrue(room.waitForExistence(timeout: 8))
     room.tap()
-    XCTAssertTrue(app.staticTexts["Finished the hard email."].firstMatch.waitForExistence(timeout: 5))
+    XCTAssertTrue(
+      app.staticTexts["Finished the hard email."].firstMatch.waitForExistence(timeout: 5))
   }
 
   func testGratitudeThreadDeepensTheEntry() {
@@ -448,7 +450,8 @@ final class CaptureFlowUITests: XCTestCase {
 
     // The gratitude thread opens with a follow-up prompt; answer it, then finish.
     let prompt = app.staticTexts.containing(
-      NSPredicate(format: "label CONTAINS %@", "helped make it happen")).firstMatch
+      NSPredicate(format: "label CONTAINS %@", "helped make it happen")
+    ).firstMatch
     XCTAssertTrue(prompt.waitForExistence(timeout: 8))
     type("My mentor talked me through it.", into: app.textViews["workshop-editor"], in: app)
     app.buttons["workshop-next"].tap()
@@ -505,13 +508,29 @@ final class CaptureFlowUITests: XCTestCase {
     let becoming = app.otherElements["foyer-hero-becoming"]
     XCTAssertTrue(becoming.waitForExistence(timeout: 8))
     XCTAssertTrue(becoming.label.contains("Someone who rests"))
-    // The feelings + principles still live in the tucked-away "Today" panel.
+    // "How I want to feel" is its own card on Today, visible without opening any panel.
+    let feelings = app.otherElements["feelings-card"]
+    XCTAssertTrue(feelings.waitForExistence(timeout: 8), "feelings card missing")
+    XCTAssertTrue(app.staticTexts["HOW I WANT TO FEEL"].exists)
+    let unhurried = app.buttons["Unhurried"].firstMatch
+    XCTAssertTrue(unhurried.exists)
+    // Tapping a feeling opens its note in the editor.
+    unhurried.tap()
+    let editor = app.textViews["note-body-editor"]
+    XCTAssertTrue(editor.waitForExistence(timeout: 5), "feeling should open in the editor")
+    XCTAssertTrue(
+      (editor.value as? String ?? "").contains("Unhurried"), "editor should show the feeling")
+    app.buttons["Cancel"].firstMatch.tap()
+    XCTAssertTrue(feelings.waitForExistence(timeout: 5))
+    // Principles still live in the tucked-away "Today" panel, and the feelings are not
+    // repeated there.
     let today = app.buttons["today-panel-toggle"]
     XCTAssertTrue(today.waitForExistence(timeout: 8))
     today.tap()
-    XCTAssertTrue(app.staticTexts["HOW I WANT TO FEEL"].exists)
-    XCTAssertTrue(app.staticTexts["Unhurried"].firstMatch.exists)
-    XCTAssertTrue(app.staticTexts["Depth over breadth"].firstMatch.exists)
+    XCTAssertTrue(app.staticTexts["Depth over breadth"].firstMatch.waitForExistence(timeout: 5))
+    XCTAssertEqual(
+      app.staticTexts.matching(NSPredicate(format: "label == %@", "HOW I WANT TO FEEL")).count,
+      1, "feelings should appear once, on the card")
   }
 
   func testRhythmLayersGateHidesAlmanac() {
@@ -644,7 +663,9 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(inbox.waitForExistence(timeout: 5))
     inbox.tap()
     app.buttons["room-capture-button"].tap()
-    type("More space\nI want more space than I thought.", into: app.textViews["note-body-editor"], in: app)
+    type(
+      "More space\nI want more space than I thought.", into: app.textViews["note-body-editor"],
+      in: app)
     app.buttons["note-save-button"].tap()
 
     // A gentle offer appears — accept it to open the workshop on the seed.

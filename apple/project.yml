@@ -89,6 +89,8 @@ targets:
       macOS: "14.0"
     sources:
       - path: AtelieraTests
+      # The accessibility audit's triage rules, so they have unit tests without a simulator.
+      - path: AtelieraUITests/AuditTriage.swift
     dependencies:
       - target: Ateliera
     settings:

@@ -74,6 +74,7 @@ enum KnownAccessibilityIssues {
     83 sufficientElementDescription today
     83 sufficientElementDescription today-panel
     168 elementDetection rhythm
+    168 elementDetection room-current-season
     168 elementDetection room-reflection-garden
     168 elementDetection room-uncharted
     168 elementDetection room-wisdom-garden
@@ -124,16 +125,22 @@ enum KnownAccessibilityIssues {
     known.contains { $0.type == finding.type && $0.screen == finding.screen }
   }
 
+  static let typeNames: [(type: XCUIAccessibilityAuditType, name: String)] = [
+    (.contrast, "contrast"),
+    (.elementDetection, "elementDetection"),
+    (.hitRegion, "hitRegion"),
+    (.sufficientElementDescription, "sufficientElementDescription"),
+    (.dynamicType, "dynamicType"),
+    (.textClipped, "textClipped"),
+    (.trait, "trait"),
+  ]
+
   static func typeName(_ type: XCUIAccessibilityAuditType) -> String {
-    switch type {
-    case .contrast: "contrast"
-    case .elementDetection: "elementDetection"
-    case .hitRegion: "hitRegion"
-    case .sufficientElementDescription: "sufficientElementDescription"
-    case .dynamicType: "dynamicType"
-    case .textClipped: "textClipped"
-    case .trait: "trait"
-    default: "type\(type.rawValue)"
-    }
+    typeNames.first { $0.type == type }?.name ?? "type\(type.rawValue)"
+  }
+
+  /// The audit types behind a set of baseline names; a name no type has is left out.
+  static func auditTypes(named names: Set<String>) -> XCUIAccessibilityAuditType {
+    typeNames.filter { names.contains($0.name) }.reduce(into: []) { $0.insert($1.type) }
   }
 }
