@@ -77,7 +77,7 @@ describe('First Visit', () => {
     expect(screen.getAllByText('Example')).toHaveLength(3);
     fireEvent.click(
       screen.getByRole('button', {
-        name: 'Use Currently becoming as a starting point',
+        name: 'Use as a starting point: Currently becoming',
       }),
     );
     expect(use).toHaveBeenCalledWith(

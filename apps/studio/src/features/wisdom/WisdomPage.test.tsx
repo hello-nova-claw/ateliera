@@ -67,7 +67,7 @@ it('reads by theme, preserves type and source, and opens a note', () => {
     screen.getByText('A thoughtful teacher · A useful book'),
   ).toBeVisible();
   fireEvent.click(
-    screen.getByRole('button', { name: 'Open Identity can be practiced' }),
+    screen.getByRole('button', { name: /^Identity can be practiced/ }),
   );
   expect(onOpen).toHaveBeenCalledWith(
     model.cards[0],

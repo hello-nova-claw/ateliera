@@ -56,7 +56,7 @@ it('places temporary tour examples in the authentic Foyer spread', () => {
   expect(screen.getByLabelText('Example Guiding principle card')).toBeVisible();
   fireEvent.click(
     screen.getByRole('button', {
-      name: /Use Currently becoming as a starting point/,
+      name: 'Use as a starting point: Currently becoming',
     }),
   );
   expect(onUseTourExample).toHaveBeenCalledWith(

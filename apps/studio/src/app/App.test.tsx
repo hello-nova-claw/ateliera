@@ -338,10 +338,10 @@ it('renders only the entry boundary before a Studio Space is active', () => {
     screen.queryByRole('navigation', { name: 'Mobile navigation' }),
   ).not.toBeInTheDocument();
   expect(
-    screen.queryByRole('button', { name: 'Search' }),
+    screen.queryByRole('button', { name: /^Search/ }),
   ).not.toBeInTheDocument();
   expect(
-    screen.queryByRole('button', { name: 'Capture' }),
+    screen.queryByRole('button', { name: 'New capture' }),
   ).not.toBeInTheDocument();
   expect(replaceState).not.toHaveBeenCalledWith(null, '', '/foyer');
   expect(location.pathname).toBe('/not-a-room');
@@ -1232,7 +1232,7 @@ it('describes best-effort local storage without an alarm', async () => {
       requestPersistence={async () => 'best-effort'}
     />,
   );
-  fireEvent.click(screen.getAllByRole('button', { name: 'Capture' })[0]!);
+  fireEvent.click(screen.getAllByRole('button', { name: 'New capture' })[0]!);
   fireEvent.change(
     screen.getByRole('textbox', { name: 'What would you like remembered?' }),
     { target: { value: 'The hill' } },
@@ -1257,7 +1257,7 @@ it.each(['Not now', 'Remember'])(
         }}
       />,
     );
-    const capture = screen.getAllByRole('button', { name: 'Capture' })[0]!;
+    const capture = screen.getAllByRole('button', { name: 'New capture' })[0]!;
     fireEvent.click(capture);
     if (action === 'Remember') {
       fireEvent.change(
@@ -1270,7 +1270,7 @@ it.each(['Not now', 'Remember'])(
     fireEvent.click(screen.getByRole('button', { name: action }));
     await waitFor(() =>
       expect(
-        screen.getAllByRole('button', { name: 'Capture' })[0],
+        screen.getAllByRole('button', { name: 'New capture' })[0],
       ).toHaveFocus(),
     );
   },
@@ -1558,7 +1558,7 @@ it('applies optional capture meaning in the single atomic capture operation', as
   const fixture = studioService();
   render(<App studioId="studio:first" studioService={fixture.service} />);
 
-  fireEvent.click(screen.getAllByRole('button', { name: 'Capture' })[0]!);
+  fireEvent.click(screen.getAllByRole('button', { name: 'New capture' })[0]!);
   fireEvent.change(
     screen.getByRole('textbox', { name: 'What would you like remembered?' }),
     { target: { value: 'A possible retreat' } },
@@ -1690,7 +1690,7 @@ it('lists every room in the palette for an existing Studio with no preferences',
   render(<App studioId="studio:first" studioService={fixture.service} />);
   await screen.findByText('What are you currently becoming?');
 
-  fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Search/ }));
   const palette = await screen.findByRole('listbox', { name: 'Commands' });
   expect(within(palette).getByRole('option', { name: 'Open Identity Studio' })).toBeVisible();
   expect(within(palette).getByRole('option', { name: 'Open Current Season' })).toBeVisible();
@@ -1721,7 +1721,7 @@ it('hides optional rooms in the palette for a small-core Studio but keeps a way 
   render(<App studioId="studio:small" studioService={fixture.service} />);
   await screen.findByText('What are you currently becoming?');
 
-  fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+  fireEvent.click(screen.getByRole('button', { name: /^Search/ }));
   const palette = await screen.findByRole('listbox', { name: 'Commands' });
   expect(within(palette).queryByRole('option', { name: 'Open Identity Studio' })).toBeNull();
   expect(within(palette).queryByRole('option', { name: 'Open Current Season' })).toBeNull();

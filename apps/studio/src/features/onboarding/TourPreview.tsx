@@ -32,7 +32,7 @@ export function TourExampleCard({
       <p>{example.body}</p>
       {example.startingPoint && onUse && (
         <button
-          aria-label={`Use ${example.label} as a starting point`}
+          aria-label={`Use as a starting point: ${example.label}`}
           onClick={(event) => onUse(example, event.currentTarget)}
           type="button"
         >

@@ -1,0 +1,1 @@
+Buttons in the web app now have names that include the words you see on them, so you can reach them by saying what's on screen with Voice Control.

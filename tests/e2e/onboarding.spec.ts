@@ -147,7 +147,7 @@ test('wanders through five furnished rooms without persisting examples', async (
 
   await page
     .getByRole('button', {
-      name: 'Use Currently becoming as a starting point',
+      name: 'Use as a starting point: Currently becoming',
     })
     .click();
   await expect(
@@ -160,7 +160,7 @@ test('wanders through five furnished rooms without persisting examples', async (
 
   await page
     .getByRole('button', {
-      name: 'Use Currently becoming as a starting point',
+      name: 'Use as a starting point: Currently becoming',
     })
     .click();
   await page.getByRole('button', { name: 'Remember', exact: true }).click();

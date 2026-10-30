@@ -559,7 +559,6 @@ export function WisdomPage({
                       className="wisdom-card__open"
                       onClick={(event) => onOpen?.(card, event.currentTarget)}
                       type="button"
-                      aria-label={`Open ${card.title}`}
                     >
                       <span className="wisdom-card__title">{card.title}</span>
                       {card.excerpt && (

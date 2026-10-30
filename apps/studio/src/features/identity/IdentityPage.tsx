@@ -423,7 +423,7 @@ export function IdentityPage({
               )}
             <IdentityEvidence card={model.currentlyBecoming} onOpen={onOpen} />
             <button
-              aria-label={`Open ${model.currentlyBecoming.title}`}
+              aria-label={`Open this thought: ${model.currentlyBecoming.title}`}
               onClick={(event) =>
                 onOpen(model.currentlyBecoming!, event.currentTarget)
               }
