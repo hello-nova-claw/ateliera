@@ -34,6 +34,8 @@ final class AccessibilityAuditUITests: XCTestCase {
     let app = XCUIApplication()
     app.launchEnvironment["ATELIERA_UITEST"] = "1"
     app.launchEnvironment["ATELIERA_UITEST_NOW"] = "2026-03-20T09:30:00Z"
+    // An invented cycle, so the cycle badge and its sheet are on screen to audit.
+    app.launchEnvironment["ATELIERA_UITEST_CYCLE"] = "1"
     app.launchEnvironment["TZ"] = "Europe/London"
     app.launchArguments = arguments
     app.launch()

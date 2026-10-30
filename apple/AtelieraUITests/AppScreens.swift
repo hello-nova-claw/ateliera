@@ -28,6 +28,19 @@ enum AppScreens {
         close: { app in tap(app.buttons["today-panel-toggle"]) }),
       AppScreen(name: "browse", open: { tab($0, .browse) }, close: { _ in }),
     ]
+      // The sheets behind the Today card's badges. The cycle badge is only there when the
+      // launch sets ATELIERA_UITEST_CYCLE, which the audit does.
+      + ["season", "moon", "cycle"].map { rhythm in
+        AppScreen(
+          name: "badge-\(rhythm)",
+          open: { app in
+            tab(app, .today)
+            let badge = app.buttons["rhythm-badge-\(rhythm)"]
+            scrollTo(badge, in: app)
+            tap(badge)
+          },
+          close: dismissSheet)
+      }
       + rooms.map { room in
         AppScreen(
           name: "room-\(room)",
