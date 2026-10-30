@@ -118,12 +118,13 @@ final class AccessibilityAuditUITests: XCTestCase {
     }
   }
 
-  /// Returns once two snapshots of the hierarchy in a row match, so the second pass
-  /// audits a screen at rest rather than one still being laid out. Bounded, so a
-  /// screen that never settles is still audited.
+  /// Returns once two snapshots of the hierarchy taken half a second apart match, so an
+  /// audit sees a screen at rest rather than one still animating or being laid out.
+  /// Bounded at five beats, so a screen that never settles is still audited.
   private func waitUntilSettled(_ app: XCUIApplication) {
     var before = app.debugDescription
     for _ in 0..<5 {
+      _ = XCTWaiter.wait(for: [XCTestExpectation(description: "a beat")], timeout: 0.5)
       let now = app.debugDescription
       if now == before { return }
       before = now
