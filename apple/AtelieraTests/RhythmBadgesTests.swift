@@ -1,0 +1,199 @@
+import SwiftUI
+import XCTest
+
+@testable import Ateliera
+
+// The Today card's badge row: which circles show (season always, moon always, cycle only
+// when a cycle is known), which glyph each carries, which limb of the moon is lit, and
+// what VoiceOver reads for each. Pure, so the view is a thin render over it.
+final class RhythmBadgesTests: XCTestCase {
+  private let english = Locale(identifier: "en_US")
+
+  private func context(
+    moon: MoonState = MoonState(phase: .waningGibbous, illumination: 0.62),
+    lunarProgress: Double = 0.6,
+    cycle: CycleState? = nil
+  ) -> RhythmContext {
+    RhythmContext(
+      date: "2026-04-10", season: .spring,
+      microSeason: MicroSeason(term: "The First Green", gloss: "buds unfold"),
+      moon: moon, lunarSeason: lunarProgress < 0.5 ? .waxing : .waning,
+      lunarProgress: lunarProgress, cycle: cycle, placements: [:])
+  }
+
+  // MARK: Which badges
+
+  func testSeasonAndMoonOnlyWithoutACycle() {
+    let badges = RhythmBadge.badges(for: context(), feltSeason: .spring, hemisphere: .north)
+    XCTAssertEqual(
+      badges,
+      [
+        .season(.spring),
+        .moon(phase: .waningGibbous, illumination: 0.62, litRight: false),
+      ])
+  }
+
+  func testCycleBadgeFollowsWhenACycleIsKnown() {
+    let badges = RhythmBadge.badges(
+      for: context(cycle: CycleState(day: 12, phase: .follicular)), feltSeason: .spring,
+      hemisphere: .north)
+    XCTAssertEqual(badges.count, 3)
+    XCTAssertEqual(badges.last, .cycle(day: 12, phase: .follicular))
+  }
+
+  func testFeltSeasonIsTheOneShown() {
+    // The felt season comes from the person's season style, not the context's
+    // meteorological one, so the badge takes it as given.
+    let badges = RhythmBadge.badges(for: context(), feltSeason: .autumn, hemisphere: .south)
+    XCTAssertEqual(badges.first, .season(.autumn))
+  }
+
+  // MARK: Glyphs
+
+  func testEverySeasonHasItsOwnSymbol() {
+    let symbols = [Season.winter, .spring, .summer, .autumn].map {
+      RhythmBadge.season($0).symbol
+    }
+    XCTAssertEqual(symbols, ["snowflake", "leaf", "sun.max", "wind"])
+  }
+
+  func testEveryCyclePhaseHasADistinctSymbol() {
+    let phases: [CyclePhase] = [.menstrual, .follicular, .ovulation, .luteal]
+    let symbols = phases.map { RhythmBadge.cycle(day: 1, phase: $0).symbol }
+    XCTAssertEqual(symbols[0], "drop")
+    XCTAssertEqual(Set(symbols).count, phases.count, "each phase needs its own shape")
+    XCTAssertFalse(symbols.contains("leaf"), "the cycle must not borrow the spring glyph")
+  }
+
+  func testTheMoonIsDrawnNotSymbolised() {
+    XCTAssertNil(RhythmBadge.moon(phase: .full, illumination: 1, litRight: true).symbol)
+  }
+
+  // MARK: Lit limb
+
+  func testWaxingMoonIsLitOnTheRightInTheNorth() {
+    for progress in [0.05, 0.25, 0.49] {
+      let badges = RhythmBadge.badges(
+        for: context(
+          moon: MoonState(phase: .waxingCrescent, illumination: 0.4), lunarProgress: progress),
+        feltSeason: .spring, hemisphere: .north)
+      XCTAssertEqual(
+        badges[1], .moon(phase: .waxingCrescent, illumination: 0.4, litRight: true), "\(progress)")
+    }
+  }
+
+  func testWaningMoonIsLitOnTheLeftInTheNorth() {
+    for progress in [0.5, 0.75, 0.95] {
+      let badges = RhythmBadge.badges(
+        for: context(
+          moon: MoonState(phase: .waningGibbous, illumination: 0.4), lunarProgress: progress),
+        feltSeason: .spring, hemisphere: .north)
+      XCTAssertEqual(
+        badges[1], .moon(phase: .waningGibbous, illumination: 0.4, litRight: false), "\(progress)")
+    }
+  }
+
+  func testLitSideFollowsTheLunarMonthNotThePhaseName() {
+    // Just before the exact full moon the phase window already says "full", but the moon is
+    // still waxing, so its lit limb stays on the waxing side.
+    let badges = RhythmBadge.badges(
+      for: context(moon: MoonState(phase: .full, illumination: 0.97), lunarProgress: 0.49),
+      feltSeason: .spring, hemisphere: .north)
+    XCTAssertEqual(badges[1], .moon(phase: .full, illumination: 0.97, litRight: true))
+  }
+
+  func testTheSouthernHemisphereMirrorsTheMoon() {
+    let waxing = RhythmBadge.badges(
+      for: context(moon: MoonState(phase: .waxingCrescent, illumination: 0.2), lunarProgress: 0.2),
+      feltSeason: .autumn, hemisphere: .south)
+    XCTAssertEqual(waxing[1], .moon(phase: .waxingCrescent, illumination: 0.2, litRight: false))
+    let waning = RhythmBadge.badges(
+      for: context(moon: MoonState(phase: .lastQuarter, illumination: 0.5), lunarProgress: 0.75),
+      feltSeason: .autumn, hemisphere: .south)
+    XCTAssertEqual(waning[1], .moon(phase: .lastQuarter, illumination: 0.5, litRight: true))
+  }
+
+  // MARK: Labels
+
+  func testLabelsReadNaturallyAndTheCycleSaysEstimated() {
+    XCTAssertEqual(RhythmBadge.season(.spring).label(locale: english), "Spring")
+    XCTAssertEqual(
+      RhythmBadge.moon(phase: .waningGibbous, illumination: 0.62, litRight: false)
+        .label(locale: english),
+      "Waning gibbous moon, 62% lit")
+    XCTAssertEqual(
+      RhythmBadge.cycle(day: 12, phase: .follicular).label(locale: english),
+      "Cycle day 12, estimated follicular phase")
+  }
+
+  func testEveryPhaseAndSeasonHasALabelAndADrawnMoon() {
+    for phase in MoonPhase.allCases {
+      for hemisphere in [Hemisphere.north, .south] {
+        let badges = RhythmBadge.badges(
+          for: context(moon: MoonState(phase: phase, illumination: 0.3)), feltSeason: .winter,
+          hemisphere: hemisphere)
+        guard case .moon(let shown, _, _) = badges[1] else { return XCTFail("\(phase)") }
+        XCTAssertEqual(shown, phase)
+        XCTAssertNil(badges[1].symbol, "the moon is always drawn")
+        let label = badges[1].label(locale: english)
+        XCTAssertTrue(label.hasSuffix(" moon, 30% lit"), "\(phase): \(label)")
+        XCTAssertFalse(label.contains("-"), "\(phase): raw value leaked into \(label)")
+      }
+    }
+    for season in [Season.winter, .spring, .summer, .autumn] {
+      XCTAssertFalse(RhythmBadge.season(season).label(locale: english).isEmpty)
+    }
+    for phase in [CyclePhase.menstrual, .follicular, .ovulation, .luteal] {
+      let label = RhythmBadge.cycle(day: 3, phase: phase).label(locale: english)
+      XCTAssertTrue(label.hasPrefix("Cycle day 3, estimated "), label)
+      XCTAssertTrue(label.hasSuffix(" phase"), label)
+    }
+  }
+
+  func testIdentifiersNameTheBadgeKind() {
+    XCTAssertEqual(RhythmBadge.season(.winter).identifier, "rhythm-badge-season")
+    XCTAssertEqual(
+      RhythmBadge.moon(phase: .new, illumination: 0, litRight: true).identifier,
+      "rhythm-badge-moon")
+    XCTAssertEqual(
+      RhythmBadge.cycle(day: 1, phase: .menstrual).identifier, "rhythm-badge-cycle")
+  }
+
+  // MARK: The drawn moon
+
+  private let frame = CGRect(x: 0, y: 0, width: 20, height: 20)
+
+  func testNewMoonDrawsNothingLit() {
+    XCTAssertTrue(MoonLitShape(illumination: 0, litRight: true).path(in: frame).isEmpty)
+  }
+
+  func testFullMoonLightsTheWholeDisc() {
+    let bounds = MoonLitShape(illumination: 1, litRight: true).path(in: frame).boundingRect
+    XCTAssertEqual(bounds.minX, 0, accuracy: 0.5)
+    XCTAssertEqual(bounds.maxX, 20, accuracy: 0.5)
+  }
+
+  func testCrescentStaysOnTheLitLimb() {
+    let right = MoonLitShape(illumination: 0.25, litRight: true).path(in: frame).boundingRect
+    XCTAssertGreaterThanOrEqual(right.minX, 10 - 0.5)
+    XCTAssertEqual(right.maxX, 20, accuracy: 0.5)
+    let left = MoonLitShape(illumination: 0.25, litRight: false).path(in: frame).boundingRect
+    XCTAssertLessThanOrEqual(left.maxX, 10 + 0.5)
+    XCTAssertEqual(left.minX, 0, accuracy: 0.5)
+  }
+
+  func testGibbousCrossesTheCentreLine() {
+    let right = MoonLitShape(illumination: 0.75, litRight: true).path(in: frame).boundingRect
+    XCTAssertEqual(right.minX, 5, accuracy: 0.5)
+    XCTAssertEqual(right.maxX, 20, accuracy: 0.5)
+    let left = MoonLitShape(illumination: 0.75, litRight: false).path(in: frame).boundingRect
+    XCTAssertEqual(left.minX, 0, accuracy: 0.5)
+    XCTAssertEqual(left.maxX, 15, accuracy: 0.5)
+  }
+
+  func testQuarterLightsExactlyHalf() {
+    let bounds = MoonLitShape(illumination: 0.5, litRight: true).path(in: frame).boundingRect
+    XCTAssertEqual(bounds.minX, 10, accuracy: 0.5)
+    XCTAssertEqual(bounds.maxX, 20, accuracy: 0.5)
+  }
+}
