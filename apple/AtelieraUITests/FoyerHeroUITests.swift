@@ -69,7 +69,8 @@ final class ProfileSheetUITests: XCTestCase {
 }
 
 // The Today card's rhythm badges: a season and a drawn moon for everyone, and a cycle
-// badge only when Health shares a cycle, which under UI tests it never does.
+// badge only when Health shares a cycle, which under UI tests it does only when the
+// launch asks for an invented one. Each badge is a button that opens its own sheet.
 final class RhythmBadgesUITests: XCTestCase {
   override func setUp() { continueAfterFailure = false }
 
@@ -78,16 +79,49 @@ final class RhythmBadgesUITests: XCTestCase {
     app.launchEnvironment["ATELIERA_UITEST"] = "1"
     app.launch()
 
-    let season = app.otherElements["rhythm-badge-season"]
+    let season = app.buttons["rhythm-badge-season"]
     XCTAssertTrue(season.waitForExistence(timeout: 10), "season badge missing")
     XCTAssertFalse(season.label.isEmpty, "season badge needs a spoken label")
 
-    let moon = app.otherElements["rhythm-badge-moon"]
+    let moon = app.buttons["rhythm-badge-moon"]
     XCTAssertTrue(moon.exists, "moon badge missing")
     XCTAssertTrue(
       moon.label.lowercased().contains("moon") && moon.label.contains("lit"),
       "moon badge should name the phase and how lit it is; label was \(moon.label)")
 
-    XCTAssertFalse(app.otherElements["rhythm-badge-cycle"].exists, "no cycle, no badge")
+    XCTAssertFalse(app.buttons["rhythm-badge-cycle"].exists, "no cycle, no badge")
+  }
+
+  func testTappingABadgeOpensItsSheetAndTheFeltLineDoesNothing() {
+    let app = XCUIApplication()
+    app.launchEnvironment["ATELIERA_UITEST"] = "1"
+    app.launchEnvironment["ATELIERA_UITEST_CYCLE"] = "1"
+    app.launchEnvironment["ATELIERA_UITEST_NOW"] = "2026-03-20T09:30:00Z"
+    app.launchEnvironment["TZ"] = "Europe/London"
+    app.launch()
+
+    for rhythm in ["season", "moon", "cycle"] {
+      let badge = app.buttons["rhythm-badge-\(rhythm)"]
+      XCTAssertTrue(badge.waitForExistence(timeout: 10), "\(rhythm) badge missing")
+      badge.tap()
+      let headline = app.staticTexts["rhythm-sheet-\(rhythm)-headline"]
+      XCTAssertTrue(headline.waitForExistence(timeout: 8), "\(rhythm) sheet did not open")
+      if rhythm == "cycle" {
+        XCTAssertTrue(headline.label.contains("estimated"), "was \(headline.label)")
+        XCTAssertTrue(app.staticTexts["rhythm-sheet-cycle-note"].exists, "cycle note missing")
+      }
+      app.buttons["Done"].tap()
+      XCTAssertTrue(
+        headline.waitForNonExistence(timeout: 8), "\(rhythm) sheet did not close")
+    }
+
+    // The felt line beside the badges names the cycle day but is not a button.
+    let feltLine = app.staticTexts.containing(
+      NSPredicate(format: "label CONTAINS %@", "Day 11")
+    ).firstMatch
+    XCTAssertTrue(feltLine.waitForExistence(timeout: 5), "felt line missing")
+    XCTAssertEqual(
+      app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Day 11")).count, 0,
+      "the felt line must not be tappable")
   }
 }

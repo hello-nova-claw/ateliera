@@ -42,7 +42,7 @@ Last checked against the code: 27 October 2026.
 | Preferences, sky layers, tour seen, dismissed invitations, migration flag | `UserDefaults` `studio:preferences:*`, `studio:sky-layers:*`, `studio:tour-seen:*`, `studio:invitations-dismissed:*`, `ateliera.inbox-journal-migrated:*`. Per-vault keys contain the vault's folder path. Dismissed invitation IDs can include a cycle phase name. | Default | `Ateliera/Settings/StudioPreferences.swift`, `Ateliera/Foyer/Invitation.swift` |
 | Theme, hemisphere | `UserDefaults` `ateliera.theme`, `ateliera.hemisphere` | Default | `Ateliera/Theme/ThemeStore.swift`, `Ateliera/Shared/SharedStore.swift` |
 | Search index | Memory only. Never written. | n/a | `Ateliera/Search/SearchIndex.swift` |
-| Cycle (from Health) | Memory only. Never written. | n/a | `Ateliera/Rhythm/HealthCycleSource.swift`, `Ateliera/RootView.swift` |
+| Cycle (from Health) | Memory only. Never written. | n/a | `Ateliera/Rhythm/HealthCycleSource.swift`, `Ateliera/RootView.swift`, `Ateliera/Rhythm/RhythmBadgeSheet.swift` |
 | Export ZIP | `tmp/Ateliera-backup.zip`, written with `Data.write` and never deleted. Gap: #36. | None | `Ateliera/DataManagement/ExportView.swift` |
 
 - **Keychain:** not used.
@@ -69,7 +69,7 @@ The location permission text says location "stays on your device". That is wrong
 
 | Permission | What for | Asked when | Gap |
 |---|---|---|---|
-| Health, read menstrual flow only (`NSHealthShareUsageDescription`) | Cycle day and phase in the almanac and Foyer. Nothing is written to Health. | At first launch | Should be asked when the user turns the cycle on: #35 |
+| Health, read menstrual flow only (`NSHealthShareUsageDescription`) | Cycle day and phase in the almanac and Foyer, and the average cycle length behind the phase's span in the cycle badge's sheet. Nothing is written to Health. | At first launch | Should be asked when the user turns the cycle on: #35 |
 | Location when in use (`NSLocationWhenInUseUsageDescription`) | Hemisphere, and a starting home place | At first launch | #35; the wording is inaccurate: #34 |
 | Folder access | The vault | When the user chooses or creates a vault | — |
 

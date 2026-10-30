@@ -1,0 +1,1 @@
+Tapping the season, moon or cycle badge on the Today card opens a sheet that explains that rhythm: how far through the season you are and the next turning point, the next new and full moon, or the estimated cycle phase and where the estimate comes from.
