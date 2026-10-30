@@ -67,3 +67,27 @@ final class ProfileSheetUITests: XCTestCase {
     XCTAssertTrue(avatar.waitForExistence(timeout: 5))
   }
 }
+
+// The Today card's rhythm badges: a season and a drawn moon for everyone, and a cycle
+// badge only when Health shares a cycle, which under UI tests it never does.
+final class RhythmBadgesUITests: XCTestCase {
+  override func setUp() { continueAfterFailure = false }
+
+  func testTodayShowsSeasonAndMoonBadgesAndNoCycleBadge() {
+    let app = XCUIApplication()
+    app.launchEnvironment["ATELIERA_UITEST"] = "1"
+    app.launch()
+
+    let season = app.otherElements["rhythm-badge-season"]
+    XCTAssertTrue(season.waitForExistence(timeout: 10), "season badge missing")
+    XCTAssertFalse(season.label.isEmpty, "season badge needs a spoken label")
+
+    let moon = app.otherElements["rhythm-badge-moon"]
+    XCTAssertTrue(moon.exists, "moon badge missing")
+    XCTAssertTrue(
+      moon.label.lowercased().contains("moon") && moon.label.contains("lit"),
+      "moon badge should name the phase and how lit it is; label was \(moon.label)")
+
+    XCTAssertFalse(app.otherElements["rhythm-badge-cycle"].exists, "no cycle, no badge")
+  }
+}

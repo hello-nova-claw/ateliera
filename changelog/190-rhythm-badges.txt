@@ -1,0 +1,1 @@
+The Today card now draws the moon's phase beside the season, lit as you see it in your hemisphere, and shows your cycle phase as its own glyph when Health shares a cycle.
