@@ -111,7 +111,9 @@ struct RhythmBadgeSheet: Equatable {
     let length = context.cycleLength ?? Rhythm.typicalCycleLengthDays
     let phaseName = phase.localizedName(locale: locale)
     var lines: [Line] = []
-    if let span = Rhythm.cyclePhaseSpan(phase, avgLengthDays: length) {
+    // No span for ovulation: a window of days would read as a fertility prediction, which
+    // the design rejects (docs/design.md, "No medical or contraceptive features").
+    if phase != .ovulation, let span = Rhythm.cyclePhaseSpan(phase, avgLengthDays: length) {
       lines.append(
         Line(
           id: "rhythm-sheet-cycle-span",
@@ -137,7 +139,8 @@ struct RhythmBadgeSheet: Equatable {
       note: String(
         localized: """
           This estimate comes from the menstrual flow recorded in Health, which Ateliera \
-          only reads. Nothing from Health is stored, and this is not medical advice.
+          only reads. It is kept in memory and never written to your vault, and it is not \
+          medical advice.
           """,
         locale: locale, comment: "Cycle sheet note on where the estimate comes from"))
   }

@@ -143,7 +143,7 @@ final class RhythmBadgeSheetTests: XCTestCase {
     XCTAssertTrue(note.contains("estimate"), note)
     XCTAssertTrue(note.contains("Health"), note)
     XCTAssertTrue(note.contains("only reads"), note)
-    XCTAssertTrue(note.contains("Nothing from Health is stored"), note)
+    XCTAssertTrue(note.contains("kept in memory and never written to your vault"), note)
     XCTAssertTrue(note.contains("not medical advice"), note)
   }
 
@@ -164,14 +164,24 @@ final class RhythmBadgeSheetTests: XCTestCase {
       "The menstrual phase is estimated to run from day 1 to day 5 of a 28-day cycle.")
   }
 
+  func testOvulationGetsNoSpan() {
+    // A window of days for ovulation would read as a fertility prediction, which the
+    // design rejects. The day and the estimate wording stay.
+    let sheet = sheets(
+      context(hemisphere: .north, cycle: CycleState(day: 15, phase: .ovulation)))[2]
+    XCTAssertEqual(sheet.headline, "Day 15 · estimated ovulation phase")
+    XCTAssertEqual(sheet.lines, [])
+    XCTAssertNotNil(sheet.note)
+  }
+
   func testCycleSheetAttachesNothingToAPhase() {
-    // Every phase gets its day, its span and the note, and nothing else: no feelings,
-    // predictions or advice.
+    // Every phase gets its day, its span (ovulation aside) and the note, and nothing else:
+    // no feelings, predictions or advice.
     let advice = ["should", "feel", "energy", "fertile", "likely", "best time"]
     for phase in [CyclePhase.menstrual, .follicular, .ovulation, .luteal] {
       let sheet = sheets(context(hemisphere: .north, cycle: CycleState(day: 3, phase: phase)))[2]
       XCTAssertTrue(sheet.headline.contains("estimated"), sheet.headline)
-      XCTAssertEqual(sheet.lines.count, 1, "\(phase)")
+      XCTAssertEqual(sheet.lines.count, phase == .ovulation ? 0 : 1, "\(phase)")
       let text = ([sheet.headline, sheet.note ?? ""] + sheet.lines.map(\.text))
         .joined(separator: " ")
       for word in advice {
