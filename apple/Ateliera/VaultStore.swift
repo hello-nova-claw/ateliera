@@ -173,7 +173,12 @@ final class VaultStore {
     parsedNotesByPath.first { $0.note.id == noteId }?.path
   }
 
-  init() {
+  convenience init() { self.init(discovering: true) }
+
+  /// `discovering: false` opens nothing: a unit test then opens its own temporary vault
+  /// with `openForTesting(at:)` instead of touching a bookmark or the simulator's demo.
+  init(discovering: Bool) {
+    guard discovering else { return }
     // UI tests drive the real capture/edit flow against a fresh, empty vault in
     // the app's own sandbox, so the room starts known-empty and deterministic.
     if let url = Self.uitestVaultURL() {
@@ -223,7 +228,7 @@ final class VaultStore {
 
   // Two kept Journal entries where the second wiki-links the first, so the
   // Constellation spike has at least two dots and one real line to render.
-  private static func seedConstellationFixture(at root: URL) {
+  static func seedConstellationFixture(at root: URL) {
     var first = StudioNote.capture(
       title: "A quiet morning", body: "\nThe one that started it.\n",
       id: NoteFactory.createNoteId(), created: NoteFactory.isoTimestamp(), room: "inbox")
@@ -242,7 +247,7 @@ final class VaultStore {
 
   // A promoted "becoming" + a desired feeling + a guiding principle, so the rich
   // Foyer sections have content to render.
-  private static func seedFoyerFixture(at root: URL) {
+  static func seedFoyerFixture(at root: URL) {
     func identity(_ id: String, _ title: String, _ cardType: String, _ file: String) {
       var note = StudioNote.capture(
         title: title, body: "\(title).", id: id, created: NoteFactory.isoTimestamp(),
@@ -266,7 +271,7 @@ final class VaultStore {
 
   // One Life Landscape card (family / vision) + one Identity Studio practicing-now
   // card, so the two projected rooms have real content to drive in UI tests.
-  private static func seedP5Fixture(at root: URL) {
+  static func seedP5Fixture(at root: URL) {
     var landscape = StudioNote.capture(
       title: "A calm morning", body: "\nAn ordinary Tuesday that already feels true.\n",
       id: NoteFactory.createNoteId(), created: NoteFactory.isoTimestamp(), room: "landscape")
@@ -295,7 +300,7 @@ final class VaultStore {
 
   // A single due Reflection Garden wish note (due date far in the past → always
   // due), written through the real byte-identical serializer.
-  private static func seedGiftFixture(at root: URL) {
+  static func seedGiftFixture(at root: URL) {
     var note = StudioNote.capture(
       title: "A wish worth keeping", body: "\nRemember the shape of this wish.\n",
       id: NoteFactory.createNoteId(), created: NoteFactory.isoTimestamp(),

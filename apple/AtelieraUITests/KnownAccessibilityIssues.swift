@@ -77,6 +77,7 @@ enum KnownAccessibilityIssues {
     83 sufficientElementDescription today
     83 sufficientElementDescription today-panel
     168 elementDetection rhythm
+    168 elementDetection room-current-season
     168 elementDetection room-reflection-garden
     168 elementDetection room-uncharted
     168 elementDetection room-wisdom-garden
