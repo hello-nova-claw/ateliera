@@ -154,6 +154,8 @@ struct RhythmBadgeSheet: Equatable {
 
 // The sheet itself: a title bar with Done, then the headline and each line in order, so
 // VoiceOver reads it top to bottom. No fixed heights, so the largest text sizes scroll.
+// Full height on purpose: at a medium detent the accessibility frames inside the sheet come
+// back scaled, and the audit then reports every line as clipped and low in contrast.
 struct RhythmBadgeSheetView: View {
   @Environment(\.studioTheme) private var theme
   let sheet: RhythmBadgeSheet
@@ -206,7 +208,6 @@ struct RhythmBadgeSheetView: View {
       }
     }
     .accessibilityIdentifier(sheet.identifier)
-    .presentationDetents([.medium, .large])
     .presentationDragIndicator(.visible)
   }
 }

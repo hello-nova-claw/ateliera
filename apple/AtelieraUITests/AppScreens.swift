@@ -38,6 +38,10 @@ enum AppScreens {
             let badge = app.buttons["rhythm-badge-\(rhythm)"]
             scrollTo(badge, in: app)
             tap(badge)
+            // The sheet covers Today once it has settled; auditing earlier sees both.
+            XCTAssertTrue(
+              app.staticTexts["rhythm-sheet-\(rhythm)-headline"].waitForExistence(timeout: 10),
+              "\(rhythm) sheet never opened")
           },
           close: dismissSheet)
       }
