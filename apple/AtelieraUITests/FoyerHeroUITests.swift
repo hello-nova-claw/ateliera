@@ -85,7 +85,8 @@ final class RhythmBadgesUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["rhythm-sheet-cycle-note"].exists, "cycle note missing")
       }
       app.buttons["Done"].tap()
-      XCTAssertTrue(badge.waitForExistence(timeout: 8), "\(rhythm) sheet did not close")
+      XCTAssertTrue(
+        headline.waitForNonExistence(timeout: 8), "\(rhythm) sheet did not close")
     }
 
     // The felt line beside the badges names the cycle day but is not a button.
