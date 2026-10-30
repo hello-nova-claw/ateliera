@@ -294,12 +294,29 @@ enum Rhythm {
 
   // MARK: Cycle
 
+  // The cycle length assumed when Health has not implied one (CycleDeriver's default).
+  static let typicalCycleLengthDays = 28
+
   private static func cyclePhaseForDay(_ day: Int, avgLengthDays: Int) -> CyclePhase {
     if day <= 5 { return .menstrual }
     let ovulationStart = max(6, avgLengthDays - 14)
     if day < ovulationStart { return .follicular }
     if day <= ovulationStart + 2 { return .ovulation }
     return .luteal
+  }
+
+  // The days `cyclePhaseForDay` assigns to a phase in a cycle of this length, the same
+  // boundaries read back, or nil for a phase the cycle is too short to reach.
+  static func cyclePhaseSpan(_ phase: CyclePhase, avgLengthDays: Int) -> ClosedRange<Int>? {
+    let ovulationStart = max(6, avgLengthDays - 14)
+    let (first, last): (Int, Int)
+    switch phase {
+    case .menstrual: (first, last) = (1, 5)
+    case .follicular: (first, last) = (6, ovulationStart - 1)
+    case .ovulation: (first, last) = (ovulationStart, ovulationStart + 2)
+    case .luteal: (first, last) = (ovulationStart + 3, avgLengthDays)
+    }
+    return first <= last ? first...last : nil
   }
 
   static func computeCycle(_ cycle: CycleProfile?, dateMs: Int64) -> CycleState? {
