@@ -81,7 +81,10 @@ final class RhythmBadgeSheetTests: XCTestCase {
       AlmanacText.seasonText(
         date: "2026-04-10", hemisphere: .north, style: .astronomical, locale: english))
     XCTAssertEqual(
-      sheet.lines[2].text, AlmanacText.turningCallout(date: "2026-04-10", locale: english))
+      sheet.lines[2].text,
+      AlmanacText.turningCallout(
+        date: "2026-04-10", locale: english, calendar: Calendar(identifier: .gregorian),
+        timeZone: utc))
   }
 
   // MARK: Moon
@@ -119,12 +122,17 @@ final class RhythmBadgeSheetTests: XCTestCase {
   func testMoonSheetLeadsWithThePanelsLunationCallout() {
     let sheet = sheets(context(hemisphere: .north))[1]
     XCTAssertEqual(
-      sheet.lines[1].text, AlmanacText.lunationCallout(date: "2026-04-10", locale: english))
+      sheet.lines[1].text,
+      AlmanacText.lunationCallout(
+        date: "2026-04-10", locale: english, calendar: Calendar(identifier: .gregorian),
+        timeZone: utc))
   }
 
-  func testLunationDatesFallOnThePersonsCalendarDay() {
-    // 1 May 17:23 UTC is already 2 May in Auckland.
+  func testLunationDatesAndDayCountsFollowThePersonsCalendarDay() {
+    // 1 May 17:23 UTC is already 2 May in Auckland, 22 local days after 10 April, so the
+    // count and the date beside it agree.
     let sheet = sheets(context(hemisphere: .south, timeZone: auckland))[1]
+    XCTAssertEqual(sheet.lines.map(\.text).dropFirst(), ["New moon in 7 days", "Full moon in 22 days"])
     XCTAssertEqual(sheet.lines.map(\.detail), [nil, "April 17, 2026", "May 2, 2026"])
   }
 
@@ -192,20 +200,45 @@ final class RhythmBadgeSheetTests: XCTestCase {
 
   // MARK: The shared sentences
 
-  func testEventLineCountsWholeDaysFromTheStartOfTheDay() {
+  func testDaysUntilCountsCalendarDaysInThePersonsZone() {
+    let gregorian = Calendar(identifier: .gregorian)
     let day: Int64 = 86_400_000
-    let from = Rhythm.dayMillis(date: "2026-04-10")
+    let utcMidnight = Rhythm.dayMillis(date: "2026-04-10")
+    func days(_ eventMs: Int64, _ timeZone: TimeZone) -> Int {
+      AlmanacText.daysUntil(
+        eventMs, date: "2026-04-10", calendar: gregorian, timeZone: timeZone)
+    }
+    XCTAssertEqual(days(utcMidnight + 3_600_000, utc), 0)
+    XCTAssertEqual(days(utcMidnight + day, utc), 1)
+    XCTAssertEqual(days(utcMidnight + 3 * day + 1, utc), 3)
+    // 13:00 UTC on 10 April is 01:00 on 11 April in Auckland: tomorrow there, today in UTC.
+    XCTAssertEqual(days(utcMidnight + 13 * 3_600_000, utc), 0)
+    XCTAssertEqual(days(utcMidnight + 13 * 3_600_000, auckland), 1)
+    // An event before the date never counts backwards.
+    XCTAssertEqual(days(utcMidnight - day, utc), 0)
+  }
+
+  func testAnEventEarlyOnTheLocalDateIsToday() {
+    // The local day starts before midnight UTC east of Greenwich, so an instant at 23:00
+    // UTC the evening before is the morning of the date in Auckland and reads as today.
+    let eveningBeforeUtc = Rhythm.dayMillis(date: "2026-04-10") - 3_600_000
     XCTAssertEqual(
-      AlmanacText.eventLine(
-        title: "Full moon", eventMs: from + 3_600_000, fromMs: from, locale: english),
-      "Full moon today")
+      AlmanacText.daysUntil(
+        eveningBeforeUtc, date: "2026-04-10", calendar: Calendar(identifier: .gregorian),
+        timeZone: auckland),
+      0)
     XCTAssertEqual(
-      AlmanacText.eventLine(title: "Full moon", eventMs: from + day, fromMs: from, locale: english),
-      "Full moon tomorrow")
+      AlmanacText.dayStart(
+        date: "2026-04-10", calendar: Calendar(identifier: .gregorian), timeZone: auckland),
+      Rhythm.dayMillis(date: "2026-04-10") - 12 * 3_600_000)
+  }
+
+  func testEventLineWordsTodayTomorrowAndDays() {
+    XCTAssertEqual(AlmanacText.eventLine(title: "Full moon", days: 0, locale: english), "Full moon today")
     XCTAssertEqual(
-      AlmanacText.eventLine(
-        title: "Full moon", eventMs: from + 3 * day + 1, fromMs: from, locale: english),
-      "Full moon in 3 days")
+      AlmanacText.eventLine(title: "Full moon", days: 1, locale: english), "Full moon tomorrow")
+    XCTAssertEqual(
+      AlmanacText.eventLine(title: "Full moon", days: 3, locale: english), "Full moon in 3 days")
   }
 
   func testOtherSeasonNamesTheCalendarThePersonDidNotChoose() {

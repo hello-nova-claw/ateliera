@@ -43,7 +43,8 @@ struct RhythmBadgeSheet: Equatable {
   private static func season(_ context: Context) -> RhythmBadgeSheet {
     let locale = context.locale
     let date = context.rhythm.date
-    let turning = AlmanacText.turningPoint(date: date, locale: locale)
+    let turning = AlmanacText.turningPoint(
+      date: date, locale: locale, calendar: context.calendar, timeZone: context.timeZone)
     return RhythmBadgeSheet(
       identifier: "rhythm-sheet-season",
       title: String(localized: "Season", locale: locale, comment: "Title of the season sheet"),
@@ -74,7 +75,14 @@ struct RhythmBadgeSheet: Equatable {
     let lit = AlmanacText.percent(illumination, locale: locale)
     // Both lunations, nearest first, so the first line is the panel's own callout.
     let lunations = [Sky.MoonPhase.new, .full]
-      .map { (phase: $0, line: AlmanacText.lunation($0, date: date, locale: locale)) }
+      .map {
+        (
+          phase: $0,
+          line: AlmanacText.lunation(
+            $0, date: date, locale: locale, calendar: context.calendar,
+            timeZone: context.timeZone)
+        )
+      }
       .sorted { $0.line.ms < $1.line.ms }
     let lunarSeason = Line(
       id: "rhythm-sheet-lunar-season",
