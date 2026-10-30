@@ -4,7 +4,7 @@ import SwiftUI
 // and the moon show for everyone; the cycle only when Health shares one. The moon is
 // drawn, not symbolised, so its phase is read at a glance, and the lit limb follows the
 // hemisphere. Pure, so the choice of badges, glyphs and spoken labels is testable.
-enum RhythmBadge: Equatable {
+enum RhythmBadge: Equatable, Identifiable {
   case season(Season)
   case moon(phase: MoonPhase, illumination: Double, litRight: Bool)
   case cycle(day: Int, phase: CyclePhase)
@@ -60,6 +60,9 @@ enum RhythmBadge: Equatable {
     case .cycle: return "rhythm-badge-cycle"
     }
   }
+
+  // One sheet per kind, so a tap presents by identity.
+  var id: String { identifier }
 
   // What VoiceOver reads. The cycle always says it is an estimate (design principle 3).
   func label(locale: Locale) -> String {
@@ -164,15 +167,19 @@ struct MoonLitShape: Shape {
   }
 }
 
-// The rendered row: a circle per badge, each its own accessibility element, with the
-// felt line beside it where it fits and beneath it at the largest type sizes.
+// The rendered row: a button per badge, each its own accessibility element, with the
+// felt line beside it where it fits and beneath it at the largest type sizes. Only the
+// badges are tappable; the felt line stays plain text.
 struct RhythmBadgeRow<Trailing: View>: View {
   @Environment(\.studioTheme) private var theme
   @Environment(\.locale) private var locale
   // The circles grow with the symbol's text style so the glyph never outgrows its border.
   @ScaledMetric(relativeTo: .subheadline) private var badgeSize: CGFloat = 34
   @ScaledMetric(relativeTo: .subheadline) private var moonSize: CGFloat = 16
+  // The smallest comfortable tap target. The circle stays its own size inside it.
+  private let hitSize: CGFloat = 44
   let badges: [RhythmBadge]
+  let onTap: (RhythmBadge) -> Void
   @ViewBuilder let trailing: () -> Trailing
 
   var body: some View {
@@ -195,22 +202,31 @@ struct RhythmBadgeRow<Trailing: View>: View {
   }
 
   private func circles(_ axis: Axis) -> some View {
+    // The tap targets touch, so the visible gap between circles is what the targets
+    // leave around them, and the first circle sits flush with the text above it.
     let layout =
       axis == .horizontal
-      ? AnyLayout(HStackLayout(spacing: 8))
-      : AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+      ? AnyLayout(HStackLayout(spacing: 0))
+      : AnyLayout(VStackLayout(alignment: .leading, spacing: 0))
     return layout {
-      ForEach(Array(badges.enumerated()), id: \.offset) { _, badge in
-        ZStack {
-          Circle().strokeBorder(theme.lineStrong, lineWidth: 1).frame(
-            width: badgeSize, height: badgeSize)
-          glyph(badge)
+      ForEach(badges) { badge in
+        Button {
+          onTap(badge)
+        } label: {
+          ZStack {
+            Circle().strokeBorder(theme.lineStrong, lineWidth: 1).frame(
+              width: badgeSize, height: badgeSize)
+            glyph(badge)
+          }
+          .frame(minWidth: hitSize, minHeight: hitSize)
+          .contentShape(Rectangle())
         }
-        .accessibilityElement(children: .ignore)
+        .buttonStyle(.plain)
         .accessibilityLabel(badge.label(locale: locale))
         .accessibilityIdentifier(badge.identifier)
       }
     }
+    .padding(.leading, min(0, (badgeSize - hitSize) / 2))
   }
 
   @ViewBuilder

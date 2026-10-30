@@ -465,7 +465,8 @@ struct RootView: View {
         context: almanacContext, hemisphere: hemisphere,
         seasonStyle: store.preferences.rhythm.resolvedSeasonStyle,
         personalizedMicroSeason: microSeasons.personalized,
-        personalizedPlace: microSeasons.personalizedPlace
+        personalizedPlace: microSeasons.personalizedPlace,
+        cycleLength: cycle?.avgLengthDays
       )
       .studioCard()
     }

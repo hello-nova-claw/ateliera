@@ -28,8 +28,13 @@ final class HealthCycleSource {
   func loadCycle() async -> CycleProfile? {
     #if os(iOS)
       // UI tests run against a fixture and must not trip the Health permission
-      // sheet, which would block automation.
-      if ProcessInfo.processInfo.environment["ATELIERA_UITEST"] == "1" { return nil }
+      // sheet, which would block automation. The ones that need a cycle on screen get an
+      // invented one instead, so the cycle badge and its sheet can be checked.
+      let environment = ProcessInfo.processInfo.environment
+      if environment["ATELIERA_UITEST"] == "1" {
+        return environment["ATELIERA_UITEST_CYCLE"] == "1"
+          ? CycleProfile(lastPeriodStart: "2026-03-10", avgLengthDays: 28) : nil
+      }
       guard HKHealthStore.isHealthDataAvailable(),
         let type = HKObjectType.categoryType(forIdentifier: .menstrualFlow)
       else { return nil }
