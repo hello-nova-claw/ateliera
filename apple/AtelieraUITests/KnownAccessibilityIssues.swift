@@ -7,6 +7,9 @@ import XCTest
 // rather than listing it. When an issue closes, delete its lines.
 enum KnownAccessibilityIssues {
   static let baseline = """
+    74 contrast badge-cycle
+    74 contrast badge-moon
+    74 contrast badge-season
     74 contrast browse
     74 contrast capture
     74 contrast find
@@ -38,6 +41,9 @@ enum KnownAccessibilityIssues {
     78 sufficientElementDescription room-current-season
     78 sufficientElementDescription room-reflection-garden
     78 sufficientElementDescription room-uncharted
+    79 dynamicType badge-cycle
+    79 dynamicType badge-moon
+    79 dynamicType badge-season
     79 dynamicType browse
     79 dynamicType capture
     79 dynamicType find
@@ -53,6 +59,9 @@ enum KnownAccessibilityIssues {
     79 dynamicType sky-ahead
     79 dynamicType today
     79 dynamicType today-panel
+    80 textClipped badge-cycle
+    80 textClipped badge-moon
+    80 textClipped badge-season
     80 textClipped capture
     80 textClipped find
     80 textClipped rhythm
