@@ -42,6 +42,9 @@ final class AccessibilityAuditUITests: XCTestCase {
     where !KnownAccessibilityIssues.isUnauditable(screen.name, in: variant) {
       XCTContext.runActivity(named: screen.name) { _ in
         screen.open(app)
+        // Opening animates the screen in; auditing it mid-transition reports elements
+        // that are gone a moment later.
+        waitUntilSettled(app)
         // The audit sees only what's on screen, so scroll through and audit each position.
         // Five swipes bound the run's time; every position reached is audited.
         auditVisible(app, on: screen.name)
