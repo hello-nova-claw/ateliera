@@ -180,7 +180,10 @@ enum Rhythm {
   // How far through the current (meteorological) season the date sits, 0…1.
   static func seasonProgress(date: String) -> Double {
     let (year, month, _, ms) = parse(date)
-    let startYear: Int, startMonth: Int, endYear: Int, endMonth: Int
+    let startYear: Int
+    let startMonth: Int
+    let endYear: Int
+    let endMonth: Int
     switch month {
     case 12: (startYear, startMonth, endYear, endMonth) = (year, 12, year + 1, 3)
     case 1, 2: (startYear, startMonth, endYear, endMonth) = (year - 1, 12, year, 3)
@@ -210,7 +213,9 @@ enum Rhythm {
 
   private static func sinDeg(_ deg: Double) -> Double { sin(deg * .pi / 180) }
   private static func cosDeg(_ deg: Double) -> Double { cos(deg * .pi / 180) }
-  private static func mod360(_ deg: Double) -> Double { (deg.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360) }
+  private static func mod360(_ deg: Double) -> Double {
+    (deg.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+  }
 
   // Sun–Moon elongation on 0 (new) … 180 (full) … 360 and the illuminated fraction —
   // the single source both the eight-phase name and the four lunar seasons read.
