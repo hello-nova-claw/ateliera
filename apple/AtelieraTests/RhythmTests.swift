@@ -61,6 +61,34 @@ final class RhythmTests: XCTestCase {
       Rhythm.seasonProgressAstronomical(date: "2026-08-30"))
   }
 
+  func testCyclePhaseSpansReadTheSameBoundariesBack() {
+    // Every day of a cycle falls in exactly one phase's span, for short, typical and long
+    // cycles alike, so the sheet's "day 6 to day 13" matches the day the badge shows.
+    let start = "2026-01-01"
+    for length in 20...40 {
+      for day in 1...length {
+        let dateMs = ms(start) + Int64(day - 1) * 86_400_000
+        let profile = CycleProfile(lastPeriodStart: start, avgLengthDays: length)
+        guard let state = Rhythm.computeCycle(profile, dateMs: dateMs) else {
+          return XCTFail("no cycle for day \(day) of \(length)")
+        }
+        XCTAssertEqual(state.day, day)
+        let holders = [CyclePhase.menstrual, .follicular, .ovulation, .luteal].filter {
+          Rhythm.cyclePhaseSpan($0, avgLengthDays: length)?.contains(day) == true
+        }
+        XCTAssertEqual(holders, [state.phase], "day \(day) of \(length)")
+      }
+    }
+  }
+
+  func testACycleTooShortForAPhaseHasNoSpanForIt() {
+    XCTAssertNil(Rhythm.cyclePhaseSpan(.follicular, avgLengthDays: 20))
+    XCTAssertEqual(Rhythm.cyclePhaseSpan(.ovulation, avgLengthDays: 20), 6...8)
+    XCTAssertEqual(Rhythm.cyclePhaseSpan(.luteal, avgLengthDays: 20), 9...20)
+    XCTAssertEqual(Rhythm.cyclePhaseSpan(.follicular, avgLengthDays: 28), 6...13)
+    XCTAssertEqual(Rhythm.typicalCycleLengthDays, 28)
+  }
+
   func testTurningPointsMatchTheEphemeris() {
     // Golden instants captured from astronomia's solstice.* (Meeus ch. 27), within a
     // couple of minutes — the low-accuracy method's tolerance.
