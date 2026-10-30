@@ -82,9 +82,7 @@ final class RhythmBadgeSheetTests: XCTestCase {
         date: "2026-04-10", hemisphere: .north, style: .astronomical, locale: english))
     XCTAssertEqual(
       sheet.lines[2].text,
-      AlmanacText.turningCallout(
-        date: "2026-04-10", locale: english, calendar: Calendar(identifier: .gregorian),
-        timeZone: utc))
+      AlmanacText.turningCallout(date: "2026-04-10", locale: english, timeZone: utc))
   }
 
   // MARK: Moon
@@ -123,16 +121,15 @@ final class RhythmBadgeSheetTests: XCTestCase {
     let sheet = sheets(context(hemisphere: .north))[1]
     XCTAssertEqual(
       sheet.lines[1].text,
-      AlmanacText.lunationCallout(
-        date: "2026-04-10", locale: english, calendar: Calendar(identifier: .gregorian),
-        timeZone: utc))
+      AlmanacText.lunationCallout(date: "2026-04-10", locale: english, timeZone: utc))
   }
 
   func testLunationDatesAndDayCountsFollowThePersonsCalendarDay() {
     // 1 May 17:23 UTC is already 2 May in Auckland, 22 local days after 10 April, so the
     // count and the date beside it agree.
     let sheet = sheets(context(hemisphere: .south, timeZone: auckland))[1]
-    XCTAssertEqual(sheet.lines.map(\.text).dropFirst(), ["New moon in 7 days", "Full moon in 22 days"])
+    XCTAssertEqual(
+      sheet.lines.map(\.text).dropFirst(), ["New moon in 7 days", "Full moon in 22 days"])
     XCTAssertEqual(sheet.lines.map(\.detail), [nil, "April 17, 2026", "May 2, 2026"])
   }
 
@@ -201,12 +198,10 @@ final class RhythmBadgeSheetTests: XCTestCase {
   // MARK: The shared sentences
 
   func testDaysUntilCountsCalendarDaysInThePersonsZone() {
-    let gregorian = Calendar(identifier: .gregorian)
     let day: Int64 = 86_400_000
     let utcMidnight = Rhythm.dayMillis(date: "2026-04-10")
     func days(_ eventMs: Int64, _ timeZone: TimeZone) -> Int {
-      AlmanacText.daysUntil(
-        eventMs, date: "2026-04-10", calendar: gregorian, timeZone: timeZone)
+      AlmanacText.daysUntil(eventMs, date: "2026-04-10", timeZone: timeZone)
     }
     XCTAssertEqual(days(utcMidnight + 3_600_000, utc), 0)
     XCTAssertEqual(days(utcMidnight + day, utc), 1)
@@ -223,18 +218,40 @@ final class RhythmBadgeSheetTests: XCTestCase {
     // UTC the evening before is the morning of the date in Auckland and reads as today.
     let eveningBeforeUtc = Rhythm.dayMillis(date: "2026-04-10") - 3_600_000
     XCTAssertEqual(
-      AlmanacText.daysUntil(
-        eveningBeforeUtc, date: "2026-04-10", calendar: Calendar(identifier: .gregorian),
-        timeZone: auckland),
-      0)
+      AlmanacText.daysUntil(eveningBeforeUtc, date: "2026-04-10", timeZone: auckland), 0)
     XCTAssertEqual(
-      AlmanacText.dayStart(
-        date: "2026-04-10", calendar: Calendar(identifier: .gregorian), timeZone: auckland),
+      AlmanacText.dayStart(date: "2026-04-10", timeZone: auckland),
       Rhythm.dayMillis(date: "2026-04-10") - 12 * 3_600_000)
   }
 
+  func testTheIsoDateIsGregorianWhateverCalendarThePersonReadsIn() {
+    // The engine writes Gregorian dates; a Buddhist-calendar person still gets 2026, not
+    // 1483, as the year the events are looked for, and the day count is unchanged.
+    let buddhist = Calendar(identifier: .buddhist)
+    let sheet = sheets(
+      RhythmBadgeSheet.Context(
+        rhythm: rhythm(), hemisphere: .north, seasonStyle: .astronomical,
+        microSeason: MicroSeason(term: "The First Green", gloss: "buds unfold"),
+        locale: english, calendar: buddhist, timeZone: utc)
+    )[1]
+    XCTAssertEqual(
+      sheet.lines.map(\.text).dropFirst(), ["New moon in 7 days", "Full moon in 21 days"])
+    XCTAssertEqual(
+      AlmanacText.dayStart(date: "2026-04-10", timeZone: utc), Rhythm.dayMillis(date: "2026-04-10"))
+  }
+
+  func testAMalformedDateFallsBackToTheEnginesMidnightNotTheClock() {
+    // Whatever the engine makes of a string it could never have written, the sheet starts
+    // from that same deterministic instant rather than from the clock.
+    let engine = Rhythm.dayMillis(date: "not a date")
+    XCTAssertEqual(AlmanacText.dayStart(date: "not a date", timeZone: auckland), engine)
+    XCTAssertEqual(
+      AlmanacText.daysUntil(engine + 86_400_000, date: "not a date", timeZone: utc), 1)
+  }
+
   func testEventLineWordsTodayTomorrowAndDays() {
-    XCTAssertEqual(AlmanacText.eventLine(title: "Full moon", days: 0, locale: english), "Full moon today")
+    XCTAssertEqual(
+      AlmanacText.eventLine(title: "Full moon", days: 0, locale: english), "Full moon today")
     XCTAssertEqual(
       AlmanacText.eventLine(title: "Full moon", days: 1, locale: english), "Full moon tomorrow")
     XCTAssertEqual(

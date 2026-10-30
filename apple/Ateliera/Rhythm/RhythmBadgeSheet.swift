@@ -43,8 +43,7 @@ struct RhythmBadgeSheet: Equatable {
   private static func season(_ context: Context) -> RhythmBadgeSheet {
     let locale = context.locale
     let date = context.rhythm.date
-    let turning = AlmanacText.turningPoint(
-      date: date, locale: locale, calendar: context.calendar, timeZone: context.timeZone)
+    let turning = AlmanacText.turningPoint(date: date, locale: locale, timeZone: context.timeZone)
     return RhythmBadgeSheet(
       identifier: "rhythm-sheet-season",
       title: String(localized: "Season", locale: locale, comment: "Title of the season sheet"),
@@ -78,9 +77,7 @@ struct RhythmBadgeSheet: Equatable {
       .map {
         (
           phase: $0,
-          line: AlmanacText.lunation(
-            $0, date: date, locale: locale, calendar: context.calendar,
-            timeZone: context.timeZone)
+          line: AlmanacText.lunation($0, date: date, locale: locale, timeZone: context.timeZone)
         )
       }
       .sorted { $0.line.ms < $1.line.ms }

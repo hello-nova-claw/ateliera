@@ -127,16 +127,10 @@ struct AlmanacView: View {
       Text(AlmanacText.lunarSeasonText(context: context, locale: locale))
         .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
         .accessibilityIdentifier("almanac-lunar-season")
-      Text(
-        AlmanacText.lunationCallout(
-          date: context.date, locale: locale, calendar: calendar, timeZone: timeZone)
-      )
+      Text(AlmanacText.lunationCallout(date: context.date, locale: locale, timeZone: timeZone))
         .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
         .accessibilityIdentifier("almanac-lunation")
-      Text(
-        AlmanacText.turningCallout(
-          date: context.date, locale: locale, calendar: calendar, timeZone: timeZone)
-      )
+      Text(AlmanacText.turningCallout(date: context.date, locale: locale, timeZone: timeZone))
         .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
         .accessibilityIdentifier("almanac-turning-point")
     }

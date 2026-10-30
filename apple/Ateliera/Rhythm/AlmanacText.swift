@@ -51,47 +51,38 @@ enum AlmanacText {
   }
 
   // "Full moon in 4 days": whichever of the new and full moon comes first.
-  static func lunationCallout(
-    date: String, locale: Locale, calendar: Calendar, timeZone: TimeZone
-  ) -> String {
-    let start = dayStart(date: date, calendar: calendar, timeZone: timeZone)
-    let next = Sky.nextLunation(afterMs: start)
+  static func lunationCallout(date: String, locale: Locale, timeZone: TimeZone) -> String {
+    let next = Sky.nextLunation(afterMs: dayStart(date: date, timeZone: timeZone))
     return eventLine(
       title: next.phase.localizedName(locale: locale),
-      days: daysUntil(next.ms, date: date, calendar: calendar, timeZone: timeZone),
-      locale: locale)
+      days: daysUntil(next.ms, date: date, timeZone: timeZone), locale: locale)
   }
 
   // The next occurrence of one lunation after the date, as a line and an instant.
   static func lunation(
-    _ phase: Sky.MoonPhase, date: String, locale: Locale, calendar: Calendar, timeZone: TimeZone
+    _ phase: Sky.MoonPhase, date: String, locale: Locale, timeZone: TimeZone
   ) -> (text: String, ms: Int64) {
-    let start = dayStart(date: date, calendar: calendar, timeZone: timeZone)
-    let eventMs = Sky.nextMoonPhase(afterMs: start, phase: phase)
+    let eventMs = Sky.nextMoonPhase(afterMs: dayStart(date: date, timeZone: timeZone), phase: phase)
     let text = eventLine(
       title: phase.localizedName(locale: locale),
-      days: daysUntil(eventMs, date: date, calendar: calendar, timeZone: timeZone),
-      locale: locale)
+      days: daysUntil(eventMs, date: date, timeZone: timeZone), locale: locale)
     return (text, eventMs)
   }
 
   // "Next turning point: June solstice in 51 days"
-  static func turningCallout(
-    date: String, locale: Locale, calendar: Calendar, timeZone: TimeZone
-  ) -> String {
-    turningPoint(date: date, locale: locale, calendar: calendar, timeZone: timeZone).text
+  static func turningCallout(date: String, locale: Locale, timeZone: TimeZone) -> String {
+    turningPoint(date: date, locale: locale, timeZone: timeZone).text
   }
 
   // The next equinox or solstice after the date, as a line and an instant. One whole
   // sentence per case, so no localised string is nested inside another.
   static func turningPoint(
-    date: String, locale: Locale, calendar: Calendar, timeZone: TimeZone
+    date: String, locale: Locale, timeZone: TimeZone
   ) -> (text: String, ms: Int64) {
-    let start = dayStart(date: date, calendar: calendar, timeZone: timeZone)
-    let next = Sky.nextTurningPoint(afterMs: start)
+    let next = Sky.nextTurningPoint(afterMs: dayStart(date: date, timeZone: timeZone))
     let title = next.point.localizedName(locale: locale)
     let text: String
-    switch daysUntil(next.ms, date: date, calendar: calendar, timeZone: timeZone) {
+    switch daysUntil(next.ms, date: date, timeZone: timeZone) {
     case 0:
       text = String(
         localized: "Next turning point: \(title) today", locale: locale,
@@ -110,33 +101,38 @@ enum AlmanacText {
 
   // The instant the civil date begins in the person's zone. Events are looked for from
   // here, not from midnight UTC, so one early on the local date is "today", not missed.
-  static func dayStart(date: String, calendar: Calendar, timeZone: TimeZone) -> Int64 {
-    let start = localCalendar(calendar, timeZone).date(from: components(of: date)) ?? Date()
+  // The date is the rhythm engine's ISO YYYY-MM-DD, a Gregorian civil date whatever
+  // calendar the person reads in, so it is parsed as one. A date the engine could not
+  // have written falls back to the same midnight UTC the engine itself uses.
+  static func dayStart(date: String, timeZone: TimeZone) -> Int64 {
+    guard let start = gregorianStart(of: date, in: timeZone) else {
+      return Rhythm.dayMillis(date: date)
+    }
     return Int64((start.timeIntervalSince1970 * 1000).rounded())
   }
 
-  // Whole calendar days in the person's zone from the date to the instant, never
-  // negative, so "in N days" and the date beside it agree across the date line.
-  static func daysUntil(_ eventMs: Int64, date: String, calendar: Calendar, timeZone: TimeZone)
-    -> Int
-  {
-    let local = localCalendar(calendar, timeZone)
-    guard let start = local.date(from: components(of: date)) else { return 0 }
-    let eventDay = local.startOfDay(for: Date(timeIntervalSince1970: Double(eventMs) / 1000))
-    return max(0, local.dateComponents([.day], from: start, to: eventDay).day ?? 0)
+  // Whole days in the person's zone from the date to the instant, never negative, so
+  // "in N days" and the date beside it agree across the date line.
+  static func daysUntil(_ eventMs: Int64, date: String, timeZone: TimeZone) -> Int {
+    let civil = gregorian(in: timeZone)
+    let start =
+      gregorianStart(of: date, in: timeZone)
+      ?? Date(timeIntervalSince1970: Double(Rhythm.dayMillis(date: date)) / 1000)
+    let eventDay = civil.startOfDay(for: Date(timeIntervalSince1970: Double(eventMs) / 1000))
+    return max(0, civil.dateComponents([.day], from: start, to: eventDay).day ?? 0)
   }
 
-  private static func localCalendar(_ calendar: Calendar, _ timeZone: TimeZone) -> Calendar {
-    var local = calendar
-    local.timeZone = timeZone
-    return local
+  private static func gregorian(in timeZone: TimeZone) -> Calendar {
+    var civil = Calendar(identifier: .gregorian)
+    civil.timeZone = timeZone
+    return civil
   }
 
-  // The year, month and day of an ISO YYYY-MM-DD date, as the rhythm engine writes it.
-  private static func components(of date: String) -> DateComponents {
+  private static func gregorianStart(of date: String, in timeZone: TimeZone) -> Date? {
     let parts = date.split(separator: "-").compactMap { Int($0) }
-    guard parts.count == 3 else { return DateComponents() }
-    return DateComponents(year: parts[0], month: parts[1], day: parts[2])
+    guard parts.count == 3 else { return nil }
+    return gregorian(in: timeZone).date(
+      from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
   }
 
   // "<event> today", "<event> tomorrow" or "<event> in N days".
