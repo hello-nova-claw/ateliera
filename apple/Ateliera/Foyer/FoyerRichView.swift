@@ -1,9 +1,9 @@
 import SwiftUI
 
-// The richer Foyer surface: the feelings you're making room for and the principles you
-// steer by — fed from the Identity Studio and gated by the Foyer-section preferences.
-// (Who you're becoming is now the Foyer hero, not a card here — see FoyerHero.) Each
-// section only appears when it has content and is switched on.
+// The richer Foyer surface: the principles you steer by — fed from the Identity Studio
+// and gated by the Foyer-section preferences. (Who you're becoming is the Foyer hero and
+// how you want to feel is its own card on Today — see FoyerHero and DesiredFeelingsCard.)
+// The section only appears when it has content and is switched on.
 struct FoyerRichView: View {
   @Environment(\.studioTheme) private var theme
   let store: VaultStore
@@ -14,10 +14,6 @@ struct FoyerRichView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 22) {
-      if Preferences.isFoyerSectionVisible("feelings", prefs) {
-        cardsSection(
-          "How I want to feel", cards: Array((board.sections[.desiredFeelings] ?? []).prefix(3)))
-      }
       if Preferences.isFoyerSectionVisible("principles", prefs) {
         cardsSection(
           "Principles", cards: Array((board.sections[.valuesPrinciples] ?? []).prefix(3)))
@@ -32,7 +28,9 @@ struct FoyerRichView: View {
         Text(title.uppercased())
           .font(StudioFont.eyebrow).tracking(1.4).foregroundStyle(theme.inkFaint)
         ForEach(cards) { card in
-          Button { onOpen(card.path) } label: {
+          Button {
+            onOpen(card.path)
+          } label: {
             VStack(alignment: .leading, spacing: 3) {
               Text(card.title).font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
               if card.hasExplicitTitle, !card.excerpt.isEmpty {
