@@ -10,6 +10,7 @@ enum KnownAccessibilityIssues {
     74 contrast browse
     74 contrast capture
     74 contrast find
+    74 contrast profile
     74 contrast rhythm
     74 contrast room-constellation
     74 contrast room-current-season
@@ -41,6 +42,7 @@ enum KnownAccessibilityIssues {
     79 dynamicType browse
     79 dynamicType capture
     79 dynamicType find
+    79 dynamicType profile
     79 dynamicType rhythm
     79 dynamicType room-current-season
     79 dynamicType room-identity-studio
@@ -55,6 +57,7 @@ enum KnownAccessibilityIssues {
     79 dynamicType today-panel
     80 textClipped capture
     80 textClipped find
+    80 textClipped profile
     80 textClipped rhythm
     80 textClipped room-constellation
     80 textClipped room-current-season

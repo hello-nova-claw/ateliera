@@ -86,6 +86,7 @@ struct RootView: View {
     case rhythm
     case search
     case settings
+    case profile
     case placement
     case tour
     case moonIntention(lunation: String)
@@ -100,6 +101,7 @@ struct RootView: View {
       case .rhythm: return "rhythm"
       case .search: return "search"
       case .settings: return "settings"
+      case .profile: return "profile"
       case .placement: return "placement"
       case .tour: return "tour"
       case .moonIntention(let lunation): return "moon:\(lunation)"
@@ -329,6 +331,9 @@ struct RootView: View {
             }
           )
           .studioTheme(themeStore.current)
+        case .profile:
+          ProfileSheet(store: store, onClose: { activeSheet = nil })
+            .studioTheme(themeStore.current)
         case .placement:
           ClassifiedCaptureSheet(
             store: store,
@@ -385,7 +390,8 @@ struct RootView: View {
         VStack(alignment: .leading, spacing: 30) {
           FoyerHero(
             store: store, greeting: greeting, onOpen: openPath,
-            onBegin: { activeSheet = .placement }
+            onBegin: { activeSheet = .placement },
+            onProfile: { activeSheet = .profile }
           )
           .padding(.horizontal, 28)
 
@@ -888,6 +894,8 @@ struct ProfileAvatar: View {
   @Environment(\.studioTheme) private var theme
   let store: VaultStore
   var size: CGFloat = 48
+  // Nil when a parent (Today's avatar button) carries the identifier instead.
+  var identifier: String? = "profile-avatar"
   @State private var image: UIImage?
 
   var body: some View {
@@ -905,7 +913,8 @@ struct ProfileAvatar: View {
     .frame(width: size, height: size)
     .clipShape(Circle())
     .overlay(Circle().stroke(theme.line, lineWidth: 1))
-    .accessibilityIdentifier("profile-avatar")
+    .accessibilityLabel(image == nil ? Text("No profile photo yet") : Text("Your profile photo"))
+    .accessibilityIdentifier(identifier ?? "")
     .task(id: store.profileChangeStamp) {
       image = store.profileAvatar().flatMap(UIImage.init)
     }
@@ -1430,7 +1439,6 @@ private struct SettingsView: View {
   let onReplayTour: () -> Void
   let onChangeFolder: () -> Void
   @State private var profileName: String = ""
-  @State private var avatarItem: PhotosPickerItem?
   @State private var locatingHome = false
 
   private func commitName() {
@@ -1444,24 +1452,8 @@ private struct SettingsView: View {
           Text("PROFILE")
             .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
             .padding(.bottom, 12)
-          HStack(spacing: 14) {
-            ProfileAvatar(store: store, size: 60)
-            VStack(alignment: .leading, spacing: 4) {
-              TextField("Your name", text: $profileName)
-                .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
-                .textInputAutocapitalization(.words)
-                .submitLabel(.done)
-                .onSubmit(commitName)
-                .accessibilityIdentifier("profile-name-field")
-              PhotosPicker(selection: $avatarItem, matching: .images) {
-                Text(store.profileAvatar() == nil ? "Add a photo" : "Change photo")
-                  .font(StudioFont.meta).foregroundStyle(theme.link)
-              }
-              .accessibilityIdentifier("profile-photo-picker")
-            }
-            Spacer(minLength: 0)
-          }
-          .padding(.vertical, 6)
+          ProfileEditor(store: store, name: $profileName, onCommitName: commitName)
+          ProfileErrorLine(store: store)
           Divider().overlay(theme.line)
 
           Button {
@@ -1648,14 +1640,6 @@ private struct SettingsView: View {
       }
       .background(theme.canvas)
       .onAppear { profileName = store.profileName ?? "" }
-      .onChange(of: avatarItem) { _, item in
-        guard let item else { return }
-        Task {
-          if let data = try? await item.loadTransferable(type: Data.self) {
-            _ = store.setProfileAvatar(data: data)
-          }
-        }
-      }
       .toolbar {
         ToolbarItem(placement: .principal) {
           Text("Settings").font(StudioFont.control).foregroundStyle(theme.inkStrong)

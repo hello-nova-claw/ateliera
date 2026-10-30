@@ -42,6 +42,32 @@ final class FoyerHeroUITests: XCTestCase {
   }
 }
 
+// The profile avatar in Today's wordmark rail opens a small profile sheet, with the
+// same name field and photo picker as Settings.
+final class ProfileSheetUITests: XCTestCase {
+  override func setUp() { continueAfterFailure = false }
+
+  func testTappingTheAvatarOpensTheProfileSheet() {
+    let app = XCUIApplication()
+    app.launchEnvironment["ATELIERA_UITEST"] = "1"
+    app.launch()
+
+    let avatar = app.buttons["profile-avatar"]
+    XCTAssertTrue(avatar.waitForExistence(timeout: 10), "avatar should be a button on Today")
+    XCTAssertEqual(avatar.label, "Profile")
+    avatar.tap()
+
+    XCTAssertTrue(
+      app.navigationBars["Profile"].waitForExistence(timeout: 5), "profile sheet missing")
+    XCTAssertTrue(app.textFields["profile-name-field"].exists)
+    XCTAssertTrue(app.buttons["profile-photo-picker"].exists)
+    XCTAssertFalse(app.buttons["profile-photo-remove"].exists, "no photo, no remove")
+
+    app.buttons["Done"].tap()
+    XCTAssertTrue(avatar.waitForExistence(timeout: 5))
+  }
+}
+
 // The Today card's rhythm badges: a season and a drawn moon for everyone, and a cycle
 // badge only when Health shares a cycle, which under UI tests it never does.
 final class RhythmBadgesUITests: XCTestCase {
