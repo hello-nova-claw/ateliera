@@ -26,22 +26,25 @@ struct AuditFinding: Equatable {
     self.detail = detail
   }
 
-  /// Whether both would print the same baseline line and name the same element.
+  /// Whether both would print the same baseline line and name the same element. For
+  /// elements with no name this is as fine as it gets: a vanished element has no identity
+  /// to carry across passes. The key is only consulted for a second-pass finding whose
+  /// element has vanished too, since one still on screen fails on its own.
   func isSameFinding(as other: AuditFinding) -> Bool {
     type == other.type && screen == other.screen && element == other.element
   }
 }
 
-// Decides which findings of one audited position fail the test.
+// Decides which findings of one audited position fail the test, whatever their type.
 //
 // The audit's own Dynamic Type pass re-lays the screen out while it runs. SwiftUI then
 // rebuilds the rows, so an element the audit flagged mid-layout is gone before the test
-// can name it: a finding like `Hit area is too small (-)` that names no element and isn't
-// there on the next run. Such a finding gets one more chance. Once the screen has
-// settled, the position is audited again for the types that vanished only, which leaves
-// the Dynamic Type pass out unless a Dynamic Type finding is what needs confirming, and
-// the finding fails only if it recurs. A finding whose element is still on screen fails
-// at once.
+// can name it: a finding like `Hit area is too small (-)` or `Potentially inaccessible
+// text (-)` that names no element and isn't there on the next run. Such a finding gets
+// one more chance. Once the screen has settled, the position is audited again for the
+// types that vanished only, which leaves the Dynamic Type pass out unless a Dynamic Type
+// finding is what needs confirming, and the finding fails only if it recurs. A finding
+// whose element is still on screen fails at once, named or not.
 enum AuditTriage {
   /// True when at least one finding's element could not be found after the pass.
   static func needsSecondPass(_ findings: [AuditFinding]) -> Bool {

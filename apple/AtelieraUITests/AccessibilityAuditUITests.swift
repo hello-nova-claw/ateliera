@@ -112,7 +112,7 @@ final class AccessibilityAuditUITests: XCTestCase {
       return AuditFinding(
         type: finding.type, screen: finding.screen, element: finding.element,
         description: issue.compactDescription,
-        onScreen: !unnamed && issue.element?.exists == true,
+        onScreen: issue.element?.exists == true,
         detail: unnamed && issue.detailedDescription != issue.compactDescription
           ? issue.detailedDescription : "")
     }

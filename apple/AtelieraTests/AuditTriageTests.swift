@@ -18,6 +18,31 @@ final class AuditTriageTests: XCTestCase {
     XCTAssertEqual(AuditTriage.confirmed(first: [real], second: []), [real])
   }
 
+  func testAnUnnamedFindingStillOnScreenFailsWithoutASecondPass() {
+    let unnamed = finding(onScreen: true)
+    XCTAssertFalse(AuditTriage.needsSecondPass([unnamed]))
+    XCTAssertEqual(AuditTriage.confirmed(first: [unnamed], second: []), [unnamed])
+  }
+
+  func testEveryAuditTypeIsTreatedTheSame() {
+    let vanished = AuditFinding(
+      type: "elementDetection", screen: "profile", element: "-",
+      description: "Potentially inaccessible text", onScreen: false)
+    XCTAssertTrue(AuditTriage.needsSecondPass([vanished]))
+    XCTAssertEqual(AuditTriage.secondPassTypes([vanished]), ["elementDetection"])
+    XCTAssertEqual(AuditTriage.confirmed(first: [vanished], second: []), [])
+    XCTAssertEqual(AuditTriage.confirmed(first: [vanished], second: [vanished]), [vanished])
+  }
+
+  func testAnUnnamedSecondPassFindingStillOnScreenFailsOnItsOwn() {
+    // Two unnamed elements share the `-` name, so the second pass's hit-region finding
+    // would read as a repeat of the first pass's contrast one if the name decided it. It
+    // doesn't: the element is on screen, so it fails as itself.
+    let vanished = finding("contrast", onScreen: false)
+    let atRest = finding("hitRegion", onScreen: true)
+    XCTAssertEqual(AuditTriage.confirmed(first: [vanished], second: [atRest]), [atRest])
+  }
+
   func testNoFindingsNeedNoSecondPass() {
     XCTAssertFalse(AuditTriage.needsSecondPass([]))
     XCTAssertEqual(AuditTriage.confirmed(first: [], second: []), [])
