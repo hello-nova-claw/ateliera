@@ -79,23 +79,39 @@ enum AlmanacText {
     turningPoint(date: date, locale: locale).text
   }
 
-  // The next equinox or solstice after the date, as a line and an instant.
+  // The next equinox or solstice after the date, as a line and an instant. One whole
+  // sentence per case, so no localised string is nested inside another.
   static func turningPoint(date: String, locale: Locale) -> (text: String, ms: Int64) {
     let dayStart = Rhythm.dayMillis(date: date)
     let next = Sky.nextTurningPoint(afterMs: dayStart)
-    let line = eventLine(
-      title: next.point.localizedName(locale: locale), eventMs: next.ms, fromMs: dayStart,
-      locale: locale)
-    let text = String(
-      localized: "Next turning point: \(line)", locale: locale,
-      comment: "1: an event and when it falls, like June solstice in 51 days.")
+    let title = next.point.localizedName(locale: locale)
+    let text: String
+    switch daysUntil(next.ms, from: dayStart) {
+    case 0:
+      text = String(
+        localized: "Next turning point: \(title) today", locale: locale,
+        comment: "1: an equinox or solstice, like June solstice.")
+    case 1:
+      text = String(
+        localized: "Next turning point: \(title) tomorrow", locale: locale,
+        comment: "1: an equinox or solstice, like June solstice.")
+    case let days:
+      text = String(
+        localized: "Next turning point: \(title) in \(days) days", locale: locale,
+        comment: "1: an equinox or solstice, like June solstice. 2: the number of days.")
+    }
     return (text, next.ms)
+  }
+
+  // Whole days from the start of the date to the instant, never negative.
+  static func daysUntil(_ eventMs: Int64, from dayStart: Int64) -> Int {
+    max(0, Int((eventMs - dayStart) / dayMs))
   }
 
   // "<event> today", "<event> tomorrow" or "<event> in N days", counted in whole days
   // from the start of the date.
   static func eventLine(title: String, eventMs: Int64, fromMs: Int64, locale: Locale) -> String {
-    let days = max(0, Int((eventMs - fromMs) / dayMs))
+    let days = daysUntil(eventMs, from: fromMs)
     switch days {
     case 0:
       return String(
