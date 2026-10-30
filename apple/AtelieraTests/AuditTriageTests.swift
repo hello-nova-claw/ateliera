@@ -39,7 +39,8 @@ final class AuditTriageTests: XCTestCase {
         finding("contrast", element: "inbox-title", onScreen: true),
       ]),
       ["hitRegion", "textClipped"])
-    XCTAssertEqual(AuditTriage.secondPassTypes([finding("dynamicType", onScreen: false)]), ["dynamicType"])
+    XCTAssertEqual(
+      AuditTriage.secondPassTypes([finding("dynamicType", onScreen: false)]), ["dynamicType"])
   }
 
   func testAVanishedFindingThatDoesNotRecurIsDropped() {
