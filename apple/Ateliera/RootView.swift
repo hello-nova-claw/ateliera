@@ -405,6 +405,7 @@ struct RootView: View {
 
           VStack(alignment: .leading, spacing: 30) {
             dailyCard
+            feelingsCard
             captureButton
             todaySection
             if let error = store.error {
@@ -444,6 +445,15 @@ struct RootView: View {
     TodaysGiftView(store: giftStore) { quality in
       giftStore.grade(quality, today: almanacContext.date)
     }
+  }
+
+  // The feelings the person is making room for, as their own card beside the Gift.
+  private var feelingsCard: some View {
+    DesiredFeelingsCard(
+      model: DesiredFeelingsCardModel(
+        store.foyerIdentity(),
+        sectionVisible: Preferences.isFoyerSectionVisible("feelings", store.preferences)),
+      onOpen: openPath)
   }
 
   // The felt season for the Foyer's hero photo, from the person's own season style.
