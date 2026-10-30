@@ -31,6 +31,17 @@ final class AuditTriageTests: XCTestCase {
       ]))
   }
 
+  func testTheSecondPassAuditsOnlyTheTypesThatVanished() {
+    XCTAssertEqual(
+      AuditTriage.secondPassTypes([
+        finding("hitRegion", onScreen: false),
+        finding("textClipped", onScreen: false),
+        finding("contrast", element: "inbox-title", onScreen: true),
+      ]),
+      ["hitRegion", "textClipped"])
+    XCTAssertEqual(AuditTriage.secondPassTypes([finding("dynamicType", onScreen: false)]), ["dynamicType"])
+  }
+
   func testAVanishedFindingThatDoesNotRecurIsDropped() {
     XCTAssertEqual(AuditTriage.confirmed(first: [finding(onScreen: false)], second: []), [])
   }

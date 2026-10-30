@@ -65,13 +65,17 @@ final class AccessibilityAuditUITests: XCTestCase {
     var second: [AuditFinding] = []
     if AuditTriage.needsSecondPass(first) {
       waitUntilSettled(app)
-      second = newFindings(app, on: screen)
+      // Only the types that vanished, so the Dynamic Type pass that re-lays the screen out
+      // stays out of the second pass unless one of its findings is what needs confirming.
+      let types = KnownAccessibilityIssues.auditTypes(named: AuditTriage.secondPassTypes(first))
+      second = newFindings(app, on: screen, for: types.isEmpty ? .all : types)
     }
     for finding in AuditTriage.confirmed(first: first, second: second) {
       // The audit's own message doesn't name the element; this gives the baseline line.
       XCTFail(
         "\(finding.description) (\(finding.element)). Fix it, or if an open issue covers "
           + "it, list it in KnownAccessibilityIssues as: <issue> \(finding.type) \(finding.screen)"
+          + (finding.detail.isEmpty ? "" : " The audit said: \(finding.detail)")
       )
     }
   }
@@ -79,12 +83,13 @@ final class AccessibilityAuditUITests: XCTestCase {
   /// One audit pass, returning the findings the baseline doesn't list. Each one says
   /// whether its element could still be found once the pass had finished.
   private func newFindings(
-    _ app: XCUIApplication, on screen: String, retry: Bool = true
+    _ app: XCUIApplication, on screen: String, for types: XCUIAccessibilityAuditType = .all,
+    retry: Bool = true
   ) -> [AuditFinding] {
     var issues: [(issue: XCUIAccessibilityAuditIssue, finding: KnownAccessibilityIssues.Finding)] =
       []
     do {
-      try app.performAccessibilityAudit { issue in
+      try app.performAccessibilityAudit(for: types) { issue in
         let finding = KnownAccessibilityIssues.finding(issue, on: screen)
         if !KnownAccessibilityIssues.isKnown(finding) { issues.append((issue, finding)) }
         return true
@@ -93,7 +98,7 @@ final class AccessibilityAuditUITests: XCTestCase {
       // -56 is the audit timing out on a busy simulator: try once more before failing,
       // since an unaudited position could hide a finding.
       if retry {
-        return newFindings(app, on: screen, retry: false)
+        return newFindings(app, on: screen, for: types, retry: false)
       }
       XCTFail(
         "\(screen): the accessibility audit timed out twice, so this position went unaudited.")
@@ -101,10 +106,15 @@ final class AccessibilityAuditUITests: XCTestCase {
       XCTFail("\(screen): \(error)")
     }
     return issues.map { issue, finding in
-      AuditFinding(
+      // A finding that can't name its element keeps the audit's longer description, so
+      // the log still says what was flagged.
+      let unnamed = finding.element == "-"
+      return AuditFinding(
         type: finding.type, screen: finding.screen, element: finding.element,
         description: issue.compactDescription,
-        onScreen: finding.element != "-" && issue.element?.exists == true)
+        onScreen: !unnamed && issue.element?.exists == true,
+        detail: unnamed && issue.detailedDescription != issue.compactDescription
+          ? issue.detailedDescription : "")
     }
   }
 

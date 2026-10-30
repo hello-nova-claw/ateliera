@@ -11,6 +11,20 @@ struct AuditFinding: Equatable {
   let description: String
   /// Whether the element could still be found once the pass had finished.
   let onScreen: Bool
+  /// The audit's longer description, kept for a finding that can't name its element.
+  let detail: String
+
+  init(
+    type: String, screen: String, element: String, description: String, onScreen: Bool,
+    detail: String = ""
+  ) {
+    self.type = type
+    self.screen = screen
+    self.element = element
+    self.description = description
+    self.onScreen = onScreen
+    self.detail = detail
+  }
 
   /// Whether both would print the same baseline line and name the same element.
   func isSameFinding(as other: AuditFinding) -> Bool {
@@ -20,16 +34,23 @@ struct AuditFinding: Equatable {
 
 // Decides which findings of one audited position fail the test.
 //
-// The audit's own Dynamic Type pass re-lays the screen out while it runs, and an element
-// that exists only mid-layout can be reported and then vanish before the test can name
-// it: that is a finding like `Hit area is too small (-)` that never names an element and
-// isn't there on the next run. Such a finding gets one more chance. The position is
-// audited again once the screen has settled, and the finding fails only if it recurs.
-// A finding whose element is still on screen fails at once.
+// The audit's own Dynamic Type pass re-lays the screen out while it runs. SwiftUI then
+// rebuilds the rows, so an element the audit flagged mid-layout is gone before the test
+// can name it: a finding like `Hit area is too small (-)` that names no element and isn't
+// there on the next run. Such a finding gets one more chance. Once the screen has
+// settled, the position is audited again for the types that vanished only, which leaves
+// the Dynamic Type pass out unless a Dynamic Type finding is what needs confirming, and
+// the finding fails only if it recurs. A finding whose element is still on screen fails
+// at once.
 enum AuditTriage {
   /// True when at least one finding's element could not be found after the pass.
   static func needsSecondPass(_ findings: [AuditFinding]) -> Bool {
     findings.contains { !$0.onScreen }
+  }
+
+  /// The audit types the second pass runs: those of the findings that vanished.
+  static func secondPassTypes(_ findings: [AuditFinding]) -> Set<String> {
+    Set(findings.filter { !$0.onScreen }.map(\.type))
   }
 
   /// The findings to fail for: every first-pass finding still on screen, then every
