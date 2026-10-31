@@ -115,88 +115,87 @@ enum NoteParser {
   }
 
   // Recursive block reader. Consumes lines at `indent`; returns ordered pairs.
-  private static func parseBlock(_ lines: [String], _ i: inout Int, indent: Int)
+  private static func parseBlock(_ lines: [String], _ index: inout Int, indent: Int)
     -> [(String, YamlNode)]
   {
     var pairs: [(String, YamlNode)] = []
-    while i < lines.count {
-      let line = lines[i]
+    while index < lines.count {
+      let line = lines[index]
       if line.trimmingCharacters(in: .whitespaces).isEmpty {
-        i += 1
+        index += 1
         continue
       }
-      let lead = leadingSpaces(line)
-      if lead != indent { break }
-      let content = String(line.dropFirst(indent))
-      guard let colon = content.firstIndex(of: ":") else { break }
-      let key = String(content[..<colon]).trimmingCharacters(in: .whitespaces)
-      let rest = String(content[content.index(after: colon)...]).trimmingCharacters(
-        in: .whitespaces)
-      if rest.isEmpty {
-        i += 1
-        if i < lines.count && leadingSpaces(lines[i]) == indent + 2
-          && lines[i].dropFirst(indent + 2).hasPrefix("- ")
-        {
-          // A block sequence. Each item is either a scalar (`- value`) or a map
-          // (`- key: value` with continuation lines) — the web quotes any scalar
-          // containing `: `, so an unquoted `key: value` after `- ` is a map.
-          let firstItem = String(lines[i].dropFirst(indent + 4))
-          if firstItem.contains(": ") && !firstItem.hasPrefix("\"") {
-            var maps: [[(String, YamlNode)]] = []
-            while i < lines.count && leadingSpaces(lines[i]) == indent + 2
-              && lines[i].dropFirst(indent + 2).hasPrefix("- ")
-            {
-              var itemPairs: [(String, YamlNode)] = []
-              let head = String(lines[i].dropFirst(indent + 4))
-              if let colon = head.firstIndex(of: ":") {
-                let k = String(head[..<colon]).trimmingCharacters(in: .whitespaces)
-                let v = String(head[head.index(after: colon)...]).trimmingCharacters(
-                  in: .whitespaces)
-                itemPairs.append((k, .scalar(unquote(v))))
-              }
-              i += 1
-              itemPairs.append(contentsOf: parseBlock(lines, &i, indent: indent + 4))
-              maps.append(itemPairs)
-            }
-            pairs.append((key, .mapSeq(maps)))
-          } else {
-            var items: [String] = []
-            while i < lines.count && leadingSpaces(lines[i]) == indent + 2
-              && lines[i].dropFirst(indent + 2).hasPrefix("- ")
-            {
-              items.append(unquote(String(lines[i].dropFirst(indent + 4))))
-              i += 1
-            }
-            pairs.append((key, .list(items)))
-          }
-        } else {
-          let sub = parseBlock(lines, &i, indent: indent + 2)
-          pairs.append((key, .map(sub)))
-        }
-      } else if rest == "[]" {
-        pairs.append((key, .list([])))
-        i += 1
-      } else if rest.hasPrefix("[") && rest.hasSuffix("]") {
-        let inner = String(rest.dropFirst().dropLast())
-        let items =
-          inner.trimmingCharacters(in: .whitespaces).isEmpty
-          ? []
-          : inner.components(separatedBy: ",").map {
-            unquote($0.trimmingCharacters(in: .whitespaces))
-          }
-        pairs.append((key, .list(items)))
-        i += 1
-      } else if rest == "true" || rest == "false" {
-        // An unquoted boolean (the web quotes a bool-like string, so bare true/false
-        // is a real boolean) — keep it as .bool so it re-serializes unquoted.
-        pairs.append((key, .bool(rest == "true")))
-        i += 1
-      } else {
-        pairs.append((key, .scalar(unquote(rest))))
-        i += 1
-      }
+      guard leadingSpaces(line) == indent,
+        let (key, rest) = keyAndValue(String(line.dropFirst(indent)))
+      else { break }
+      pairs.append((key, parseValue(rest, lines, &index, indent: indent)))
     }
     return pairs
+  }
+
+  private static func keyAndValue(_ content: String) -> (String, String)? {
+    guard let colon = content.firstIndex(of: ":") else { return nil }
+    let key = String(content[..<colon]).trimmingCharacters(in: .whitespaces)
+    return (key, trimmingYamlSpace(String(content[content.index(after: colon)...])))
+  }
+
+  // The value after `key:` on line `index`, whose key starts at column `indent`.
+  // Leaves `index` at the first line after the value.
+  private static func parseValue(
+    _ rest: String, _ lines: [String], _ index: inout Int, indent: Int
+  ) -> YamlNode {
+    index += 1
+    if rest.isEmpty {
+      if isSequenceItem(lines, index, indent: indent) {
+        return parseSequence(lines, &index, indent: indent)
+      }
+      return .map(parseBlock(lines, &index, indent: indent + 2))
+    }
+    if rest.hasPrefix("[") && rest.hasSuffix("]") {
+      let inner = String(rest.dropFirst().dropLast())
+      if trimmingYamlSpace(inner).isEmpty { return .list([]) }
+      return .list(inner.components(separatedBy: ",").map { unquote(trimmingYamlSpace($0)) })
+    }
+    if rest == "true" || rest == "false" {
+      // An unquoted boolean (the web quotes a bool-like string, so bare true/false
+      // is a real boolean) — keep it as .bool so it re-serializes unquoted.
+      return .bool(rest == "true")
+    }
+    return .scalar(unquote(rest))
+  }
+
+  private static func isSequenceItem(_ lines: [String], _ index: Int, indent: Int) -> Bool {
+    index < lines.count && leadingSpaces(lines[index]) == indent + 2
+      && lines[index].dropFirst(indent + 2).hasPrefix("- ")
+  }
+
+  // A block sequence under a key at `indent`. Each item is either a scalar
+  // (`- value`) or a map (`- key: value` with continuation lines) — the web quotes
+  // any scalar containing `: `, so an unquoted `key: value` after `- ` is a map.
+  private static func parseSequence(_ lines: [String], _ index: inout Int, indent: Int)
+    -> YamlNode
+  {
+    let firstItem = String(lines[index].dropFirst(indent + 4))
+    guard firstItem.contains(": "), !firstItem.hasPrefix("\""), !firstItem.hasPrefix("'") else {
+      var items: [String] = []
+      while isSequenceItem(lines, index, indent: indent) {
+        items.append(unquote(String(lines[index].dropFirst(indent + 4))))
+        index += 1
+      }
+      return .list(items)
+    }
+    var maps: [[(String, YamlNode)]] = []
+    while isSequenceItem(lines, index, indent: indent) {
+      var itemPairs: [(String, YamlNode)] = []
+      if let (key, rest) = keyAndValue(String(lines[index].dropFirst(indent + 4))) {
+        itemPairs.append((key, parseValue(rest, lines, &index, indent: indent + 4)))
+      } else {
+        index += 1
+      }
+      itemPairs.append(contentsOf: parseBlock(lines, &index, indent: indent + 4))
+      maps.append(itemPairs)
+    }
+    return .mapSeq(maps)
   }
 
   // Work at the unicode-scalar level: Swift treats "\r\n" as a single Character,
@@ -213,13 +212,81 @@ enum NoteParser {
     line.prefix { $0 == " " }.count
   }
 
+  // YAML's own whitespace: spaces and tabs, never the other Unicode spaces (a
+  // plain scalar may begin or end with a no-break space).
+  private static func trimmingYamlSpace(_ text: String) -> String {
+    let scalars = text.unicodeScalars
+    guard let first = scalars.firstIndex(where: { $0 != " " && $0 != "\t" }),
+      let last = scalars.lastIndex(where: { $0 != " " && $0 != "\t" })
+    else { return "" }
+    return String(scalars[first...last])
+  }
+
+  // Read a flow scalar as YAML does: a double-quoted one has its escapes decoded,
+  // a single-quoted one reads `''` as `'`, and a plain one is returned as it is.
   private static func unquote(_ value: String) -> String {
-    if value.count >= 2,
-      (value.hasPrefix("\"") && value.hasSuffix("\""))
-        || (value.hasPrefix("'") && value.hasSuffix("'"))
-    {
-      return String(value.dropFirst().dropLast())
+    let scalars = Array(value.unicodeScalars)
+    guard scalars.count >= 2, let quote = scalars.first, quote == scalars.last else {
+      return value
+    }
+    let inner = scalars[1..<(scalars.count - 1)]
+    if quote == "\"" { return decodeDoubleQuoted(inner) }
+    if quote == "'" {
+      var out = String.UnicodeScalarView()
+      var pos = inner.startIndex
+      while pos < inner.endIndex {
+        out.append(inner[pos])
+        pos += inner[pos] == "'" && pos + 1 < inner.endIndex && inner[pos + 1] == "'" ? 2 : 1
+      }
+      return String(out)
     }
     return value
+  }
+
+  private static let simpleEscapes: [Unicode.Scalar: Unicode.Scalar] = [
+    "0": "\u{0}", "a": "\u{7}", "b": "\u{8}", "t": "\t", "\t": "\t", "n": "\n",
+    "v": "\u{B}", "f": "\u{C}", "r": "\r", "e": "\u{1B}", " ": " ", "\"": "\"", "/": "/",
+    "\\": "\\", "N": "\u{85}", "_": "\u{A0}", "L": "\u{2028}", "P": "\u{2029}",
+  ]
+  private static let hexEscapeWidths: [Unicode.Scalar: Int] = ["x": 2, "u": 4, "U": 8]
+
+  // The YAML double-quoted escape set. A UTF-16 surrogate pair written as two `\u`
+  // escapes is joined; an escape YAML does not define is kept as written.
+  private static func decodeDoubleQuoted(_ scalars: ArraySlice<Unicode.Scalar>) -> String {
+    var out = String.UnicodeScalarView()
+    var pos = scalars.startIndex
+    func hex(at start: Int, width: Int) -> UInt32? {
+      guard start + width <= scalars.endIndex else { return nil }
+      let digits = String(String.UnicodeScalarView(scalars[start..<(start + width)]))
+      guard digits.allSatisfy(\.isHexDigit) else { return nil }
+      return UInt32(digits, radix: 16)
+    }
+    while pos < scalars.endIndex {
+      let scalar = scalars[pos]
+      guard scalar == "\\", pos + 1 < scalars.endIndex else {
+        out.append(scalar)
+        pos += 1
+        continue
+      }
+      let escape = scalars[pos + 1]
+      if let decoded = simpleEscapes[escape] {
+        out.append(decoded)
+        pos += 2
+      } else if let width = hexEscapeWidths[escape], var code = hex(at: pos + 2, width: width) {
+        pos += 2 + width
+        if (0xD800...0xDBFF).contains(code), pos + 6 <= scalars.endIndex, scalars[pos] == "\\",
+          scalars[pos + 1] == "u", let low = hex(at: pos + 2, width: 4),
+          (0xDC00...0xDFFF).contains(low)
+        {
+          code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00)
+          pos += 6
+        }
+        out.append(Unicode.Scalar(code) ?? "\u{FFFD}")
+      } else {
+        out.append(scalar)
+        pos += 1
+      }
+    }
+    return String(out)
   }
 }
