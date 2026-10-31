@@ -98,8 +98,9 @@ final class AccessibilityAuditUITests: XCTestCase {
       }
     } catch let error as NSError where error.code == -56 {
       // -56 is the audit timing out on a busy simulator. An unaudited position could hide a
-      // finding, so try up to three times before failing.
+      // finding, so try up to three times, two seconds apart, before failing.
       if attempt < 3 {
+        _ = XCTWaiter.wait(for: [XCTestExpectation(description: "a pause")], timeout: 2)
         return newFindings(app, on: screen, for: types, attempt: attempt + 1)
       }
       XCTFail(
