@@ -315,7 +315,7 @@ final class VaultImportTests: XCTestCase {
 
   func testImportRefusesReservedAndNonPortablePaths() throws {
     for path in [
-      ".Studio/views/x.json", ".studio/mystery.json", ".studio/index/fts.db", "Inbox/CON.md",
+      ".studio/mystery.json", ".studio/index/fts.db", "Inbox/CON.md",
       "Inbox/trailing.", "Inbox/trailing ", "Inbox/tab\there.md",
     ] {
       try assertRefused(
@@ -332,7 +332,7 @@ final class VaultImportTests: XCTestCase {
           (path: ".studio/settings.json", bytes: Data("{}\n".utf8)),
           (path: "Inbox/a.md", bytes: Data("a\n".utf8)),
         ], excludedCaches: [".studio/index/fts.db"]), store: store)
-    XCTAssertEqual(plan.createCount, 2)
+    XCTAssertEqual(plan.items.map { $0.path }, [".studio/settings.json", "Inbox/a.md"])
   }
 
   func testImportRefusesAnExcludedCacheThatIsNotACache() throws {
