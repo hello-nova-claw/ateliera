@@ -368,4 +368,52 @@ final class VaultImportTests: XCTestCase {
     let plan = try VaultImporter.prepare(archive: archive, store: dest)
     XCTAssertTrue(plan.items.map { $0.path }.contains("Ideas.js/plan.md"))
   }
+
+  // MARK: - Size limits (#38)
+
+  func testReaderRefusesAnArchiveOverTheLimit() throws {
+    let zip = try Zip32.create([(path: "a.md", bytes: Data("x\n".utf8))])
+    let limits = Zip32Reader.Limits(
+      maxArchiveBytes: zip.count - 1, maxEntryBytes: 1_024, maxTotalBytes: 1_024)
+    XCTAssertThrowsError(try Zip32Reader.parse(zip, limits: limits)) { error in
+      XCTAssertEqual(error as? Zip32Reader.ReaderError, .tooLarge)
+    }
+  }
+
+  func testReaderRefusesAnEntryOverTheLimit() throws {
+    let zip = try Zip32.create([(path: "a.md", bytes: Data("four".utf8))])
+    let limits = Zip32Reader.Limits(maxArchiveBytes: 1_024, maxEntryBytes: 3, maxTotalBytes: 1_024)
+    XCTAssertThrowsError(try Zip32Reader.parse(zip, limits: limits)) { error in
+      XCTAssertEqual(error as? Zip32Reader.ReaderError, .tooLarge)
+    }
+  }
+
+  func testReaderRefusesEntriesOverTheTotalLimit() throws {
+    let zip = try Zip32.create([
+      (path: "a.md", bytes: Data("four".utf8)), (path: "b.md", bytes: Data("four".utf8)),
+    ])
+    let limits = Zip32Reader.Limits(maxArchiveBytes: 1_024, maxEntryBytes: 4, maxTotalBytes: 7)
+    XCTAssertThrowsError(try Zip32Reader.parse(zip, limits: limits)) { error in
+      XCTAssertEqual(error as? Zip32Reader.ReaderError, .tooLarge)
+    }
+  }
+
+  func testReaderReadsASliceThatDoesNotStartAtZero() throws {
+    let zip = try Zip32.create([(path: "a.md", bytes: Data("one\n".utf8))])
+    let padded = Data([0xAA, 0xBB]) + zip
+    let parsed = try Zip32Reader.parse(padded[2...])
+    XCTAssertEqual(parsed.map { $0.path }, ["a.md"])
+    XCTAssertEqual(parsed.first?.bytes, Data("one\n".utf8))
+  }
+
+  func testArchiveOverTheLimitIsRefusedBeforeItIsRead() throws {
+    let url = FileManager.default.temporaryDirectory
+      .appendingPathComponent("big-\(UUID().uuidString).zip")
+    try Data(count: 64).write(to: url)
+    defer { try? FileManager.default.removeItem(at: url) }
+    XCTAssertThrowsError(try VaultImporter.readArchive(at: url, maxBytes: 63)) { error in
+      XCTAssertEqual(error as? ImportError, .tooLarge)
+    }
+    XCTAssertEqual(try VaultImporter.readArchive(at: url, maxBytes: 64).count, 64)
+  }
 }
