@@ -969,18 +969,49 @@ mod tests {
             .write_text("a.md".into(), "one\n".into(), None, true)
             .unwrap();
         let before = tv.vault.get_revision().unwrap();
-        tv.vault.remove("a.md".into()).unwrap();
+        tv.vault.remove("a.md".into(), None).unwrap();
         assert!(!tv.vault.exists("a.md".into()).unwrap());
         assert_ne!(tv.vault.get_revision().unwrap(), before);
         // Removing a missing file is a no-op.
-        tv.vault.remove("a.md".into()).unwrap();
+        tv.vault.remove("a.md".into(), None).unwrap();
+    }
+
+    #[test]
+    fn remove_honours_the_expected_hash() {
+        let tv = TempVault::new();
+        let first = tv
+            .vault
+            .write_text("a.md".into(), "one\n".into(), None, true)
+            .unwrap();
+        tv.vault
+            .write_text("a.md".into(), "two\n".into(), Some(first.hash.clone()), false)
+            .unwrap();
+        let before = tv.vault.get_revision().unwrap();
+        // A file that no longer has the expected bytes is left alone.
+        assert!(matches!(
+            tv.vault
+                .remove("a.md".into(), Some(first.hash.clone()))
+                .unwrap_err(),
+            VaultError::Conflict
+        ));
+        assert_eq!(tv.vault.read_text("a.md".into()).unwrap().text, "two\n");
+        assert_eq!(tv.vault.get_revision().unwrap(), before);
+        // The current hash removes it.
+        let current = tv.vault.read_text("a.md".into()).unwrap().hash;
+        tv.vault.remove("a.md".into(), Some(current.clone())).unwrap();
+        assert!(!tv.vault.exists("a.md".into()).unwrap());
+        // An expected hash means the file must be there.
+        assert!(matches!(
+            tv.vault.remove("a.md".into(), Some(current)).unwrap_err(),
+            VaultError::Conflict
+        ));
     }
 
     #[test]
     fn remove_refuses_traversal() {
         let tv = TempVault::new();
         assert!(matches!(
-            tv.vault.remove("../x".into()).unwrap_err(),
+            tv.vault.remove("../x".into(), None).unwrap_err(),
             VaultError::PathEscape
         ));
     }
