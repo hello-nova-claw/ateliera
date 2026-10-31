@@ -245,6 +245,16 @@ impl Vault {
         if writes.len() > 9_999 {
             return Err(VaultError::Unavailable);
         }
+        // Two writes to one file would both pass their preconditions, and the second
+        // rename would fail after the first had landed. Compared without case, as APFS
+        // and HFS+ usually are.
+        let mut seen = std::collections::HashSet::new();
+        if !writes
+            .iter()
+            .all(|write| seen.insert(write.path.to_lowercase()))
+        {
+            return Err(VaultError::Conflict);
+        }
         struct Staged {
             parent: ParentHandle,
             temp: String,
@@ -329,23 +339,30 @@ impl Vault {
             }
         }
 
-        self.reserve_revision_locked()?;
-        for entry in &staged {
-            if entry.expected_missing {
+        if let Err(error) = self.reserve_revision_locked() {
+            cleanup(&staged);
+            return Err(error);
+        }
+        for (index, entry) in staged.iter().enumerate() {
+            let renamed = if entry.expected_missing {
                 rename_exclusive(
                     &entry.parent.directory,
                     &entry.temp,
                     &entry.parent.directory,
                     &entry.parent.basename,
-                )?;
+                )
             } else {
                 entry
                     .parent
                     .directory
                     .rename(&entry.temp, &entry.parent.directory, &entry.parent.basename)
-                    .map_err(map_path_error)?;
+                    .map_err(map_path_error)
+            };
+            if let Err(error) = renamed.and_then(|()| sync_directory(&entry.parent.directory)) {
+                // The renames already made can't be undone; leave no temporaries behind.
+                cleanup(&staged[index..]);
+                return Err(error);
             }
-            sync_directory(&entry.parent.directory)?;
         }
 
         Ok(AtomicBatchOutcome {
