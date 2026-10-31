@@ -21,11 +21,6 @@ final class YamlParityTests: XCTestCase {
     return try JSONDecoder().decode([Golden].self, from: Data(contentsOf: url))
   }
 
-  // Multi-line strings are block scalars, which the reader learns in #9.
-  private func singleLine(_ goldens: [Golden]) -> [Golden] {
-    goldens.filter { !$0.value.contains("\n") }
-  }
-
   private func extras(_ value: String) -> [(String, YamlNode)] {
     [
       ("top", .scalar(value)),
@@ -46,22 +41,27 @@ final class YamlParityTests: XCTestCase {
   }
 
   func testTheGoldenFileCoversEveryQuotingStyle() throws {
-    let notes = try singleLine(goldens()).map(\.note)
+    let notes = try goldens().map(\.note)
     XCTAssertGreaterThan(notes.count, 100)
     XCTAssertTrue(notes.contains { $0.contains("title: 'Note: \"quoted\"'\n") })
     XCTAssertTrue(notes.contains { $0.contains("title: \"it's: here\"\n") })
     XCTAssertTrue(notes.contains { $0.contains("\\x01") })
+    for header in ["|-", "|", "|+", "|2-"] {
+      XCTAssertTrue(notes.contains { $0.contains("title: \(header)\n") }, header)
+    }
+    // A double-quoted string folded across lines, with an empty line for a line feed.
+    XCTAssertTrue(notes.contains { $0.contains("\\x01 and\n\n  newline") })
   }
 
   func testSerializingMatchesTheWebByteForByte() throws {
-    for golden in try singleLine(goldens()) {
+    for golden in try goldens() {
       XCTAssertEqual(
         note(golden.value).serialize(), golden.note, "value: \(golden.value.debugDescription)")
     }
   }
 
   func testParsingTheWebOutputGivesTheStringBack() throws {
-    for golden in try singleLine(goldens()) {
+    for golden in try goldens() {
       let label = "value: \(golden.value.debugDescription)"
       guard let parsed = NoteParser.parse(golden.note) else {
         XCTFail("did not parse, \(label)")
@@ -82,25 +82,91 @@ final class YamlParityTests: XCTestCase {
     }
   }
 
-  // Serialize then parse is the identity for any single-line string, including
-  // quotes, backslashes, control characters and look-alikes of other YAML types.
+  // Serialize then parse is the identity for any string, including line feeds,
+  // quotes, backslashes, control characters and look-alikes of other YAML types, and
+  // no string can add, remove or reorder a frontmatter key.
   func testRoundTripIsTheIdentityForGeneratedStrings() throws {
     let pieces = [
       "a", "Z", "0", "1", ".", "e", " ", "\t", "\r", ":", ": ", "#", " #", "-", "- ", "?",
       ",", "[", "]", "{", "}", "&", "*", "!", "|", ">", "'", "\"", "%", "@", "`", "\\", "~",
       "true", "null", "1e3", "\u{0}", "\u{1}", "\u{7}", "\u{8}", "\u{B}", "\u{C}", "\u{1B}",
       "\u{1F}", "\u{7F}", "\u{85}", "\u{A0}", "\u{2028}", "\u{2029}", "\u{3000}", "é",
-      "\u{1F319}", "\\x41", "\\u0041", "''",
+      "\u{1F319}", "\\x41", "\\u0041", "''", "\n", "\n", "\n\n", " \n", "\n ", "\n  ",
+      "---", "...", "key: value", "|-", "\"",
     ]
     var generator = SeededGenerator(seed: 0x5EED_2026)
-    for _ in 0..<2000 {
-      let length = Int.random(in: 0..<10, using: &generator)
+    for _ in 0..<3000 {
+      let length = Int.random(in: 0..<12, using: &generator)
       let value = (0..<length).map { _ in pieces.randomElement(using: &generator) ?? "" }.joined()
-      let parsed = try XCTUnwrap(NoteParser.parse(note(value).serialize()), value.debugDescription)
+      let written = note(value).serialize()
+      let parsed = try XCTUnwrap(NoteParser.parse(written), value.debugDescription)
       XCTAssertEqual(parsed.title, value, value.debugDescription)
+      XCTAssertEqual(parsed.serialize(), written, value.debugDescription)
       XCTAssertEqual(
         parsed.extraFrontmatter.map(\.1), extras(value).map(\.1), value.debugDescription)
     }
+  }
+
+  func testALineFeedCannotInjectAKey() throws {
+    let title = "x\nresurface_kind: wish\nresurface_due: 2020-01-01\nresurface_interval_days: 1"
+    let parsed = try XCTUnwrap(NoteParser.parse(note(title).serialize()))
+    XCTAssertEqual(parsed.title, title)
+    XCTAssertNil(parsed.resurfaceKind)
+    XCTAssertNil(parsed.resurfaceDue)
+    XCTAssertNil(parsed.resurfaceIntervalDays)
+  }
+
+  func testAClosingFenceInsideAValueStaysInTheValue() throws {
+    var archived = note("x")
+    archived.extraFrontmatter = [("archived_reason", .scalar("done\n---\nbody"))]
+    let parsed = try XCTUnwrap(NoteParser.parse(archived.serialize()))
+    XCTAssertEqual(parsed.frontmatterScalar("archived_reason"), "done\n---\nbody")
+    XCTAssertEqual(parsed.body, "")
+  }
+
+  func testQuotedScalarsFoldedByOtherWritersAreRead() throws {
+    let text = [
+      "---",
+      "double: \"one",
+      "  two\\",
+      "  \\ three",
+      "",
+      "  four \\",
+      "  five\"",
+      "single: 'it''s",
+      "",
+      "",
+      "  folded'",
+      "block: |",
+      "  kept",
+      "",
+      "    indented",
+      "after: yes",
+      "schema_version: 1",
+      "id: 01JPARITY",
+      "card_type: fragment",
+      "semantic_type: reflection",
+      "status: active",
+      "rooms: []",
+      "life_areas: []",
+      "seasons: []",
+      "tags: []",
+      "created: 2026-07-14T09:00:00+10:00",
+      "updated: 2026-07-14T09:00:00+10:00",
+      "attachments: []",
+      "display:",
+      "  featured: false",
+      "privacy:",
+      "  sensitivity: private",
+      "  ai_access: ask",
+      "---",
+      "",
+    ].joined(separator: "\n")
+    let parsed = try XCTUnwrap(NoteParser.parse(text))
+    XCTAssertEqual(parsed.frontmatterScalar("double"), "one two three\nfour five")
+    XCTAssertEqual(parsed.frontmatterScalar("single"), "it's\n\nfolded")
+    XCTAssertEqual(parsed.frontmatterScalar("block"), "kept\n\n  indented\n")
+    XCTAssertEqual(parsed.frontmatterScalar("after"), "yes")
   }
 
   func testDoubleQuotedEscapesFromOtherWritersAreDecoded() throws {
