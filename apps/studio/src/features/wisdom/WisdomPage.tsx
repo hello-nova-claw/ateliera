@@ -562,9 +562,12 @@ export function WisdomPage({
                     >
                       <span className="wisdom-card__title">{card.title}</span>
                       {card.excerpt && (
-                        <span className="wisdom-card__excerpt">
-                          {card.excerpt}
-                        </span>
+                        <>
+                          {' '}
+                          <span className="wisdom-card__excerpt">
+                            {card.excerpt}
+                          </span>
+                        </>
                       )}
                     </button>
                     {source && (
