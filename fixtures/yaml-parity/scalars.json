@@ -1,0 +1,930 @@
+[
+  {
+    "value": "",
+    "note": "---\ntop: \"\"\nmap:\n  inner: \"\"\nlist:\n  - \"\"\nseq:\n  - key: \"\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "plain words",
+    "note": "---\ntop: plain words\nmap:\n  inner: plain words\nlist:\n  - plain words\nseq:\n  - key: plain words\nschema_version: 1\nid: 01JPARITY\ntitle: plain words\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "Note: \"quoted\"",
+    "note": "---\ntop: 'Note: \"quoted\"'\nmap:\n  inner: 'Note: \"quoted\"'\nlist:\n  - 'Note: \"quoted\"'\nseq:\n  - key: 'Note: \"quoted\"'\nschema_version: 1\nid: 01JPARITY\ntitle: 'Note: \"quoted\"'\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "it's: here",
+    "note": "---\ntop: \"it's: here\"\nmap:\n  inner: \"it's: here\"\nlist:\n  - \"it's: here\"\nseq:\n  - key: \"it's: here\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"it's: here\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "both ' and \" quotes",
+    "note": "---\ntop: both ' and \" quotes\nmap:\n  inner: both ' and \" quotes\nlist:\n  - both ' and \" quotes\nseq:\n  - key: both ' and \" quotes\nschema_version: 1\nid: 01JPARITY\ntitle: both ' and \" quotes\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "back\\slash",
+    "note": "---\ntop: back\\slash\nmap:\n  inner: back\\slash\nlist:\n  - back\\slash\nseq:\n  - key: back\\slash\nschema_version: 1\nid: 01JPARITY\ntitle: back\\slash\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "a \\\"tricky\\\" one: yes",
+    "note": "---\ntop: 'a \\\"tricky\\\" one: yes'\nmap:\n  inner: 'a \\\"tricky\\\" one: yes'\nlist:\n  - 'a \\\"tricky\\\" one: yes'\nseq:\n  - key: 'a \\\"tricky\\\" one: yes'\nschema_version: 1\nid: 01JPARITY\ntitle: 'a \\\"tricky\\\" one: yes'\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": " leading space",
+    "note": "---\ntop: \" leading space\"\nmap:\n  inner: \" leading space\"\nlist:\n  - \" leading space\"\nseq:\n  - key: \" leading space\"\nschema_version: 1\nid: 01JPARITY\ntitle: \" leading space\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "trailing space ",
+    "note": "---\ntop: \"trailing space \"\nmap:\n  inner: \"trailing space \"\nlist:\n  - \"trailing space \"\nseq:\n  - key: \"trailing space \"\nschema_version: 1\nid: 01JPARITY\ntitle: \"trailing space \"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "colon at end:",
+    "note": "---\ntop: \"colon at end:\"\nmap:\n  inner: \"colon at end:\"\nlist:\n  - \"colon at end:\"\nseq:\n  - key: \"colon at end:\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"colon at end:\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "a #hashtag",
+    "note": "---\ntop: \"a #hashtag\"\nmap:\n  inner: \"a #hashtag\"\nlist:\n  - \"a #hashtag\"\nseq:\n  - key: \"a #hashtag\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"a #hashtag\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "a#b",
+    "note": "---\ntop: a#b\nmap:\n  inner: a#b\nlist:\n  - a#b\nseq:\n  - key: a#b\nschema_version: 1\nid: 01JPARITY\ntitle: a#b\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "#hash first",
+    "note": "---\ntop: \"#hash first\"\nmap:\n  inner: \"#hash first\"\nlist:\n  - \"#hash first\"\nseq:\n  - key: \"#hash first\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"#hash first\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "- dash space",
+    "note": "---\ntop: \"- dash space\"\nmap:\n  inner: \"- dash space\"\nlist:\n  - \"- dash space\"\nseq:\n  - key: \"- dash space\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"- dash space\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "-dash",
+    "note": "---\ntop: -dash\nmap:\n  inner: -dash\nlist:\n  - -dash\nseq:\n  - key: -dash\nschema_version: 1\nid: 01JPARITY\ntitle: -dash\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "?",
+    "note": "---\ntop: \"?\"\nmap:\n  inner: \"?\"\nlist:\n  - \"?\"\nseq:\n  - key: \"?\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"?\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "? q",
+    "note": "---\ntop: \"? q\"\nmap:\n  inner: \"? q\"\nlist:\n  - \"? q\"\nseq:\n  - key: \"? q\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"? q\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ":colon first",
+    "note": "---\ntop: :colon first\nmap:\n  inner: :colon first\nlist:\n  - :colon first\nseq:\n  - key: :colon first\nschema_version: 1\nid: 01JPARITY\ntitle: :colon first\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ": colon space",
+    "note": "---\ntop: \": colon space\"\nmap:\n  inner: \": colon space\"\nlist:\n  - \": colon space\"\nseq:\n  - key: \": colon space\"\nschema_version: 1\nid: 01JPARITY\ntitle: \": colon space\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "[bracket",
+    "note": "---\ntop: \"[bracket\"\nmap:\n  inner: \"[bracket\"\nlist:\n  - \"[bracket\"\nseq:\n  - key: \"[bracket\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"[bracket\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "{brace",
+    "note": "---\ntop: \"{brace\"\nmap:\n  inner: \"{brace\"\nlist:\n  - \"{brace\"\nseq:\n  - key: \"{brace\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"{brace\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "&anchor",
+    "note": "---\ntop: \"&anchor\"\nmap:\n  inner: \"&anchor\"\nlist:\n  - \"&anchor\"\nseq:\n  - key: \"&anchor\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"&anchor\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "*alias",
+    "note": "---\ntop: \"*alias\"\nmap:\n  inner: \"*alias\"\nlist:\n  - \"*alias\"\nseq:\n  - key: \"*alias\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"*alias\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "!tag",
+    "note": "---\ntop: \"!tag\"\nmap:\n  inner: \"!tag\"\nlist:\n  - \"!tag\"\nseq:\n  - key: \"!tag\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"!tag\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "|pipe",
+    "note": "---\ntop: \"|pipe\"\nmap:\n  inner: \"|pipe\"\nlist:\n  - \"|pipe\"\nseq:\n  - key: \"|pipe\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"|pipe\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ">fold",
+    "note": "---\ntop: \">fold\"\nmap:\n  inner: \">fold\"\nlist:\n  - \">fold\"\nseq:\n  - key: \">fold\"\nschema_version: 1\nid: 01JPARITY\ntitle: \">fold\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "%percent",
+    "note": "---\ntop: \"%percent\"\nmap:\n  inner: \"%percent\"\nlist:\n  - \"%percent\"\nseq:\n  - key: \"%percent\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"%percent\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "@at",
+    "note": "---\ntop: \"@at\"\nmap:\n  inner: \"@at\"\nlist:\n  - \"@at\"\nseq:\n  - key: \"@at\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"@at\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "`tick",
+    "note": "---\ntop: \"`tick\"\nmap:\n  inner: \"`tick\"\nlist:\n  - \"`tick\"\nseq:\n  - key: \"`tick\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"`tick\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ",comma",
+    "note": "---\ntop: \",comma\"\nmap:\n  inner: \",comma\"\nlist:\n  - \",comma\"\nseq:\n  - key: \",comma\"\nschema_version: 1\nid: 01JPARITY\ntitle: \",comma\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "~",
+    "note": "---\ntop: \"~\"\nmap:\n  inner: \"~\"\nlist:\n  - \"~\"\nseq:\n  - key: \"~\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"~\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "null",
+    "note": "---\ntop: \"null\"\nmap:\n  inner: \"null\"\nlist:\n  - \"null\"\nseq:\n  - key: \"null\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"null\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "Null",
+    "note": "---\ntop: \"Null\"\nmap:\n  inner: \"Null\"\nlist:\n  - \"Null\"\nseq:\n  - key: \"Null\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"Null\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "NULL",
+    "note": "---\ntop: \"NULL\"\nmap:\n  inner: \"NULL\"\nlist:\n  - \"NULL\"\nseq:\n  - key: \"NULL\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"NULL\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "nUll",
+    "note": "---\ntop: nUll\nmap:\n  inner: nUll\nlist:\n  - nUll\nseq:\n  - key: nUll\nschema_version: 1\nid: 01JPARITY\ntitle: nUll\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "true",
+    "note": "---\ntop: \"true\"\nmap:\n  inner: \"true\"\nlist:\n  - \"true\"\nseq:\n  - key: \"true\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"true\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "True",
+    "note": "---\ntop: \"True\"\nmap:\n  inner: \"True\"\nlist:\n  - \"True\"\nseq:\n  - key: \"True\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"True\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "TRUE",
+    "note": "---\ntop: \"TRUE\"\nmap:\n  inner: \"TRUE\"\nlist:\n  - \"TRUE\"\nseq:\n  - key: \"TRUE\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"TRUE\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "tRUE",
+    "note": "---\ntop: tRUE\nmap:\n  inner: tRUE\nlist:\n  - tRUE\nseq:\n  - key: tRUE\nschema_version: 1\nid: 01JPARITY\ntitle: tRUE\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "false",
+    "note": "---\ntop: \"false\"\nmap:\n  inner: \"false\"\nlist:\n  - \"false\"\nseq:\n  - key: \"false\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"false\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "yes",
+    "note": "---\ntop: yes\nmap:\n  inner: yes\nlist:\n  - yes\nseq:\n  - key: yes\nschema_version: 1\nid: 01JPARITY\ntitle: yes\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "no",
+    "note": "---\ntop: no\nmap:\n  inner: no\nlist:\n  - no\nseq:\n  - key: no\nschema_version: 1\nid: 01JPARITY\ntitle: no\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "5",
+    "note": "---\ntop: \"5\"\nmap:\n  inner: \"5\"\nlist:\n  - \"5\"\nseq:\n  - key: \"5\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"5\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "-5",
+    "note": "---\ntop: \"-5\"\nmap:\n  inner: \"-5\"\nlist:\n  - \"-5\"\nseq:\n  - key: \"-5\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"-5\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "+5",
+    "note": "---\ntop: \"+5\"\nmap:\n  inner: \"+5\"\nlist:\n  - \"+5\"\nseq:\n  - key: \"+5\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"+5\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "007",
+    "note": "---\ntop: \"007\"\nmap:\n  inner: \"007\"\nlist:\n  - \"007\"\nseq:\n  - key: \"007\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"007\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "0x1F",
+    "note": "---\ntop: \"0x1F\"\nmap:\n  inner: \"0x1F\"\nlist:\n  - \"0x1F\"\nseq:\n  - key: \"0x1F\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"0x1F\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "0o17",
+    "note": "---\ntop: \"0o17\"\nmap:\n  inner: \"0o17\"\nlist:\n  - \"0o17\"\nseq:\n  - key: \"0o17\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"0o17\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "1.5",
+    "note": "---\ntop: \"1.5\"\nmap:\n  inner: \"1.5\"\nlist:\n  - \"1.5\"\nseq:\n  - key: \"1.5\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"1.5\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ".5",
+    "note": "---\ntop: \".5\"\nmap:\n  inner: \".5\"\nlist:\n  - \".5\"\nseq:\n  - key: \".5\"\nschema_version: 1\nid: 01JPARITY\ntitle: \".5\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "1.",
+    "note": "---\ntop: \"1.\"\nmap:\n  inner: \"1.\"\nlist:\n  - \"1.\"\nseq:\n  - key: \"1.\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"1.\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "1e3",
+    "note": "---\ntop: \"1e3\"\nmap:\n  inner: \"1e3\"\nlist:\n  - \"1e3\"\nseq:\n  - key: \"1e3\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"1e3\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "1E-3",
+    "note": "---\ntop: \"1E-3\"\nmap:\n  inner: \"1E-3\"\nlist:\n  - \"1E-3\"\nseq:\n  - key: \"1E-3\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"1E-3\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ".inf",
+    "note": "---\ntop: \".inf\"\nmap:\n  inner: \".inf\"\nlist:\n  - \".inf\"\nseq:\n  - key: \".inf\"\nschema_version: 1\nid: 01JPARITY\ntitle: \".inf\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "-.Inf",
+    "note": "---\ntop: \"-.Inf\"\nmap:\n  inner: \"-.Inf\"\nlist:\n  - \"-.Inf\"\nseq:\n  - key: \"-.Inf\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"-.Inf\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ".nan",
+    "note": "---\ntop: \".nan\"\nmap:\n  inner: \".nan\"\nlist:\n  - \".nan\"\nseq:\n  - key: \".nan\"\nschema_version: 1\nid: 01JPARITY\ntitle: \".nan\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ".NaN",
+    "note": "---\ntop: \".NaN\"\nmap:\n  inner: \".NaN\"\nlist:\n  - \".NaN\"\nseq:\n  - key: \".NaN\"\nschema_version: 1\nid: 01JPARITY\ntitle: \".NaN\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "2026-07-14",
+    "note": "---\ntop: 2026-07-14\nmap:\n  inner: 2026-07-14\nlist:\n  - 2026-07-14\nseq:\n  - key: 2026-07-14\nschema_version: 1\nid: 01JPARITY\ntitle: 2026-07-14\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "2026-07-14T09:00:00+10:00",
+    "note": "---\ntop: 2026-07-14T09:00:00+10:00\nmap:\n  inner: 2026-07-14T09:00:00+10:00\nlist:\n  - 2026-07-14T09:00:00+10:00\nseq:\n  - key: 2026-07-14T09:00:00+10:00\nschema_version: 1\nid: 01JPARITY\ntitle: 2026-07-14T09:00:00+10:00\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "https://example.com/a?b=c#d",
+    "note": "---\ntop: https://example.com/a?b=c#d\nmap:\n  inner: https://example.com/a?b=c#d\nlist:\n  - https://example.com/a?b=c#d\nseq:\n  - key: https://example.com/a?b=c#d\nschema_version: 1\nid: 01JPARITY\ntitle: https://example.com/a?b=c#d\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "tab\there",
+    "note": "---\ntop: tab\there\nmap:\n  inner: tab\there\nlist:\n  - tab\there\nseq:\n  - key: tab\there\nschema_version: 1\nid: 01JPARITY\ntitle: tab\there\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\ttab first",
+    "note": "---\ntop: \"\\ttab first\"\nmap:\n  inner: \"\\ttab first\"\nlist:\n  - \"\\ttab first\"\nseq:\n  - key: \"\\ttab first\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\ttab first\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "nul\u0000byte",
+    "note": "---\ntop: \"nul\\0byte\"\nmap:\n  inner: \"nul\\0byte\"\nlist:\n  - \"nul\\0byte\"\nseq:\n  - key: \"nul\\0byte\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"nul\\0byte\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "bell\u0007",
+    "note": "---\ntop: \"bell\\a\"\nmap:\n  inner: \"bell\\a\"\nlist:\n  - \"bell\\a\"\nseq:\n  - key: \"bell\\a\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"bell\\a\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "esc\u001b[0m",
+    "note": "---\ntop: \"esc\\e[0m\"\nmap:\n  inner: \"esc\\e[0m\"\nlist:\n  - \"esc\\e[0m\"\nseq:\n  - key: \"esc\\e[0m\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"esc\\e[0m\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "cr\rhere",
+    "note": "---\ntop: \"cr\\rhere\"\nmap:\n  inner: \"cr\\rhere\"\nlist:\n  - \"cr\\rhere\"\nseq:\n  - key: \"cr\\rhere\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"cr\\rhere\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "del",
+    "note": "---\ntop: \"del\"\nmap:\n  inner: \"del\"\nlist:\n  - \"del\"\nseq:\n  - key: \"del\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"del\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "nel",
+    "note": "---\ntop: \"nel\"\nmap:\n  inner: \"nel\"\nlist:\n  - \"nel\"\nseq:\n  - key: \"nel\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"nel\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "nbsp x",
+    "note": "---\ntop: nbsp x\nmap:\n  inner: nbsp x\nlist:\n  - nbsp x\nseq:\n  - key: nbsp x\nschema_version: 1\nid: 01JPARITY\ntitle: nbsp x\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": " nbsp first",
+    "note": "---\ntop:  nbsp first\nmap:\n  inner:  nbsp first\nlist:\n  -  nbsp first\nseq:\n  - key:  nbsp first\nschema_version: 1\nid: 01JPARITY\ntitle:  nbsp first\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "line sep",
+    "note": "---\ntop: line sep\nmap:\n  inner: line sep\nlist:\n  - line sep\nseq:\n  - key: line sep\nschema_version: 1\nid: 01JPARITY\ntitle: line sep\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "para sep",
+    "note": "---\ntop: para sep\nmap:\n  inner: para sep\nlist:\n  - para sep\nseq:\n  - key: para sep\nschema_version: 1\nid: 01JPARITY\ntitle: para sep\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "Morgenröte",
+    "note": "---\ntop: Morgenröte\nmap:\n  inner: Morgenröte\nlist:\n  - Morgenröte\nseq:\n  - key: Morgenröte\nschema_version: 1\nid: 01JPARITY\ntitle: Morgenröte\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "moon 🌙 emoji",
+    "note": "---\ntop: moon 🌙 emoji\nmap:\n  inner: moon 🌙 emoji\nlist:\n  - moon 🌙 emoji\nseq:\n  - key: moon 🌙 emoji\nschema_version: 1\nid: 01JPARITY\ntitle: moon 🌙 emoji\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "---",
+    "note": "---\ntop: ---\nmap:\n  inner: ---\nlist:\n  - ---\nseq:\n  - key: ---\nschema_version: 1\nid: 01JPARITY\ntitle: ---\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "---x",
+    "note": "---\ntop: ---x\nmap:\n  inner: ---x\nlist:\n  - ---x\nseq:\n  - key: ---x\nschema_version: 1\nid: 01JPARITY\ntitle: ---x\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "...",
+    "note": "---\ntop: ...\nmap:\n  inner: ...\nlist:\n  - ...\nseq:\n  - key: ...\nschema_version: 1\nid: 01JPARITY\ntitle: ...\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "two\nlines",
+    "note": "---\ntop: |-\n  two\n  lines\nmap:\n  inner: |-\n    two\n    lines\nlist:\n  - |-\n    two\n    lines\nseq:\n  - key: |-\n      two\n      lines\nschema_version: 1\nid: 01JPARITY\ntitle: |-\n  two\n  lines\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "trailing newline\n",
+    "note": "---\ntop: |\n  trailing newline\nmap:\n  inner: |\n    trailing newline\nlist:\n  - |\n    trailing newline\nseq:\n  - key: |\n      trailing newline\nschema_version: 1\nid: 01JPARITY\ntitle: |\n  trailing newline\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "two trailing\n\n",
+    "note": "---\ntop: |+\n  two trailing\n\nmap:\n  inner: |+\n    two trailing\n\nlist:\n  - |+\n    two trailing\n\nseq:\n  - key: |+\n      two trailing\n\nschema_version: 1\nid: 01JPARITY\ntitle: |+\n  two trailing\n\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\nleading newline",
+    "note": "---\ntop: |-\n  \n  leading newline\nmap:\n  inner: |-\n    \n    leading newline\nlist:\n  - |-\n    \n    leading newline\nseq:\n  - key: |-\n      \n      leading newline\nschema_version: 1\nid: 01JPARITY\ntitle: |-\n  \n  leading newline\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": " indented\nsecond",
+    "note": "---\ntop: |2-\n   indented\n  second\nmap:\n  inner: |2-\n     indented\n    second\nlist:\n  - |2-\n     indented\n    second\nseq:\n  - key: |2-\n       indented\n      second\nschema_version: 1\nid: 01JPARITY\ntitle: |2-\n   indented\n  second\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "space before \nnewline",
+    "note": "---\ntop: |-\n  space before \n  newline\nmap:\n  inner: |-\n    space before \n    newline\nlist:\n  - |-\n    space before \n    newline\nseq:\n  - key: |-\n      space before \n      newline\nschema_version: 1\nid: 01JPARITY\ntitle: |-\n  space before \n  newline\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "newline then\n space",
+    "note": "---\ntop: |-\n  newline then\n   space\nmap:\n  inner: |-\n    newline then\n     space\nlist:\n  - |-\n    newline then\n     space\nseq:\n  - key: |-\n      newline then\n       space\nschema_version: 1\nid: 01JPARITY\ntitle: |-\n  newline then\n   space\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "ends with\n  ",
+    "note": "---\ntop: \"ends with\\n  \"\nmap:\n  inner: \"ends with\\n  \"\nlist:\n  - \"ends with\\n  \"\nseq:\n  - key: \"ends with\\n  \"\nschema_version: 1\nid: 01JPARITY\ntitle: \"ends with\\n  \"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "a\n---\nb",
+    "note": "---\ntop: |-\n  a\n  ---\n  b\nmap:\n  inner: |-\n    a\n    ---\n    b\nlist:\n  - |-\n    a\n    ---\n    b\nseq:\n  - key: |-\n      a\n      ---\n      b\nschema_version: 1\nid: 01JPARITY\ntitle: |-\n  a\n  ---\n  b\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "x\nresurface_kind: wish\nresurface_due: 2020-01-01",
+    "note": "---\ntop: |-\n  x\n  resurface_kind: wish\n  resurface_due: 2020-01-01\nmap:\n  inner: |-\n    x\n    resurface_kind: wish\n    resurface_due: 2020-01-01\nlist:\n  - |-\n    x\n    resurface_kind: wish\n    resurface_due: 2020-01-01\nseq:\n  - key: |-\n      x\n      resurface_kind: wish\n      resurface_due: 2020-01-01\nschema_version: 1\nid: 01JPARITY\ntitle: |-\n  x\n  resurface_kind: wish\n  resurface_due: 2020-01-01\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "done\n---\nbody",
+    "note": "---\ntop: |-\n  done\n  ---\n  body\nmap:\n  inner: |-\n    done\n    ---\n    body\nlist:\n  - |-\n    done\n    ---\n    body\nseq:\n  - key: |-\n      done\n      ---\n      body\nschema_version: 1\nid: 01JPARITY\ntitle: |-\n  done\n  ---\n  body\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "control\u0001 and\nnewline in a string long enough to fold",
+    "note": "---\ntop: \"control\\x01 and\n\n  newline in a string long enough to fold\"\nmap:\n  inner: \"control\\x01 and\n\n    newline in a string long enough to fold\"\nlist:\n  - \"control\\x01 and\n\n    newline in a string long enough to fold\"\nseq:\n  - key: \"control\\x01 and\n\n      newline in a string long enough to fold\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"control\\x01 and\n\n  newline in a string long enough to fold\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "control\u0001\n\nblank line in a string long enough to fold",
+    "note": "---\ntop: \"control\\x01\n\n\n  blank line in a string long enough to fold\"\nmap:\n  inner: \"control\\x01\n\n\n    blank line in a string long enough to fold\"\nlist:\n  - \"control\\x01\n\n\n    blank line in a string long enough to fold\"\nseq:\n  - key: \"control\\x01\n\n\n      blank line in a string long enough to fold\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"control\\x01\n\n\n  blank line in a string long enough to fold\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "control\u0001 \n space then newline long enough to fold",
+    "note": "---\ntop: \"control\\x01\\ \n\n  \\ space then newline long enough to fold\"\nmap:\n  inner: \"control\\x01\\ \n\n    \\ space then newline long enough to fold\"\nlist:\n  - \"control\\x01\\ \n\n    \\ space then newline long enough to fold\"\nseq:\n  - key: \"control\\x01\\ \n\n      \\ space then newline long enough to fold\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"control\\x01\\ \n\n  \\ space then newline long enough to fold\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "short\u0001\nfold",
+    "note": "---\ntop: \"short\\x01\\nfold\"\nmap:\n  inner: \"short\\x01\\nfold\"\nlist:\n  - \"short\\x01\\nfold\"\nseq:\n  - key: \"short\\x01\\nfold\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"short\\x01\\nfold\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\u0001]*/\u0001",
+    "note": "---\ntop: \"\\x01]*/\\x01\"\nmap:\n  inner: \"\\x01]*/\\x01\"\nlist:\n  - \"\\x01]*/\\x01\"\nseq:\n  - key: \"\\x01]*/\\x01\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\x01]*/\\x01\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "?\\ `Z&!\u000b",
+    "note": "---\ntop: \"?\\\\ `Z&!\\v\"\nmap:\n  inner: \"?\\\\ `Z&!\\v\"\nlist:\n  - \"?\\\\ `Z&!\\v\"\nseq:\n  - key: \"?\\\\ `Z&!\\v\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"?\\\\ `Z&!\\v\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ".\u001b x\u001f",
+    "note": "---\ntop: \".\\e x\\x1f\"\nmap:\n  inner: \".\\e x\\x1f\"\nlist:\n  - \".\\e x\\x1f\"\nseq:\n  - key: \".\\e x\\x1f\"\nschema_version: 1\nid: 01JPARITY\ntitle: \".\\e x\\x1f\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "@\b: \u001fa",
+    "note": "---\ntop: \"@\\b: \\x1fa\"\nmap:\n  inner: \"@\\b: \\x1fa\"\nlist:\n  - \"@\\b: \\x1fa\"\nseq:\n  - key: \"@\\b: \\x1fa\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"@\\b: \\x1fa\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "0=",
+    "note": "---\ntop: 0=\nmap:\n  inner: 0=\nlist:\n  - 0=\nseq:\n  - key: 0=\nschema_version: 1\nid: 01JPARITY\ntitle: 0=\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\b　\bnull\u0001",
+    "note": "---\ntop: \"\\b　\\bnull\\x01\"\nmap:\n  inner: \"\\b　\\bnull\\x01\"\nlist:\n  - \"\\b　\\bnull\\x01\"\nseq:\n  - key: \"\\b　\\bnull\\x01\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\b　\\bnull\\x01\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "b　\b- ?/\u0001+",
+    "note": "---\ntop: \"b　\\b- ?/\\x01+\"\nmap:\n  inner: \"b　\\b- ?/\\x01+\"\nlist:\n  - \"b　\\b- ?/\\x01+\"\nseq:\n  - key: \"b　\\b- ?/\\x01+\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"b　\\b- ?/\\x01+\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\"\\\t",
+    "note": "---\ntop: '\"\\\t'\nmap:\n  inner: '\"\\\t'\nlist:\n  - '\"\\\t'\nseq:\n  - key: '\"\\\t'\nschema_version: 1\nid: 01JPARITY\ntitle: '\"\\\t'\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ":  #",
+    "note": "---\ntop: \":  #\"\nmap:\n  inner: \":  #\"\nlist:\n  - \":  #\"\nseq:\n  - key: \":  #\"\nschema_version: 1\nid: 01JPARITY\ntitle: \":  #\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ": \n]~\\",
+    "note": "---\ntop: |-\n  : \n  ]~\\\nmap:\n  inner: |-\n    : \n    ]~\\\nlist:\n  - |-\n    : \n    ]~\\\nseq:\n  - key: |-\n      : \n      ]~\\\nschema_version: 1\nid: 01JPARITY\ntitle: |-\n  : \n  ]~\\\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": " : .---trueaZ: ",
+    "note": "---\ntop: \" : .---trueaZ: \"\nmap:\n  inner: \" : .---trueaZ: \"\nlist:\n  - \" : .---trueaZ: \"\nseq:\n  - key: \" : .---trueaZ: \"\nschema_version: 1\nid: 01JPARITY\ntitle: \" : .---trueaZ: \"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\u0000}🌙 \"|",
+    "note": "---\ntop: \"\\0}🌙 \\\"|\"\nmap:\n  inner: \"\\0}🌙 \\\"|\"\nlist:\n  - \"\\0}🌙 \\\"|\"\nseq:\n  - key: \"\\0}🌙 \\\"|\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\0}🌙 \\\"|\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "{1e3\u0001%\u0001\t=x=",
+    "note": "---\ntop: \"{1e3\\x01%\\x01\\t=x=\"\nmap:\n  inner: \"{1e3\\x01%\\x01\\t=x=\"\nlist:\n  - \"{1e3\\x01%\\x01\\t=x=\"\nseq:\n  - key: \"{1e3\\x01%\\x01\\t=x=\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"{1e3\\x01%\\x01\\t=x=\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": " #\\　: \u0000",
+    "note": "---\ntop: \" #\\\\　: \\0\"\nmap:\n  inner: \" #\\\\　: \\0\"\nlist:\n  - \" #\\\\　: \\0\"\nseq:\n  - key: \" #\\\\　: \\0\"\nschema_version: 1\nid: 01JPARITY\ntitle: \" #\\\\　: \\0\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "x\u001b",
+    "note": "---\ntop: \"x\\e\"\nmap:\n  inner: \"x\\e\"\nlist:\n  - \"x\\e\"\nseq:\n  - key: \"x\\e\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"x\\e\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "é",
+    "note": "---\ntop: é\nmap:\n  inner: é\nlist:\n  - é\nseq:\n  - key: é\nschema_version: 1\nid: 01JPARITY\ntitle: é\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\\e#\"Z- null- \b",
+    "note": "---\ntop: \"\\\\e#\\\"Z- null- \\b\"\nmap:\n  inner: \"\\\\e#\\\"Z- null- \\b\"\nlist:\n  - \"\\\\e#\\\"Z- null- \\b\"\nseq:\n  - key: \"\\\\e#\\\"Z- null- \\b\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\\\e#\\\"Z- null- \\b\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "b&e\u0000Z@x- ",
+    "note": "---\ntop: \"b&e\\0Z@x- \"\nmap:\n  inner: \"b&e\\0Z@x- \"\nlist:\n  - \"b&e\\0Z@x- \"\nseq:\n  - key: \"b&e\\0Z@x- \"\nschema_version: 1\nid: 01JPARITY\ntitle: \"b&e\\0Z@x- \"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "a{[ ",
+    "note": "---\ntop: \"a{[ \"\nmap:\n  inner: \"a{[ \"\nlist:\n  - \"a{[ \"\nseq:\n  - key: \"a{[ \"\nschema_version: 1\nid: 01JPARITY\ntitle: \"a{[ \"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "!|>~**\u001fx?",
+    "note": "---\ntop: \"!|>~**\\x1fx?\"\nmap:\n  inner: \"!|>~**\\x1fx?\"\nlist:\n  - \"!|>~**\\x1fx?\"\nseq:\n  - key: \"!|>~**\\x1fx?\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"!|>~**\\x1fx?\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\\",
+    "note": "---\ntop: \\\nmap:\n  inner: \\\nlist:\n  - \\\nseq:\n  - key: \\\nschema_version: 1\nid: 01JPARITY\ntitle: \\\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "🌙",
+    "note": "---\ntop: 🌙\nmap:\n  inner: 🌙\nlist:\n  - 🌙\nseq:\n  - key: 🌙\nschema_version: 1\nid: 01JPARITY\ntitle: 🌙\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "é #\f",
+    "note": "---\ntop: \"é #\\f\"\nmap:\n  inner: \"é #\\f\"\nlist:\n  - \"é #\\f\"\nseq:\n  - key: \"é #\\f\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"é #\\f\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "? ?x*>.%+",
+    "note": "---\ntop: \"? ?x*>.%+\"\nmap:\n  inner: \"? ?x*>.%+\"\nlist:\n  - \"? ?x*>.%+\"\nseq:\n  - key: \"? ?x*>.%+\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"? ?x*>.%+\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ">\u000b` b---1+\u001f",
+    "note": "---\ntop: \">\\v` b---1+\\x1f\"\nmap:\n  inner: \">\\v` b---1+\\x1f\"\nlist:\n  - \">\\v` b---1+\\x1f\"\nseq:\n  - key: \">\\v` b---1+\\x1f\"\nschema_version: 1\nid: 01JPARITY\ntitle: \">\\v` b---1+\\x1f\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\\*---=\u000b \f[\f",
+    "note": "---\ntop: \"\\\\*---=\\v \\f[\\f\"\nmap:\n  inner: \"\\\\*---=\\v \\f[\\f\"\nlist:\n  - \"\\\\*---=\\v \\f[\\f\"\nseq:\n  - key: \"\\\\*---=\\v \\f[\\f\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\\\*---=\\v \\f[\\f\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "[1:\u000b-\u0001a",
+    "note": "---\ntop: \"[1:\\v-\\x01a\"\nmap:\n  inner: \"[1:\\v-\\x01a\"\nlist:\n  - \"[1:\\v-\\x01a\"\nseq:\n  - key: \"[1:\\v-\\x01a\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"[1:\\v-\\x01a\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "!+null *",
+    "note": "---\ntop: \"!+null *\"\nmap:\n  inner: \"!+null *\"\nlist:\n  - \"!+null *\"\nseq:\n  - key: \"!+null *\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"!+null *\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "/*\u0007*\b#:",
+    "note": "---\ntop: \"/*\\a*\\b#:\"\nmap:\n  inner: \"/*\\a*\\b#:\"\nlist:\n  - \"/*\\a*\\b#:\"\nseq:\n  - key: \"/*\\a*\\b#:\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"/*\\a*\\b#:\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "- '~,+.",
+    "note": "---\ntop: \"- '~,+.\"\nmap:\n  inner: \"- '~,+.\"\nlist:\n  - \"- '~,+.\"\nseq:\n  - key: \"- '~,+.\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"- '~,+.\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\\\u001b ",
+    "note": "---\ntop: \"\\\\\\e \"\nmap:\n  inner: \"\\\\\\e \"\nlist:\n  - \"\\\\\\e \"\nseq:\n  - key: \"\\\\\\e \"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\\\\\e \"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "Z ",
+    "note": "---\ntop: Z \nmap:\n  inner: Z \nlist:\n  - Z \nseq:\n  - key: Z \nschema_version: 1\nid: 01JPARITY\ntitle: Z \ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "%é\f~é\u0001![",
+    "note": "---\ntop: \"%é\\f~é\\x01![\"\nmap:\n  inner: \"%é\\f~é\\x01![\"\nlist:\n  - \"%é\\f~é\\x01![\"\nseq:\n  - key: \"%é\\f~é\\x01![\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"%é\\f~é\\x01![\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "-\f🌙0@}🌙\b",
+    "note": "---\ntop: \"-\\f🌙0@}🌙\\b\"\nmap:\n  inner: \"-\\f🌙0@}🌙\\b\"\nlist:\n  - \"-\\f🌙0@}🌙\\b\"\nseq:\n  - key: \"-\\f🌙0@}🌙\\b\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"-\\f🌙0@}🌙\\b\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "`: \"e\b.: 　",
+    "note": "---\ntop: \"`: \\\"e\\b.: 　\"\nmap:\n  inner: \"`: \\\"e\\b.: 　\"\nlist:\n  - \"`: \\\"e\\b.: 　\"\nseq:\n  - key: \"`: \\\"e\\b.: 　\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"`: \\\"e\\b.: 　\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "　+　#&}/: .",
+    "note": "---\ntop: \"　+　#&}/: .\"\nmap:\n  inner: \"　+　#&}/: .\"\nlist:\n  - \"　+　#&}/: .\"\nseq:\n  - key: \"　+　#&}/: .\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"　+　#&}/: .\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "[:\r&e---&null",
+    "note": "---\ntop: \"[:\\r&e---&null\"\nmap:\n  inner: \"[:\\r&e---&null\"\nlist:\n  - \"[:\\r&e---&null\"\nseq:\n  - key: \"[:\\r&e---&null\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"[:\\r&e---&null\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": " @true'",
+    "note": "---\ntop:  @true'\nmap:\n  inner:  @true'\nlist:\n  -  @true'\nseq:\n  - key:  @true'\nschema_version: 1\nid: 01JPARITY\ntitle:  @true'\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\b 🌙",
+    "note": "---\ntop: \"\\b 🌙\"\nmap:\n  inner: \"\\b 🌙\"\nlist:\n  - \"\\b 🌙\"\nseq:\n  - key: \"\\b 🌙\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\b 🌙\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "null~",
+    "note": "---\ntop: null~\nmap:\n  inner: null~\nlist:\n  - null~\nseq:\n  - key: null~\nschema_version: 1\nid: 01JPARITY\ntitle: null~\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "0. ~true\f",
+    "note": "---\ntop: \"0. ~true\\f\"\nmap:\n  inner: \"0. ~true\\f\"\nlist:\n  - \"0. ~true\\f\"\nseq:\n  - key: \"0. ~true\\f\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"0. ~true\\f\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": " #",
+    "note": "---\ntop: \" #\"\nmap:\n  inner: \" #\"\nlist:\n  - \" #\"\nseq:\n  - key: \" #\"\nschema_version: 1\nid: 01JPARITY\ntitle: \" #\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "---.%: \t",
+    "note": "---\ntop: \"---.%: \\t\"\nmap:\n  inner: \"---.%: \\t\"\nlist:\n  - \"---.%: \\t\"\nseq:\n  - key: \"---.%: \\t\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"---.%: \\t\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ": }&",
+    "note": "---\ntop: \": }&\"\nmap:\n  inner: \": }&\"\nlist:\n  - \": }&\"\nseq:\n  - key: \": }&\"\nschema_version: 1\nid: 01JPARITY\ntitle: \": }&\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": " ",
+    "note": "---\ntop: \" \"\nmap:\n  inner: \" \"\nlist:\n  - \" \"\nseq:\n  - key: \" \"\nschema_version: 1\nid: 01JPARITY\ntitle: \" \"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "a null",
+    "note": "---\ntop: \"a null\"\nmap:\n  inner: \"a null\"\nlist:\n  - \"a null\"\nseq:\n  - key: \"a null\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"a null\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "+,\u001b\n1",
+    "note": "---\ntop: \"+,\\e\\n1\"\nmap:\n  inner: \"+,\\e\\n1\"\nlist:\n  - \"+,\\e\\n1\"\nseq:\n  - key: \"+,\\e\\n1\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"+,\\e\\n1\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "?'  #=+---+",
+    "note": "---\ntop: \"?'  #=+---+\"\nmap:\n  inner: \"?'  #=+---+\"\nlist:\n  - \"?'  #=+---+\"\nseq:\n  - key: \"?'  #=+---+\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"?'  #=+---+\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\u001f:\\1e3@",
+    "note": "---\ntop: \"\\x1f:\\\\1e3@\"\nmap:\n  inner: \"\\x1f:\\\\1e3@\"\nlist:\n  - \"\\x1f:\\\\1e3@\"\nseq:\n  - key: \"\\x1f:\\\\1e3@\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\x1f:\\\\1e3@\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "#&",
+    "note": "---\ntop: \"#&\"\nmap:\n  inner: \"#&\"\nlist:\n  - \"#&\"\nseq:\n  - key: \"#&\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"#&\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": " [ : ",
+    "note": "---\ntop: \" [ : \"\nmap:\n  inner: \" [ : \"\nlist:\n  - \" [ : \"\nseq:\n  - key: \" [ : \"\nschema_version: 1\nid: 01JPARITY\ntitle: \" [ : \"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": " #\u001f #}=%é\r",
+    "note": "---\ntop: \" #\\x1f #}=%é\\r\"\nmap:\n  inner: \" #\\x1f #}=%é\\r\"\nlist:\n  - \" #\\x1f #}=%é\\r\"\nseq:\n  - key: \" #\\x1f #}=%é\\r\"\nschema_version: 1\nid: 01JPARITY\ntitle: \" #\\x1f #}=%é\\r\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "?>|>%é\u0000'",
+    "note": "---\ntop: \"?>|>%é\\0'\"\nmap:\n  inner: \"?>|>%é\\0'\"\nlist:\n  - \"?>|>%é\\0'\"\nseq:\n  - key: \"?>|>%é\\0'\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"?>|>%é\\0'\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "> ",
+    "note": "---\ntop: \"> \"\nmap:\n  inner: \"> \"\nlist:\n  - \"> \"\nseq:\n  - key: \"> \"\nschema_version: 1\nid: 01JPARITY\ntitle: \"> \"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\f+# #[a\\",
+    "note": "---\ntop: \"\\f+# #[a\\\\\"\nmap:\n  inner: \"\\f+# #[a\\\\\"\nlist:\n  - \"\\f+# #[a\\\\\"\nseq:\n  - key: \"\\f+# #[a\\\\\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\f+# #[a\\\\\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "- \u0000|!\\x: @",
+    "note": "---\ntop: \"- \\0|!\\\\x: @\"\nmap:\n  inner: \"- \\0|!\\\\x: @\"\nlist:\n  - \"- \\0|!\\\\x: @\"\nseq:\n  - key: \"- \\0|!\\\\x: @\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"- \\0|!\\\\x: @\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\u000b' % >'",
+    "note": "---\ntop: \"\\v' % >'\"\nmap:\n  inner: \"\\v' % >'\"\nlist:\n  - \"\\v' % >'\"\nseq:\n  - key: \"\\v' % >'\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\v' % >'\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "]  - '%null",
+    "note": "---\ntop: \"]  - '%null\"\nmap:\n  inner: \"]  - '%null\"\nlist:\n  - \"]  - '%null\"\nseq:\n  - key: \"]  - '%null\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"]  - '%null\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "&　\u000b\r",
+    "note": "---\ntop: \"&　\\v\\r\"\nmap:\n  inner: \"&　\\v\\r\"\nlist:\n  - \"&　\\v\\r\"\nseq:\n  - key: \"&　\\v\\r\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"&　\\v\\r\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\t&Z",
+    "note": "---\ntop: \"\\t&Z\"\nmap:\n  inner: \"\\t&Z\"\nlist:\n  - \"\\t&Z\"\nseq:\n  - key: \"\\t&Z\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\t&Z\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "{ null&",
+    "note": "---\ntop: \"{ null&\"\nmap:\n  inner: \"{ null&\"\nlist:\n  - \"{ null&\"\nseq:\n  - key: \"{ null&\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"{ null&\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "- @\u000b {",
+    "note": "---\ntop: \"- @\\v {\"\nmap:\n  inner: \"- @\\v {\"\nlist:\n  - \"- @\\v {\"\nseq:\n  - key: \"- @\\v {\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"- @\\v {\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\r\r",
+    "note": "---\ntop: \"\\r\\r\"\nmap:\n  inner: \"\\r\\r\"\nlist:\n  - \"\\r\\r\"\nseq:\n  - key: \"\\r\\r\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\r\\r\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "1e3- !>",
+    "note": "---\ntop: 1e3- !>\nmap:\n  inner: 1e3- !>\nlist:\n  - 1e3- !>\nseq:\n  - key: 1e3- !>\nschema_version: 1\nid: 01JPARITY\ntitle: 1e3- !>\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\t\f\u0001b",
+    "note": "---\ntop: \"\\t\\f\\x01b\"\nmap:\n  inner: \"\\t\\f\\x01b\"\nlist:\n  - \"\\t\\f\\x01b\"\nseq:\n  - key: \"\\t\\f\\x01b\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\t\\f\\x01b\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "1 e.@|@:0",
+    "note": "---\ntop: 1 e.@|@:0\nmap:\n  inner: 1 e.@|@:0\nlist:\n  - 1 e.@|@:0\nseq:\n  - key: 1 e.@|@:0\nschema_version: 1\nid: 01JPARITY\ntitle: 1 e.@|@:0\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "`-!: ",
+    "note": "---\ntop: \"`-!: \"\nmap:\n  inner: \"`-!: \"\nlist:\n  - \"`-!: \"\nseq:\n  - key: \"`-!: \"\nschema_version: 1\nid: 01JPARITY\ntitle: \"`-!: \"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\"\u001ba?{] #",
+    "note": "---\ntop: \"\\\"\\ea?{] #\"\nmap:\n  inner: \"\\\"\\ea?{] #\"\nlist:\n  - \"\\\"\\ea?{] #\"\nseq:\n  - key: \"\\\"\\ea?{] #\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\\"\\ea?{] #\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ": \t #\t.]é",
+    "note": "---\ntop: \": \\t #\\t.]é\"\nmap:\n  inner: \": \\t #\\t.]é\"\nlist:\n  - \": \\t #\\t.]é\"\nseq:\n  - key: \": \\t #\\t.]é\"\nschema_version: 1\nid: 01JPARITY\ntitle: \": \\t #\\t.]é\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\u0001&\\}🌙\\",
+    "note": "---\ntop: \"\\x01&\\\\}🌙\\\\\"\nmap:\n  inner: \"\\x01&\\\\}🌙\\\\\"\nlist:\n  - \"\\x01&\\\\}🌙\\\\\"\nseq:\n  - key: \"\\x01&\\\\}🌙\\\\\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\x01&\\\\}🌙\\\\\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "%xx\u00071bb[ #",
+    "note": "---\ntop: \"%xx\\a1bb[ #\"\nmap:\n  inner: \"%xx\\a1bb[ #\"\nlist:\n  - \"%xx\\a1bb[ #\"\nseq:\n  - key: \"%xx\\a1bb[ #\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"%xx\\a1bb[ #\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "=&\r🌙/}",
+    "note": "---\ntop: \"=&\\r🌙/}\"\nmap:\n  inner: \"=&\\r🌙/}\"\nlist:\n  - \"=&\\r🌙/}\"\nseq:\n  - key: \"=&\\r🌙/}\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"=&\\r🌙/}\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "'.'\\+~ ",
+    "note": "---\ntop: \"'.'\\\\+~ \"\nmap:\n  inner: \"'.'\\\\+~ \"\nlist:\n  - \"'.'\\\\+~ \"\nseq:\n  - key: \"'.'\\\\+~ \"\nschema_version: 1\nid: 01JPARITY\ntitle: \"'.'\\\\+~ \"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "1e3> @-",
+    "note": "---\ntop: 1e3> @-\nmap:\n  inner: 1e3> @-\nlist:\n  - 1e3> @-\nseq:\n  - key: 1e3> @-\nschema_version: 1\nid: 01JPARITY\ntitle: 1e3> @-\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "?%1e31e3-,{ /",
+    "note": "---\ntop: ?%1e31e3-,{ /\nmap:\n  inner: ?%1e31e3-,{ /\nlist:\n  - ?%1e31e3-,{ /\nseq:\n  - key: ?%1e31e3-,{ /\nschema_version: 1\nid: 01JPARITY\ntitle: ?%1e31e3-,{ /\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "?'[Z\u001f>=é",
+    "note": "---\ntop: \"?'[Z\\x1f>=é\"\nmap:\n  inner: \"?'[Z\\x1f>=é\"\nlist:\n  - \"?'[Z\\x1f>=é\"\nseq:\n  - key: \"?'[Z\\x1f>=é\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"?'[Z\\x1f>=é\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ":==&:e &\\",
+    "note": "---\ntop: :==&:e &\\\nmap:\n  inner: :==&:e &\\\nlist:\n  - :==&:e &\\\nseq:\n  - key: :==&:e &\\\nschema_version: 1\nid: 01JPARITY\ntitle: :==&:e &\\\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "@\t: , \u0001",
+    "note": "---\ntop: \"@\\t: , \\x01\"\nmap:\n  inner: \"@\\t: , \\x01\"\nlist:\n  - \"@\\t: , \\x01\"\nseq:\n  - key: \"@\\t: , \\x01\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"@\\t: , \\x01\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\te🌙'\u001b-\u000b",
+    "note": "---\ntop: \"\\te🌙'\\e-\\v\"\nmap:\n  inner: \"\\te🌙'\\e-\\v\"\nlist:\n  - \"\\te🌙'\\e-\\v\"\nseq:\n  - key: \"\\te🌙'\\e-\\v\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\te🌙'\\e-\\v\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\r -\f=&1e3\u0007[",
+    "note": "---\ntop: \"\\r -\\f=&1e3\\a[\"\nmap:\n  inner: \"\\r -\\f=&1e3\\a[\"\nlist:\n  - \"\\r -\\f=&1e3\\a[\"\nseq:\n  - key: \"\\r -\\f=&1e3\\a[\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\r -\\f=&1e3\\a[\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": " #%",
+    "note": "---\ntop: \" #%\"\nmap:\n  inner: \" #%\"\nlist:\n  - \" #%\"\nseq:\n  - key: \" #%\"\nschema_version: 1\nid: 01JPARITY\ntitle: \" #%\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "'e",
+    "note": "---\ntop: \"'e\"\nmap:\n  inner: \"'e\"\nlist:\n  - \"'e\"\nseq:\n  - key: \"'e\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"'e\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "'#null",
+    "note": "---\ntop: \"'#null\"\nmap:\n  inner: \"'#null\"\nlist:\n  - \"'#null\"\nseq:\n  - key: \"'#null\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"'#null\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "🌙\"Z/a*",
+    "note": "---\ntop: 🌙\"Z/a*\nmap:\n  inner: 🌙\"Z/a*\nlist:\n  - 🌙\"Z/a*\nseq:\n  - key: 🌙\"Z/a*\nschema_version: 1\nid: 01JPARITY\ntitle: 🌙\"Z/a*\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "- Z*\\. ",
+    "note": "---\ntop: \"- Z*\\\\. \"\nmap:\n  inner: \"- Z*\\\\. \"\nlist:\n  - \"- Z*\\\\. \"\nseq:\n  - key: \"- Z*\\\\. \"\nschema_version: 1\nid: 01JPARITY\ntitle: \"- Z*\\\\. \"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ",,-e\f\u000b/",
+    "note": "---\ntop: \",,-e\\f\\v/\"\nmap:\n  inner: \",,-e\\f\\v/\"\nlist:\n  - \",,-e\\f\\v/\"\nseq:\n  - key: \",,-e\\f\\v/\"\nschema_version: 1\nid: 01JPARITY\ntitle: \",,-e\\f\\v/\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "a/': ",
+    "note": "---\ntop: \"a/': \"\nmap:\n  inner: \"a/': \"\nlist:\n  - \"a/': \"\nseq:\n  - key: \"a/': \"\nschema_version: 1\nid: 01JPARITY\ntitle: \"a/': \"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\t *\u001b",
+    "note": "---\ntop: \"\\t *\\e\"\nmap:\n  inner: \"\\t *\\e\"\nlist:\n  - \"\\t *\\e\"\nseq:\n  - key: \"\\t *\\e\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\t *\\e\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\u001f@null🌙",
+    "note": "---\ntop: \"\\x1f@null🌙\"\nmap:\n  inner: \"\\x1f@null🌙\"\nlist:\n  - \"\\x1f@null🌙\"\nseq:\n  - key: \"\\x1f@null🌙\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\x1f@null🌙\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\u001fx:\t-[",
+    "note": "---\ntop: \"\\x1fx:\\t-[\"\nmap:\n  inner: \"\\x1fx:\\t-[\"\nlist:\n  - \"\\x1fx:\\t-[\"\nseq:\n  - key: \"\\x1fx:\\t-[\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\x1fx:\\t-[\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "&éx}\u001f",
+    "note": "---\ntop: \"&éx}\\x1f\"\nmap:\n  inner: \"&éx}\\x1f\"\nlist:\n  - \"&éx}\\x1f\"\nseq:\n  - key: \"&éx}\\x1f\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"&éx}\\x1f\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ">- ]",
+    "note": "---\ntop: \">- ]\"\nmap:\n  inner: \">- ]\"\nlist:\n  - \">- ]\"\nseq:\n  - key: \">- ]\"\nschema_version: 1\nid: 01JPARITY\ntitle: \">- ]\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "%{{\f0\u001f---e",
+    "note": "---\ntop: \"%{{\\f0\\x1f---e\"\nmap:\n  inner: \"%{{\\f0\\x1f---e\"\nlist:\n  - \"%{{\\f0\\x1f---e\"\nseq:\n  - key: \"%{{\\f0\\x1f---e\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"%{{\\f0\\x1f---e\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "　",
+    "note": "---\ntop: 　\nmap:\n  inner: 　\nlist:\n  - 　\nseq:\n  - key: 　\nschema_version: 1\nid: 01JPARITY\ntitle: 　\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "x>　\u0001\u001b1e3|",
+    "note": "---\ntop: \"x>　\\x01\\e1e3|\"\nmap:\n  inner: \"x>　\\x01\\e1e3|\"\nlist:\n  - \"x>　\\x01\\e1e3|\"\nseq:\n  - key: \"x>　\\x01\\e1e3|\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"x>　\\x01\\e1e3|\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": " \u001b\u0001}> \b ",
+    "note": "---\ntop: \" \\e\\x01}> \\b \"\nmap:\n  inner: \" \\e\\x01}> \\b \"\nlist:\n  - \" \\e\\x01}> \\b \"\nseq:\n  - key: \" \\e\\x01}> \\b \"\nschema_version: 1\nid: 01JPARITY\ntitle: \" \\e\\x01}> \\b \"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ".{ ]",
+    "note": "---\ntop: .{ ]\nmap:\n  inner: .{ ]\nlist:\n  - .{ ]\nseq:\n  - key: .{ ]\nschema_version: 1\nid: 01JPARITY\ntitle: .{ ]\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "---Z#a",
+    "note": "---\ntop: ---Z#a\nmap:\n  inner: ---Z#a\nlist:\n  - ---Z#a\nseq:\n  - key: ---Z#a\nschema_version: 1\nid: 01JPARITY\ntitle: ---Z#a\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\\\u000b>1e3=@x",
+    "note": "---\ntop: \"\\\\\\v>1e3=@x\"\nmap:\n  inner: \"\\\\\\v>1e3=@x\"\nlist:\n  - \"\\\\\\v>1e3=@x\"\nseq:\n  - key: \"\\\\\\v>1e3=@x\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\\\\\v>1e3=@x\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "---🌙",
+    "note": "---\ntop: \"---🌙\"\nmap:\n  inner: \"---🌙\"\nlist:\n  - \"---🌙\"\nseq:\n  - key: \"---🌙\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"---🌙\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": " . \u001b",
+    "note": "---\ntop: \" . \\e\"\nmap:\n  inner: \" . \\e\"\nlist:\n  - \" . \\e\"\nseq:\n  - key: \" . \\e\"\nschema_version: 1\nid: 01JPARITY\ntitle: \" . \\e\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\r]1",
+    "note": "---\ntop: \"\\r]1\"\nmap:\n  inner: \"\\r]1\"\nlist:\n  - \"\\r]1\"\nseq:\n  - key: \"\\r]1\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\r]1\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "b\u001f - \u0001bé#",
+    "note": "---\ntop: \"b\\x1f - \\x01bé#\"\nmap:\n  inner: \"b\\x1f - \\x01bé#\"\nlist:\n  - \"b\\x1f - \\x01bé#\"\nseq:\n  - key: \"b\\x1f - \\x01bé#\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"b\\x1f - \\x01bé#\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "*e& ",
+    "note": "---\ntop: \"*e& \"\nmap:\n  inner: \"*e& \"\nlist:\n  - \"*e& \"\nseq:\n  - key: \"*e& \"\nschema_version: 1\nid: 01JPARITY\ntitle: \"*e& \"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "* ",
+    "note": "---\ntop: \"* \"\nmap:\n  inner: \"* \"\nlist:\n  - \"* \"\nseq:\n  - key: \"* \"\nschema_version: 1\nid: 01JPARITY\ntitle: \"* \"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": " \"\né\n0?|",
+    "note": "---\ntop: \" \\\"\\né\\n0?|\"\nmap:\n  inner: \" \\\"\\né\\n0?|\"\nlist:\n  - \" \\\"\\né\\n0?|\"\nseq:\n  - key: \" \\\"\\né\\n0?|\"\nschema_version: 1\nid: 01JPARITY\ntitle: \" \\\"\\né\\n0?|\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\\\"",
+    "note": "---\ntop: \\\"\nmap:\n  inner: \\\"\nlist:\n  - \\\"\nseq:\n  - key: \\\"\nschema_version: 1\nid: 01JPARITY\ntitle: \\\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "1e3🌙[~",
+    "note": "---\ntop: 1e3🌙[~\nmap:\n  inner: 1e3🌙[~\nlist:\n  - 1e3🌙[~\nseq:\n  - key: 1e3🌙[~\nschema_version: 1\nid: 01JPARITY\ntitle: 1e3🌙[~\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "&",
+    "note": "---\ntop: \"&\"\nmap:\n  inner: \"&\"\nlist:\n  - \"&\"\nseq:\n  - key: \"&\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"&\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "%x[--- #",
+    "note": "---\ntop: \"%x[--- #\"\nmap:\n  inner: \"%x[--- #\"\nlist:\n  - \"%x[--- #\"\nseq:\n  - key: \"%x[--- #\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"%x[--- #\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ": ",
+    "note": "---\ntop: \": \"\nmap:\n  inner: \": \"\nlist:\n  - \": \"\nseq:\n  - key: \": \"\nschema_version: 1\nid: 01JPARITY\ntitle: \": \"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "true*\"",
+    "note": "---\ntop: true*\"\nmap:\n  inner: true*\"\nlist:\n  - true*\"\nseq:\n  - key: true*\"\nschema_version: 1\nid: 01JPARITY\ntitle: true*\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "  \f0=\r\r",
+    "note": "---\ntop: \"  \\f0=\\r\\r\"\nmap:\n  inner: \"  \\f0=\\r\\r\"\nlist:\n  - \"  \\f0=\\r\\r\"\nseq:\n  - key: \"  \\f0=\\r\\r\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"  \\f0=\\r\\r\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "---`  \r- x+",
+    "note": "---\ntop: \"---`  \\r- x+\"\nmap:\n  inner: \"---`  \\r- x+\"\nlist:\n  - \"---`  \\r- x+\"\nseq:\n  - key: \"---`  \\r- x+\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"---`  \\r- x+\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "'\u0000?=\f[",
+    "note": "---\ntop: \"'\\0?=\\f[\"\nmap:\n  inner: \"'\\0?=\\f[\"\nlist:\n  - \"'\\0?=\\f[\"\nseq:\n  - key: \"'\\0?=\\f[\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"'\\0?=\\f[\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "truebé",
+    "note": "---\ntop: truebé\nmap:\n  inner: truebé\nlist:\n  - truebé\nseq:\n  - key: truebé\nschema_version: 1\nid: 01JPARITY\ntitle: truebé\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "0é",
+    "note": "---\ntop: 0é\nmap:\n  inner: 0é\nlist:\n  - 0é\nseq:\n  - key: 0é\nschema_version: 1\nid: 01JPARITY\ntitle: 0é\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "+ ]&+{:%-",
+    "note": "---\ntop: + ]&+{:%-\nmap:\n  inner: + ]&+{:%-\nlist:\n  - + ]&+{:%-\nseq:\n  - key: + ]&+{:%-\nschema_version: 1\nid: 01JPARITY\ntitle: + ]&+{:%-\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": " # :",
+    "note": "---\ntop: \" # :\"\nmap:\n  inner: \" # :\"\nlist:\n  - \" # :\"\nseq:\n  - key: \" # :\"\nschema_version: 1\nid: 01JPARITY\ntitle: \" # :\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\n|.[|",
+    "note": "---\ntop: |-\n  \n  |.[|\nmap:\n  inner: |-\n    \n    |.[|\nlist:\n  - |-\n    \n    |.[|\nseq:\n  - key: |-\n      \n      |.[|\nschema_version: 1\nid: 01JPARITY\ntitle: |-\n  \n  |.[|\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "Z,>-\r&\u00011e3",
+    "note": "---\ntop: \"Z,>-\\r&\\x011e3\"\nmap:\n  inner: \"Z,>-\\r&\\x011e3\"\nlist:\n  - \"Z,>-\\r&\\x011e3\"\nseq:\n  - key: \"Z,>-\\r&\\x011e3\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"Z,>-\\r&\\x011e3\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": " #0 -",
+    "note": "---\ntop: \" #0 -\"\nmap:\n  inner: \" #0 -\"\nlist:\n  - \" #0 -\"\nseq:\n  - key: \" #0 -\"\nschema_version: 1\nid: 01JPARITY\ntitle: \" #0 -\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\u001f}\t\u0001",
+    "note": "---\ntop: \"\\x1f}\\t\\x01\"\nmap:\n  inner: \"\\x1f}\\t\\x01\"\nlist:\n  - \"\\x1f}\\t\\x01\"\nseq:\n  - key: \"\\x1f}\\t\\x01\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\x1f}\\t\\x01\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "---,?é`{\u0001",
+    "note": "---\ntop: \"---,?é`{\\x01\"\nmap:\n  inner: \"---,?é`{\\x01\"\nlist:\n  - \"---,?é`{\\x01\"\nseq:\n  - key: \"---,?é`{\\x01\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"---,?é`{\\x01\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\u00001+é}é # ~",
+    "note": "---\ntop: \"\\01+é}é # ~\"\nmap:\n  inner: \"\\01+é}é # ~\"\nlist:\n  - \"\\01+é}é # ~\"\nseq:\n  - key: \"\\01+é}é # ~\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\01+é}é # ~\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\n #\"🌙\f .",
+    "note": "---\ntop: \"\\n #\\\"🌙\\f .\"\nmap:\n  inner: \"\\n #\\\"🌙\\f .\"\nlist:\n  - \"\\n #\\\"🌙\\f .\"\nseq:\n  - key: \"\\n #\\\"🌙\\f .\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\n #\\\"🌙\\f .\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": " nullé\u000b #\u000b`Z",
+    "note": "---\ntop: \" nullé\\v #\\v`Z\"\nmap:\n  inner: \" nullé\\v #\\v`Z\"\nlist:\n  - \" nullé\\v #\\v`Z\"\nseq:\n  - key: \" nullé\\v #\\v`Z\"\nschema_version: 1\nid: 01JPARITY\ntitle: \" nullé\\v #\\v`Z\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "} #{\t{\u0007",
+    "note": "---\ntop: \"} #{\\t{\\a\"\nmap:\n  inner: \"} #{\\t{\\a\"\nlist:\n  - \"} #{\\t{\\a\"\nseq:\n  - key: \"} #{\\t{\\a\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"} #{\\t{\\a\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\u0001-->",
+    "note": "---\ntop: \"\\x01-->\"\nmap:\n  inner: \"\\x01-->\"\nlist:\n  - \"\\x01-->\"\nseq:\n  - key: \"\\x01-->\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\x01-->\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\u000b0 [",
+    "note": "---\ntop: \"\\v0 [\"\nmap:\n  inner: \"\\v0 [\"\nlist:\n  - \"\\v0 [\"\nseq:\n  - key: \"\\v0 [\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\v0 [\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": ",\\ #&  &{",
+    "note": "---\ntop: \",\\\\ #&  &{\"\nmap:\n  inner: \",\\\\ #&  &{\"\nlist:\n  - \",\\\\ #&  &{\"\nseq:\n  - key: \",\\\\ #&  &{\"\nschema_version: 1\nid: 01JPARITY\ntitle: \",\\\\ #&  &{\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "~1\u000bZ x",
+    "note": "---\ntop: \"~1\\vZ x\"\nmap:\n  inner: \"~1\\vZ x\"\nlist:\n  - \"~1\\vZ x\"\nseq:\n  - key: \"~1\\vZ x\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"~1\\vZ x\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "'",
+    "note": "---\ntop: \"'\"\nmap:\n  inner: \"'\"\nlist:\n  - \"'\"\nseq:\n  - key: \"'\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"'\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "#*truenull+\u0007- ---",
+    "note": "---\ntop: \"#*truenull+\\a- ---\"\nmap:\n  inner: \"#*truenull+\\a- ---\"\nlist:\n  - \"#*truenull+\\a- ---\"\nseq:\n  - key: \"#*truenull+\\a- ---\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"#*truenull+\\a- ---\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "\bb\f &\n",
+    "note": "---\ntop: \"\\bb\\f &\\n\"\nmap:\n  inner: \"\\bb\\f &\\n\"\nlist:\n  - \"\\bb\\f &\\n\"\nseq:\n  - key: \"\\bb\\f &\\n\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"\\bb\\f &\\n\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "　0/,?\te =",
+    "note": "---\ntop: 　0/,?\te =\nmap:\n  inner: 　0/,?\te =\nlist:\n  - 　0/,?\te =\nseq:\n  - key: 　0/,?\te =\nschema_version: 1\nid: 01JPARITY\ntitle: 　0/,?\te =\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "]\u001btrue%%@>\u001f",
+    "note": "---\ntop: \"]\\etrue%%@>\\x1f\"\nmap:\n  inner: \"]\\etrue%%@>\\x1f\"\nlist:\n  - \"]\\etrue%%@>\\x1f\"\nseq:\n  - key: \"]\\etrue%%@>\\x1f\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"]\\etrue%%@>\\x1f\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "'*b---　",
+    "note": "---\ntop: \"'*b---　\"\nmap:\n  inner: \"'*b---　\"\nlist:\n  - \"'*b---　\"\nseq:\n  - key: \"'*b---　\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"'*b---　\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": "- }&---1é*\u001f",
+    "note": "---\ntop: \"- }&---1é*\\x1f\"\nmap:\n  inner: \"- }&---1é*\\x1f\"\nlist:\n  - \"- }&---1é*\\x1f\"\nseq:\n  - key: \"- }&---1é*\\x1f\"\nschema_version: 1\nid: 01JPARITY\ntitle: \"- }&---1é*\\x1f\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  },
+  {
+    "value": " #'[  \u0001 #",
+    "note": "---\ntop: \" #'[  \\x01 #\"\nmap:\n  inner: \" #'[  \\x01 #\"\nlist:\n  - \" #'[  \\x01 #\"\nseq:\n  - key: \" #'[  \\x01 #\"\nschema_version: 1\nid: 01JPARITY\ntitle: \" #'[  \\x01 #\"\ncard_type: fragment\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons: []\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\n"
+  }
+]
