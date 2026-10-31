@@ -14,6 +14,33 @@ final class VaultImportTests: XCTestCase {
     return (dir, store)
   }
 
+  /// A backup ZIP as the Studio writes one: the files plus a manifest listing them.
+  /// `unlisted` entries go into the ZIP without a manifest line.
+  private func portable(
+    _ files: [(path: String, bytes: Data)], unlisted: [(path: String, bytes: Data)] = [],
+    excludedCaches: [String] = []
+  ) throws -> Data {
+    let listed = files.sorted { $0.path < $1.path }.map {
+      ManifestFile(path: $0.path, sha256: VaultExporter.sha256Hex($0.bytes), size: $0.bytes.count)
+    }
+    let manifest = PortableManifest.serialize(
+      files: listed, excludedCaches: excludedCaches, generatedAt: "2026-08-28T09:00:00.000Z")
+    return try Zip32.create(
+      files + unlisted + [(PortableManifest.manifestPath, Data(manifest.utf8))])
+  }
+
+  private func assertRefused(
+    _ archive: Data, as expected: ImportError, file: StaticString = #filePath, line: UInt = #line
+  ) throws {
+    let (dir, store) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertThrowsError(
+      try VaultImporter.prepare(archive: archive, store: store), file: file, line: line
+    ) { error in
+      XCTAssertEqual(error as? ImportError, expected, file: file, line: line)
+    }
+  }
+
   func testReaderRoundTripsWriterOutput() throws {
     let zip = try Zip32.create([
       (path: "a.md", bytes: Data("one\n".utf8)),
@@ -138,13 +165,11 @@ final class VaultImportTests: XCTestCase {
     XCTAssertTrue(store.capture(title: "Existing", body: "old", room: "inbox"))
     let existingPath = try XCTUnwrap(store.parsedNotesByPath.first?.path)
 
-    let zip = try Zip32.create([
+    let zip = try portable([
       (path: existingPath, bytes: Data("replacement\n".utf8)),
       (path: "Inbox/brand-new.md", bytes: Data("fresh\n".utf8)),
-      (path: PortableManifest.manifestPath, bytes: Data("{}".utf8)),
     ])
     let plan = try VaultImporter.prepare(archive: zip, store: store)
-    XCTAssertTrue(plan.manifestPresent)
     XCTAssertEqual(plan.createCount, 1)
     XCTAssertEqual(plan.overwriteCount, 1)
   }
@@ -155,10 +180,9 @@ final class VaultImportTests: XCTestCase {
     XCTAssertTrue(store.capture(title: "Keep", body: "original", room: "inbox"))
     let existingPath = try XCTUnwrap(store.parsedNotesByPath.first?.path)
 
-    let zip = try Zip32.create([
+    let zip = try portable([
       (path: existingPath, bytes: Data("replacement\n".utf8)),
       (path: "Inbox/brand-new.md", bytes: Data("fresh\n".utf8)),
-      (path: PortableManifest.manifestPath, bytes: Data("{}".utf8)),
     ])
     let plan = try VaultImporter.prepare(archive: zip, store: store)
 
@@ -201,11 +225,119 @@ final class VaultImportTests: XCTestCase {
   func testStaleRevisionRejectsApply() throws {
     let (dir, store) = try makeVault()
     defer { try? FileManager.default.removeItem(at: dir) }
-    let zip = try Zip32.create([(path: "Inbox/x.md", bytes: Data("x\n".utf8))])
+    let zip = try portable([(path: "Inbox/x.md", bytes: Data("x\n".utf8))])
     let plan = try VaultImporter.prepare(archive: zip, store: store)
     // A concurrent write moves the revision on after the plan was made.
     XCTAssertTrue(store.capture(title: "Concurrent", body: "meanwhile", room: "inbox"))
     XCTAssertFalse(VaultImporter.apply(plan: plan, store: store))
     XCTAssertNotNil(store.error)
+  }
+
+  // MARK: - The web's import checks (#32)
+
+  func testImportRefusesABackupWithNoManifest() throws {
+    try assertRefused(
+      Zip32.create([(path: "Inbox/a.md", bytes: Data("a\n".utf8))]), as: .invalidManifest)
+  }
+
+  func testImportRefusesAManifestThatIsNotTheStudios() throws {
+    try assertRefused(
+      Zip32.create([
+        (path: "Inbox/a.md", bytes: Data("a\n".utf8)),
+        (path: PortableManifest.manifestPath, bytes: Data("{}".utf8)),
+      ]), as: .invalidManifest)
+  }
+
+  func testImportRefusesActiveContent() throws {
+    for path in ["Inbox/run.command", "Evil.app/Contents/MacOS/Evil", "Inbox/page.HTML"] {
+      try assertRefused(
+        portable([(path: path, bytes: Data("x".utf8))]), as: .activeContent(path: path))
+    }
+  }
+
+  func testImportRefusesEntriesTheManifestDoesNotList() throws {
+    try assertRefused(
+      portable(
+        [(path: "Inbox/a.md", bytes: Data("a\n".utf8))],
+        unlisted: [(path: "Inbox/b.md", bytes: Data("b\n".utf8))]),
+      as: .outsideManifest)
+  }
+
+  func testImportRefusesAFileWhoseChecksumDiffers() throws {
+    let listed = ManifestFile(
+      path: "Inbox/a.md", sha256: VaultExporter.sha256Hex(Data("other\n".utf8)), size: 6)
+    let manifest = PortableManifest.serialize(
+      files: [listed], excludedCaches: [], generatedAt: "2026-08-28T09:00:00.000Z")
+    try assertRefused(
+      Zip32.create([
+        (path: "Inbox/a.md", bytes: Data("a-b-c\n".utf8)),
+        (path: PortableManifest.manifestPath, bytes: Data(manifest.utf8)),
+      ]), as: .checksumFailed)
+  }
+
+  func testImportRefusesPathsThatCollideInCase() throws {
+    try assertRefused(
+      portable([
+        (path: "Inbox/Note.md", bytes: Data("a\n".utf8)),
+        (path: "Inbox/note.md", bytes: Data("b\n".utf8)),
+      ]), as: .pathCollision(path: "Inbox/note.md"))
+  }
+
+  func testImportRefusesAPathThatIsNotNFC() throws {
+    // Decomposed, so it could name the same file as its precomposed twin.
+    let path = "Inbox/cafe\u{301}.md"
+    try assertRefused(
+      portable([(path: path, bytes: Data("b\n".utf8))]), as: .unsafePath(path: path))
+  }
+
+  func testImportRefusesTwoSpellingsOfOneName() throws {
+    // Swift compares them as equal, so the reader already counts them as one entry twice.
+    try assertRefused(
+      portable([
+        (path: "Inbox/caf\u{E9}.md", bytes: Data("a\n".utf8)),
+        (path: "Inbox/cafe\u{301}.md", bytes: Data("b\n".utf8)),
+      ]), as: .invalidArchive)
+  }
+
+  func testImportRefusesAPathThatCollidesWithADifferentlyCasedFile() throws {
+    let (dir, store) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.capture(title: "Existing", body: "old", room: "inbox"))
+    let existingPath = try XCTUnwrap(store.parsedNotesByPath.first?.path)
+    let shouted = existingPath.uppercased()
+    XCTAssertThrowsError(
+      try VaultImporter.prepare(
+        archive: portable([(path: shouted, bytes: Data("new\n".utf8))]), store: store)
+    ) { error in
+      XCTAssertEqual(error as? ImportError, .pathCollision(path: shouted))
+    }
+  }
+
+  func testImportRefusesReservedAndNonPortablePaths() throws {
+    for path in [
+      ".Studio/views/x.json", ".studio/mystery.json", ".studio/index/fts.db", "Inbox/CON.md",
+      "Inbox/trailing.", "Inbox/trailing ", "Inbox/tab\there.md",
+    ] {
+      try assertRefused(
+        portable([(path: path, bytes: Data("x".utf8))]), as: .unsafePath(path: path))
+    }
+  }
+
+  func testImportAcceptsTheStudiosOwnSettingsAndBackups() throws {
+    let (dir, store) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let plan = try VaultImporter.prepare(
+      archive: portable(
+        [
+          (path: ".studio/settings.json", bytes: Data("{}\n".utf8)),
+          (path: "Inbox/a.md", bytes: Data("a\n".utf8)),
+        ], excludedCaches: [".studio/index/fts.db"]), store: store)
+    XCTAssertEqual(plan.createCount, 2)
+  }
+
+  func testImportRefusesAnExcludedCacheThatIsNotACache() throws {
+    try assertRefused(
+      portable([(path: "Inbox/a.md", bytes: Data("a\n".utf8))], excludedCaches: ["Inbox/b.md"]),
+      as: .invalidManifest)
   }
 }
