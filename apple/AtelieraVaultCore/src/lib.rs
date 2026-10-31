@@ -939,6 +939,33 @@ mod tests {
     }
 
     #[test]
+    fn write_batch_atomic_rejects_duplicate_paths_before_writing() {
+        let tv = TempVault::new();
+        let start = tv.vault.get_revision().unwrap();
+        let write = |bytes: &[u8]| BatchWrite {
+            path: "a.md".into(),
+            bytes: bytes.to_vec(),
+            expected_hash: None,
+            expected_missing: true,
+        };
+        let err = tv
+            .vault
+            .write_batch_atomic(start.clone(), vec![write(b"one\n"), write(b"two\n")])
+            .unwrap_err();
+        assert!(matches!(err, VaultError::Conflict));
+        // Nothing was committed, the revision is unchanged and no temporary is left.
+        assert!(!tv.vault.exists("a.md".into()).unwrap());
+        assert_eq!(tv.vault.get_revision().unwrap(), start);
+        let leftovers: Vec<_> = std::fs::read_dir(&tv.path)
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.file_name().into_string().unwrap())
+            .filter(|name| name.ends_with(".tmp"))
+            .collect();
+        assert!(leftovers.is_empty(), "left behind: {leftovers:?}");
+    }
+
+    #[test]
     fn write_batch_atomic_rejects_stale_revision() {
         let tv = TempVault::new();
         // A concurrent write advances the revision.
