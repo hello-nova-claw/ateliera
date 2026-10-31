@@ -180,7 +180,10 @@ enum Rhythm {
   // How far through the current (meteorological) season the date sits, 0…1.
   static func seasonProgress(date: String) -> Double {
     let (year, month, _, ms) = parse(date)
-    let startYear: Int, startMonth: Int, endYear: Int, endMonth: Int
+    let startYear: Int
+    let startMonth: Int
+    let endYear: Int
+    let endMonth: Int
     switch month {
     case 12: (startYear, startMonth, endYear, endMonth) = (year, 12, year + 1, 3)
     case 1, 2: (startYear, startMonth, endYear, endMonth) = (year - 1, 12, year, 3)
@@ -210,7 +213,9 @@ enum Rhythm {
 
   private static func sinDeg(_ deg: Double) -> Double { sin(deg * .pi / 180) }
   private static func cosDeg(_ deg: Double) -> Double { cos(deg * .pi / 180) }
-  private static func mod360(_ deg: Double) -> Double { (deg.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360) }
+  private static func mod360(_ deg: Double) -> Double {
+    (deg.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+  }
 
   // Sun–Moon elongation on 0 (new) … 180 (full) … 360 and the illuminated fraction —
   // the single source both the eight-phase name and the four lunar seasons read.
@@ -294,12 +299,29 @@ enum Rhythm {
 
   // MARK: Cycle
 
+  // The cycle length assumed when Health has not implied one (CycleDeriver's default).
+  static let typicalCycleLengthDays = 28
+
   private static func cyclePhaseForDay(_ day: Int, avgLengthDays: Int) -> CyclePhase {
     if day <= 5 { return .menstrual }
     let ovulationStart = max(6, avgLengthDays - 14)
     if day < ovulationStart { return .follicular }
     if day <= ovulationStart + 2 { return .ovulation }
     return .luteal
+  }
+
+  // The days `cyclePhaseForDay` assigns to a phase in a cycle of this length, the same
+  // boundaries read back, or nil for a phase the cycle is too short to reach.
+  static func cyclePhaseSpan(_ phase: CyclePhase, avgLengthDays: Int) -> ClosedRange<Int>? {
+    let ovulationStart = max(6, avgLengthDays - 14)
+    let (first, last): (Int, Int)
+    switch phase {
+    case .menstrual: (first, last) = (1, 5)
+    case .follicular: (first, last) = (6, ovulationStart - 1)
+    case .ovulation: (first, last) = (ovulationStart, ovulationStart + 2)
+    case .luteal: (first, last) = (ovulationStart + 3, avgLengthDays)
+    }
+    return first <= last ? first...last : nil
   }
 
   static func computeCycle(_ cycle: CycleProfile?, dateMs: Int64) -> CycleState? {
