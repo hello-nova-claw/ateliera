@@ -442,7 +442,6 @@ export function ReflectionPage({
           >
             {views.map((item, index) => (
               <button
-                aria-label={item.label}
                 aria-selected={view === item.id}
                 className="reflection-switch__tab"
                 key={item.id}

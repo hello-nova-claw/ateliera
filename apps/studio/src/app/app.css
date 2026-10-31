@@ -529,9 +529,18 @@
   }
 
   .studio-topbar__search kbd,
-  .studio-topbar__search span:nth-child(2),
   .studio-topbar__new {
     display: none;
+  }
+
+  /* Hidden from sight only, so the icon button keeps its name. */
+  .studio-topbar__search span:nth-child(2) {
+    position: absolute;
+    overflow: hidden;
+    inline-size: 1px;
+    block-size: 1px;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .studio-topbar__actions {

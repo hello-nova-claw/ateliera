@@ -51,7 +51,7 @@ it('places temporary possibilities at their authentic horizons', () => {
   expect(screen.getByLabelText('Example Near card')).toBeVisible();
   expect(screen.getByLabelText('Example Beyond the Gate card')).toBeVisible();
   fireEvent.click(
-    screen.getByRole('button', { name: /Use Near as a starting point/ }),
+    screen.getByRole('button', { name: 'Use as a starting point: Near' }),
   );
   expect(onUseTourExample).toHaveBeenCalledWith(
     tourExamples.uncharted[0],
