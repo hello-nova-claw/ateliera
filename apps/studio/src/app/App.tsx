@@ -54,7 +54,10 @@ import {
   type TourExample,
 } from '../features/onboarding/tour-examples';
 import { preloadTourRoom } from '../features/onboarding/tour-prefetch';
-import { useStudioPreferences } from '../features/settings/use-studio-preferences';
+import {
+  preloadStudioPreferences,
+  useStudioPreferences,
+} from '../features/settings/use-studio-preferences';
 import {
   NEW_STUDIO_PREFERENCES,
   resolveRoomVisibility,
@@ -752,9 +755,12 @@ function StudioApplication({
       await Promise.resolve(
         lifecycle.preferences.save(NEW_STUDIO_PREFERENCES, null),
       ).catch(() => undefined);
+      await preloadStudioPreferences(lifecycle);
       dispatchEntry({ type: 'first-visit', attemptId, mode: 'new' });
       return;
     }
+    // The rooms first draw from these, so the navigation doesn't shift.
+    await preloadStudioPreferences(lifecycle);
     const settings = await lifecycle.onboarding.load();
     const step = settings.onboarding.currentStep;
     if (

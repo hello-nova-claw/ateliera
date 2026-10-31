@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  preloadStudioPreferences,
   sharedPreferencesListenerCount,
   useStudioPreferences,
 } from './use-studio-preferences';
@@ -41,6 +42,51 @@ describe('useStudioPreferences', () => {
     const { result } = renderHook(() => useStudioPreferences(svc));
     await waitFor(() => expect(result.current.revision).toBe('r0'));
     expect(result.current.preferences).toEqual({ rhythm: { moon: false } });
+  });
+
+  it('starts from preferences read before the Studio opened', async () => {
+    const svc = service({
+      load: vi.fn(async () => ({
+        preferences: { rooms: { wisdom: 'off' as const } },
+        revision: 'r0',
+        repairRequired: false,
+      })),
+    });
+    await preloadStudioPreferences(svc);
+
+    const { result } = renderHook(() => useStudioPreferences(svc));
+
+    expect(result.current.preferences).toEqual({ rooms: { wisdom: 'off' } });
+    expect(result.current.revision).toBe('r0');
+  });
+
+  it('starts later users from the latest shared save', async () => {
+    const save = vi.fn(async (preferences: unknown) => ({
+      preferences,
+      revision: 'r1',
+      repairRequired: false,
+    }));
+    const svc = service({ save: save as never });
+    await preloadStudioPreferences(svc);
+    const navigation = renderHook(() => useStudioPreferences(svc));
+    await act(async () => navigation.result.current.save({ rooms: { inbox: 'on' } }));
+
+    const settings = renderHook(() => useStudioPreferences(svc));
+
+    expect(settings.result.current.preferences).toEqual({ rooms: { inbox: 'on' } });
+    expect(settings.result.current.revision).toBe('r1');
+  });
+
+  it('opens with defaults when the early read fails', async () => {
+    const svc = service({
+      load: vi.fn().mockRejectedValue(new Error('vault unavailable')),
+    });
+    await expect(preloadStudioPreferences(svc)).resolves.toBeUndefined();
+
+    const { result } = renderHook(() => useStudioPreferences(svc));
+
+    expect(result.current.preferences).toEqual({});
+    expect(result.current.revision).toBeNull();
   });
 
   it('leaves preferences empty when the load fails', async () => {

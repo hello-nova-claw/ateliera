@@ -36,11 +36,45 @@ export function sharedPreferencesListenerCount(service: StudioService): number {
   return listeners.get(service)?.size ?? 0;
 }
 
+// The last snapshot read or saved for each Studio. A copy that mounts later
+// starts from it instead of from defaults.
+const latest = new WeakMap<StudioService, PreferencesSnapshot>();
+
+const defaults: PreferencesSnapshot = { preferences: {}, revision: null };
+
+function known(service: StudioService | undefined): PreferencesSnapshot {
+  return (service === undefined ? undefined : latest.get(service)) ?? defaults;
+}
+
+/**
+ * Reads a Studio's preferences before its rooms first draw. Without it the
+ * navigation and the Foyer draw every room, then drop the ones turned off a
+ * moment later, and the links move under the pointer. A failed read leaves
+ * the defaults, as the hook's own load does.
+ */
+export async function preloadStudioPreferences(
+  service: StudioService,
+): Promise<void> {
+  try {
+    const snapshot = await service.preferences.load();
+    latest.set(service, {
+      preferences: snapshot.preferences,
+      revision: snapshot.revision,
+    });
+  } catch {
+    // The hook loads again when it mounts.
+  }
+}
+
 export function useStudioPreferences(
   service: StudioService | undefined,
 ): UseStudioPreferences {
-  const [preferences, setPreferences] = useState<StoredStudioPreferences>({});
-  const [revision, setRevision] = useState<string | null>(null);
+  const [held, setHeld] = useState(() => ({
+    service,
+    snapshot: known(service),
+  }));
+  const { preferences, revision } =
+    held.service === service ? held.snapshot : known(service);
 
   useEffect(() => {
     if (service === undefined) return undefined;
@@ -50,15 +84,18 @@ export function useStudioPreferences(
     let shared = false;
     const unsubscribe = subscribe(service, (snapshot) => {
       shared = true;
-      setPreferences(snapshot.preferences);
-      setRevision(snapshot.revision);
+      setHeld({ service, snapshot });
     });
     void service.preferences
       .load()
-      .then((snapshot) => {
+      .then((loaded) => {
         if (!current || shared) return;
-        setPreferences(snapshot.preferences);
-        setRevision(snapshot.revision);
+        const snapshot = {
+          preferences: loaded.preferences,
+          revision: loaded.revision,
+        };
+        latest.set(service, snapshot);
+        setHeld({ service, snapshot });
       })
       .catch(() => {
         // Preferences that can't be loaded degrade to "all defaults" — every room
@@ -80,6 +117,7 @@ export function useStudioPreferences(
         preferences: snapshot.preferences,
         revision: snapshot.revision,
       };
+      latest.set(service, shared);
       for (const listener of listeners.get(service) ?? []) listener(shared);
     },
   };

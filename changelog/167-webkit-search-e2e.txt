@@ -1,0 +1,1 @@
+Opening a Studio no longer shows every room in the navigation for a moment before hiding the ones you turned off, so the links stay where they are when you reach for them.
