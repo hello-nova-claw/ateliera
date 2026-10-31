@@ -1049,12 +1049,13 @@ final class VaultStore {
     }
   }
 
-  /// Remove a vault file (e.g. pruning an old revision snapshot). Missing is a no-op.
+  /// Remove a vault file (e.g. pruning an old revision snapshot). Missing is a no-op,
+  /// unless `expectedHash` is given: then the file goes only if it has exactly those bytes.
   @discardableResult
-  func removeFile(path: String) -> Bool {
+  func removeFile(path: String, expectedHash: String? = nil) -> Bool {
     guard let vault else { return false }
     do {
-      try vault.remove(path: path)
+      try vault.remove(path: path, expectedHash: expectedHash)
       return true
     } catch {
       self.error = "\(error)"
