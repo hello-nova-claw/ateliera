@@ -41,15 +41,24 @@ struct RootView: View {
   @State private var profileStore = RhythmProfileStore()
   @State private var homePlace = HomePlaceStore()  // where you live, for climate personalisation
   @State private var microSeasons: MicroSeasonStore  // the on-device personalised micro-season
-  @State private var showToday = false  // the atmosphere panel starts tucked away
-  @State private var navigateRoute: RoomRoute?  // an accepted invitation that opens a room
-  @State private var pendingSeed: WorkshopSeed?  // set on capture; becomes the offer once the sheet closes
-  @State private var workshopOffer: WorkshopSeed?  // a gentle, dismissable "develop this" offer
-  @State private var workshopSeed: WorkshopSeed?  // drives the workshop sheet (once accepted)
-  @State private var pendingBecoming: WorkshopSeed?  // a Life-planning capture; opens the thread on dismiss
-  @State private var pendingGuided: GuidedSeed?  // a gratitude/dream capture; opens its thread on dismiss
-  @State private var activeGuided: GuidedSeed?  // drives the gratitude/dream guided-thread sheet
-  @State private var pendingReverse: WorkshopSeed?  // a Possibility to work forward; opens on dismiss
+  // The atmosphere panel starts tucked away.
+  @State private var showToday = false
+  // An accepted invitation that opens a room.
+  @State private var navigateRoute: RoomRoute?
+  // Set on capture; becomes the offer once the sheet closes.
+  @State private var pendingSeed: WorkshopSeed?
+  // A gentle, dismissable "develop this" offer.
+  @State private var workshopOffer: WorkshopSeed?
+  // Drives the workshop sheet (once accepted).
+  @State private var workshopSeed: WorkshopSeed?
+  // A Life-planning capture; opens the thread on dismiss.
+  @State private var pendingBecoming: WorkshopSeed?
+  // A gratitude/dream capture; opens its thread on dismiss.
+  @State private var pendingGuided: GuidedSeed?
+  // Drives the gratitude/dream guided-thread sheet.
+  @State private var activeGuided: GuidedSeed?
+  // A Possibility to work forward; opens on dismiss.
+  @State private var pendingReverse: WorkshopSeed?
 
   // A just-captured gratitude/dream entry to deepen with its guided follow-up prompts.
   struct GuidedSeed: Identifiable {
@@ -77,6 +86,7 @@ struct RootView: View {
     case rhythm
     case search
     case settings
+    case profile
     case placement
     case tour
     case moonIntention(lunation: String)
@@ -85,11 +95,13 @@ struct RootView: View {
 
     var id: String {
       switch self {
-      case .capture(let room, let keep): return "capture:\(room ?? "inbox"):\(keep ? "keep" : "draft")"
+      case .capture(let room, let keep):
+        return "capture:\(room ?? "inbox"):\(keep ? "keep" : "draft")"
       case .edit(let editable): return "edit:\(editable.id)"
       case .rhythm: return "rhythm"
       case .search: return "search"
       case .settings: return "settings"
+      case .profile: return "profile"
       case .placement: return "placement"
       case .tour: return "tour"
       case .moonIntention(let lunation): return "moon:\(lunation)"
@@ -177,12 +189,13 @@ struct RootView: View {
       if let offer = workshopOffer { developOffer(offer) }
     }
     .fileImporter(
-      isPresented: $picking, allowedContentTypes: [.folder], allowsMultipleSelection: false
-    ) { result in
-      if case .success(let urls) = result, let url = urls.first {
-        store.open(url: url)
+      isPresented: $picking, allowedContentTypes: [.folder], allowsMultipleSelection: false,
+      onCompletion: { result in
+        if case .success(let urls) = result, let url = urls.first {
+          store.open(url: url)
+        }
       }
-    }
+    )
     .task {
       // First launch with no chosen vault: guide the person straight to the folder
       // picker rather than an empty Foyer. (In the simulator a demo vault is seeded,
@@ -199,7 +212,8 @@ struct RootView: View {
       giftStore.refresh(ctx: almanacContext, today: almanacContext.date)
       // UI tests can't reach Location, so seed a home place to exercise the personalised path.
       if ProcessInfo.processInfo.environment["ATELIERA_UITEST_AI"] == "1", homePlace.place == nil {
-        homePlace.set(ResolvedPlace(name: "Testville", latitude: -37.8, longitude: 144.9, timeZoneId: nil))
+        homePlace.set(
+          ResolvedPlace(name: "Testville", latitude: -37.8, longitude: 144.9, timeZoneId: nil))
       }
       await refreshMicroSeason()
       if store.seededNewStudio, !OnboardingStore().hasSeenTour(studioId: store.studioId),
@@ -221,7 +235,8 @@ struct RootView: View {
     .sheet(item: $workshopSeed) { seed in
       WorkshopView(
         store: store, seedPath: seed.path, seedText: seed.text, mode: seed.mode,
-        onClose: { workshopSeed = nil })
+        onClose: { workshopSeed = nil }
+      )
       .studioTheme(themeStore.current)
     }
     .sheet(
@@ -233,21 +248,23 @@ struct RootView: View {
           pendingReverse = nil
           workshopSeed = reverse
         }
+      },
+      content: { seed in
+        GuidedThreadView(
+          store: store, seedPath: seed.path, seedText: seed.text, kind: seed.kind,
+          onClose: { activeGuided = nil },
+          // A Possibility can be worked forward: close the guided thread and queue the
+          // reverse Landscape workshop on the same seed (opens once this sheet dismisses).
+          onWorkshopForward: seed.kind == .possibilities
+            ? {
+              pendingReverse = WorkshopSeed(path: seed.path, text: seed.text, mode: .possibility)
+              activeGuided = nil
+            }
+            : nil
+        )
+        .studioTheme(themeStore.current)
       }
-    ) { seed in
-      GuidedThreadView(
-        store: store, seedPath: seed.path, seedText: seed.text, kind: seed.kind,
-        onClose: { activeGuided = nil },
-        // A Possibility can be worked forward: close the guided thread and queue the
-        // reverse Landscape workshop on the same seed (opens once this sheet dismisses).
-        onWorkshopForward: seed.kind == .possibilities
-          ? {
-            pendingReverse = WorkshopSeed(path: seed.path, text: seed.text, mode: .possibility)
-            activeGuided = nil
-          }
-          : nil)
-      .studioTheme(themeStore.current)
-    }
+    )
     .sheet(
       item: $activeSheet,
       // A quick Journal capture offers to develop the note on the Landscape — a calm,
@@ -266,93 +283,103 @@ struct RootView: View {
           pendingGuided = nil
           activeGuided = guided
         }
-      }
-    ) { sheet in
-      switch sheet {
-      case .capture(let room, let keep):
-        NoteEditorSheet(
-          heading: "Capture", confirmLabel: "Keep", initialBody: "",
-          showsExtras: true,
-          onSave: { body, tags, cover in
-            let ok = store.capture(
-              title: nil, body: body, room: room ?? "inbox", tags: tags, coverData: cover,
-              keep: keep)
-            // Only Inbox/Journal entries (the `inbox` room) expand into a workshop.
-            if ok, (room ?? "inbox") == "inbox", let path = store.lastCapturedPath {
-              pendingSeed = WorkshopSeed(path: path, text: body)
+      },
+      content: { sheet in
+        switch sheet {
+        case .capture(let room, let keep):
+          NoteEditorSheet(
+            heading: "Capture", confirmLabel: "Keep", initialBody: "",
+            showsExtras: true,
+            onSave: { body, tags, cover in
+              let captured = store.capture(
+                title: nil, body: body, room: room ?? "inbox", tags: tags, coverData: cover,
+                keep: keep)
+              // Only Inbox/Journal entries (the `inbox` room) expand into a workshop.
+              if captured, (room ?? "inbox") == "inbox", let path = store.lastCapturedPath {
+                pendingSeed = WorkshopSeed(path: path, text: body)
+              }
+              return captured
+            },
+            onClose: { activeSheet = nil })
+        case .edit(let editable):
+          NoteEditView(
+            store: store, editable: editable, onClose: { activeSheet = nil },
+            onNavigate: { target in navigateWikilink(target) },
+            onOpenPath: { path in
+              if let next = store.beginEdit(path: path) { activeSheet = .edit(next) }
+            })
+        case .rhythm:
+          RhythmSettingsView(
+            store: profileStore,
+            isPresented: Binding(get: { activeSheet != nil }, set: { if !$0 { activeSheet = nil } })
+          )
+        case .search:
+          SearchView(
+            store: store,
+            onOpen: { path in
+              if let editable = store.beginEdit(path: path) { activeSheet = .edit(editable) }
+            },
+            onClose: { activeSheet = nil })
+        case .settings:
+          SettingsView(
+            themeStore: themeStore, store: store, homePlace: homePlace, location: location,
+            onClose: { activeSheet = nil },
+            onReplayTour: { activeSheet = .tour },
+            onChangeFolder: {
+              activeSheet = nil
+              picking = true
             }
-            return ok
-          },
-          onClose: { activeSheet = nil })
-      case .edit(let editable):
-        NoteEditView(
-          store: store, editable: editable, onClose: { activeSheet = nil },
-          onNavigate: { target in navigateWikilink(target) },
-          onOpenPath: { path in
-            if let next = store.beginEdit(path: path) { activeSheet = .edit(next) }
+          )
+          .studioTheme(themeStore.current)
+        case .profile:
+          ProfileSheet(store: store, onClose: { activeSheet = nil })
+            .studioTheme(themeStore.current)
+        case .placement:
+          ClassifiedCaptureSheet(
+            store: store,
+            onStartThread: { path, text in
+              pendingBecoming = WorkshopSeed(path: path, text: text, mode: .becoming)
+            },
+            onStartGuided: { kind, path, text in
+              pendingGuided = GuidedSeed(path: path, text: text, kind: kind)
+            },
+            onClose: { activeSheet = nil })
+        case .tour:
+          FirstVisitGuide(onFinish: {
+            OnboardingStore().markTourSeen(studioId: store.studioId)
+            activeSheet = nil
           })
-      case .rhythm:
-        RhythmSettingsView(
-          store: profileStore, isPresented: Binding(get: { activeSheet != nil }, set: { if !$0 { activeSheet = nil } }))
-      case .search:
-        SearchView(
-          store: store,
-          onOpen: { path in
-            if let editable = store.beginEdit(path: path) { activeSheet = .edit(editable) }
-          },
-          onClose: { activeSheet = nil })
-      case .settings:
-        SettingsView(
-          themeStore: themeStore, store: store, homePlace: homePlace, location: location,
-          onClose: { activeSheet = nil },
-          onReplayTour: { activeSheet = .tour },
-          onChangeFolder: { activeSheet = nil; picking = true }
-        )
-        .studioTheme(themeStore.current)
-      case .placement:
-        ClassifiedCaptureSheet(
-          store: store,
-          onStartThread: { path, text in
-            pendingBecoming = WorkshopSeed(path: path, text: text, mode: .becoming)
-          },
-          onStartGuided: { kind, path, text in
-            pendingGuided = GuidedSeed(path: path, text: text, kind: kind)
-          },
-          onClose: { activeSheet = nil })
-      case .tour:
-        FirstVisitGuide(onFinish: {
-          OnboardingStore().markTourSeen(studioId: store.studioId)
-          activeSheet = nil
-        })
-      case .moonIntention(let lunation):
-        NoteEditorSheet(
-          heading: "New moon intention", confirmLabel: "Keep", initialBody: "",
-          onSave: { body, _, _ in store.captureMoonIntention(body: body, lunationDate: lunation) },
-          onClose: { activeSheet = nil })
-      case .reflect:
-        NoteEditorSheet(
-          heading: "Reflect", confirmLabel: "Keep", initialBody: "",
-          onSave: { body, _, _ in
-            store.capture(
-              title: nil, body: body, room: "reflection-garden",
-              cardType: "reflection", semanticType: "reflection")
-          },
-          onClose: { activeSheet = nil })
-      case .skyAhead:
-        NavigationStack {
-          SkyAheadView(
-            nowMs: Rhythm.dayMillis(date: almanacContext.date), hemisphere: hemisphere,
-            birthDate: profileStore.birth?.date, layers: store.skyLayers,
-            onLayersChange: { store.setSkyLayers($0) })
-          .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-              Button("Done") { activeSheet = nil }
+        case .moonIntention(let lunation):
+          NoteEditorSheet(
+            heading: "New moon intention", confirmLabel: "Keep", initialBody: "",
+            onSave: { body, _, _ in store.captureMoonIntention(body: body, lunationDate: lunation)
+            },
+            onClose: { activeSheet = nil })
+        case .reflect:
+          NoteEditorSheet(
+            heading: "Reflect", confirmLabel: "Keep", initialBody: "",
+            onSave: { body, _, _ in
+              store.capture(
+                title: nil, body: body, room: "reflection-garden",
+                cardType: "reflection", semanticType: "reflection")
+            },
+            onClose: { activeSheet = nil })
+        case .skyAhead:
+          NavigationStack {
+            SkyAheadView(
+              nowMs: Rhythm.dayMillis(date: almanacContext.date), hemisphere: hemisphere,
+              birthDate: profileStore.birth?.date, layers: store.skyLayers,
+              onLayersChange: { store.setSkyLayers($0) }
+            )
+            .toolbar {
+              ToolbarItem(placement: .confirmationAction) {
+                Button("Done") { activeSheet = nil }
+              }
             }
           }
+          .studioTheme(themeStore.current)
         }
-        .studioTheme(themeStore.current)
-      }
-    }
+      })
   }
 
   // TODAY — a greeting, one gentle daily card, the day's rhythm tucked away, and one
@@ -363,7 +390,8 @@ struct RootView: View {
         VStack(alignment: .leading, spacing: 30) {
           FoyerHero(
             store: store, greeting: greeting, onOpen: openPath,
-            onBegin: { activeSheet = .placement }
+            onBegin: { activeSheet = .placement },
+            onProfile: { activeSheet = .profile }
           )
           .padding(.horizontal, 28)
 
@@ -377,6 +405,7 @@ struct RootView: View {
 
           VStack(alignment: .leading, spacing: 30) {
             dailyCard
+            feelingsCard
             captureButton
             todaySection
             if let error = store.error {
@@ -418,6 +447,15 @@ struct RootView: View {
     }
   }
 
+  // The feelings the person is making room for, as their own card beside the Gift.
+  private var feelingsCard: some View {
+    DesiredFeelingsCard(
+      model: DesiredFeelingsCardModel(
+        store.foyerIdentity(),
+        sectionVisible: Preferences.isFoyerSectionVisible("feelings", store.preferences)),
+      onOpen: openPath)
+  }
+
   // The felt season for the Foyer's hero photo, from the person's own season style.
   private var feltSeason: Season {
     Rhythm.season(
@@ -433,8 +471,10 @@ struct RootView: View {
         context: almanacContext, hemisphere: hemisphere,
         seasonStyle: store.preferences.rhythm.resolvedSeasonStyle,
         personalizedMicroSeason: microSeasons.personalized,
-        personalizedPlace: microSeasons.personalizedPlace)
-        .studioCard()
+        personalizedPlace: microSeasons.personalizedPlace,
+        cycleLength: cycle?.avgLengthDays
+      )
+      .studioCard()
     }
   }
 
@@ -625,7 +665,8 @@ struct RootView: View {
           HStack(spacing: 10) {
             Text(room.title).font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
             Spacer(minLength: 0)
-            let count = store.liveNotes.filter { room.matches(rooms: $0.rooms, status: $0.status) }.count
+            let count = store.liveNotes.filter { room.matches(rooms: $0.rooms, status: $0.status) }
+              .count
             if count > 0 {
               Text("\(count)").font(StudioFont.meta).foregroundStyle(theme.inkMuted)
             }
@@ -695,8 +736,12 @@ struct RootView: View {
           .padding(.bottom, 8)
       }
       ForEach(recent) { note in
-        Button { openEdit(note) } label: { NoteRow(note: note) }
-          .buttonStyle(.plain)
+        Button {
+          openEdit(note)
+        } label: {
+          NoteRow(note: note)
+        }
+        .buttonStyle(.plain)
         Divider().overlay(theme.line)
       }
       if store.liveNotes.count > recent.count {
@@ -771,17 +816,27 @@ private struct RoomView: View {
           .studioRoomRow(EdgeInsets(top: 6, leading: 28, bottom: 6, trailing: 28))
       } else {
         ForEach(notes) { note in
-          Button { onOpen(note) } label: { NoteRow(note: note) }
-            .buttonStyle(.plain)
-            .studioRoomRow(EdgeInsets(top: 2, leading: 28, bottom: 2, trailing: 28))
-            .accessibilityIdentifier("note-row-\(note.id)")
-            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-              Button(role: .destructive) {
-                _ = store.setNoteStatus(path: note.id, status: "trashed")
-              } label: { Label("Delete", systemImage: "trash") }
-              Button { filing = note } label: { Label("File…", systemImage: "tray.and.arrow.down") }
-                .tint(theme.link)
+          Button {
+            onOpen(note)
+          } label: {
+            NoteRow(note: note)
+          }
+          .buttonStyle(.plain)
+          .studioRoomRow(EdgeInsets(top: 2, leading: 28, bottom: 2, trailing: 28))
+          .accessibilityIdentifier("note-row-\(note.id)")
+          .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+              _ = store.setNoteStatus(path: note.id, status: "trashed")
+            } label: {
+              Label("Delete", systemImage: "trash")
             }
+            Button {
+              filing = note
+            } label: {
+              Label("File…", systemImage: "tray.and.arrow.down")
+            }
+            .tint(theme.link)
+          }
         }
       }
     }
@@ -790,13 +845,13 @@ private struct RoomView: View {
     .confirmationDialog(
       "File to…",
       isPresented: Binding(get: { filing != nil }, set: { if !$0 { filing = nil } }),
-      presenting: filing
-    ) { note in
-      ForEach(Room.all.filter { $0.id != room.id }) { target in
-        Button(target.title) { _ = store.fileNote(path: note.id, toRoom: target.id) }
-      }
-      Button("Cancel", role: .cancel) {}
-    }
+      presenting: filing,
+      actions: { note in
+        ForEach(Room.all.filter { $0.id != room.id }) { target in
+          Button(target.title) { _ = store.fileNote(path: note.id, toRoom: target.id) }
+        }
+        Button("Cancel", role: .cancel) {}
+      })
   }
 }
 
@@ -840,6 +895,8 @@ struct ProfileAvatar: View {
   @Environment(\.studioTheme) private var theme
   let store: VaultStore
   var size: CGFloat = 48
+  // Nil when a parent (Today's avatar button) carries the identifier instead.
+  var identifier: String? = "profile-avatar"
   @State private var image: UIImage?
 
   var body: some View {
@@ -857,7 +914,8 @@ struct ProfileAvatar: View {
     .frame(width: size, height: size)
     .clipShape(Circle())
     .overlay(Circle().stroke(theme.line, lineWidth: 1))
-    .accessibilityIdentifier("profile-avatar")
+    .accessibilityLabel(image == nil ? Text("No profile photo yet") : Text("Your profile photo"))
+    .accessibilityIdentifier(identifier ?? "")
     .task(id: store.profileChangeStamp) {
       image = store.profileAvatar().flatMap(UIImage.init)
     }
@@ -1074,7 +1132,9 @@ private struct NoteEditView: View {
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 180)
                 .accessibilityIdentifier("note-body-editor")
-              Button { linking = true } label: {
+              Button {
+                linking = true
+              } label: {
                 Label("Link a note", systemImage: "link.badge.plus")
                   .font(StudioFont.meta).foregroundStyle(theme.link)
               }
@@ -1099,7 +1159,9 @@ private struct NoteEditView: View {
           .accessibilityIdentifier("note-links-button")
           coverSection
           Divider().overlay(theme.line)
-          Button(role: .destructive) { confirmingDelete = true } label: {
+          Button(role: .destructive) {
+            confirmingDelete = true
+          } label: {
             Label("Delete", systemImage: "trash")
               .font(StudioFont.control).foregroundStyle(theme.celebration)
           }
@@ -1151,8 +1213,9 @@ private struct NoteEditView: View {
         NotePickerSheet(
           notes: store.liveNotes.filter { !$0.title.isEmpty && $0.id != editable.path },
           onPick: { insertLink($0) },
-          onClose: { linking = false })
-          .studioTheme(theme)
+          onClose: { linking = false }
+        )
+        .studioTheme(theme)
       }
     }
     .task {
@@ -1163,19 +1226,19 @@ private struct NoteEditView: View {
     .onChange(of: coverItem) { importPickedCover() }
     .onChange(of: note.body) { autosaveDraft() }
     .sheet(
-      item: Binding(get: { store.conflict }, set: { if $0 == nil { store.dismissConflict() } })
-    ) { conflict in
-      ConflictMergeView(
-        conflict: conflict,
-        onKeepStored: {
-          store.dismissConflict()
-          onClose()
-        },
-        onOverwrite: { if store.resolveConflictOverwrite() { onClose() } },
-        onSaveAsNew: { if store.resolveConflictSaveAsNew() { onClose() } }
-      )
-      .studioTheme(theme)
-    }
+      item: Binding(get: { store.conflict }, set: { if $0 == nil { store.dismissConflict() } }),
+      content: { conflict in
+        ConflictMergeView(
+          conflict: conflict,
+          onKeepStored: {
+            store.dismissConflict()
+            onClose()
+          },
+          onOverwrite: { if store.resolveConflictOverwrite() { onClose() } },
+          onSaveAsNew: { if store.resolveConflictSaveAsNew() { onClose() } }
+        )
+        .studioTheme(theme)
+      })
   }
 
   // A cover-image row: the current cover thumbnail (if any) + a photo picker that
@@ -1193,8 +1256,9 @@ private struct NoteEditView: View {
       PhotosPicker(selection: $coverItem, matching: .images) {
         Label(
           note.display.cover == nil ? "Add a cover image" : "Change cover image",
-          systemImage: "photo")
-          .font(StudioFont.control).foregroundStyle(theme.link)
+          systemImage: "photo"
+        )
+        .font(StudioFont.control).foregroundStyle(theme.link)
       }
       .accessibilityIdentifier("note-cover-picker")
     }
@@ -1276,7 +1340,8 @@ private struct NoteEditView: View {
   // Insert a `[[Title]]` wikilink into the body (appended, with tidy spacing).
   private func insertLink(_ title: String) {
     let link = "[[\(title)]]"
-    let separator = note.body.isEmpty || note.body.hasSuffix(" ") || note.body.hasSuffix("\n")
+    let separator =
+      note.body.isEmpty || note.body.hasSuffix(" ") || note.body.hasSuffix("\n")
       ? "" : " "
     note.body += separator + link
   }
@@ -1305,7 +1370,10 @@ private struct NotePickerSheet: View {
             .studioRoomRow()
         } else {
           ForEach(matches) { note in
-            Button { onPick(note.title); onClose() } label: {
+            Button {
+              onPick(note.title)
+              onClose()
+            } label: {
               Text(note.title).font(StudioFont.body).foregroundStyle(theme.inkStrong)
                 .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
             }
@@ -1372,7 +1440,6 @@ private struct SettingsView: View {
   let onReplayTour: () -> Void
   let onChangeFolder: () -> Void
   @State private var profileName: String = ""
-  @State private var avatarItem: PhotosPickerItem?
   @State private var locatingHome = false
 
   private func commitName() {
@@ -1386,24 +1453,8 @@ private struct SettingsView: View {
           Text("PROFILE")
             .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
             .padding(.bottom, 12)
-          HStack(spacing: 14) {
-            ProfileAvatar(store: store, size: 60)
-            VStack(alignment: .leading, spacing: 4) {
-              TextField("Your name", text: $profileName)
-                .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
-                .textInputAutocapitalization(.words)
-                .submitLabel(.done)
-                .onSubmit(commitName)
-                .accessibilityIdentifier("profile-name-field")
-              PhotosPicker(selection: $avatarItem, matching: .images) {
-                Text(store.profileAvatar() == nil ? "Add a photo" : "Change photo")
-                  .font(StudioFont.meta).foregroundStyle(theme.link)
-              }
-              .accessibilityIdentifier("profile-photo-picker")
-            }
-            Spacer(minLength: 0)
-          }
-          .padding(.vertical, 6)
+          ProfileEditor(store: store, name: $profileName, onCommitName: commitName)
+          ProfileErrorLine(store: store)
           Divider().overlay(theme.line)
 
           Button {
@@ -1461,7 +1512,10 @@ private struct SettingsView: View {
             .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.inkFaint)
             .padding(.top, 24).padding(.bottom, 8)
           ForEach(
-            [("becoming", "Becoming"), ("feelings", "How I want to feel"), ("principles", "Principles")],
+            [
+              ("becoming", "Becoming"), ("feelings", "How I want to feel"),
+              ("principles", "Principles"),
+            ],
             id: \.0
           ) { id, label in
             Toggle(
@@ -1520,9 +1574,11 @@ private struct SettingsView: View {
             RepairView(store: store)
           } label: {
             HStack {
-              Text("Repair notes & links").font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
+              Text("Repair notes & links").font(StudioFont.cardTitle).foregroundStyle(
+                theme.inkStrong)
               Spacer()
-              Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(theme.inkFaint)
+              Image(systemName: "chevron.right").font(.caption).foregroundStyle(
+                theme.inkFaint)
             }
             .padding(.vertical, 14)
           }
@@ -1534,7 +1590,8 @@ private struct SettingsView: View {
             HStack {
               Text("Diagnostics").font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
               Spacer()
-              Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(theme.inkFaint)
+              Image(systemName: "chevron.right").font(.caption).foregroundStyle(
+                theme.inkFaint)
             }
             .padding(.vertical, 14)
           }
@@ -1546,7 +1603,8 @@ private struct SettingsView: View {
             HStack {
               Text("Export a backup").font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
               Spacer()
-              Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(theme.inkFaint)
+              Image(systemName: "chevron.right").font(.caption).foregroundStyle(
+                theme.inkFaint)
             }
             .padding(.vertical, 14)
           }
@@ -1558,7 +1616,8 @@ private struct SettingsView: View {
             HStack {
               Text("Import a backup").font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
               Spacer()
-              Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(theme.inkFaint)
+              Image(systemName: "chevron.right").font(.caption).foregroundStyle(
+                theme.inkFaint)
             }
             .padding(.vertical, 14)
           }
@@ -1570,7 +1629,8 @@ private struct SettingsView: View {
             HStack {
               Text("Version history").font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
               Spacer()
-              Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(theme.inkFaint)
+              Image(systemName: "chevron.right").font(.caption).foregroundStyle(
+                theme.inkFaint)
             }
             .padding(.vertical, 14)
           }
@@ -1581,14 +1641,6 @@ private struct SettingsView: View {
       }
       .background(theme.canvas)
       .onAppear { profileName = store.profileName ?? "" }
-      .onChange(of: avatarItem) { _, item in
-        guard let item else { return }
-        Task {
-          if let data = try? await item.loadTransferable(type: Data.self) {
-            _ = store.setProfileAvatar(data: data)
-          }
-        }
-      }
       .toolbar {
         ToolbarItem(placement: .principal) {
           Text("Settings").font(StudioFont.control).foregroundStyle(theme.inkStrong)

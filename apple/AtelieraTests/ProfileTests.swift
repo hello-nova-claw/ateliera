@@ -25,32 +25,32 @@ final class ProfileTests: XCTestCase {
     defer { try? FileManager.default.removeItem(at: dir) }
 
     XCTAssertNil(store.profileName)
-    XCTAssertTrue(store.setProfileName("Anna"))
-    XCTAssertEqual(store.profileName, "Anna")
+    XCTAssertTrue(store.setProfileName("Juniper"))
+    XCTAssertEqual(store.profileName, "Juniper")
 
     let profiles = store.parsedNotesByPath.filter { $0.note.cardType == "profile" }
     XCTAssertEqual(profiles.count, 1)
-    XCTAssertEqual(profiles.first?.note.frontmatterScalar("name"), "Anna")
+    XCTAssertEqual(profiles.first?.note.frontmatterScalar("name"), "Juniper")
     XCTAssertTrue(profiles.first?.note.frontmatterBool("excluded_from_views") ?? false)
     XCTAssertEqual(profiles.first?.note.rooms, [])
     // The profile note is never surfaced as user content.
     XCTAssertFalse(store.liveNotes.contains { $0.meaning == "profile" })
 
     // Editing reuses the same note (still exactly one profile note).
-    XCTAssertTrue(store.setProfileName("Anna McPhee"))
-    XCTAssertEqual(store.profileName, "Anna McPhee")
+    XCTAssertTrue(store.setProfileName("Juniper Vale"))
+    XCTAssertEqual(store.profileName, "Juniper Vale")
     XCTAssertEqual(store.parsedNotesByPath.filter { $0.note.cardType == "profile" }.count, 1)
   }
 
   func testProfileNameRoundTripsFromDisk() throws {
     let (dir, store) = try makeStore()
     defer { try? FileManager.default.removeItem(at: dir) }
-    XCTAssertTrue(store.setProfileName("Anna"))
+    XCTAssertTrue(store.setProfileName("Juniper"))
 
     // A fresh store over the same folder reads the name back from the Markdown.
     let reopened = VaultStore()
     try reopened.openForTesting(at: dir)
-    XCTAssertEqual(reopened.profileName, "Anna")
+    XCTAssertEqual(reopened.profileName, "Juniper")
   }
 
   func testSetProfileAvatarStoresAndReadsBack() throws {
@@ -62,5 +62,115 @@ final class ProfileTests: XCTestCase {
     XCTAssertEqual(store.profileAvatar(), pngData)
     // Avatar reuses the same singleton note as the name.
     XCTAssertEqual(store.parsedNotesByPath.filter { $0.note.cardType == "profile" }.count, 1)
+  }
+
+  func testRemoveProfileAvatarClearsThePictureAndKeepsTheName() throws {
+    let (dir, store) = try makeStore()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.setProfileName("Juniper"))
+    XCTAssertTrue(store.setProfileAvatar(data: pngData))
+    XCTAssertTrue(
+      store.listAllPaths().contains { $0.hasPrefix("Profile/") && $0.contains("Media/") })
+
+    XCTAssertTrue(store.removeProfileAvatar())
+    XCTAssertNil(store.profileAvatar())
+    XCTAssertEqual(store.profileName, "Juniper")
+    // The picture file is gone from the vault, and the note no longer points at it.
+    XCTAssertFalse(
+      store.listAllPaths().contains { $0.hasPrefix("Profile/") && $0.contains("Media/") })
+    let profiles = store.parsedNotesByPath.filter { $0.note.cardType == "profile" }
+    XCTAssertEqual(profiles.count, 1)
+    XCTAssertNil(profiles.first?.note.display.cover)
+    // A fresh store over the same folder agrees.
+    let reopened = VaultStore()
+    try reopened.openForTesting(at: dir)
+    XCTAssertNil(reopened.profileAvatar())
+    XCTAssertEqual(reopened.profileName, "Juniper")
+  }
+
+  func testRemovePhotoStillOffersWhenTheImageFileIsUnreadable() throws {
+    let (dir, store) = try makeStore()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.setProfileAvatar(data: pngData))
+    // The reference survives but the bytes are gone, as after a sync that dropped the file.
+    let media = store.listAllPaths().first { $0.hasPrefix("Profile/") && $0.contains("Media/") }
+    let mediaPath = try XCTUnwrap(media)
+    try FileManager.default.removeItem(at: dir.appendingPathComponent(mediaPath))
+    try store.openForTesting(at: dir)
+    XCTAssertNil(store.profileAvatar(), "nothing to decode")
+    XCTAssertTrue(store.hasProfileAvatar, "the reference is still there to clear")
+    XCTAssertTrue(store.removeProfileAvatar())
+    XCTAssertFalse(store.hasProfileAvatar)
+    XCTAssertNil(store.error)
+  }
+
+  func testRemoveProfileAvatarRefusesToDeleteOutsideTheProfileFolder() throws {
+    let (dir, store) = try makeStore()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    // Another note with its own cover, which a crafted profile reference points at.
+    XCTAssertTrue(store.capture(title: nil, body: "A morning.", room: "reflection-garden"))
+    let other = try XCTUnwrap(store.parsedNotesByPath.first { $0.note.cardType != "profile" })
+    XCTAssertNotNil(store.setCover(data: pngData, forNotePath: other.path))
+    XCTAssertTrue(store.setProfileName("Juniper"))
+    let profile = try XCTUnwrap(store.parsedNotesByPath.first { $0.note.cardType == "profile" })
+    let editable = try XCTUnwrap(store.beginEdit(path: profile.path))
+    var note = editable.note
+    let otherFolder = (other.path as NSString).deletingLastPathComponent
+    note.display = NoteDisplay(cover: "../\(otherFolder)/Media/cover.png", featured: false)
+    XCTAssertTrue(store.saveEdit(editable, updatedNote: note))
+
+    XCTAssertFalse(store.removeProfileAvatar(), "must not delete another note's image")
+    XCTAssertNotNil(store.error)
+    XCTAssertTrue(
+      store.listAllPaths().contains { $0.hasPrefix(otherFolder) && $0.contains("Media/") },
+      "the other note's image is untouched")
+  }
+
+  // The smallest bytes VaultMedia accepts as a JPEG: the SOI marker and a padding byte.
+  private let jpegData = Data([0xFF, 0xD8, 0xFF, 0xE0])
+
+  func testReplacingThePhotoInAnotherFormatLeavesOneFileAndRemoveClearsAll() throws {
+    let (dir, store) = try makeStore()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.setProfileAvatar(data: pngData))
+    XCTAssertTrue(store.setProfileAvatar(data: jpegData))
+    let media = store.listAllPaths().filter { $0.hasPrefix("Profile/") && $0.contains("Media/") }
+    XCTAssertEqual(media.count, 1, "the superseded PNG must not linger: \(media)")
+    XCTAssertTrue(media.first?.hasSuffix(".jpg") ?? false)
+    XCTAssertEqual(store.profileAvatar(), jpegData)
+
+    XCTAssertTrue(store.removeProfileAvatar())
+    XCTAssertTrue(
+      store.listAllPaths().filter { $0.hasPrefix("Profile/") && $0.contains("Media/") }.isEmpty,
+      "nothing of the profile's media may survive a removal")
+  }
+
+  func testProfilePictureCleanupLeavesOtherFilesInTheMediaFolderAlone() throws {
+    let (dir, store) = try makeStore()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.setProfileName("Juniper"))
+    XCTAssertTrue(store.setProfileAvatar(data: pngData))
+    let profile = try XCTUnwrap(store.parsedNotesByPath.first { $0.note.cardType == "profile" })
+    let folder = (profile.path as NSString).deletingLastPathComponent
+    // A stray file beside the picture is not the profile's to delete.
+    let stray = "\(folder)/Media/notes.txt"
+    XCTAssertNotNil(
+      store.writeRawFile(path: stray, text: "Kept.", expectedHash: nil, createNew: true))
+
+    XCTAssertTrue(store.setProfileAvatar(data: jpegData))
+    XCTAssertTrue(store.listAllPaths().contains(stray), "replacing the photo keeps the stray")
+    XCTAssertTrue(store.removeProfileAvatar())
+    XCTAssertTrue(store.listAllPaths().contains(stray), "removing the photo keeps the stray")
+    XCTAssertFalse(
+      store.listAllPaths().contains { $0.hasPrefix("\(folder)/Media/cover.") },
+      "every picture of the profile's own is gone")
+  }
+
+  func testRemoveProfileAvatarWithoutOneIsANoOp() throws {
+    let (dir, store) = try makeStore()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.removeProfileAvatar())
+    XCTAssertNil(store.profileAvatar())
+    XCTAssertNil(store.error)
   }
 }

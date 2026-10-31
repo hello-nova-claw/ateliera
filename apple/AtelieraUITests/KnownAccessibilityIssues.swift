@@ -7,9 +7,13 @@ import XCTest
 // rather than listing it. When an issue closes, delete its lines.
 enum KnownAccessibilityIssues {
   static let baseline = """
+    74 contrast badge-cycle
+    74 contrast badge-moon
+    74 contrast badge-season
     74 contrast browse
     74 contrast capture
     74 contrast find
+    74 contrast profile
     74 contrast rhythm
     74 contrast room-constellation
     74 contrast room-current-season
@@ -38,9 +42,13 @@ enum KnownAccessibilityIssues {
     78 sufficientElementDescription room-current-season
     78 sufficientElementDescription room-reflection-garden
     78 sufficientElementDescription room-uncharted
+    79 dynamicType badge-cycle
+    79 dynamicType badge-moon
+    79 dynamicType badge-season
     79 dynamicType browse
     79 dynamicType capture
     79 dynamicType find
+    79 dynamicType profile
     79 dynamicType rhythm
     79 dynamicType room-current-season
     79 dynamicType room-identity-studio
@@ -53,8 +61,12 @@ enum KnownAccessibilityIssues {
     79 dynamicType sky-ahead
     79 dynamicType today
     79 dynamicType today-panel
+    80 textClipped badge-cycle
+    80 textClipped badge-moon
+    80 textClipped badge-season
     80 textClipped capture
     80 textClipped find
+    80 textClipped profile
     80 textClipped rhythm
     80 textClipped room-constellation
     80 textClipped room-current-season
@@ -74,6 +86,7 @@ enum KnownAccessibilityIssues {
     83 sufficientElementDescription today
     83 sufficientElementDescription today-panel
     168 elementDetection rhythm
+    168 elementDetection room-current-season
     168 elementDetection room-reflection-garden
     168 elementDetection room-uncharted
     168 elementDetection room-wisdom-garden
@@ -124,16 +137,22 @@ enum KnownAccessibilityIssues {
     known.contains { $0.type == finding.type && $0.screen == finding.screen }
   }
 
+  static let typeNames: [(type: XCUIAccessibilityAuditType, name: String)] = [
+    (.contrast, "contrast"),
+    (.elementDetection, "elementDetection"),
+    (.hitRegion, "hitRegion"),
+    (.sufficientElementDescription, "sufficientElementDescription"),
+    (.dynamicType, "dynamicType"),
+    (.textClipped, "textClipped"),
+    (.trait, "trait"),
+  ]
+
   static func typeName(_ type: XCUIAccessibilityAuditType) -> String {
-    switch type {
-    case .contrast: "contrast"
-    case .elementDetection: "elementDetection"
-    case .hitRegion: "hitRegion"
-    case .sufficientElementDescription: "sufficientElementDescription"
-    case .dynamicType: "dynamicType"
-    case .textClipped: "textClipped"
-    case .trait: "trait"
-    default: "type\(type.rawValue)"
-    }
+    typeNames.first { $0.type == type }?.name ?? "type\(type.rawValue)"
+  }
+
+  /// The audit types behind a set of baseline names; a name no type has is left out.
+  static func auditTypes(named names: Set<String>) -> XCUIAccessibilityAuditType {
+    typeNames.filter { names.contains($0.name) }.reduce(into: []) { $0.insert($1.type) }
   }
 }

@@ -173,7 +173,12 @@ final class VaultStore {
     parsedNotesByPath.first { $0.note.id == noteId }?.path
   }
 
-  init() {
+  convenience init() { self.init(discovering: true) }
+
+  /// `discovering: false` opens nothing: a unit test then opens its own temporary vault
+  /// with `openForTesting(at:)` instead of touching a bookmark or the simulator's demo.
+  init(discovering: Bool) {
+    guard discovering else { return }
     // UI tests drive the real capture/edit flow against a fresh, empty vault in
     // the app's own sandbox, so the room starts known-empty and deterministic.
     if let url = Self.uitestVaultURL() {
@@ -223,7 +228,7 @@ final class VaultStore {
 
   // Two kept Journal entries where the second wiki-links the first, so the
   // Constellation spike has at least two dots and one real line to render.
-  private static func seedConstellationFixture(at root: URL) {
+  static func seedConstellationFixture(at root: URL) {
     var first = StudioNote.capture(
       title: "A quiet morning", body: "\nThe one that started it.\n",
       id: NoteFactory.createNoteId(), created: NoteFactory.isoTimestamp(), room: "inbox")
@@ -242,7 +247,7 @@ final class VaultStore {
 
   // A promoted "becoming" + a desired feeling + a guiding principle, so the rich
   // Foyer sections have content to render.
-  private static func seedFoyerFixture(at root: URL) {
+  static func seedFoyerFixture(at root: URL) {
     func identity(_ id: String, _ title: String, _ cardType: String, _ file: String) {
       var note = StudioNote.capture(
         title: title, body: "\(title).", id: id, created: NoteFactory.isoTimestamp(),
@@ -266,7 +271,7 @@ final class VaultStore {
 
   // One Life Landscape card (family / vision) + one Identity Studio practicing-now
   // card, so the two projected rooms have real content to drive in UI tests.
-  private static func seedP5Fixture(at root: URL) {
+  static func seedP5Fixture(at root: URL) {
     var landscape = StudioNote.capture(
       title: "A calm morning", body: "\nAn ordinary Tuesday that already feels true.\n",
       id: NoteFactory.createNoteId(), created: NoteFactory.isoTimestamp(), room: "landscape")
@@ -295,7 +300,7 @@ final class VaultStore {
 
   // A single due Reflection Garden wish note (due date far in the past → always
   // due), written through the real byte-identical serializer.
-  private static func seedGiftFixture(at root: URL) {
+  static func seedGiftFixture(at root: URL) {
     var note = StudioNote.capture(
       title: "A wish worth keeping", body: "\nRemember the shape of this wish.\n",
       id: NoteFactory.createNoteId(), created: NoteFactory.isoTimestamp(),
@@ -372,7 +377,8 @@ final class VaultStore {
     let key = "ateliera.inbox-journal-migrated:\(encoded)"
     let defaults = UserDefaults.standard
     guard !defaults.bool(forKey: key) else { return }
-    let draftPaths = parsedNotesByPath
+    let draftPaths =
+      parsedNotesByPath
       .filter { $0.note.rooms.contains("inbox") && $0.note.status == "draft" }
       .map(\.path)
     for path in draftPaths { _ = setNoteStatus(path: path, status: "active") }
@@ -529,7 +535,8 @@ final class VaultStore {
       let id = NoteFactory.createNoteId()
       let created = NoteFactory.isoTimestamp()
       var note = StudioNote.capture(
-        title: title, body: trimmedBody, id: id, created: created, room: meta.rooms.first ?? "inbox")
+        title: title, body: trimmedBody, id: id, created: created, room: meta.rooms.first ?? "inbox"
+      )
       note.cardType = meta.cardType
       note.semanticType = meta.semanticType
       note.status = meta.status
@@ -545,7 +552,8 @@ final class VaultStore {
         created: created, title: note.title, cardType: note.cardType, id: id)
       let path = "\(meta.folder)/\(filename)"
       do {
-        _ = try vault.writeText(path: path, text: note.serialize(), expectedHash: nil, createNew: true)
+        _ = try vault.writeText(
+          path: path, text: note.serialize(), expectedHash: nil, createNew: true)
         try reload()
         error = nil
         lastCapturedPath = path
@@ -721,7 +729,9 @@ final class VaultStore {
   /// The active becomings tagged to a life area (optionally excluding one note id) —
   /// used to offer retiring the area's current becoming when a new one is started, so
   /// each area keeps one becoming in play at a time.
-  func activeBecomings(inArea area: String, excludingId: String? = nil) -> [(path: String, title: String)] {
+  func activeBecomings(inArea area: String, excludingId: String? = nil) -> [(
+    path: String, title: String
+  )] {
     parsedNotesByPath
       .filter {
         Becoming.matches($0.note) && $0.note.status != "archived" && $0.note.status != "trashed"
@@ -791,6 +801,64 @@ final class VaultStore {
     else { return false }
     var note = editable.note
     note.display = NoteDisplay(cover: reference, featured: note.display.featured)
+    guard saveEdit(editable, updatedNote: note) else { return false }
+    // A new format writes a new file name, so the superseded picture goes too.
+    let keep = VaultMedia.normalizeCoverPath(notePath: path, reference: reference)
+    return removeProfileMedia(ofNoteAt: path, except: keep)
+  }
+
+  /// The profile's own pictures: `Media/cover.<ext>` beside the note, in a format
+  /// `setCover` writes. Anything else in that folder belongs to someone else and stays.
+  /// Nil when the vault can't be listed, which is not the same as having no pictures.
+  private func profileMediaPaths(ofNoteAt notePath: String) -> [String]? {
+    guard let vault else { return nil }
+    let folder = (notePath as NSString).deletingLastPathComponent
+    let base = folder.isEmpty ? "Media/cover" : "\(folder)/Media/cover"
+    let own = Set(VaultMedia.mimeByExtension.keys.map { base + $0 })
+    do {
+      return try vault.list(prefix: nil).map(\.path).filter(own.contains)
+    } catch {
+      self.error = "\(error)"
+      return nil
+    }
+  }
+
+  /// Delete the profile's pictures, keeping at most one. Missing files are no-ops. A
+  /// vault that can't be listed is a failure, so the reference stays until it can be.
+  private func removeProfileMedia(ofNoteAt notePath: String, except keep: String?) -> Bool {
+    guard let paths = profileMediaPaths(ofNoteAt: notePath) else { return false }
+    var allRemoved = true
+    for path in paths where path != keep {
+      if !removeFile(path: path) { allRemoved = false }
+    }
+    return allRemoved
+  }
+
+  /// Whether the profile note points at a picture, readable or not. The editor offers
+  /// "Remove photo" on this, so a reference whose file is missing or unreadable can
+  /// still be cleared.
+  var hasProfileAvatar: Bool { profilePair?.note.display.cover != nil }
+
+  /// Remove the profile picture. The files go first and the reference second, so a
+  /// failure part-way leaves a reference the person can still clear: a missing file is a
+  /// no-op on the next try. Only the profile's own pictures go (`Media/cover.*` beside
+  /// the note, including one a format change superseded); anything else in that folder
+  /// is left where it is.
+  @discardableResult
+  func removeProfileAvatar() -> Bool {
+    guard let pair = profilePair, let reference = pair.note.display.cover else { return true }
+    if let fullPath = VaultMedia.normalizeCoverPath(notePath: pair.path, reference: reference) {
+      let folder = (pair.path as NSString).deletingLastPathComponent
+      let mediaPrefix = folder.isEmpty ? "Media/" : "\(folder)/Media/"
+      guard fullPath.hasPrefix(mediaPrefix) else {
+        error = "The profile picture isn't in the profile's own folder, so it was left alone."
+        return false
+      }
+    }
+    guard removeProfileMedia(ofNoteAt: pair.path, except: nil) else { return false }
+    guard let editable = beginEdit(path: pair.path) else { return false }
+    var note = editable.note
+    note.display = NoteDisplay(cover: nil, featured: note.display.featured)
     return saveEdit(editable, updatedNote: note)
   }
 
@@ -814,7 +882,8 @@ final class VaultStore {
       created: created, title: nil, cardType: "profile", id: id)
     let path = "Profile/\(filename)"
     do {
-      _ = try vault.writeText(path: path, text: note.serialize(), expectedHash: nil, createNew: true)
+      _ = try vault.writeText(
+        path: path, text: note.serialize(), expectedHash: nil, createNew: true)
       try reload()
       error = nil
       return path
@@ -948,7 +1017,8 @@ final class VaultStore {
       let declared = VaultMedia.mimeForExtension(fullPath),
       let data = try? vault.readBinary(path: fullPath)
     else { return nil }
-    guard data.count <= VaultMedia.maxBytes, let sniffed = VaultMedia.sniff(data), sniffed == declared
+    guard data.count <= VaultMedia.maxBytes, let sniffed = VaultMedia.sniff(data),
+      sniffed == declared
     else { return nil }
     return (data, sniffed)
   }
@@ -1052,7 +1122,8 @@ final class VaultStore {
     }
     let id = NoteFactory.createNoteId()
     let created = NoteFactory.isoTimestamp()
-    var note = StudioNote.capture(title: title, body: trimmedBody, id: id, created: created, room: room)
+    var note = StudioNote.capture(
+      title: title, body: trimmedBody, id: id, created: created, room: room)
     note.cardType = cardType
     note.semanticType = semanticType
     note.status = status
@@ -1134,7 +1205,8 @@ final class VaultStore {
     for token in ["[[", "]]", "**", "__", "`", "#", ">", "*", "_"] {
       stripped = stripped.replacingOccurrences(of: token, with: " ")
     }
-    return stripped
+    return
+      stripped
       .split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "\t" })
       .joined(separator: " ")
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1230,32 +1302,41 @@ final class VaultStore {
   }
 
   #if targetEnvironment(simulator)
-  // Seed a small Reflection Garden so the room has content in the simulator.
-  private func openFixture() {
-    let fm = FileManager.default
-    let notes: [(String, String, String)] = [
-      ("a-quiet-morning", "A quiet morning that worked", "celebration"),
-      ("returned-without-failure", "I returned without making it a failure", "reflection"),
-      ("the-slower-answer", "I chose the slower answer", "reflection"),
-    ]
-    do {
-      let docs = try fm.url(
-        for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-      let vault = docs.appendingPathComponent("DemoStudio", isDirectory: true)
-      let room = vault.appendingPathComponent("Reflection Garden", isDirectory: true)
-      try fm.createDirectory(at: room, withIntermediateDirectories: true)
-      for (slug, title, meaning) in notes {
-        let body = "\n\(title). Fifteen minutes still counted.\n"
-        let md =
-          "---\ntitle: \(title)\ncard_type: \(meaning)\nrooms:\n  - reflection-garden\n---\n\(body)"
-        try md.data(using: .utf8)!.write(to: room.appendingPathComponent("\(slug).md"))
-      }
-      try "1".data(using: .utf8)!
-        .write(to: vault.appendingPathComponent(".studio-revision"))
-      try openVault(at: vault)
-    } catch {
-      self.error = "\(error)"
+    // Seed a small Reflection Garden so the room has content in the simulator.
+    private struct DemoNote {
+      let slug: String
+      let title: String
+      let meaning: String
     }
-  }
+
+    private func openFixture() {
+      let fileManager = FileManager.default
+      let notes = [
+        DemoNote(
+          slug: "a-quiet-morning", title: "A quiet morning that worked", meaning: "celebration"),
+        DemoNote(
+          slug: "returned-without-failure", title: "I returned without making it a failure",
+          meaning: "reflection"),
+        DemoNote(
+          slug: "the-slower-answer", title: "I chose the slower answer", meaning: "reflection"),
+      ]
+      do {
+        let docs = try fileManager.url(
+          for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        let vault = docs.appendingPathComponent("DemoStudio", isDirectory: true)
+        let room = vault.appendingPathComponent("Reflection Garden", isDirectory: true)
+        try fileManager.createDirectory(at: room, withIntermediateDirectories: true)
+        for note in notes {
+          let body = "\n\(note.title). Fifteen minutes still counted.\n"
+          let markdown =
+            "---\ntitle: \(note.title)\ncard_type: \(note.meaning)\nrooms:\n  - reflection-garden\n---\n\(body)"
+          try Data(markdown.utf8).write(to: room.appendingPathComponent("\(note.slug).md"))
+        }
+        try Data("1".utf8).write(to: vault.appendingPathComponent(".studio-revision"))
+        try openVault(at: vault)
+      } catch {
+        self.error = "\(error)"
+      }
+    }
   #endif
 }

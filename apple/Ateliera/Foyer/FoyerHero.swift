@@ -43,6 +43,7 @@ struct FoyerHero: View {
   let greeting: String
   let onOpen: (String) -> Void
   let onBegin: () -> Void
+  let onProfile: () -> Void
 
   // Honour the "becoming" Foyer-section preference: switched off, the hero steps back to
   // the quiet welcome rather than surfacing the statement.
@@ -65,20 +66,33 @@ struct FoyerHero: View {
   }
 
   // The app identity, quietly: the constellation mark beside the name in tracked caps,
-  // with the profile avatar. No longer the centrepiece — just the rail you came in by.
+  // with the profile avatar, which opens the profile. No longer the centrepiece — just
+  // the rail you came in by.
   private var wordmarkRail: some View {
     HStack(spacing: 10) {
-      ConstellationMark(size: 18, color: theme.inkFaint)
-      Text("ATELIERA")
-        .font(StudioFont.interface(11, weight: .medium))
-        .tracking(3)
-        .foregroundStyle(theme.inkSoft)
+      HStack(spacing: 10) {
+        ConstellationMark(size: 18, color: theme.inkFaint)
+        Text("ATELIERA")
+          .font(StudioFont.interface(11, weight: .medium))
+          .tracking(3)
+          .foregroundStyle(theme.inkSoft)
+      }
+      .accessibilityElement(children: .combine)
+      .accessibilityLabel("Ateliera")
+      .accessibilityAddTraits(.isHeader)
       Spacer(minLength: 0)
-      ProfileAvatar(store: store, size: 40)
+      Button(action: onProfile) {
+        ProfileAvatar(store: store, size: 40, identifier: nil)
+          .frame(minWidth: 44, minHeight: 44)
+          .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel("Profile")
+      .accessibilityHint("Opens your profile")
+      .accessibilityAddTraits(.isButton)
+      .accessibilityIdentifier("profile-avatar")
     }
-    .accessibilityElement(children: .combine)
-    .accessibilityLabel("Ateliera")
-    .accessibilityAddTraits(.isHeader)
   }
 
   // The hero: "you are becoming" over the statement itself, large and high-contrast, in
@@ -86,7 +100,9 @@ struct FoyerHero: View {
   // note carries lives on the note, reached by tapping. The greeting sits beneath as a
   // quiet welcome, never competing with the statement.
   private func becomingHero(statement: String, path: String) -> some View {
-    Button { onOpen(path) } label: {
+    Button {
+      onOpen(path)
+    } label: {
       VStack(alignment: .leading, spacing: 8) {
         Text("YOU ARE BECOMING")
           .font(StudioFont.eyebrow).tracking(1.6).foregroundStyle(theme.vision)

@@ -109,8 +109,9 @@ describe('SearchRoom', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'The quiet hill' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Show links' }));
+    const openLinked = await screen.findByRole('button', { name: 'Open Linked note' });
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Open Linked note' }));
+      fireEvent.click(openLinked);
     });
 
     expect(await screen.findByRole('dialog', { name: 'Inspect Linked note' })).toBeVisible();
@@ -166,7 +167,7 @@ describe('SearchRoom', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'The quiet hill' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Show links' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Repair Missing garden' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Repair Missing garden' }));
 
     expect(await screen.findByRole('dialog', { name: 'Repair Studio notes' })).toBeVisible();
     expect(screen.getAllByRole('dialog')).toHaveLength(1);

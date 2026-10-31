@@ -21,7 +21,9 @@ final class RhythmTests: XCTestCase {
       (12, .north, .winter), (12, .south, .summer),
     ]
     for (month, hemisphere, expected) in cases {
-      XCTAssertEqual(Rhythm.resolveSeason(month: month, hemisphere: hemisphere), expected, "month \(month) \(hemisphere)")
+      XCTAssertEqual(
+        Rhythm.resolveSeason(month: month, hemisphere: hemisphere), expected,
+        "month \(month) \(hemisphere)")
     }
   }
 
@@ -41,16 +43,18 @@ final class RhythmTests: XCTestCase {
 
   func testAstronomicalSeasonNameAndProgress() {
     // Named by the exact equinox/solstice boundaries; flips for the southern hemisphere.
-    XCTAssertEqual(Rhythm.resolveSeasonAstronomical(date: "2026-08-30", hemisphere: .north), .summer)
-    XCTAssertEqual(Rhythm.resolveSeasonAstronomical(date: "2026-08-30", hemisphere: .south), .winter)
-    XCTAssertEqual(Rhythm.resolveSeasonAstronomical(date: "2026-03-19", hemisphere: .north), .winter)
-    XCTAssertEqual(Rhythm.resolveSeasonAstronomical(date: "2026-06-30", hemisphere: .north), .summer)
+    let astronomical = Rhythm.resolveSeasonAstronomical
+    XCTAssertEqual(astronomical("2026-08-30", .north), .summer)
+    XCTAssertEqual(astronomical("2026-08-30", .south), .winter)
+    XCTAssertEqual(astronomical("2026-03-19", .north), .winter)
+    XCTAssertEqual(astronomical("2026-06-30", .north), .summer)
 
     // Progress is measured between the exact solstice/equinox instants of the span.
     let ms = Rhythm.utcMillis(year: 2026, month: 8, day: 30)
     let span = Sky.astronomicalSeasonSpan(dateMs: ms)
     let expected = Double(ms - span.start) / Double(span.end - span.start)
-    XCTAssertEqual(Rhythm.seasonProgressAstronomical(date: "2026-08-30"), expected, accuracy: 0.0001)
+    XCTAssertEqual(
+      Rhythm.seasonProgressAstronomical(date: "2026-08-30"), expected, accuracy: 0.0001)
 
     // The style dispatchers agree with the specific functions.
     XCTAssertEqual(
@@ -59,6 +63,34 @@ final class RhythmTests: XCTestCase {
     XCTAssertEqual(
       Rhythm.seasonProgress(date: "2026-08-30", style: .astronomical),
       Rhythm.seasonProgressAstronomical(date: "2026-08-30"))
+  }
+
+  func testCyclePhaseSpansReadTheSameBoundariesBack() {
+    // Every day of a cycle falls in exactly one phase's span, for short, typical and long
+    // cycles alike, so the sheet's "day 6 to day 13" matches the day the badge shows.
+    let start = "2026-01-01"
+    for length in 20...40 {
+      for day in 1...length {
+        let dateMs = ms(start) + Int64(day - 1) * 86_400_000
+        let profile = CycleProfile(lastPeriodStart: start, avgLengthDays: length)
+        guard let state = Rhythm.computeCycle(profile, dateMs: dateMs) else {
+          return XCTFail("no cycle for day \(day) of \(length)")
+        }
+        XCTAssertEqual(state.day, day)
+        let holders = [CyclePhase.menstrual, .follicular, .ovulation, .luteal].filter {
+          Rhythm.cyclePhaseSpan($0, avgLengthDays: length)?.contains(day) == true
+        }
+        XCTAssertEqual(holders, [state.phase], "day \(day) of \(length)")
+      }
+    }
+  }
+
+  func testACycleTooShortForAPhaseHasNoSpanForIt() {
+    XCTAssertNil(Rhythm.cyclePhaseSpan(.follicular, avgLengthDays: 20))
+    XCTAssertEqual(Rhythm.cyclePhaseSpan(.ovulation, avgLengthDays: 20), 6...8)
+    XCTAssertEqual(Rhythm.cyclePhaseSpan(.luteal, avgLengthDays: 20), 9...20)
+    XCTAssertEqual(Rhythm.cyclePhaseSpan(.follicular, avgLengthDays: 28), 6...13)
+    XCTAssertEqual(Rhythm.typicalCycleLengthDays, 28)
   }
 
   func testTurningPointsMatchTheEphemeris() {
@@ -129,7 +161,9 @@ final class RhythmTests: XCTestCase {
     for (date, hemisphere, term) in cases {
       let month = Int(date.dropFirst(5).prefix(2))!
       let day = Int(date.dropFirst(8).prefix(2))!
-      XCTAssertEqual(Rhythm.resolveMicroSeason(month: month, day: day, hemisphere: hemisphere).term, term, date)
+      XCTAssertEqual(
+        Rhythm.resolveMicroSeason(month: month, day: day, hemisphere: hemisphere).term, term,
+        date)
     }
   }
 
@@ -167,11 +201,17 @@ final class RhythmTests: XCTestCase {
 
   func testOrientationMatchesTheWebEngine() {
     let cases: [(String, Hemisphere, CycleProfile?, RhythmOrientation)] = [
-      ("2026-01-10", .north, CycleProfile(lastPeriodStart: "2026-01-01", avgLengthDays: 28), .inward),
+      (
+        "2026-01-10", .north, CycleProfile(lastPeriodStart: "2026-01-01", avgLengthDays: 28),
+        .inward
+      ),
       ("2026-06-21", .south, nil, .inward),
       ("2026-04-18", .north, nil, .outward),
       ("2026-01-18", .north, nil, .outward),
-      ("2026-07-01", .north, CycleProfile(lastPeriodStart: "2026-06-20", avgLengthDays: 28), .outward),
+      (
+        "2026-07-01", .north, CycleProfile(lastPeriodStart: "2026-06-20", avgLengthDays: 28),
+        .outward
+      ),
     ]
     for (date, hemisphere, cycle, expected) in cases {
       let ctx = Rhythm.computeContext(
