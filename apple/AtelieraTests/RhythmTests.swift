@@ -190,7 +190,7 @@ final class RhythmTests: XCTestCase {
       ("2026-01-06", 6, .follicular),
       ("2026-01-14", 14, .ovulation),
       ("2026-01-17", 17, .luteal),
-      ("2026-02-10", 12, .follicular),  // 40 days in, avg 28 -> day 12
+      ("2026-02-10", 13, .follicular),  // 40 days in, avg 28 -> day 13 of cycle two
     ]
     for (date, day, phase) in cases {
       let state = Rhythm.computeCycle(cycle, dateMs: ms(date))
@@ -218,6 +218,52 @@ final class RhythmTests: XCTestCase {
         profile: RhythmProfile(hemisphere: hemisphere, cycle: cycle), date: date)
       XCTAssertEqual(Rhythm.orientation(ctx), expected, date)
     }
+  }
+
+  // Golden values from packages/rhythm/src/rhythm.test.ts (cycleDayGoldens), so both
+  // apps count the same day. nil is no estimate: a start in the future, or more than
+  // two average cycles ago.
+  func testCycleDayGoldens() {
+    let cases: [(String, Int, String, Int?, CyclePhase?)] = [
+      ("2026-01-01", 28, "2026-01-01", 1, .menstrual),
+      ("2026-01-01", 28, "2026-01-28", 28, .luteal),
+      ("2026-01-01", 28, "2026-01-29", 1, .menstrual),
+      ("2026-01-01", 28, "2026-02-10", 13, .follicular),
+      ("2026-01-01", 28, "2026-02-25", 28, .luteal),
+      ("2026-01-01", 28, "2026-02-26", 1, .menstrual),
+      ("2026-01-01", 28, "2026-02-27", nil, nil),
+      ("2026-01-01", 28, "2025-12-31", nil, nil),
+      ("2026-03-01", 21, "2026-03-21", 21, .luteal),
+      ("2026-03-01", 21, "2026-03-22", 1, .menstrual),
+      ("2026-03-01", 21, "2026-04-02", 12, .luteal),
+      ("2026-03-01", 21, "2026-04-12", 1, .menstrual),
+      ("2026-03-01", 21, "2026-04-13", nil, nil),
+      ("2026-05-01", 35, "2026-06-04", 35, .luteal),
+      ("2026-05-01", 35, "2026-06-05", 1, .menstrual),
+      ("2026-05-01", 35, "2026-06-20", 16, .follicular),
+      ("2026-05-01", 35, "2026-07-10", 1, .menstrual),
+      ("2026-05-01", 35, "2026-07-11", nil, nil),
+      ("2026-07-01", 31, "2026-07-31", 31, .luteal),
+      ("2026-07-01", 31, "2026-08-01", 1, .menstrual),
+      ("2026-07-01", 31, "2026-08-15", 15, .follicular),
+      ("2025-01-01", 28, "2026-06-21", nil, nil),
+      ("2025-12-20", 28, "2026-01-20", 4, .menstrual),
+    ]
+    for (start, avg, date, day, phase) in cases {
+      let state = Rhythm.computeCycle(
+        CycleProfile(lastPeriodStart: start, avgLengthDays: avg), dateMs: ms(date))
+      XCTAssertEqual(state?.day, day, "\(start) avg \(avg) on \(date)")
+      XCTAssertEqual(state?.phase, phase, "\(start) avg \(avg) on \(date)")
+    }
+  }
+
+  func testCycleDayNeverRepeatsTheLastDay() {
+    let cycle = CycleProfile(lastPeriodStart: "2026-01-01", avgLengthDays: 28)
+    let start = ms("2026-01-01")
+    let days = (0..<56).compactMap {
+      Rhythm.computeCycle(cycle, dateMs: start + Int64($0) * 86_400_000)?.day
+    }
+    XCTAssertEqual(days, Array(1...28) + Array(1...28))
   }
 
   func testComputeContextMatchesTheWebEngine() {

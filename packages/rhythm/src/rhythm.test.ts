@@ -98,13 +98,70 @@ describe('Cycle phase/day', () => {
 });
 
 describe('Cycle day wraps past avg length', () => {
-  it('lastPeriodStart 40 days before, avg 28 => day 12 (40 mod 28), phase recomputed', () => {
-    // 2026-06-21 minus 40 days = 2026-05-12
+  it('lastPeriodStart 40 days before, avg 28 => day 13 of the second cycle', () => {
+    // 2026-06-21 minus 40 days = 2026-05-12. Days 0..27 are cycle one, so day
+    // 40 is the 13th day of cycle two.
     const p = makeProfile({ cycle: { lastPeriodStart: '2026-05-12', avgLengthDays: 28 } });
     const ctx = computeRhythmContext(p, '2026-06-21');
-    expect(ctx.cycle!.day).toBe(12);
-    expect(['menstrual', 'follicular', 'ovulation', 'luteal']).toContain(ctx.cycle!.phase);
-    expect(ctx.cycle!.phase).toBe('follicular'); // day 12 of a 28-day cycle
+    expect(ctx.cycle).toEqual({ day: 13, phase: 'follicular' });
+  });
+});
+
+// Shared with apple/AtelieraTests/RhythmTests.swift (testCycleDayGoldens), which
+// takes its expected values from this table. `null` is no estimate: the start is
+// in the future, or more than two average cycles ago.
+const cycleDayGoldens: ReadonlyArray<
+  readonly [start: string, avg: number, date: string, day: number | null, phase: string | null]
+> = [
+  // A typical 28-day cycle, across two cycles and into the stale window.
+  ['2026-01-01', 28, '2026-01-01', 1, 'menstrual'],
+  ['2026-01-01', 28, '2026-01-28', 28, 'luteal'],
+  ['2026-01-01', 28, '2026-01-29', 1, 'menstrual'],
+  ['2026-01-01', 28, '2026-02-10', 13, 'follicular'],
+  ['2026-01-01', 28, '2026-02-25', 28, 'luteal'],
+  ['2026-01-01', 28, '2026-02-26', 1, 'menstrual'],
+  ['2026-01-01', 28, '2026-02-27', null, null],
+  ['2026-01-01', 28, '2025-12-31', null, null],
+  // Short.
+  ['2026-03-01', 21, '2026-03-21', 21, 'luteal'],
+  ['2026-03-01', 21, '2026-03-22', 1, 'menstrual'],
+  ['2026-03-01', 21, '2026-04-02', 12, 'luteal'],
+  ['2026-03-01', 21, '2026-04-12', 1, 'menstrual'],
+  ['2026-03-01', 21, '2026-04-13', null, null],
+  // Long.
+  ['2026-05-01', 35, '2026-06-04', 35, 'luteal'],
+  ['2026-05-01', 35, '2026-06-05', 1, 'menstrual'],
+  ['2026-05-01', 35, '2026-06-20', 16, 'follicular'],
+  ['2026-05-01', 35, '2026-07-10', 1, 'menstrual'],
+  ['2026-05-01', 35, '2026-07-11', null, null],
+  // Irregular: an uneven history averages to an odd length.
+  ['2026-07-01', 31, '2026-07-31', 31, 'luteal'],
+  ['2026-07-01', 31, '2026-08-01', 1, 'menstrual'],
+  ['2026-07-01', 31, '2026-08-15', 15, 'follicular'],
+  // A last period long ago, and one across a year boundary.
+  ['2025-01-01', 28, '2026-06-21', null, null],
+  ['2025-12-20', 28, '2026-01-20', 4, 'menstrual'],
+];
+
+describe('Cycle day across several cycles', () => {
+  it.each(cycleDayGoldens)(
+    'start %s, avg %i, on %s => day %s (%s)',
+    (start, avg, date, day, phase) => {
+      const [y, m, d] = date.split('-').map(Number) as [number, number, number];
+      const state = computeCycle(
+        { lastPeriodStart: start, avgLengthDays: avg },
+        Date.UTC(y, m - 1, d),
+      );
+      expect(state === undefined ? [null, null] : [state.day, state.phase]).toEqual([day, phase]);
+    },
+  );
+
+  it('never shows the last day of a cycle twice', () => {
+    const cycle = { lastPeriodStart: '2026-01-01', avgLengthDays: 28 };
+    const days = Array.from({ length: 56 }, (_, offset) =>
+      computeCycle(cycle, Date.UTC(2026, 0, 1 + offset))!.day,
+    );
+    expect(days).toEqual([...Array.from({ length: 28 }, (_, i) => i + 1), ...Array.from({ length: 28 }, (_, i) => i + 1)]);
   });
 });
 
@@ -147,8 +204,8 @@ describe('Future date with no note', () => {
     expect(['winter', 'spring', 'summer', 'autumn']).toContain(ctx.season);
     expect(ctx.microSeason.term.length).toBeGreaterThan(0);
     expect(ctx.moon.phase).toBeDefined();
-    expect(ctx.cycle!.day).toBeGreaterThanOrEqual(1);
-    expect(ctx.cycle!.day).toBeLessThanOrEqual(28);
+    // Four years after the last period, there is no estimate to give.
+    expect(ctx.cycle).toBeUndefined();
   });
 });
 
@@ -227,13 +284,11 @@ describe('Moon-phase seasons', () => {
   });
 });
 
-describe('Cycle day exact-multiple bugfix (P2 carry-forward)', () => {
-  it('cycle.day is avg (not 0) when daysSince is an exact multiple of avgLengthDays', () => {
-    // lastPeriodStart exactly 28 days before date → daysSince = 28, avg = 28
-    // Bug: 28 % 28 = 0, should return 28 (last day of cycle, not 0)
+describe('Cycle day on an exact multiple of the average', () => {
+  it('starts a new cycle at day 1 when daysSince is a multiple of avgLengthDays', () => {
+    // lastPeriodStart exactly 28 days before date: day 28 was yesterday.
     const p = makeProfile({ cycle: { lastPeriodStart: '2026-05-24', avgLengthDays: 28 } });
-    const ctx = computeRhythmContext(p, '2026-06-21'); // exactly 28 days later
-    expect(ctx.cycle!.day).toBe(28); // must be avg, not 0
-    expect(ctx.cycle!.phase).toBe('luteal'); // day 28 of a 28-day cycle is luteal
+    const ctx = computeRhythmContext(p, '2026-06-21');
+    expect(ctx.cycle).toEqual({ day: 1, phase: 'menstrual' });
   });
 });
