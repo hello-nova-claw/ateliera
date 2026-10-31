@@ -1,12 +1,14 @@
 import SwiftUI
 
 // Point-in-time snapshots (e.g. the version kept before a conflict overwrite). Each
-// can be restored, writing its files back to their original paths.
+// can be restored, writing its files back to their original paths, once the person has
+// seen which files that replaces.
 struct RevisionHistoryView: View {
   @Environment(\.studioTheme) private var theme
   let store: VaultStore
   @State private var snapshots: [RevisionSnapshot] = []
   @State private var status: String?
+  @State private var pending: RestorePlan?
 
   private var revisions: RevisionStore { RevisionStore(store: store) }
 
@@ -33,6 +35,35 @@ struct RevisionHistoryView: View {
     .background(theme.canvas)
     .navigationTitle("History")
     .onAppear { snapshots = revisions.list() }
+    .confirmationDialog(
+      String(localized: "Restore this version?", comment: "Title of the restore confirmation"),
+      isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }),
+      titleVisibility: .visible, presenting: pending
+    ) { plan in
+      Button(String(localized: "Restore", comment: "Confirms restoring a saved version")) {
+        confirm(plan)
+      }
+      .accessibilityIdentifier("confirm-restore")
+      Button(String(localized: "Cancel", comment: "Closes the restore confirmation"), role: .cancel)
+      {}
+    } message: { plan in
+      Text(
+        String(
+          localized: "This replaces:\n\(plan.paths.joined(separator: "\n"))",
+          comment: "Lists the vault files a restore will replace, one per line"))
+    }
+  }
+
+  private func confirm(_ plan: RestorePlan) {
+    pending = nil
+    if revisions.restore(plan) {
+      status = "Restored \(plan.files.count) file(s)."
+    } else {
+      status = String(
+        localized:
+          "Nothing was restored. A file changed after you chose this version, so try again.",
+        comment: "Shown when a restore finds a file changed since it was confirmed")
+    }
   }
 
   private func row(_ snapshot: RevisionSnapshot) -> some View {
@@ -43,10 +74,12 @@ struct RevisionHistoryView: View {
       Text("\(snapshot.manifest.files.count) file\(snapshot.manifest.files.count == 1 ? "" : "s")")
         .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
       Button("Restore this version") {
-        if revisions.restore(snapshot) {
-          status = "Restored \(snapshot.manifest.files.count) file(s)."
+        if let plan = revisions.planRestore(snapshot) {
+          pending = plan
         } else {
-          status = store.error ?? "Couldn't restore."
+          status = String(
+            localized: "This saved version didn't pass its checks, so it can't be restored.",
+            comment: "Shown when a saved version's files or manifest have changed on disk")
         }
       }
       .font(StudioFont.control).foregroundStyle(theme.link)
