@@ -1069,6 +1069,12 @@ final class VaultStore {
     return entries.filter { !$0.isDirectory }.map { $0.path }
   }
 
+  /// Every file under `prefix` with its size, or nil if that folder can't be listed.
+  func listFiles(under prefix: String) -> [(path: String, size: UInt64?)]? {
+    guard let vault, let entries = try? vault.list(prefix: prefix) else { return nil }
+    return entries.filter { !$0.isDirectory }.map { ($0.path, $0.size) }
+  }
+
   /// Raw bytes for any vault file (for export), or nil if unreadable.
   func readFileBytes(path: String) -> Data? {
     guard let vault else { return nil }
