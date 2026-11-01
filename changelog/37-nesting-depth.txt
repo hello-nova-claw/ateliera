@@ -1,0 +1,1 @@
+A note with absurdly deep or huge details can no longer crash the app on launch; it waits in Repair instead.
