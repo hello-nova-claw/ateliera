@@ -32,6 +32,25 @@ final class VaultImportTests: XCTestCase {
     XCTAssertThrowsError(try Zip32Reader.parse(zip))
   }
 
+  func testReaderRejectsADuplicateEntry() throws {
+    let zip = try Zip32.create([
+      (path: "a.md", bytes: Data("one\n".utf8)),
+      (path: "a.md", bytes: Data("two\n".utf8)),
+    ])
+    XCTAssertThrowsError(try Zip32Reader.parse(zip))
+  }
+
+  func testImportOfADuplicateEntryWritesNothing() throws {
+    let (dir, store) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let zip = try Zip32.create([
+      (path: "Inbox/a.md", bytes: Data("one\n".utf8)),
+      (path: "Inbox/a.md", bytes: Data("two\n".utf8)),
+    ])
+    XCTAssertThrowsError(try VaultImporter.prepare(archive: zip, store: store))
+    XCTAssertFalse(store.listAllPaths().contains("Inbox/a.md"))
+  }
+
   func testPlanClassifiesCreateVsOverwrite() throws {
     let (dir, store) = try makeVault()
     defer { try? FileManager.default.removeItem(at: dir) }

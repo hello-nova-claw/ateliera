@@ -1,8 +1,9 @@
 import Foundation
 
 // Parse a store-only ZIP32 (as produced by `Zip32.create` / the web `createZip32`)
-// into its entries, validating magic, method, CRC-32, and safe entry paths. Only the
-// stored (uncompressed) method is supported — the export format never compresses.
+// into its entries, validating magic, method, CRC-32, safe entry paths and that no path
+// appears twice, as `parseZip32` does. Only the stored (uncompressed) method is
+// supported — the export format never compresses.
 enum Zip32Reader {
   enum ReaderError: Error { case invalid, unsupported, checksumFailed }
 
@@ -15,6 +16,7 @@ enum Zip32Reader {
     }
 
     var files: [(path: String, bytes: Data)] = []
+    var seen = Set<String>()
     var i = 0
     while i + 4 <= bytes.count {
       let signature = u32(i)
@@ -32,7 +34,7 @@ enum Zip32Reader {
         let name = String(decoding: bytes[nameStart..<nameStart + nameLen], as: UTF8.self)
         let content = Data(bytes[dataStart..<dataStart + compSize])
         guard Zip32.crc32(content) == crcStored else { throw ReaderError.checksumFailed }
-        guard validEntryPath(name) else { throw ReaderError.invalid }
+        guard validEntryPath(name), seen.insert(name).inserted else { throw ReaderError.invalid }
         files.append((name, content))
         i = dataStart + compSize
         if files.count > Zip32.maxEntryCount { throw ReaderError.invalid }

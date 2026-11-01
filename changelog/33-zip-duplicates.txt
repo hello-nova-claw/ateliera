@@ -1,0 +1,1 @@
+Importing a backup that names the same file twice is now refused before anything is written, instead of leaving the import half done.
