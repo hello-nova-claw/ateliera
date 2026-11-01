@@ -549,9 +549,11 @@ enum NoteParser {
         pos += 1
       } else if scalar == quote {
         guard quote == "'" && pos + 1 < raw.count && raw[pos + 1] == "'" else {
-          // Only spaces may follow the closing quote: the web rejects anything else,
-          // and a native save would drop it.
-          guard raw[(pos + 1)...].allSatisfy({ $0 == " " || $0 == "\t" }) else {
+          // Only spaces, then perhaps a comment, may follow the closing quote: the web
+          // rejects anything else, and a native save would drop it.
+          let after = raw[(pos + 1)...]
+          let rest = after.drop { $0 == " " || $0 == "\t" }
+          guard rest.isEmpty || (rest.first == "#" && rest.count < after.count) else {
             throw MalformedScalar()
           }
           closed = true
