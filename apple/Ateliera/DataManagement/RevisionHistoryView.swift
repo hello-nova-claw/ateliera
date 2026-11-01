@@ -56,8 +56,16 @@ struct RevisionHistoryView: View {
 
   private func confirm(_ plan: RestorePlan) {
     pending = nil
+    let count = plan.changes.count
     if revisions.restore(plan) {
-      status = "Restored \(plan.files.count) file(s)."
+      status =
+        count == 1
+        ? String(localized: "Restored 1 file.", comment: "Shown after restoring one file")
+        : String(
+          localized: "Restored \(count) files.",
+          comment: "Shown after a restore. The placeholder is the number of files written.")
+    } else if revisions.planRestore(plan.snapshot) == nil {
+      status = Self.failedChecks
     } else {
       status = String(
         localized:
@@ -65,6 +73,11 @@ struct RevisionHistoryView: View {
         comment: "Shown when a restore finds a file changed since it was confirmed")
     }
   }
+
+  private static let failedChecks = String(
+    localized:
+      "This saved version can't be restored: it didn't pass its checks, or a file it replaces can't be read.",
+    comment: "Shown when a saved version's files or manifest have changed, or a file is unreadable")
 
   private func row(_ snapshot: RevisionSnapshot) -> some View {
     VStack(alignment: .leading, spacing: 5) {
@@ -75,11 +88,15 @@ struct RevisionHistoryView: View {
         .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
       Button("Restore this version") {
         if let plan = revisions.planRestore(snapshot) {
-          pending = plan
+          if plan.changes.isEmpty {
+            status = String(
+              localized: "Nothing to restore: your files already match this version.",
+              comment: "Shown when every file in a saved version matches the current one")
+          } else {
+            pending = plan
+          }
         } else {
-          status = String(
-            localized: "This saved version didn't pass its checks, so it can't be restored.",
-            comment: "Shown when a saved version's files or manifest have changed on disk")
+          status = Self.failedChecks
         }
       }
       .font(StudioFont.control).foregroundStyle(theme.link)
