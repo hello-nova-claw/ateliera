@@ -3,6 +3,7 @@ import {
   activateSeasonState,
   closeSeasonState,
   createSeasonDraft,
+  localTimestamp,
   reviseSeasonState,
   seasonProgress,
   seasonWizardSteps,
@@ -52,6 +53,8 @@ export interface SeasonCloseReflection {
 
 export interface SeasonServiceOptions {
   clock?: () => Date;
+  /** The writer's IANA time zone for note timestamps; UTC without one. */
+  timeZone?: string;
   generateId?: () => string;
 }
 
@@ -332,7 +335,12 @@ export function createSeasonService(
   const clock = options.clock ?? (() => new Date());
   const generateId =
     options.generateId ?? (() => createNoteId(clock().valueOf()));
-  const now = () => clock().toISOString();
+  // The Studio's zone unless the caller names one.
+  const timeZone = options.timeZone ?? studio.timeZone;
+  const now = () =>
+    timeZone === undefined
+      ? clock().toISOString()
+      : localTimestamp(clock(), timeZone);
 
   async function saveState(
     record: SeasonRecord,

@@ -18,6 +18,7 @@ import type {
 import {
   identitySectionDefinition,
   isDecisionHorizon,
+  localTimestamp,
   wisdomKinds,
   semanticTypeForWisdomKind,
   semanticTypeForLandscapeAnchor,
@@ -240,6 +241,12 @@ export interface StudioServiceDependencies {
   vault: VaultPort;
   index: IndexPort;
   clock?: () => Date;
+  /**
+   * The writer's IANA time zone. Note timestamps keep its wall clock and
+   * offset, so an entry stays on the day it was written. Without one they are
+   * written in UTC.
+   */
+  timeZone?: string;
   generateId?: () => string;
   publish?: StudioEventListener;
   reportListenerError?: (error: unknown, event: StudioEvent) => void;
@@ -252,6 +259,8 @@ export interface StudioServiceDependencies {
 }
 
 export interface StudioService {
+  /** The writer's IANA time zone that note timestamps keep, when one was given. */
+  readonly timeZone?: string;
   readonly views: ViewStateRepository;
   readonly lifeAreas: LifeAreaRepository;
   readonly wisdomThemes: WisdomThemeRepository;
@@ -369,8 +378,10 @@ function validateAndSerialize(note: StudioNote): string {
   return serialized;
 }
 
-function iso(clock: () => Date): string {
-  return clock().toISOString();
+function noteTimestamp(clock: () => Date, timeZone: string | undefined): string {
+  return timeZone === undefined
+    ? clock().toISOString()
+    : localTimestamp(clock(), timeZone);
 }
 
 function isInternalPath(path: string): boolean {
@@ -401,6 +412,7 @@ export function createStudioService(
   dependencies: StudioServiceDependencies,
 ): StudioService {
   const clock = dependencies.clock ?? (() => new Date());
+  const iso = (source: () => Date) => noteTimestamp(source, dependencies.timeZone);
   const generateId =
     dependencies.generateId ?? (() => createNoteId(clock().valueOf()));
   const timers = dependencies.timers ?? defaultTimers;
@@ -425,6 +437,9 @@ export function createStudioService(
     vault: dependencies.vault,
     index: dependencies.index,
     clock,
+    ...(dependencies.timeZone === undefined
+      ? {}
+      : { timeZone: dependencies.timeZone }),
   });
   const listeners = new Set<StudioEventListener>();
   if (dependencies.publish !== undefined) listeners.add(dependencies.publish);
@@ -849,6 +864,9 @@ export function createStudioService(
   }
 
   const service: StudioService = {
+    ...(dependencies.timeZone === undefined
+      ? {}
+      : { timeZone: dependencies.timeZone }),
     views,
     lifeAreas,
     wisdomThemes,
@@ -1220,7 +1238,7 @@ export function createStudioService(
           extraFrontmatter,
           lifeAreas: [...new Set(input.lifeAreas)],
           landscapeAnchor: input.anchor,
-          updated: clock().toISOString(),
+          updated: iso(clock),
         },
       });
     },
