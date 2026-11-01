@@ -909,10 +909,18 @@ final class VaultStore {
   @discardableResult
   func resolveConflictOverwrite() -> Bool {
     guard let conflict, let fresh = beginEdit(path: conflict.path) else { return false }
-    // Snapshot the version we're about to overwrite so it stays recoverable.
-    _ = RevisionStore(store: self).snapshot(
-      reason: RevisionReason.conflictResolution, paths: [conflict.path],
-      now: NoteFactory.isoTimestamp(), id: NoteFactory.createNoteId())
+    // Snapshot the version we're about to overwrite so it stays recoverable, and leave
+    // it in place if that can't be done.
+    guard
+      RevisionStore(store: self).snapshot(
+        reason: RevisionReason.conflictResolution, paths: [conflict.path],
+        now: NoteFactory.isoTimestamp(), id: NoteFactory.createNoteId()) != nil
+    else {
+      error = String(
+        localized: "Couldn't keep a copy of the stored version, so it wasn't replaced.",
+        comment: "Shown when overwriting a conflicting note is stopped because no backup was made")
+      return false
+    }
     let draft = conflict.draft
     if saveEdit(fresh, updatedNote: draft) {
       self.conflict = nil
