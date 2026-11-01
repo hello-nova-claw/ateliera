@@ -15,8 +15,8 @@ final class SkyContentTests: XCTestCase {
 
   func testTheSkyAheadTimelineSaysWhatItAlwaysSaid() {
     let events = SkyAhead.events(
-      nowMs: Rhythm.utcMillis(year: 2026, month: 10, day: 2), hemisphere: .north,
-      layers: .moonPhases, birthDate: nil, horizonDays: 40)
+      nowMs: Rhythm.utcMillis(year: 2026, month: 10, day: 2), today: "2026-10-02",
+      timeZone: .gmt, hemisphere: .north, layers: .moonPhases, birthDate: nil, horizonDays: 40)
     let full = events.first { $0.title == "Full moon" }
     XCTAssertEqual(full?.detail, "fullness at its height — what has grown")
   }

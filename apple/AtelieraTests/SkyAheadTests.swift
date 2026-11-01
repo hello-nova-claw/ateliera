@@ -15,8 +15,52 @@ final class SkyAheadTests: XCTestCase {
     horizonDays: Int = 120
   ) -> [SkyEvent] {
     SkyAhead.events(
-      nowMs: nowMs, hemisphere: hemisphere, layers: layers, birthDate: birthDate,
-      horizonDays: horizonDays)
+      nowMs: nowMs, today: "2026-10-02", timeZone: .gmt, hemisphere: hemisphere, layers: layers,
+      birthDate: birthDate, horizonDays: horizonDays)
+  }
+
+  // MARK: - The writer's own day
+
+  func testTodaysEventIsListedAndDatedInTheLocalZone() throws {
+    // An hour before a full moon, in UTC+11 and UTC−8: the moon is still ahead, and it's
+    // dated on the local day it rises, not the UTC one.
+    let full = Sky.nextMoonPhase(afterMs: nowMs, phase: .full)
+    for hours in [11, -8] {
+      let zone = try XCTUnwrap(TimeZone(secondsFromGMT: hours * 3600))
+      let now = full - 3_600_000
+      let today = Sky.isoDate(ms: now + Int64(hours) * 3_600_000)
+      let list = SkyAhead.events(
+        nowMs: now, today: today, timeZone: zone, hemisphere: .north, layers: .moonPhases,
+        birthDate: nil)
+      let moon = try XCTUnwrap(list.first { $0.ms == full }, "UTC\(hours): full moon missing")
+      XCTAssertEqual(
+        SkyAhead.localDay(of: moon, timeZone: zone),
+        Sky.isoDate(ms: full + Int64(hours) * 3_600_000), "UTC\(hours)")
+      XCTAssertEqual(SkyAhead.daysAway(moon, today: today, timeZone: zone), 0, "UTC\(hours)")
+    }
+  }
+
+  func testAPassedEventTodayIsNotListed() throws {
+    let full = Sky.nextMoonPhase(afterMs: nowMs, phase: .full)
+    let zone = try XCTUnwrap(TimeZone(secondsFromGMT: -8 * 3600))
+    let now = full + 3_600_000
+    let list = SkyAhead.events(
+      nowMs: now, today: Sky.isoDate(ms: now - 8 * 3_600_000), timeZone: zone,
+      hemisphere: .north, layers: .moonPhases, birthDate: nil)
+    XCTAssertNil(list.first { $0.ms == full })
+  }
+
+  func testDateEventsKeepTheirCalendarDayInAnyZone() throws {
+    // A solar return is a calendar day, so it reads the same date east and west of UTC.
+    for hours in [11, -8] {
+      let zone = try XCTUnwrap(TimeZone(secondsFromGMT: hours * 3600))
+      let list = SkyAhead.events(
+        nowMs: nowMs, today: "2026-10-02", timeZone: zone, hemisphere: .north,
+        layers: .astrology, birthDate: "1990-10-20")
+      let solar = try XCTUnwrap(list.first, "UTC\(hours)")
+      XCTAssertEqual(SkyAhead.localDay(of: solar, timeZone: zone), "2026-10-20", "UTC\(hours)")
+      XCTAssertEqual(SkyAhead.daysAway(solar, today: "2026-10-02", timeZone: zone), 18)
+    }
   }
 
   // MARK: - Ordering & horizon
