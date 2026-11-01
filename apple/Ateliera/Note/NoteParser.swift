@@ -121,7 +121,7 @@ enum NoteParser {
     var start = 0
     while start < lines.count {
       var end = start + 1
-      while end < lines.count && continuesEntry(lines[end]) { end += 1 }
+      while end < lines.count && continuesEntry(lines, at: end) { end += 1 }
       if let pair = try readEntry(Array(lines[start..<end])) { pairs.append(pair) }
       start = end
     }
@@ -130,8 +130,17 @@ enum NoteParser {
 
   // A line belongs to the entry above it when it is blank, indented, or an item of
   // a sequence written at the key's own column.
-  private static func continuesEntry(_ line: String) -> Bool {
+  // A comment at column 0 belongs to the entry when the lines it sits among do (a
+  // comment between `tags:` and its list, say).
+  private static func continuesEntry(_ lines: [String], at index: Int) -> Bool {
+    let line = lines[index]
     guard let first = line.unicodeScalars.first else { return true }
+    if first == "#" {
+      guard let next = lines[index...].firstIndex(where: { !isBlankOrComment($0) }) else {
+        return false
+      }
+      return continuesEntry(lines, at: next)
+    }
     return first == " " || first == "\t" || line == "-" || line.hasPrefix("- ")
   }
 
@@ -216,21 +225,25 @@ enum NoteParser {
     _ rest: String, _ lines: [String], _ index: inout Int, indent: Int
   ) throws -> YamlNode {
     index += 1
-    let value = withoutComment(trimmingYamlSpace(rest))
+    let trimmed = trimmingYamlSpace(rest)
+    if trimmed.hasPrefix("{") { return try flowMap(trimmed) }
+    if trimmed.hasPrefix("[") { return .list(try flowSequence(trimmed)) }
+    let value = withoutComment(trimmed)
     if value.isEmpty {
-      if let column = sequenceColumn(lines, index, indent: indent) {
+      // Comment lines may sit between the key and its block.
+      let next = lines[index...].firstIndex { !isBlankOrComment($0) } ?? lines.count
+      if let column = sequenceColumn(lines, next, indent: indent) {
+        index = next
         return try parseSequence(lines, &index, column: column)
       }
       return .map(try parseBlock(lines, &index, indent: indent + 2))
     }
-    if value.hasPrefix("{") { return try flowMap(value) }
     if let first = value.unicodeScalars.first, "&*!".unicodeScalars.contains(first) {
       throw UnmodelledShape()
     }
     if let first = value.unicodeScalars.first, "%@`".unicodeScalars.contains(first) {
       throw MalformedScalar()
     }
-    if value.hasPrefix("[") { return .list(try flowSequence(value)) }
     if value == "true" || value == "false" {
       // An unquoted boolean (the web quotes a bool-like string, so bare true/false
       // is a real boolean) — keep it as .bool so it re-serializes unquoted.
@@ -267,6 +280,8 @@ enum NoteParser {
     let pairs: [(String, YamlNode)] = try flowItems(value, closing: "}").map { item in
       guard let (key, rest) = keyAndValue(item) else { throw UnmodelledShape() }
       let text = trimmingYamlSpace(rest)
+      // An empty value is null on the web; written back here it would become "".
+      if text.isEmpty { throw UnmodelledShape() }
       if text == "true" || text == "false" { return (key, .bool(text == "true")) }
       if StudioNote.resolvesAsNonString(text) { return (key, .raw(text)) }
       return (key, .scalar(try unquote(text)))
@@ -275,39 +290,68 @@ enum NoteParser {
   }
 
   // The items of a one-line flow collection, split at the commas outside quotes and
-  // trimmed. `value` runs from the opening bracket to `closing`.
+  // trimmed. `value` starts at the opening bracket; after `closing`, only a comment
+  // may follow. A quote opens a scalar only at the start of an item or after `key: `,
+  // so an apostrophe inside a plain item (`it's`) is just a character.
   private static func flowItems(_ value: String, closing: Unicode.Scalar) throws -> [String] {
     let scalars = Array(value.unicodeScalars)
-    guard scalars.last == closing else { throw MalformedScalar() }
     var items: [String] = []
     var current = String.UnicodeScalarView()
     var quote: Unicode.Scalar?
     var position = 1
-    while position < scalars.count - 1 {
+    while position < scalars.count {
       let scalar = scalars[position]
-      current.append(scalar)
       position += 1
       if let open = quote {
-        if open == "\"" && scalar == "\\" && position < scalars.count - 1 {
-          current.append(scalars[position])
-          position += 1
-        } else if scalar == open {
-          quote = nil
-        }
-      } else if scalar == "\"" || scalar == "'" {
+        if !continueQuoted(scalar, open: open, scalars, &position, &current) { quote = nil }
+      } else if scalar == closing {
+        items.append(String(current))
+        guard onlyCommentFollows(scalars[position...]) else { throw MalformedScalar() }
+        if items.count == 1 && trimmingYamlSpace(items[0]).isEmpty { return [] }
+        return items.map { trimmingYamlSpace($0) }
+      } else if (scalar == "\"" || scalar == "'") && opensQuote(after: current) {
+        current.append(scalar)
         quote = scalar
       } else if "[]{}".unicodeScalars.contains(scalar) {
         throw UnmodelledShape()
       } else if scalar == "," {
-        current.removeLast()
         items.append(String(current))
         current = String.UnicodeScalarView()
+      } else {
+        current.append(scalar)
       }
     }
-    guard quote == nil else { throw MalformedScalar() }
-    items.append(String(current))
-    if items.count == 1 && trimmingYamlSpace(items[0]).isEmpty { return [] }
-    return items.map { withoutComment(trimmingYamlSpace($0)) }
+    throw MalformedScalar()  // the collection never closed
+  }
+
+  // One scalar inside a quoted flow item, with the escape it begins (`\x` in double
+  // quotes, `''` in single quotes). False when it is the closing quote.
+  private static func continueQuoted(
+    _ scalar: Unicode.Scalar, open: Unicode.Scalar, _ scalars: [Unicode.Scalar],
+    _ position: inout Int, _ current: inout String.UnicodeScalarView
+  ) -> Bool {
+    current.append(scalar)
+    let next = position < scalars.count ? scalars[position] : nil
+    if let next, (open == "\"" && scalar == "\\") || (open == "'" && scalar == "'" && next == "'") {
+      current.append(next)
+      position += 1
+      return true
+    }
+    return scalar != open
+  }
+
+  // Whether the rest of a line is blank, or a comment after a space.
+  private static func onlyCommentFollows(_ rest: ArraySlice<Unicode.Scalar>) -> Bool {
+    let text = rest.drop { $0 == " " || $0 == "\t" }
+    return text.isEmpty || (text.first == "#" && text.count < rest.count)
+  }
+
+  // Whether a quote here starts a quoted scalar: at the start of a flow item, or
+  // after the `: ` of a key inside a flow map.
+  private static func opensQuote(after text: String.UnicodeScalarView) -> Bool {
+    let before = String(text)
+    let trimmed = before.unicodeScalars.reversed().drop { $0 == " " || $0 == "\t" }
+    return trimmed.isEmpty || (trimmed.count < before.unicodeScalars.count && trimmed.first == ":")
   }
 
   // The column of a block sequence under a key at `indent`: indented by two, or, as
@@ -337,6 +381,11 @@ enum NoteParser {
       var items: [String] = []
       while isSequenceItem(lines, index, column: column) {
         let text = String(lines[index].dropFirst(content))
+        if let first = trimmingYamlSpace(text).unicodeScalars.first,
+          "[{&*!".unicodeScalars.contains(first)
+        {
+          throw UnmodelledShape()
+        }
         index += 1
         items.append(try readScalar(text, lines, &index, parentIndent: column))
       }
