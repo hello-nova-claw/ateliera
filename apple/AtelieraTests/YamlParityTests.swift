@@ -186,6 +186,11 @@ final class YamlParityTests: XCTestCase {
       XCTAssertNil(NoteParser.parse(noteText(["x: \"a\(escape)b\""])), escape)
       XCTAssertNil(NoteParser.parse(noteText(["list:", "  - \"\(escape)\""])), escape)
     }
+    // Text after the closing quote is invalid YAML, and would be lost on a save.
+    XCTAssertNil(NoteParser.parse(noteText(["x: \"a\" b"])))
+    XCTAssertNil(NoteParser.parse(noteText(["x: 'a' b"])))
+    XCTAssertNil(NoteParser.parse(noteText(["x: \"a", "  b\" c"])))
+    XCTAssertEqual(NoteParser.parse(noteText(["x: \"a\"  "]))?.frontmatterScalar("x"), "a")
     // A backslash that escapes the closing quote leaves the scalar unclosed.
     XCTAssertNil(NoteParser.parse(noteText(["x: \"a\\\""])))
     // A lone surrogate is valid YAML, but a Swift string cannot hold it, so a save
