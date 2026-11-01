@@ -56,6 +56,28 @@ async function completeWizard(
 }
 
 describe('season service', () => {
+  it('dates a season note in the writer’s zone', async () => {
+    const vault = createInMemoryVault();
+    const studio = createStudioService({
+      vault,
+      index: new RecordingIndex(),
+      clock: () => new Date('2026-11-01T21:00:00.000Z'),
+      timeZone: 'Australia/Melbourne',
+      generateId: () => '01SEASONNOTE',
+    });
+    const seasons = createSeasonService(studio, {
+      clock: () => new Date('2026-11-01T21:00:00.000Z'),
+      timeZone: 'Australia/Melbourne',
+      generateId: () => '01SEASONNOTE',
+    });
+
+    const begun = await seasons.beginSeason({ title: 'Spring' });
+
+    expect(begun.note.created).toBe('2026-11-02T08:00:00.000+11:00');
+    expect(begun.state.updated).toBe('2026-11-02T08:00:00.000+11:00');
+    expect(begun.path.split('/').at(-1)).toMatch(/^2026-11-02--/u);
+  });
+
   it('persists each wizard step and recovers the draft at the next incomplete step', async () => {
     const { seasons } = setup();
     const begun = await seasons.beginSeason({
