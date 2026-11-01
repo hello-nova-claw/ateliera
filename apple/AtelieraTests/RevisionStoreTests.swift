@@ -212,6 +212,21 @@ final class RevisionStoreTests: XCTestCase {
     }
   }
 
+  func testSnapshotWritesNothingThatListWouldIgnore() throws {
+    let (dir, store) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.capture(title: "A", body: "a", room: "inbox"))
+    let path = try XCTUnwrap(store.parsedNotesByPath.first?.path)
+    let revisions = RevisionStore(store: store)
+    // A timestamp toISOString wouldn't write, and a reason the rules don't know.
+    XCTAssertNil(
+      revisions.snapshot(reason: "migration", paths: [path], now: "2026-08-29T10:00:00Z", id: "A"))
+    XCTAssertNil(
+      revisions.snapshot(
+        reason: "anything", paths: [path], now: "2026-08-29T10:00:00.000Z", id: "B"))
+    XCTAssertFalse(store.listAllPaths().contains { $0.hasPrefix(RevisionStore.backupsRoot) })
+  }
+
   func testPruneLeavesTheNoteAPlantedManifestNames() throws {
     let (dir, store) = try makeVault()
     defer { try? FileManager.default.removeItem(at: dir) }
