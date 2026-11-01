@@ -142,6 +142,7 @@ final class YamlParityTests: XCTestCase {
       "---",
       "escapes: \"\\0\\a\\b\\t\\\t\\n\\v\\f\\r\\e\\ \\\"\\/\\\\\\N\\_\\L\\P\"",
       "hex: \"\\x41\\u00e9\\U0001F319\\ud83c\\udf19\"",
+      "pairs: \"\\uD83C\\U0000DF19\\U0000D83C\\uDF19\\U0000D83C\\U0000DF19\"",
       "single: 'it''s'",
       "spaced:",
       "  - \"a\"  ",
@@ -171,6 +172,8 @@ final class YamlParityTests: XCTestCase {
       parsed.frontmatterScalar("escapes"),
       "\u{0}\u{7}\u{8}\t\t\n\u{B}\u{C}\r\u{1B} \"/\\\u{85}\u{A0}\u{2028}\u{2029}")
     XCTAssertEqual(parsed.frontmatterScalar("hex"), "Aé\u{1F319}\u{1F319}")
+    // Read by the web's `yaml` parser as three moons, whatever the escape widths.
+    XCTAssertEqual(parsed.frontmatterScalar("pairs"), "\u{1F319}\u{1F319}\u{1F319}")
     XCTAssertEqual(parsed.frontmatterScalar("single"), "it's")
     XCTAssertEqual(parsed.frontmatterList("spaced"), ["a", "b"])
   }
