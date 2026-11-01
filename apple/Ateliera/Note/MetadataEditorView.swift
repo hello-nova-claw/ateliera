@@ -21,14 +21,14 @@ struct MetadataEditorView: View {
         multiSelect(
           "Rooms", options: Room.all.map { ($0.id, $0.title) }, selection: $note.rooms)
         LabeledContent("Tags") {
-          CommaListField(placeholder: "comma, separated", items: $note.tags)
+          CommaListField(label: "Tags", placeholder: "comma, separated", items: $note.tags)
             .accessibilityIdentifier("metadata-tags")
         }
         multiSelect(
           "Life areas", options: NoteMetadata.defaultLifeAreas.map { ($0.id, $0.label) },
           selection: $note.lifeAreas)
         LabeledContent("Seasons") {
-          CommaListField(placeholder: "2026-winter, …", items: $note.seasons)
+          CommaListField(label: "Seasons", placeholder: "2026-winter, …", items: $note.seasons)
             .accessibilityIdentifier("metadata-seasons")
         }
       }
@@ -162,26 +162,28 @@ struct CommaListText: Equatable {
       .filter { !$0.isEmpty }
   }
 
-  /// Takes what was typed and returns the list it now spells.
   mutating func edit(_ typed: String) -> [String] {
     text = typed
     return Self.parse(typed)
   }
 
-  /// Follows the list when it changes elsewhere, ignoring the echo of its own edit.
+  // The field's own edit comes back through the binding; rewriting the text then would
+  // drop a trailing comma, so only a list that the text no longer spells replaces it.
   mutating func sync(_ items: [String]) {
     guard Self.parse(text) != items else { return }
     text = items.joined(separator: ", ")
   }
 }
 
-// A text field for a list of short values, typed comma-separated.
 private struct CommaListField: View {
-  let placeholder: String
+  // Keys, so both strings are looked up in the String Catalog once it exists (#76).
+  let label: LocalizedStringKey
+  let placeholder: LocalizedStringKey
   @Binding var items: [String]
   @State private var field: CommaListText
 
-  init(placeholder: String, items: Binding<[String]>) {
+  init(label: LocalizedStringKey, placeholder: LocalizedStringKey, items: Binding<[String]>) {
+    self.label = label
     self.placeholder = placeholder
     _items = items
     _field = State(initialValue: CommaListText(items: items.wrappedValue))
@@ -198,6 +200,7 @@ private struct CommaListField: View {
         })
     )
     .multilineTextAlignment(.trailing)
+    .accessibilityLabel(Text(label))
     .onChange(of: items) { _, newItems in field.sync(newItems) }
   }
 }
