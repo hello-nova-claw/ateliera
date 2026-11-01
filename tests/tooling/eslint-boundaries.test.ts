@@ -29,4 +29,15 @@ describe('workspace import boundaries', () => {
 
     expect(result?.messages).toEqual([]);
   });
+
+  it.each([
+    ['packages/ui/src/forbidden-fixture.ts', '@studio/storage'],
+    ['apps/studio/src/forbidden-fixture.ts', '@studio/test-utils'],
+  ])('rejects a package import outside the layer of %s', async (filePath, imported) => {
+    const [result] = await eslint.lintText(`import '${imported}';`, { filePath });
+
+    expect(result?.messages).toEqual([
+      expect.objectContaining({ ruleId: 'no-restricted-imports', severity: 2 }),
+    ]);
+  });
 });
