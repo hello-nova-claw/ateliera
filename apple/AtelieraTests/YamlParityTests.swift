@@ -258,6 +258,83 @@ final class YamlParityTests: XCTestCase {
     XCTAssertEqual(parsed.serialize(), text)
   }
 
+  private struct Folded: Decodable {
+    let yaml: String
+    let value: String
+  }
+
+  func testFoldedBlocksReadAsTheWebReadsThem() throws {
+    let url = repo.appendingPathComponent("fixtures/yaml-parity/folded.json")
+    let goldens = try JSONDecoder().decode([Folded].self, from: Data(contentsOf: url))
+    XCTAssertGreaterThan(goldens.count, 10)
+    for golden in goldens {
+      let text = noteText(golden.yaml.components(separatedBy: "\n") + ["after: kept"])
+      let parsed = try XCTUnwrap(NoteParser.parse(text), golden.yaml)
+      XCTAssertEqual(parsed.frontmatterScalar("x"), golden.value, golden.yaml)
+      XCTAssertEqual(parsed.frontmatterScalar("after"), "kept", golden.yaml)
+      // Another writer's folded block is kept as it was written.
+      XCTAssertEqual(parsed.serialize(), text, golden.yaml)
+    }
+  }
+
+  // Captured from `@studio/content`'s serializeNote.
+  func testAWebSeasonNoteWithAMultiLineStatementRoundTrips() throws {
+    let golden =
+      "---\nseason_id: 2026-winter\nseason_workflow:\n  statement: |-\n    Rest first.\n    Then build.\n  skipped_prior_reflection: false\n  feelings:\n    - calm\n  decisions:\n    - id: d1\n      text: Walk daily\nschema_version: 1\nid: 01JSEASON\ntitle: Winter\ncard_type: season\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons:\n  - 2026-winter\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\nNotes.\n"
+    let parsed = try XCTUnwrap(NoteParser.parse(golden))
+    XCTAssertEqual(parsed.nestedScalar("season_workflow", "statement"), "Rest first.\nThen build.")
+    XCTAssertEqual(parsed.nestedList("season_workflow", "feelings"), ["calm"])
+    XCTAssertEqual(parsed.title, "Winter")
+    XCTAssertEqual(parsed.serialize(), golden)
+  }
+
+  func testCommentsAndShapesTheReaderDoesNotModelSurviveInPlace() throws {
+    let text = noteText([
+      "# Written by another app",
+      "mood: calm # inline comment",
+      "position: {x: 1, y: 2}",
+      "pair: [\"a, b\", c]",
+      "nested:",
+      "  # a nested comment",
+      "  key: value",
+      "anchored: &anchor value",
+      "\"quoted key\": 1",
+      "zero_indent:",
+      "- one",
+      "- two",
+      "spaced: value",
+      "",
+      "last: kept",
+    ])
+    let parsed = try XCTUnwrap(NoteParser.parse(text))
+    XCTAssertEqual(parsed.serialize(), text)
+    XCTAssertEqual(parsed.frontmatterScalar("mood"), "calm")
+    XCTAssertEqual(parsed.frontmatterList("pair"), ["a, b", "c"])
+    XCTAssertEqual(parsed.nestedScalar("nested", "key"), "value")
+    XCTAssertEqual(parsed.frontmatterList("zero_indent"), ["one", "two"])
+    XCTAssertEqual(parsed.frontmatterScalar("last"), "kept")
+    XCTAssertEqual(parsed.id, "01JPARITY")
+    // A rewritten key replaces its verbatim lines.
+    var edited = parsed
+    edited.setRelatedNotes(["01JOTHER"])
+    XCTAssertTrue(edited.serialize().contains("last: kept\nrelated_notes:\n  - 01JOTHER\n"))
+  }
+
+  func testRecognisedKeysWrittenInOtherStylesAreRead() throws {
+    let text = noteText([])
+      .replacingOccurrences(of: "tags: []", with: "tags:\n- calm\n- practice # two")
+      .replacingOccurrences(of: "status: active", with: "status: active # for now")
+    let parsed = try XCTUnwrap(NoteParser.parse(text))
+    XCTAssertEqual(parsed.tags, ["calm", "practice"])
+    XCTAssertEqual(parsed.status, "active")
+  }
+
+  func testARecognisedKeyWithAnUnreadableValueSendsTheNoteToRepair() {
+    let text = noteText([]).replacingOccurrences(
+      of: "display:\n  featured: false", with: "display: {featured: false}")
+    XCTAssertNil(NoteParser.parse(text))
+  }
+
   func testDoubleQuotedEscapesFromOtherWritersAreDecoded() throws {
     let text = [
       "---",
