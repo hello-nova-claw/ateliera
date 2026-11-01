@@ -1,5 +1,5 @@
 import { extractLinks, markdownToPlainText, parseNote, serializeNote } from '@studio/content';
-import { localTimestamp, type NoteStatus, type StudioNote } from '@studio/domain';
+import { writerTimestamp, type NoteStatus, type StudioNote } from '@studio/domain';
 import type { IndexPort } from '@studio/index';
 import {
   VaultConflictError,
@@ -393,10 +393,7 @@ export function createNoteLifecycleService({
     const changed: StudioNote = {
       ...current.note,
       status,
-      updated:
-        timeZone === undefined
-          ? clock().toISOString()
-          : localTimestamp(clock(), timeZone),
+      updated: writerTimestamp(clock(), timeZone),
     };
     const written = await vault.writeTextAtomic(current.path, serializeNote(changed), {
       expectedHash: current.hash,

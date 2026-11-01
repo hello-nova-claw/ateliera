@@ -3,7 +3,7 @@ import {
   activateSeasonState,
   closeSeasonState,
   createSeasonDraft,
-  localTimestamp,
+  writerTimestamp,
   reviseSeasonState,
   seasonProgress,
   seasonWizardSteps,
@@ -337,10 +337,7 @@ export function createSeasonService(
     options.generateId ?? (() => createNoteId(clock().valueOf()));
   // The Studio's zone unless the caller names one.
   const timeZone = options.timeZone ?? studio.timeZone;
-  const now = () =>
-    timeZone === undefined
-      ? clock().toISOString()
-      : localTimestamp(clock(), timeZone);
+  const now = () => writerTimestamp(clock(), timeZone);
 
   async function saveState(
     record: SeasonRecord,

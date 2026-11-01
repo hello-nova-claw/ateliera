@@ -18,7 +18,7 @@ enum AppClock {
     guard environment["ATELIERA_UITEST"] == "1",
       let pinned = environment["ATELIERA_UITEST_TIME_ZONE"],
       let zone = TimeZone(identifier: pinned)
-    else { return .current }
+    else { return .autoupdatingCurrent }
     return zone
   }
 }

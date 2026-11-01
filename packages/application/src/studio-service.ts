@@ -18,7 +18,7 @@ import type {
 import {
   identitySectionDefinition,
   isDecisionHorizon,
-  localTimestamp,
+  writerTimestamp,
   wisdomKinds,
   semanticTypeForWisdomKind,
   semanticTypeForLandscapeAnchor,
@@ -378,11 +378,6 @@ function validateAndSerialize(note: StudioNote): string {
   return serialized;
 }
 
-function noteTimestamp(clock: () => Date, timeZone: string | undefined): string {
-  return timeZone === undefined
-    ? clock().toISOString()
-    : localTimestamp(clock(), timeZone);
-}
 
 function isInternalPath(path: string): boolean {
   return path.toLocaleLowerCase('en').startsWith('.studio/');
@@ -412,7 +407,7 @@ export function createStudioService(
   dependencies: StudioServiceDependencies,
 ): StudioService {
   const clock = dependencies.clock ?? (() => new Date());
-  const iso = (source: () => Date) => noteTimestamp(source, dependencies.timeZone);
+  const iso = (source: () => Date) => writerTimestamp(source(), dependencies.timeZone);
   const generateId =
     dependencies.generateId ?? (() => createNoteId(clock().valueOf()));
   const timers = dependencies.timers ?? defaultTimers;

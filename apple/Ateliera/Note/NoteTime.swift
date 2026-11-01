@@ -55,6 +55,12 @@ enum NoteTime {
   /// Orders two timestamps by the instants they name, so offsets don't matter. Text
   /// that isn't a timestamp, or two forms of one instant, fall back to the text.
   static func compare(_ left: String, _ right: String) -> ComparisonResult {
+    // Same shape and same offset: the text already sorts in time order, so skip parsing
+    // (this runs inside sorts over the whole vault).
+    if left.count == right.count, offsetText(left) == offsetText(right) {
+      if left == right { return .orderedSame }
+      return left < right ? .orderedAscending : .orderedDescending
+    }
     if let leftInstant = instant(left), let rightInstant = instant(right),
       leftInstant != rightInstant
     {
@@ -67,5 +73,10 @@ enum NoteTime {
   /// Whether `left` was written after `right`.
   static func isNewer(_ left: String, than right: String) -> Bool {
     compare(left, right) == .orderedDescending
+  }
+
+  // The offset a timestamp ends with: `Z`, or `±HH:MM`.
+  private static func offsetText(_ timestamp: String) -> Substring {
+    timestamp.hasSuffix("Z") ? timestamp.suffix(1) : timestamp.suffix(6)
   }
 }

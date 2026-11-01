@@ -59,6 +59,14 @@ export function localTimestamp(instant: Date, timeZone: string): string {
 }
 
 /**
+ * A note timestamp for `instant`: in the writer's zone with its offset when
+ * one is known, and in UTC (`toISOString()`) when it isn't.
+ */
+export function writerTimestamp(instant: Date, timeZone: string | undefined): string {
+  return timeZone === undefined ? instant.toISOString() : localTimestamp(instant, timeZone);
+}
+
+/**
  * The calendar day a timestamp was written on, in the writer's own zone:
  * `YYYY-MM-DD`. A timestamp ending in `Z` gives its UTC day. Undefined when the
  * text is not a valid timestamp.
