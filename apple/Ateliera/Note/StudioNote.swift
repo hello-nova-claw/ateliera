@@ -26,6 +26,11 @@ struct NoteSource: Equatable {
 // A minimal YAML value covering the note schema + common extra-frontmatter shapes.
 indirect enum YamlNode: Equatable {
   case scalar(String)
+  // A plain scalar YAML reads as a number, null or bool other than `true`/`false`
+  // (`5`, `1e3`, `~`, `True`), kept as written so its type survives a save. The web
+  // canonicalises these (`~` to `null`, `1e3` to `1000`); both read the same value
+  // from either, and keeping the literal never rewrites another tool's file.
+  case raw(String)
   case int(Int)
   case bool(Bool)
   case list([String])
@@ -36,6 +41,7 @@ indirect enum YamlNode: Equatable {
   static func == (lhs: YamlNode, rhs: YamlNode) -> Bool {
     switch (lhs, rhs) {
     case (.scalar(let a), .scalar(let b)): return a == b
+    case (.raw(let left), .raw(let right)): return left == right
     case (.int(let a), .int(let b)): return a == b
     case (.bool(let a), .bool(let b)): return a == b
     case (.list(let a), .list(let b)): return a == b
@@ -52,8 +58,11 @@ indirect enum YamlNode: Equatable {
   }
 
   var scalarValue: String? {
-    if case .scalar(let value) = self { return value }
-    return nil
+    // A raw literal reads as its text, as it did before it had its own case.
+    switch self {
+    case .scalar(let value), .raw(let value): return value
+    default: return nil
+    }
   }
   var boolValue: Bool? {
     if case .bool(let value) = self { return value }
@@ -253,42 +262,48 @@ struct StudioNote {
     let pad = String(repeating: " ", count: indent)
     var out = ""
     for (key, node) in pairs {
+      if let text = inline(node, indent: indent + 2) {
+        out += "\(pad)\(key): \(text)\n"
+        continue
+      }
       switch node {
-      case .scalar(let value):
-        out += "\(pad)\(key): \(scalar(value, indent: indent + 2))\n"
-      case .int(let value):
-        out += "\(pad)\(key): \(value)\n"
-      case .bool(let value):
-        out += "\(pad)\(key): \(value ? "true" : "false")\n"
-      case .list(let items):
-        if items.isEmpty {
-          out += "\(pad)\(key): []\n"
-        } else {
-          out += "\(pad)\(key):\n"
-          for item in items { out += "\(pad)  - \(scalar(item, indent: indent + 4))\n" }
-        }
+      case .list(let items) where !items.isEmpty:
+        out += "\(pad)\(key):\n"
+        for item in items { out += "\(pad)  - \(scalar(item, indent: indent + 4))\n" }
       case .map(let sub):
         out += "\(pad)\(key):\n"
         out += emit(sub, indent: indent + 2)
-      case .mapSeq(let maps):
-        if maps.isEmpty {
-          out += "\(pad)\(key): []\n"
-        } else {
-          out += "\(pad)\(key):\n"
-          let itemPad = pad + "  "
-          for entry in maps {
-            for (idx, pair) in entry.enumerated() {
-              let prefix = idx == 0 ? "\(itemPad)- " : "\(itemPad)  "
-              if case .int(let value) = pair.1 {
-                out += "\(prefix)\(pair.0): \(value)\n"
-              } else if case .bool(let value) = pair.1 {
-                out += "\(prefix)\(pair.0): \(value ? "true" : "false")\n"
-              } else if case .scalar(let value) = pair.1 {
-                out += "\(prefix)\(pair.0): \(scalar(value, indent: indent + 6))\n"
-              }
-            }
-          }
-        }
+      case .mapSeq(let maps) where !maps.isEmpty:
+        out += "\(pad)\(key):\n"
+        out += emitMapSeq(maps, indent: indent)
+      default:
+        out += "\(pad)\(key): []\n"
+      }
+    }
+    return out
+  }
+
+  // The text after `key: ` for a value written on the key's own line, or nil for a
+  // collection (an empty one is written `[]` by `emit`).
+  private static func inline(_ node: YamlNode, indent: Int) -> String? {
+    switch node {
+    case .scalar(let value): return scalar(value, indent: indent)
+    case .int(let value): return "\(value)"
+    case .raw(let value): return value
+    case .bool(let value): return value ? "true" : "false"
+    default: return nil
+    }
+  }
+
+  // A block sequence of maps under a key at `indent`. Only values that fit on their
+  // key's line are written.
+  private static func emitMapSeq(_ maps: [[(String, YamlNode)]], indent: Int) -> String {
+    let itemPad = String(repeating: " ", count: indent + 2)
+    var out = ""
+    for entry in maps {
+      for (idx, pair) in entry.enumerated() {
+        guard let text = inline(pair.1, indent: indent + 6) else { continue }
+        out += "\(itemPad)\(idx == 0 ? "- " : "  ")\(pair.0): \(text)\n"
       }
     }
     return out
@@ -390,7 +405,7 @@ struct StudioNote {
 
   // Would the plain scalar be read by YAML 1.2's core schema as a null, bool or
   // number rather than a string? These are the `yaml` library's own tag tests.
-  private static func resolvesAsNonString(_ value: String) -> Bool {
+  static func resolvesAsNonString(_ value: String) -> Bool {
     nonStringPatterns.contains { matches(value, $0) }
   }
 
