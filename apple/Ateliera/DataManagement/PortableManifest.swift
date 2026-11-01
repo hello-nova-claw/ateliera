@@ -42,6 +42,8 @@ enum PortableManifest {
   /// Case-insensitive about `.studio/`, as `exportDisposition` is, so `.Studio/x` is
   /// never mistaken for a person's file on a volume that ignores case.
   static func disposition(_ path: String) -> ExportDisposition {
+    // Checked first, so export never ships what import refuses, in `.studio/` too.
+    if isActiveContent(path) { return .blocked }
     let path = path.lowercased()
     if path.hasPrefix(".studio/") {
       if includeExact.contains(path) || includePrefixes.contains(where: { path.hasPrefix($0) }) {
@@ -50,7 +52,6 @@ enum PortableManifest {
       if cachePrefixes.contains(where: { path.hasPrefix($0) }) { return .cache }
       return .internalOnly
     }
-    if let ext = fileExtension(path), activeExtensions.contains(ext) { return .blocked }
     return .include
   }
 
@@ -60,12 +61,19 @@ enum PortableManifest {
     return String(name[name.index(after: dot.lowerBound)...]).lowercased()
   }
 
-  /// Whether any segment of `path` has an active extension. The web checks the file's
-  /// own name; a folder counts here too, because `Evil.app/Contents/MacOS/Evil` is a
-  /// program on a Mac whatever its innermost file is called.
+  /// Folders that are programs on a Mac, whatever the files inside them are called.
+  static let bundleExtensions: Set<String> = ["app"]
+
+  /// Whether `path` is active content: its file name has an active extension, as
+  /// `assertNoActiveContent` checks, or a folder on the way is a bundle, so
+  /// `Evil.app/Contents/MacOS/Evil` counts. Other folders with an active-looking name,
+  /// such as `Ideas.js/`, are only folders. Export blocks and import refuses the same paths.
   static func isActiveContent(_ path: String) -> Bool {
-    path.split(separator: "/").contains { segment in
-      fileExtension(String(segment)).map { activeExtensions.contains($0) } ?? false
+    let segments = path.split(separator: "/").map(String.init)
+    guard let name = segments.last else { return false }
+    if let ext = fileExtension(name), activeExtensions.contains(ext) { return true }
+    return segments.dropLast().contains { segment in
+      fileExtension(segment).map { bundleExtensions.contains($0) } ?? false
     }
   }
 
