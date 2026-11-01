@@ -14,106 +14,103 @@ enum NoteParser {
   ]
 
   static func parse(_ text: String) -> StudioNote? {
-    // Detect the document's line ending from its first terminator, matching
-    // `@studio/content`'s splitDocument (which keys off the opening `---` break),
-    // then normalise to `\n` for parsing and restore the ending on the body.
+    guard let document = splitDocument(text) else { return nil }
+    var index = 0
+    // Frontmatter the web's strict `yaml` parse would reject (an undefined escape,
+    // say) is rejected here too, so the note goes to Repair untouched.
+    guard let pairs = try? parseBlock(document.frontLines, &index, indent: 0) else { return nil }
+    let known = KnownKeys(pairs.filter { recognizedKeys.contains($0.0) })
+    let extra = pairs.filter { !recognizedKeys.contains($0.0) }
+
+    guard
+      let id = known.str("id"),
+      let cardType = known.str("card_type"),
+      let semanticType = known.str("semantic_type"),
+      let status = known.str("status"),
+      let created = known.str("created"),
+      let updated = known.str("updated")
+    else { return nil }
+
+    var note = StudioNote(
+      schemaVersion: Int(known.str("schema_version") ?? "1") ?? 1,
+      id: id,
+      title: known.str("title"),
+      cardType: cardType,
+      semanticType: semanticType,
+      status: status,
+      rooms: known.list("rooms"),
+      lifeAreas: known.list("life_areas"),
+      landscapeAnchor: known.str("landscape_anchor"),
+      seasons: known.list("seasons"),
+      tags: known.list("tags"),
+      created: created,
+      updated: updated,
+      source: nil,
+      sourceNoteIds: known.has("source_notes") ? known.list("source_notes") : nil,
+      resurfaceKind: known.str("resurface_kind"),
+      resurfaceDue: known.str("resurface_due"),
+      resurfaceIntervalDays: known.str("resurface_interval_days").flatMap(Int.init),
+      attachments: known.list("attachments"),
+      display: NoteDisplay(
+        cover: known.mapValue("display", "cover"),
+        featured: known.mapValue("display", "featured") == "true"),
+      privacy: NotePrivacy(
+        sensitivity: known.mapValue("privacy", "sensitivity") ?? "private",
+        aiAccess: known.mapValue("privacy", "ai_access") ?? "ask"),
+      extraFrontmatter: extra,
+      body: document.body,
+      lineEnding: document.lineEnding
+    )
+    if known.has("source") {
+      note.source = NoteSource(
+        title: known.mapValue("source", "title"),
+        creator: known.mapValue("source", "creator"),
+        url: known.mapValue("source", "url"))
+    }
+    return note
+  }
+
+  // Split the `---` frontmatter from the body. The document's line ending comes
+  // from its first terminator, matching `@studio/content`'s splitDocument (which
+  // keys off the opening `---` break); the lines are read with `\n` endings and the
+  // body gets its own ending back.
+  private struct Document {
+    let frontLines: [String]
+    let body: String
+    let lineEnding: String
+  }
+
+  private static func splitDocument(_ text: String) -> Document? {
     let lineEnding = detectLineEnding(text)
     let normalized = text.replacingOccurrences(of: "\r\n", with: "\n")
     let lines = normalized.components(separatedBy: "\n")
     guard lines.first == "---",
       let close = lines.dropFirst().firstIndex(of: "---")
     else { return nil }
-    let frontLines = Array(lines[1..<close])
     let normalizedBody = lines[(close + 1)...].joined(separator: "\n")
     let body =
       lineEnding == "\r\n"
       ? normalizedBody.replacingOccurrences(of: "\n", with: "\r\n")
       : normalizedBody
+    return Document(frontLines: Array(lines[1..<close]), body: body, lineEnding: lineEnding)
+  }
 
-    var index = 0
-    // Frontmatter the web's strict `yaml` parse would reject (an undefined escape,
-    // say) is rejected here too, so the note goes to Repair untouched.
-    guard let pairs = try? parseBlock(frontLines, &index, indent: 0) else { return nil }
+  // Typed reads of the recognised keys.
+  private struct KnownKeys {
+    let pairs: [(String, YamlNode)]
+    init(_ pairs: [(String, YamlNode)]) { self.pairs = pairs }
 
-    var known: [String: YamlNode] = [:]
-    var extra: [(String, YamlNode)] = []
-    for (key, node) in pairs {
-      if recognizedKeys.contains(key) {
-        known[key] = node
-      } else {
-        extra.append((key, node))
-      }
-    }
-
-    func str(_ key: String) -> String? {
-      if case .scalar(let value)? = known[key] { return value }
-      return nil
-    }
-    func list(_ key: String) -> [String] {
-      if case .list(let items)? = known[key] { return items }
-      return []
-    }
-    func map(_ key: String) -> [(String, YamlNode)] {
-      if case .map(let pairs)? = known[key] { return pairs }
-      return []
-    }
-    func mapValue(_ pairs: [(String, YamlNode)], _ key: String) -> String? {
-      for (k, node) in pairs where k == key {
-        if case .scalar(let value) = node { return value }
-        if case .bool(let value) = node { return value ? "true" : "false" }
+    private func node(_ key: String) -> YamlNode? { pairs.last { $0.0 == key }?.1 }
+    func has(_ key: String) -> Bool { node(key) != nil }
+    func str(_ key: String) -> String? { node(key)?.scalarValue }
+    func list(_ key: String) -> [String] { node(key)?.listValue ?? [] }
+    func mapValue(_ key: String, _ inner: String) -> String? {
+      for (name, value) in node(key)?.mapValue ?? [] where name == inner {
+        if let text = value.scalarValue { return text }
+        if let flag = value.boolValue { return flag ? "true" : "false" }
       }
       return nil
     }
-
-    guard
-      let id = str("id"),
-      let cardType = str("card_type"),
-      let semanticType = str("semantic_type"),
-      let status = str("status"),
-      let created = str("created"),
-      let updated = str("updated")
-    else { return nil }
-
-    let displayPairs = map("display")
-    let privacyPairs = map("privacy")
-    var note = StudioNote(
-      schemaVersion: Int(str("schema_version") ?? "1") ?? 1,
-      id: id,
-      title: str("title"),
-      cardType: cardType,
-      semanticType: semanticType,
-      status: status,
-      rooms: list("rooms"),
-      lifeAreas: list("life_areas"),
-      landscapeAnchor: str("landscape_anchor"),
-      seasons: list("seasons"),
-      tags: list("tags"),
-      created: created,
-      updated: updated,
-      source: nil,
-      sourceNoteIds: known["source_notes"] == nil ? nil : list("source_notes"),
-      resurfaceKind: str("resurface_kind"),
-      resurfaceDue: str("resurface_due"),
-      resurfaceIntervalDays: str("resurface_interval_days").flatMap(Int.init),
-      attachments: list("attachments"),
-      display: NoteDisplay(
-        cover: mapValue(displayPairs, "cover"),
-        featured: mapValue(displayPairs, "featured") == "true"),
-      privacy: NotePrivacy(
-        sensitivity: mapValue(privacyPairs, "sensitivity") ?? "private",
-        aiAccess: mapValue(privacyPairs, "ai_access") ?? "ask"),
-      extraFrontmatter: extra,
-      body: body,
-      lineEnding: lineEnding
-    )
-    if known["source"] != nil {
-      let sourcePairs = map("source")
-      note.source = NoteSource(
-        title: mapValue(sourcePairs, "title"),
-        creator: mapValue(sourcePairs, "creator"),
-        url: mapValue(sourcePairs, "url"))
-    }
-    return note
   }
 
   // Recursive block reader. Consumes lines at `indent`; returns ordered pairs.
@@ -171,6 +168,7 @@ enum NoteParser {
       // is a real boolean) — keep it as .bool so it re-serializes unquoted.
       return .bool(value == "true")
     }
+    if StudioNote.resolvesAsNonString(value) { return .raw(value) }
     return .scalar(try readScalar(rest, lines, &index, parentIndent: indent))
   }
 

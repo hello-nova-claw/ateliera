@@ -208,6 +208,56 @@ final class YamlParityTests: XCTestCase {
       parsed.extraFrontmatter.last?.1, .mapSeq([[("first", .map([])), ("second", .scalar("x"))]]))
   }
 
+  private struct PlainType: Decodable {
+    let literal: String
+    let type: String
+    let web: String
+  }
+
+  // A plain number, null or bool in an unknown key keeps its literal, so its type
+  // survives a native save. The literal is kept as written rather than canonicalised
+  // as the web does (`~` to `null`, `1e3` to `1000`); both apps read the same value
+  // from either, and another tool's file is not rewritten.
+  func testPlainNumbersNullsAndBoolsKeepTheirLiteral() throws {
+    let url = repo.appendingPathComponent("fixtures/yaml-parity/plain-types.json")
+    let goldens = try JSONDecoder().decode([PlainType].self, from: Data(contentsOf: url))
+    XCTAssertGreaterThan(goldens.count, 20)
+    for golden in goldens {
+      let literal = golden.literal
+      let text = noteText([
+        "x: \(literal)", "map:", "  inner: \(literal)", "seq:", "  - key: \(literal)",
+        "    other: \(literal)",
+      ])
+      let parsed = try XCTUnwrap(NoteParser.parse(text), literal)
+      XCTAssertEqual(parsed.serialize(), text, literal)
+      XCTAssertEqual(parsed.frontmatterScalar("x"), literal, literal)
+      if golden.web == "x: \(literal)" {
+        XCTAssertTrue(parsed.serialize().contains("\n\(golden.web)\n"), literal)
+      }
+    }
+  }
+
+  func testQuotedNumbersStayStrings() throws {
+    let text = noteText(["rating: \"5\"", "empty: \"\"", "nothing: \"null\""])
+      .replacingOccurrences(of: "tags: []", with: "tags:\n  - \"2026\"")
+    let parsed = try XCTUnwrap(NoteParser.parse(text))
+    XCTAssertEqual(parsed.serialize(), text)
+    XCTAssertEqual(parsed.tags, ["2026"])
+  }
+
+  func testRecognisedIntegersStayIntegers() throws {
+    let text = noteText([])
+      .replacingOccurrences(
+        of: "attachments: []",
+        with:
+          "resurface_kind: wish\nresurface_due: 2026-08-01\nresurface_interval_days: 30\nattachments: []"
+      )
+    let parsed = try XCTUnwrap(NoteParser.parse(text))
+    XCTAssertEqual(parsed.schemaVersion, 1)
+    XCTAssertEqual(parsed.resurfaceIntervalDays, 30)
+    XCTAssertEqual(parsed.serialize(), text)
+  }
+
   func testDoubleQuotedEscapesFromOtherWritersAreDecoded() throws {
     let text = [
       "---",
