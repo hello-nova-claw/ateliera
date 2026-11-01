@@ -9,7 +9,8 @@ import Foundation
 @MainActor
 final class LocationHemisphere: NSObject, CLLocationManagerDelegate {
   private let manager = CLLocationManager()
-  private var continuation: CheckedContinuation<CLLocationCoordinate2D?, Never>?
+  // Launch and Settings can both ask at once; they share one fix.
+  private let request = CoalescedRequest<CLLocationCoordinate2D?>()
 
   /// The last hemisphere we resolved, if any — safe to read synchronously at
   /// launch so the first render isn't wrong while a fresh fix is pending. Stored
@@ -26,8 +27,7 @@ final class LocationHemisphere: NSObject, CLLocationManagerDelegate {
     if ProcessInfo.processInfo.environment["ATELIERA_UITEST"] == "1" { return nil }
     let status = manager.authorizationStatus
     guard status != .denied && status != .restricted else { return nil }
-    return await withCheckedContinuation { continuation in
-      self.continuation = continuation
+    return await request.value {
       manager.delegate = self
       if status == .notDetermined {
         manager.requestWhenInUseAuthorization()  // resolves via the auth callback
@@ -57,8 +57,7 @@ final class LocationHemisphere: NSObject, CLLocationManagerDelegate {
   }
 
   private func finish(_ coordinate: CLLocationCoordinate2D?) {
-    continuation?.resume(returning: coordinate)
-    continuation = nil
+    request.finish(coordinate)
   }
 
   nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {

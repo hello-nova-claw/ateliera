@@ -1,0 +1,1 @@
+Turning on "Use my location" in Settings while the app is still finding your location at launch no longer leaves the rest of today's rhythm (your cycle, the Gift and the micro-season) waiting until you restart.
