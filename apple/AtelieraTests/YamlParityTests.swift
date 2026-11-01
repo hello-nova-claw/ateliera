@@ -395,7 +395,10 @@ final class YamlParityTests: XCTestCase {
     XCTAssertEqual(parsed.nestedScalar("map_hash", "title"), "a # b")
     XCTAssertEqual(parsed.nestedScalar("map_comma", "title"), "a, b")
     XCTAssertEqual(parsed.nestedScalar("map_comma", "creator"), "Ada")
-    XCTAssertEqual(parsed.serialize(), text)
+    // Unknown keys keep their lines; the recognised `tags` is written the app's way.
+    let unknown = text.components(separatedBy: "\n").prefix(6).joined(separator: "\n")
+    XCTAssertTrue(parsed.serialize().hasPrefix(unknown + "\n"))
+    XCTAssertTrue(parsed.serialize().contains("tags:\n  - \"a # b\"\n  - it's\n"))
   }
 
   func testACommentBetweenAKeyAndItsListKeepsTheList() throws {
@@ -412,7 +415,7 @@ final class YamlParityTests: XCTestCase {
   }
 
   func testRecognisedValuesTheReaderCannotModelSendTheNoteToRepair() {
-    for (from, to) in [
+    for (original, replacement) in [
       ("tags: []", "tags:\n  - [nested]"),
       ("tags: []", "tags:\n  - &anchor calm"),
       ("tags: []", "tags:\n  - {a: b}"),
@@ -421,7 +424,9 @@ final class YamlParityTests: XCTestCase {
         "privacy: { sensitivity: , ai_access: ask }"
       ),
     ] {
-      XCTAssertNil(NoteParser.parse(noteText([]).replacingOccurrences(of: from, with: to)), to)
+      XCTAssertNil(
+        NoteParser.parse(noteText([]).replacingOccurrences(of: original, with: replacement)),
+        replacement)
     }
   }
 
