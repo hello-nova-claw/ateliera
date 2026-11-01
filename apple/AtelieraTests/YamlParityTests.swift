@@ -330,6 +330,7 @@ final class YamlParityTests: XCTestCase {
     let text = noteText([
       "# Written by another app",
       "mood: calm # inline comment",
+      "quoted: \"calm\" # a comment after a quote",
       "position: {x: 1, y: 2}",
       "pair: [\"a, b\", c]",
       "nested:",
@@ -347,6 +348,7 @@ final class YamlParityTests: XCTestCase {
     let parsed = try XCTUnwrap(NoteParser.parse(text))
     XCTAssertEqual(parsed.serialize(), text)
     XCTAssertEqual(parsed.frontmatterScalar("mood"), "calm")
+    XCTAssertEqual(parsed.frontmatterScalar("quoted"), "calm")
     XCTAssertEqual(parsed.frontmatterList("pair"), ["a, b", "c"])
     XCTAssertEqual(parsed.nestedScalar("position", "x"), "1")
     XCTAssertEqual(parsed.nestedScalar("nested", "key"), "value")
