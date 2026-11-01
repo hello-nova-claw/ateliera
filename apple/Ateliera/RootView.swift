@@ -200,7 +200,9 @@ struct RootView: View {
       // First launch with no chosen vault: guide the person straight to the folder
       // picker rather than an empty Foyer. (In the simulator a demo vault is seeded,
       // so this only fires on a real, un-onboarded device.)
-      if !store.hasVault { picking = true }
+      // A folder chosen before that can't be opened now is explained on Today, with
+      // a button to choose it again, rather than reopening the picker unprompted.
+      if !store.hasVault && !store.vaultUnavailable { picking = true }
       // Resolve the home place (hemisphere + a reverse-geocoded place for climate) first,
       // then the cycle from HealthKit — sequentially so the permission prompts don't stack.
       // Both refine the almanac and both degrade quietly when unavailable.
@@ -411,6 +413,14 @@ struct RootView: View {
             todaySection
             if let error = store.error {
               Text(error).font(StudioFont.meta).foregroundStyle(theme.celebration)
+            }
+            if store.vaultUnavailable {
+              Button(
+                String(
+                  localized: "Choose the folder",
+                  comment: "Button that reopens the folder picker when the vault folder is missing")
+              ) { picking = true }
+              .accessibilityIdentifier("choose-vault-folder")
             }
             recentlySection
           }
