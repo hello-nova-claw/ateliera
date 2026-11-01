@@ -1,0 +1,1 @@
+Saving a note no longer reports a failure when the note was saved but the vault couldn't be re-read straight away, so tapping Keep again no longer makes a duplicate.
