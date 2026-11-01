@@ -247,3 +247,61 @@ describe('YAML parity goldens', () => {
     );
   });
 });
+
+// Plain scalars that YAML 1.2's core schema reads as a number, null or bool. For
+// each, how the web parses `x: <literal>` and writes it back, so the Swift tests can
+// check the native app keeps the literal and the value both apps read from it.
+const plainLiterals = [
+  '5',
+  '-5',
+  '+5',
+  '007',
+  '0',
+  '1.5',
+  '-1.5',
+  '1.50',
+  '.5',
+  '1.',
+  '1e3',
+  '1E-3',
+  '0x1F',
+  '0o17',
+  '.inf',
+  '-.inf',
+  '+.INF',
+  '.nan',
+  '.NaN',
+  'null',
+  'Null',
+  'NULL',
+  '~',
+  'True',
+  'TRUE',
+  'False',
+  'FALSE',
+];
+
+describe('YAML plain-type goldens', () => {
+  const cases = plainLiterals.map((literal) => {
+    const parsed = parseNote(
+      serializeNote(noteWith('x')).replace('---\n', `---\nx: ${literal}\n`),
+    );
+    if (!parsed.ok) throw new Error(`did not parse: ${literal}`);
+    const value = parsed.note.extraFrontmatter['x'];
+    return {
+      literal,
+      type: value === null ? 'null' : typeof value,
+      web: serializeNote(parsed.note).split('\n')[1],
+    };
+  });
+
+  it('reads every literal as a non-string', () => {
+    for (const { type } of cases) expect(type).not.toBe('string');
+  });
+
+  it('matches the committed golden file', async () => {
+    await expect(`${JSON.stringify(cases, null, 2)}\n`).toMatchFileSnapshot(
+      '../../../fixtures/yaml-parity/plain-types.json',
+    );
+  });
+});

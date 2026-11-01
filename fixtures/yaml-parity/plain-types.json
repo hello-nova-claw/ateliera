@@ -1,0 +1,137 @@
+[
+  {
+    "literal": "5",
+    "type": "number",
+    "web": "x: 5"
+  },
+  {
+    "literal": "-5",
+    "type": "number",
+    "web": "x: -5"
+  },
+  {
+    "literal": "+5",
+    "type": "number",
+    "web": "x: 5"
+  },
+  {
+    "literal": "007",
+    "type": "number",
+    "web": "x: 7"
+  },
+  {
+    "literal": "0",
+    "type": "number",
+    "web": "x: 0"
+  },
+  {
+    "literal": "1.5",
+    "type": "number",
+    "web": "x: 1.5"
+  },
+  {
+    "literal": "-1.5",
+    "type": "number",
+    "web": "x: -1.5"
+  },
+  {
+    "literal": "1.50",
+    "type": "number",
+    "web": "x: 1.5"
+  },
+  {
+    "literal": ".5",
+    "type": "number",
+    "web": "x: 0.5"
+  },
+  {
+    "literal": "1.",
+    "type": "number",
+    "web": "x: 1"
+  },
+  {
+    "literal": "1e3",
+    "type": "number",
+    "web": "x: 1000"
+  },
+  {
+    "literal": "1E-3",
+    "type": "number",
+    "web": "x: 0.001"
+  },
+  {
+    "literal": "0x1F",
+    "type": "number",
+    "web": "x: 31"
+  },
+  {
+    "literal": "0o17",
+    "type": "number",
+    "web": "x: 15"
+  },
+  {
+    "literal": ".inf",
+    "type": "number",
+    "web": "x: .inf"
+  },
+  {
+    "literal": "-.inf",
+    "type": "number",
+    "web": "x: -.inf"
+  },
+  {
+    "literal": "+.INF",
+    "type": "number",
+    "web": "x: .inf"
+  },
+  {
+    "literal": ".nan",
+    "type": "number",
+    "web": "x: .nan"
+  },
+  {
+    "literal": ".NaN",
+    "type": "number",
+    "web": "x: .nan"
+  },
+  {
+    "literal": "null",
+    "type": "null",
+    "web": "x: null"
+  },
+  {
+    "literal": "Null",
+    "type": "null",
+    "web": "x: null"
+  },
+  {
+    "literal": "NULL",
+    "type": "null",
+    "web": "x: null"
+  },
+  {
+    "literal": "~",
+    "type": "null",
+    "web": "x: null"
+  },
+  {
+    "literal": "True",
+    "type": "boolean",
+    "web": "x: true"
+  },
+  {
+    "literal": "TRUE",
+    "type": "boolean",
+    "web": "x: true"
+  },
+  {
+    "literal": "False",
+    "type": "boolean",
+    "web": "x: false"
+  },
+  {
+    "literal": "FALSE",
+    "type": "boolean",
+    "web": "x: false"
+  }
+]
