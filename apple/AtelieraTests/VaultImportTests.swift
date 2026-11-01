@@ -51,6 +51,86 @@ final class VaultImportTests: XCTestCase {
     XCTAssertFalse(store.listAllPaths().contains("Inbox/a.md"))
   }
 
+  // MARK: - The reader's attack surface (#104)
+
+  /// A one-entry archive whose name is written as given, bypassing any check the writer
+  /// might make, so the reader's own checks are what's under test.
+  private func archive(named name: String, bytes: Data = Data("x\n".utf8)) throws -> Data {
+    let placeholder = String(repeating: "n", count: name.utf8.count)
+    var zip = try Zip32.create([(path: placeholder, bytes: bytes)])
+    let encoded = Data(name.utf8)
+    // The name follows the 30-byte local header, and the 46-byte central header.
+    zip.replaceSubrange(30..<30 + encoded.count, with: encoded)
+    let central = try XCTUnwrap(zip.range(of: Data([0x50, 0x4B, 0x01, 0x02])))
+    let nameStart = central.lowerBound + 46
+    zip.replaceSubrange(nameStart..<nameStart + encoded.count, with: encoded)
+    return zip
+  }
+
+  func testReaderRejectsATraversalEntry() throws {
+    XCTAssertThrowsError(try Zip32Reader.parse(archive(named: "../escape.md")))
+    XCTAssertThrowsError(try Zip32Reader.parse(archive(named: "Inbox/../../escape.md")))
+  }
+
+  func testReaderRejectsAnAbsoluteEntry() throws {
+    XCTAssertThrowsError(try Zip32Reader.parse(archive(named: "/etc/escape.md")))
+  }
+
+  func testReaderRejectsADriveLetterEntry() throws {
+    XCTAssertThrowsError(try Zip32Reader.parse(archive(named: "C:escape.md")))
+  }
+
+  func testReaderRejectsABackslashEntry() throws {
+    XCTAssertThrowsError(try Zip32Reader.parse(archive(named: "Inbox\\escape.md")))
+  }
+
+  func testReaderRejectsAnInternalEntry() throws {
+    XCTAssertThrowsError(try Zip32Reader.parse(archive(named: ".studio-revision")))
+    XCTAssertThrowsError(try Zip32Reader.parse(archive(named: "Inbox/.Studio-write.lock")))
+  }
+
+  func testReaderRejectsEmptyAndDotSegments() throws {
+    XCTAssertThrowsError(try Zip32Reader.parse(archive(named: "Inbox//a.md")))
+    XCTAssertThrowsError(try Zip32Reader.parse(archive(named: "Inbox/./a.md")))
+    XCTAssertThrowsError(try Zip32Reader.parse(archive(named: "Inbox/")))
+  }
+
+  func testReaderRejectsANulInAName() throws {
+    XCTAssertThrowsError(try Zip32Reader.parse(archive(named: "a\u{0}.md")))
+  }
+
+  func testReaderRejectsATruncatedArchive() throws {
+    let zip = try Zip32.create([(path: "a.md", bytes: Data("the quick brown fox\n".utf8))])
+    // Cut inside the entry's data, and inside its local header.
+    XCTAssertThrowsError(try Zip32Reader.parse(zip.prefix(30 + 4 + 5)))
+    XCTAssertThrowsError(try Zip32Reader.parse(zip.prefix(20)))
+  }
+
+  func testReaderRejectsABadSignature() throws {
+    var zip = try Zip32.create([(path: "a.md", bytes: Data("x\n".utf8))])
+    zip[0] = 0x00
+    XCTAssertThrowsError(try Zip32Reader.parse(zip))
+  }
+
+  func testReaderRejectsADeflatedEntry() throws {
+    var zip = try Zip32.create([(path: "a.md", bytes: Data("x\n".utf8))])
+    // The compression method is the local header's fifth field; 8 is deflate.
+    zip[8] = 8
+    XCTAssertThrowsError(try Zip32Reader.parse(zip)) { error in
+      XCTAssertEqual(error as? Zip32Reader.ReaderError, .unsupported)
+    }
+  }
+
+  func testReaderRoundTripsAUnicodePath() throws {
+    let path = "Reflection Garden/été — 日記 🌙.md"
+    let zip = try Zip32.create([(path: path, bytes: Data("x\n".utf8))])
+    XCTAssertEqual(try Zip32Reader.parse(zip).map { $0.path }, [path])
+  }
+
+  func testReaderHandlesAnEmptyArchive() throws {
+    XCTAssertEqual(try Zip32Reader.parse(Zip32.create([])).count, 0)
+  }
+
   func testPlanClassifiesCreateVsOverwrite() throws {
     let (dir, store) = try makeVault()
     defer { try? FileManager.default.removeItem(at: dir) }
