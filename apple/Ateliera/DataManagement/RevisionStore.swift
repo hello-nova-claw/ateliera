@@ -42,7 +42,9 @@ struct RestorePlan: Equatable {
 
   let snapshot: RevisionSnapshot
   let files: [File]
-  var paths: [String] { files.map { $0.originalPath } }
+  /// The files a restore will write: those that differ from their copy.
+  var changes: [File] { files.filter { $0.currentHash != $0.copyHash } }
+  var paths: [String] { changes.map { $0.originalPath } }
 }
 
 enum RevisionReason {
@@ -273,20 +275,38 @@ struct RevisionStore {
       }),
       let verified = verify(candidate, allowMissing: false)
     else { return nil }
-    let files = verified.snapshot.manifest.files.map { file in
-      RestorePlan.File(
-        originalPath: file.originalPath, snapshotPath: file.snapshotPath, copyHash: file.hash,
-        currentHash: store.readFileBytes(path: file.originalPath).map(VaultExporter.sha256Hex))
+    var files: [RestorePlan.File] = []
+    for file in verified.snapshot.manifest.files {
+      let current: String?
+      if let bytes = store.readFileBytes(path: file.originalPath) {
+        current = VaultExporter.sha256Hex(bytes)
+      } else if store.fileExists(path: file.originalPath) == false {
+        current = nil
+      } else {
+        // There but unreadable: planning it as missing would only fail at the write.
+        return nil
+      }
+      files.append(
+        RestorePlan.File(
+          originalPath: file.originalPath, snapshotPath: file.snapshotPath, copyHash: file.hash,
+          currentHash: current))
     }
     return RestorePlan(snapshot: verified.snapshot, files: files)
   }
 
-  /// Write a plan's copies back to their original paths in one atomic batch. Each write
-  /// expects the file as the plan found it, so nothing is written if any of them changed.
+  /// Write a plan's changed copies back to their original paths in one atomic batch.
+  /// The snapshot is checked again first, manifest and every copy, and must still say
+  /// what the plan said; each write expects the file as the plan found it, so nothing
+  /// is written if any of them changed.
   @discardableResult
   func restore(_ plan: RestorePlan) -> Bool {
+    func copies(_ files: [RestorePlan.File]) -> [String] {
+      files.map { "\($0.originalPath)\u{0}\($0.snapshotPath)\u{0}\($0.copyHash)" }
+    }
+    guard let fresh = planRestore(plan.snapshot), copies(fresh.files) == copies(plan.files)
+    else { return false }
     var writes: [BatchWrite] = []
-    for file in plan.files where file.currentHash != file.copyHash {
+    for file in plan.changes {
       guard let bytes = store.readFileBytes(path: file.snapshotPath),
         VaultExporter.sha256Hex(bytes) == file.copyHash
       else { return false }
