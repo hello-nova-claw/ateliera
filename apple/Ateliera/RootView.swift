@@ -414,6 +414,10 @@ struct RootView: View {
             if let error = store.error {
               Text(error).font(StudioFont.meta).foregroundStyle(theme.celebration)
             }
+            if let warning = store.refreshError {
+              Text(warning).font(StudioFont.meta).foregroundStyle(theme.ink1)
+                .accessibilityIdentifier("refresh-warning")
+            }
             if store.vaultUnavailable {
               Button(
                 String(
