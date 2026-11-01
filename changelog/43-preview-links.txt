@@ -1,0 +1,1 @@
+Links in a note now open only web pages and email. A link to a file or another app shows as plain text, so a note from an imported backup can't open something on your device.

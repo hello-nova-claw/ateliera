@@ -20,9 +20,13 @@ struct BodyPreviewView: View {
       .environment(
         \.openURL,
         OpenURLAction { url in
-          guard let target = Self.wikilinkTarget(url) else { return .systemAction }
-          onWikilinkTap(target)
-          return .handled
+          switch Self.linkAction(for: url) {
+          case .wikilink(let target):
+            onWikilinkTap(target)
+            return .handled
+          case .system: return .systemAction
+          case .refuse: return .discarded
+          }
         })
   }
 
@@ -32,13 +36,13 @@ struct BodyPreviewView: View {
   // The body as an AttributedString: Markdown for the ordinary text, and each wikilink
   // label as an inline, tinted, tappable link.
   private var attributed: AttributedString {
-    guard let regex = Self.wikilinkRegex else { return markdownChunk(bodyText) }
+    guard let regex = Self.wikilinkRegex else { return Self.markdownChunk(bodyText) }
     let ns = bodyText as NSString
     var result = AttributedString()
     var cursor = 0
     for match in regex.matches(in: bodyText, range: NSRange(location: 0, length: ns.length)) {
       let pre = ns.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
-      result += markdownChunk(pre)
+      result += Self.markdownChunk(pre)
 
       let target = ns.substring(with: match.range(at: 1)).trimmingCharacters(in: .whitespaces)
       let aliasRange = match.range(at: 2)
@@ -53,14 +57,34 @@ struct BodyPreviewView: View {
 
       cursor = match.range.location + match.range.length
     }
-    result += markdownChunk(ns.substring(from: cursor))
+    result += Self.markdownChunk(ns.substring(from: cursor))
     return result
   }
 
-  private func markdownChunk(_ text: String) -> AttributedString {
-    (try? AttributedString(
-      markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+  // A note may come from an imported backup, so its links open only web pages and mail.
+  // Anything else (a file, another app's scheme) shows as plain text.
+  static func markdownChunk(_ text: String) -> AttributedString {
+    var chunk =
+      (try? AttributedString(
+        markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
       ?? AttributedString(text)
+    for run in chunk.runs {
+      if let link = run.link, linkAction(for: link) != .system { chunk[run.range].link = nil }
+    }
+    return chunk
+  }
+
+  enum LinkAction: Equatable {
+    case wikilink(String)
+    case system
+    case refuse
+  }
+
+  private static let openableSchemes: Set<String> = ["http", "https", "mailto"]
+
+  static func linkAction(for url: URL) -> LinkAction {
+    if let target = wikilinkTarget(url) { return .wikilink(target) }
+    return openableSchemes.contains(url.scheme?.lowercased() ?? "") ? .system : .refuse
   }
 
   // Encode/decode the wikilink target in a `wikilink://link?t=…` URL (query items keep
