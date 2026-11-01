@@ -161,7 +161,7 @@ enum NoteParser {
       // is a real boolean) — keep it as .bool so it re-serializes unquoted.
       return .bool(rest == "true")
     }
-    return .scalar(unquote(rest))
+    return .scalar(readScalar(rest, lines, &index, parentIndent: indent))
   }
 
   private static func isSequenceItem(_ lines: [String], _ index: Int, indent: Int) -> Bool {
@@ -179,8 +179,9 @@ enum NoteParser {
     guard firstItem.contains(": "), !firstItem.hasPrefix("\""), !firstItem.hasPrefix("'") else {
       var items: [String] = []
       while isSequenceItem(lines, index, indent: indent) {
-        items.append(unquote(String(lines[index].dropFirst(indent + 4))))
+        let text = String(lines[index].dropFirst(indent + 4))
         index += 1
+        items.append(readScalar(text, lines, &index, parentIndent: indent + 2))
       }
       return .list(items)
     }
@@ -222,25 +223,179 @@ enum NoteParser {
     return String(scalars[first...last])
   }
 
-  // Read a flow scalar as YAML does: a double-quoted one has its escapes decoded,
-  // a single-quoted one reads `''` as `'`, and a plain one is returned as it is.
+  // Read a one-line flow scalar as YAML does: a double-quoted one has its escapes
+  // decoded, a single-quoted one reads `''` as `'`, and a plain one is returned as
+  // it is.
   private static func unquote(_ value: String) -> String {
     let scalars = Array(value.unicodeScalars)
-    guard scalars.count >= 2, let quote = scalars.first, quote == scalars.last else {
-      return value
+    guard scalars.count >= 2, let quote = scalars.first, quote == "\"" || quote == "'",
+      quote == scalars.last
+    else { return value }
+    return foldQuoted(Array(scalars.dropFirst()), quote: quote)
+  }
+
+  // Read the value that follows `key: ` (or `- `), which may run onto later lines:
+  // a literal block scalar, or a quoted scalar the writer folded across lines.
+  // `parentIndent` is the column of the key (or of the `-`); `index` points at the
+  // line after the value's own line, and is left at the first line after the value.
+  private static func readScalar(
+    _ text: String, _ lines: [String], _ index: inout Int, parentIndent: Int
+  ) -> String {
+    if let header = BlockHeader(text) {
+      return readLiteralBlock(header, lines, &index, parentIndent: parentIndent)
     }
-    let inner = scalars[1..<(scalars.count - 1)]
-    if quote == "\"" { return decodeDoubleQuoted(inner) }
-    if quote == "'" {
-      var out = String.UnicodeScalarView()
-      var pos = inner.startIndex
-      while pos < inner.endIndex {
-        out.append(inner[pos])
-        pos += inner[pos] == "'" && pos + 1 < inner.endIndex && inner[pos + 1] == "'" ? 2 : 1
+    guard let quote = text.unicodeScalars.first, quote == "\"" || quote == "'" else {
+      return text
+    }
+    var raw = String.UnicodeScalarView(text.unicodeScalars.dropFirst())
+    var closed = closesQuote(raw[...], quote)
+    while !closed && index < lines.count {
+      let line = lines[index]
+      index += 1
+      raw.append("\n")
+      raw.append(contentsOf: line.unicodeScalars)
+      closed = closesQuote(line.unicodeScalars[...], quote)
+    }
+    return foldQuoted(Array(raw), quote: quote)
+  }
+
+  // Does this stretch of a quoted scalar hold its closing quote?
+  private static func closesQuote(_ scalars: Substring.UnicodeScalarView, _ quote: Unicode.Scalar)
+    -> Bool
+  {
+    var iterator = scalars.makeIterator()
+    while let scalar = iterator.next() {
+      if quote == "\"" && scalar == "\\" {
+        _ = iterator.next()
+      } else if scalar == quote {
+        if quote == "'", let next = iterator.next() {
+          if next != "'" { return true }
+        } else {
+          return true
+        }
       }
-      return String(out)
     }
-    return value
+    return false
+  }
+
+  // A block scalar header: `|`, then a chomping indicator and an indentation digit
+  // in either order, then nothing or a comment.
+  private struct BlockHeader {
+    var chomp: Unicode.Scalar?
+    var indentation: Int?
+
+    init?(_ text: String) {
+      var scalars = text.unicodeScalars[...]
+      guard scalars.first == "|" else { return nil }
+      scalars = scalars.dropFirst()
+      while let scalar = scalars.first, scalar != " " && scalar != "\t" {
+        if (scalar == "-" || scalar == "+") && chomp == nil {
+          chomp = scalar
+        } else if ("1"..."9").contains(scalar) && indentation == nil {
+          indentation = Int(scalar.value - 48)
+        } else {
+          return nil
+        }
+        scalars = scalars.dropFirst()
+      }
+      let rest = scalars.drop { $0 == " " || $0 == "\t" }
+      guard rest.isEmpty || rest.first == "#" else { return nil }
+    }
+  }
+
+  // The lines of a literal block scalar: everything indented past the parent, with
+  // blank lines kept, then the trailing line feeds chomped as the header says.
+  private static func readLiteralBlock(
+    _ header: BlockHeader, _ lines: [String], _ index: inout Int, parentIndent: Int
+  ) -> String {
+    var contentIndent = header.indentation.map { parentIndent + $0 }
+    var collected: [String] = []
+    while index < lines.count {
+      let line = lines[index]
+      if !line.allSatisfy({ $0 == " " }) {
+        let lead = leadingSpaces(line)
+        if contentIndent == nil && lead > parentIndent { contentIndent = lead }
+        guard let contentIndent, lead >= contentIndent else { break }
+      }
+      collected.append(line)
+      index += 1
+    }
+    let indent = contentIndent ?? parentIndent + 2
+    let text = collected.map { line in
+      line.count <= indent && line.allSatisfy({ $0 == " " }) ? "" : String(line.dropFirst(indent))
+    }.map { $0 + "\n" }.joined()
+    var core = Substring(text)
+    while core.last == "\n" { core = core.dropLast() }
+    switch header.chomp {
+    case "+": return text
+    case "-": return String(core)
+    default: return core.isEmpty ? "" : core + "\n"
+    }
+  }
+
+  // Fold a quoted scalar that runs across lines, as YAML reads it: each line break
+  // becomes a space, or `n` line feeds when `n` empty lines follow it; whitespace
+  // around a break goes unless escaped; and an escaped break (`\` at the end of a
+  // line) joins the lines. `raw` runs from after the opening quote.
+  private static func foldQuoted(_ raw: [Unicode.Scalar], quote: Unicode.Scalar) -> String {
+    // Each line as (scalar, written by an escape) pairs, and whether the break
+    // after it was escaped.
+    var lines: [[(Unicode.Scalar, Bool)]] = [[]]
+    var escapedBreaks: [Bool] = []
+    var pos = 0
+    while pos < raw.count {
+      let scalar = raw[pos]
+      if scalar == "\n" {
+        lines.append([])
+        escapedBreaks.append(false)
+        pos += 1
+      } else if scalar == quote {
+        guard quote == "'" && pos + 1 < raw.count && raw[pos + 1] == "'" else { break }
+        lines[lines.count - 1].append(("'", true))
+        pos += 2
+      } else if quote == "\"" && scalar == "\\" && pos + 1 < raw.count && raw[pos + 1] == "\n" {
+        lines.append([])
+        escapedBreaks.append(true)
+        pos += 2
+      } else if quote == "\"" && scalar == "\\" && pos + 1 < raw.count {
+        let (decoded, width) = decodeEscape(raw, at: pos)
+        lines[lines.count - 1].append((decoded, width > 1))
+        pos += width
+      } else {
+        lines[lines.count - 1].append((scalar, false))
+        pos += 1
+      }
+    }
+    return joinFolded(lines, escapedBreaks: escapedBreaks)
+  }
+
+  private static func joinFolded(_ lines: [[(Unicode.Scalar, Bool)]], escapedBreaks: [Bool])
+    -> String
+  {
+    func isSpace(_ pair: (Unicode.Scalar, Bool)) -> Bool {
+      !pair.1 && (pair.0 == " " || pair.0 == "\t")
+    }
+    var out = String.UnicodeScalarView()
+    var emptyLines = 0
+    for (index, line) in lines.enumerated() {
+      var content = line[...]
+      if index > 0 { content = content.drop(while: isSpace) }
+      let isLast = index == lines.count - 1
+      if !isLast && !escapedBreaks[index] {
+        while let last = content.last, isSpace(last) { content = content.dropLast() }
+      }
+      if index > 0 && !escapedBreaks[index - 1] {
+        if content.isEmpty && !isLast {
+          emptyLines += 1
+          continue
+        }
+        if emptyLines == 0 { out.append(" ") }
+      }
+      out.append(contentsOf: String(repeating: "\n", count: emptyLines).unicodeScalars)
+      emptyLines = 0
+      out.append(contentsOf: content.map(\.0))
+    }
+    return String(out)
   }
 
   private static let simpleEscapes: [Unicode.Scalar: Unicode.Scalar] = [
@@ -250,43 +405,32 @@ enum NoteParser {
   ]
   private static let hexEscapeWidths: [Unicode.Scalar: Int] = ["x": 2, "u": 4, "U": 8]
 
-  // The YAML double-quoted escape set. A UTF-16 surrogate pair written as two `\u`
-  // escapes is joined; an escape YAML does not define is kept as written.
-  private static func decodeDoubleQuoted(_ scalars: ArraySlice<Unicode.Scalar>) -> String {
-    var out = String.UnicodeScalarView()
-    var pos = scalars.startIndex
+  // One escape of YAML's double-quoted set, starting at the backslash at `pos`:
+  // the scalar it stands for and how many scalars it took. A UTF-16 surrogate pair
+  // written as two `\u` escapes is joined; an escape YAML does not define leaves the
+  // backslash as written, with a width of 1.
+  private static func decodeEscape(_ scalars: [Unicode.Scalar], at pos: Int)
+    -> (Unicode.Scalar, Int)
+  {
     func hex(at start: Int, width: Int) -> UInt32? {
-      guard start + width <= scalars.endIndex else { return nil }
+      guard start + width <= scalars.count else { return nil }
       let digits = String(String.UnicodeScalarView(scalars[start..<(start + width)]))
       guard digits.allSatisfy(\.isHexDigit) else { return nil }
       return UInt32(digits, radix: 16)
     }
-    while pos < scalars.endIndex {
-      let scalar = scalars[pos]
-      guard scalar == "\\", pos + 1 < scalars.endIndex else {
-        out.append(scalar)
-        pos += 1
-        continue
-      }
-      let escape = scalars[pos + 1]
-      if let decoded = simpleEscapes[escape] {
-        out.append(decoded)
-        pos += 2
-      } else if let width = hexEscapeWidths[escape], var code = hex(at: pos + 2, width: width) {
-        pos += 2 + width
-        if (0xD800...0xDBFF).contains(code), pos + 6 <= scalars.endIndex, scalars[pos] == "\\",
-          scalars[pos + 1] == "u", let low = hex(at: pos + 2, width: 4),
-          (0xDC00...0xDFFF).contains(low)
-        {
-          code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00)
-          pos += 6
-        }
-        out.append(Unicode.Scalar(code) ?? "\u{FFFD}")
-      } else {
-        out.append(scalar)
-        pos += 1
-      }
+    let escape = scalars[pos + 1]
+    if let decoded = simpleEscapes[escape] { return (decoded, 2) }
+    guard let width = hexEscapeWidths[escape], let code = hex(at: pos + 2, width: width) else {
+      return ("\\", 1)
     }
-    return String(out)
+    let next = pos + 2 + width
+    if (0xD800...0xDBFF).contains(code), next + 6 <= scalars.count, scalars[next] == "\\",
+      scalars[next + 1] == "u", let low = hex(at: next + 2, width: 4),
+      (0xDC00...0xDFFF).contains(low)
+    {
+      let joined = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00)
+      return (Unicode.Scalar(joined) ?? "\u{FFFD}", 2 + width + 6)
+    }
+    return (Unicode.Scalar(code) ?? "\u{FFFD}", 2 + width)
   }
 }
