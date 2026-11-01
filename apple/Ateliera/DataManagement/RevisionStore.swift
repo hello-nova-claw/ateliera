@@ -43,7 +43,8 @@ struct RevisionStore {
   let store: VaultStore
 
   /// Snapshot the current bytes of `paths` into a dated backup folder + manifest.
-  /// Returns nil if nothing could be read or the atomic write failed.
+  /// Returns nil if nothing could be read, the manifest would break the rules `list`
+  /// checks (so it would never be listed or pruned), or the atomic write failed.
   @discardableResult
   func snapshot(reason: String, paths: [String], now: String, id: String) -> RevisionSnapshot? {
     let folder = Self.snapshotRoot(createdAt: now, id: id)
@@ -64,7 +65,10 @@ struct RevisionStore {
     let manifest = RevisionManifest(
       version: 1, id: id, reason: reason, createdAt: now, state: "complete", files: files)
     let manifestPath = "\(folder)/manifest.json"
-    guard let manifestData = try? JSONEncoder.revision.encode(manifest) else { return nil }
+    guard let manifestData = try? JSONEncoder.revision.encode(manifest),
+      let manifestText = String(data: manifestData, encoding: .utf8),
+      Self.parseManifest(manifestText, at: manifestPath) != nil
+    else { return nil }
     writes.append(
       BatchWrite(path: manifestPath, bytes: manifestData, expectedHash: nil, expectedMissing: true))
 
