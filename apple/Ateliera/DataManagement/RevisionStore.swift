@@ -67,7 +67,7 @@ struct RevisionStore {
     let manifestPath = "\(folder)/manifest.json"
     guard let manifestData = try? JSONEncoder.revision.encode(manifest),
       let manifestText = String(data: manifestData, encoding: .utf8),
-      Self.parseManifest(manifestText, at: manifestPath) != nil
+      Self.trustedManifest(manifestText, at: manifestPath) != nil
     else { return nil }
     writes.append(
       BatchWrite(path: manifestPath, bytes: manifestData, expectedHash: nil, expectedMissing: true))
@@ -152,8 +152,7 @@ struct RevisionStore {
       }
       .compactMap { file in
         guard let raw = store.readRawFile(path: file.path),
-          raw.text.utf8.count <= Self.maxManifestBytes,
-          let manifest = Self.parseManifest(raw.text, at: file.path)
+          let manifest = Self.trustedManifest(raw.text, at: file.path)
         else { return nil }
         return (RevisionSnapshot(manifestPath: file.path, manifest: manifest), raw.hash)
       }
@@ -285,6 +284,15 @@ extension RevisionStore {
       charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.!~*'()")
     let escaped = id.addingPercentEncoding(withAllowedCharacters: unreserved) ?? ""
     return "\(backupsRoot)/\(day)/\(stamp)--\(escaped)"
+  }
+
+  /// The manifest at `path` if it is within the size limit and follows every rule. The
+  /// same check decides what `snapshot` may write and what `list` and `prune` trust.
+  static func trustedManifest(_ text: String, at path: String, maxBytes: Int = maxManifestBytes)
+    -> RevisionManifest?
+  {
+    guard text.utf8.count <= maxBytes else { return nil }
+    return parseManifest(text, at: path)
   }
 
   /// The manifest at `path`, or nil unless it follows every rule: a known version,
