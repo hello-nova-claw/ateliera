@@ -20,6 +20,12 @@ import Observation
     self.store = store
     loadConfig()
     refresh()
+    // Re-project when the vault changes from outside this room, like the shared editor.
+    store.observeNotes { [weak self] in
+      guard let self else { return false }
+      self.refresh()
+      return true
+    }
   }
 
   /// The active (non-hidden) areas, in configured order.
@@ -62,7 +68,9 @@ import Observation
     for area in areas {
       for anchor in LandscapeAnchor.ordered {
         let key = "landscape:\(area.id):\(anchor.rawValue)"
-        guard let path = ViewState.path(key), let raw = store.readRawFile(path: path) else { continue }
+        guard let path = ViewState.path(key), let raw = store.readRawFile(path: path) else {
+          continue
+        }
         let ids = ViewState.parse(raw.text)
         if !ids.isEmpty { orders[key] = ids }
       }
@@ -149,7 +157,8 @@ import Observation
   @discardableResult
   func addArea(title: String) -> Bool {
     let id = LifeAreaConfig.safeAreaId(title: title, existing: preferences)
-    let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines).precomposedStringWithCanonicalMapping
+    let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+      .precomposedStringWithCanonicalMapping
     let order = (preferences.map { $0.order }.max() ?? -1) + 1
     var next = preferences
     next.append(LifeAreaPreference(id: id, title: trimmed, hidden: false, order: order))
@@ -158,7 +167,8 @@ import Observation
 
   @discardableResult
   func renameArea(id: String, title: String) -> Bool {
-    let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines).precomposedStringWithCanonicalMapping
+    let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+      .precomposedStringWithCanonicalMapping
     var next = preferences
     guard let index = next.firstIndex(where: { $0.id == id }) else { return false }
     next[index].title = trimmed
