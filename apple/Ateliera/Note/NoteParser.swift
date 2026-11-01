@@ -31,7 +31,9 @@ enum NoteParser {
       : normalizedBody
 
     var index = 0
-    let pairs = parseBlock(frontLines, &index, indent: 0)
+    // Frontmatter the web's strict `yaml` parse would reject (an undefined escape,
+    // say) is rejected here too, so the note goes to Repair untouched.
+    guard let pairs = try? parseBlock(frontLines, &index, indent: 0) else { return nil }
 
     var known: [String: YamlNode] = [:]
     var extra: [(String, YamlNode)] = []
@@ -116,7 +118,7 @@ enum NoteParser {
 
   // Recursive block reader. Consumes lines at `indent`; returns ordered pairs.
   private static func parseBlock(_ lines: [String], _ index: inout Int, indent: Int)
-    -> [(String, YamlNode)]
+    throws -> [(String, YamlNode)]
   {
     var pairs: [(String, YamlNode)] = []
     while index < lines.count {
@@ -128,40 +130,48 @@ enum NoteParser {
       guard leadingSpaces(line) == indent,
         let (key, rest) = keyAndValue(String(line.dropFirst(indent)))
       else { break }
-      pairs.append((key, parseValue(rest, lines, &index, indent: indent)))
+      pairs.append((key, try parseValue(rest, lines, &index, indent: indent)))
     }
     return pairs
   }
 
+  // The key, and the value with its leading spaces trimmed. Trailing spaces are left
+  // for `readScalar`: on a quoted scalar folded across lines, an escaped space can end
+  // the first line.
   private static func keyAndValue(_ content: String) -> (String, String)? {
     guard let colon = content.firstIndex(of: ":") else { return nil }
     let key = String(content[..<colon]).trimmingCharacters(in: .whitespaces)
-    return (key, trimmingYamlSpace(String(content[content.index(after: colon)...])))
+    let value = content[content.index(after: colon)...].unicodeScalars.drop {
+      $0 == " " || $0 == "\t"
+    }
+    return (key, String(value))
   }
 
   // The value after `key:` on line `index`, whose key starts at column `indent`.
   // Leaves `index` at the first line after the value.
   private static func parseValue(
     _ rest: String, _ lines: [String], _ index: inout Int, indent: Int
-  ) -> YamlNode {
+  ) throws -> YamlNode {
     index += 1
-    if rest.isEmpty {
+    let value = trimmingYamlSpace(rest)
+    if value.isEmpty {
       if isSequenceItem(lines, index, indent: indent) {
-        return parseSequence(lines, &index, indent: indent)
+        return try parseSequence(lines, &index, indent: indent)
       }
-      return .map(parseBlock(lines, &index, indent: indent + 2))
+      return .map(try parseBlock(lines, &index, indent: indent + 2))
     }
-    if rest.hasPrefix("[") && rest.hasSuffix("]") {
-      let inner = String(rest.dropFirst().dropLast())
+    if value.hasPrefix("[") && value.hasSuffix("]") {
+      let inner = String(value.dropFirst().dropLast())
       if trimmingYamlSpace(inner).isEmpty { return .list([]) }
-      return .list(inner.components(separatedBy: ",").map { unquote(trimmingYamlSpace($0)) })
+      return .list(
+        try inner.components(separatedBy: ",").map { try unquote(trimmingYamlSpace($0)) })
     }
-    if rest == "true" || rest == "false" {
+    if value == "true" || value == "false" {
       // An unquoted boolean (the web quotes a bool-like string, so bare true/false
       // is a real boolean) — keep it as .bool so it re-serializes unquoted.
-      return .bool(rest == "true")
+      return .bool(value == "true")
     }
-    return .scalar(readScalar(rest, lines, &index, parentIndent: indent))
+    return .scalar(try readScalar(rest, lines, &index, parentIndent: indent))
   }
 
   private static func isSequenceItem(_ lines: [String], _ index: Int, indent: Int) -> Bool {
@@ -173,15 +183,18 @@ enum NoteParser {
   // (`- value`) or a map (`- key: value` with continuation lines) — the web quotes
   // any scalar containing `: `, so an unquoted `key: value` after `- ` is a map.
   private static func parseSequence(_ lines: [String], _ index: inout Int, indent: Int)
-    -> YamlNode
+    throws -> YamlNode
   {
     let firstItem = String(lines[index].dropFirst(indent + 4))
-    guard firstItem.contains(": "), !firstItem.hasPrefix("\""), !firstItem.hasPrefix("'") else {
+    // `key:` then a space, a tab or the end of the item; `a:b` is a plain scalar.
+    let isMapItem =
+      firstItem.contains(": ") || firstItem.contains(":\t") || firstItem.hasSuffix(":")
+    guard isMapItem, !firstItem.hasPrefix("\""), !firstItem.hasPrefix("'") else {
       var items: [String] = []
       while isSequenceItem(lines, index, indent: indent) {
-        let text = trimmingYamlSpace(String(lines[index].dropFirst(indent + 4)))
+        let text = String(lines[index].dropFirst(indent + 4))
         index += 1
-        items.append(readScalar(text, lines, &index, parentIndent: indent + 2))
+        items.append(try readScalar(text, lines, &index, parentIndent: indent + 2))
       }
       return .list(items)
     }
@@ -189,11 +202,11 @@ enum NoteParser {
     while isSequenceItem(lines, index, indent: indent) {
       var itemPairs: [(String, YamlNode)] = []
       if let (key, rest) = keyAndValue(String(lines[index].dropFirst(indent + 4))) {
-        itemPairs.append((key, parseValue(rest, lines, &index, indent: indent + 4)))
+        itemPairs.append((key, try parseValue(rest, lines, &index, indent: indent + 4)))
       } else {
         index += 1
       }
-      itemPairs.append(contentsOf: parseBlock(lines, &index, indent: indent + 4))
+      itemPairs.append(contentsOf: try parseBlock(lines, &index, indent: indent + 4))
       maps.append(itemPairs)
     }
     return .mapSeq(maps)
@@ -226,28 +239,31 @@ enum NoteParser {
   // Read a one-line flow scalar as YAML does: a double-quoted one has its escapes
   // decoded, a single-quoted one reads `''` as `'`, and a plain one is returned as
   // it is.
-  private static func unquote(_ value: String) -> String {
+  private static func unquote(_ value: String) throws -> String {
     let scalars = Array(value.unicodeScalars)
     guard scalars.count >= 2, let quote = scalars.first, quote == "\"" || quote == "'",
       quote == scalars.last
     else { return value }
-    return foldQuoted(Array(scalars.dropFirst()), quote: quote)
+    return try foldQuoted(Array(scalars.dropFirst()), quote: quote)
   }
 
   // Read the value that follows `key: ` (or `- `), which may run onto later lines:
   // a literal block scalar, or a quoted scalar the writer folded across lines.
   // `parentIndent` is the column of the key (or of the `-`); `index` points at the
   // line after the value's own line, and is left at the first line after the value.
+  // `text` may still end in spaces, which only a quoted scalar keeps.
   private static func readScalar(
     _ text: String, _ lines: [String], _ index: inout Int, parentIndent: Int
-  ) -> String {
-    if let header = BlockHeader(text) {
+  ) throws -> String {
+    let trimmed = trimmingYamlSpace(text)
+    if let header = BlockHeader(trimmed) {
       return readLiteralBlock(header, lines, &index, parentIndent: parentIndent)
     }
-    guard let quote = text.unicodeScalars.first, quote == "\"" || quote == "'" else {
-      return text
+    guard let quote = trimmed.unicodeScalars.first, quote == "\"" || quote == "'" else {
+      return trimmed
     }
-    var raw = String.UnicodeScalarView(text.unicodeScalars.dropFirst())
+    let opened = text.unicodeScalars.drop { $0 == " " || $0 == "\t" }.dropFirst()
+    var raw = String.UnicodeScalarView(opened)
     var closed = closesQuote(raw[...], quote)
     while !closed && index < lines.count {
       let line = lines[index]
@@ -256,7 +272,8 @@ enum NoteParser {
       raw.append(contentsOf: line.unicodeScalars)
       closed = closesQuote(line.unicodeScalars[...], quote)
     }
-    return foldQuoted(Array(raw), quote: quote)
+    guard closed else { throw MalformedScalar() }
+    return try foldQuoted(Array(raw), quote: quote)
   }
 
   // Does this stretch of a quoted scalar hold its closing quote?
@@ -337,7 +354,7 @@ enum NoteParser {
   // becomes a space, or `n` line feeds when `n` empty lines follow it; whitespace
   // around a break goes unless escaped; and an escaped break (`\` at the end of a
   // line) joins the lines. `raw` runs from after the opening quote.
-  private static func foldQuoted(_ raw: [Unicode.Scalar], quote: Unicode.Scalar) -> String {
+  private static func foldQuoted(_ raw: [Unicode.Scalar], quote: Unicode.Scalar) throws -> String {
     // Each line as (scalar, written by an escape) pairs, and whether the break
     // after it was escaped.
     var lines: [[(Unicode.Scalar, Bool)]] = [[]]
@@ -358,8 +375,8 @@ enum NoteParser {
         escapedBreaks.append(true)
         pos += 2
       } else if quote == "\"" && scalar == "\\" && pos + 1 < raw.count {
-        let (decoded, width) = decodeEscape(raw, at: pos)
-        lines[lines.count - 1].append((decoded, width > 1))
+        let (decoded, width) = try decodeEscape(raw, at: pos)
+        lines[lines.count - 1].append((decoded, true))
         pos += width
       } else {
         lines[lines.count - 1].append((scalar, false))
@@ -405,12 +422,17 @@ enum NoteParser {
   ]
   private static let hexEscapeWidths: [Unicode.Scalar: Int] = ["x": 2, "u": 4, "U": 8]
 
-  // One escape of YAML's double-quoted set, starting at the backslash at `pos`:
-  // the scalar it stands for and how many scalars it took. A UTF-16 surrogate pair
-  // written as two `\u` escapes is joined; an escape YAML does not define leaves the
-  // backslash as written, with a width of 1.
+  // A quoted scalar that never closes, a double-quoted escape YAML does not define,
+  // or one naming no code point.
+  private struct MalformedScalar: Error {}
+
+  // One escape of YAML's double-quoted set, starting at the backslash at `pos`: the
+  // scalar it stands for and how many scalars it took. A UTF-16 surrogate pair
+  // written as two `\u` escapes is joined. A lone surrogate, which a Swift string
+  // cannot hold, reads as U+FFFD; any other escape the web's `yaml` parser rejects
+  // is rejected here too.
   private static func decodeEscape(_ scalars: [Unicode.Scalar], at pos: Int)
-    -> (Unicode.Scalar, Int)
+    throws -> (Unicode.Scalar, Int)
   {
     func hex(at start: Int, width: Int) -> UInt32? {
       guard start + width <= scalars.count else { return nil }
@@ -421,7 +443,7 @@ enum NoteParser {
     let escape = scalars[pos + 1]
     if let decoded = simpleEscapes[escape] { return (decoded, 2) }
     guard let width = hexEscapeWidths[escape], let code = hex(at: pos + 2, width: width) else {
-      return ("\\", 1)
+      throw MalformedScalar()
     }
     let next = pos + 2 + width
     if (0xD800...0xDBFF).contains(code), next + 6 <= scalars.count, scalars[next] == "\\",
@@ -431,6 +453,7 @@ enum NoteParser {
       let joined = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00)
       return (Unicode.Scalar(joined) ?? "\u{FFFD}", 2 + width + 6)
     }
+    if code > 0x10FFFF { throw MalformedScalar() }
     return (Unicode.Scalar(code) ?? "\u{FFFD}", 2 + width)
   }
 }
