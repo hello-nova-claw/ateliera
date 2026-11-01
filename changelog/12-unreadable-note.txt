@@ -1,0 +1,1 @@
+If one note in your vault can't be read, the rest of the vault now opens and that note waits in Repair. If your vault folder has moved or is offline, Ateliera says so and lets you choose it again.
