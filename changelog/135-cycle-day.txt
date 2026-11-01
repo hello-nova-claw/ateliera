@@ -1,0 +1,1 @@
+The cycle day no longer repeats the last day of a cycle and falls one short after it. When the last period is in the future or more than two cycles ago, the app shows no cycle day rather than guessing.

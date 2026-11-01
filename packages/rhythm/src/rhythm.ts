@@ -181,11 +181,11 @@ export function computeCycle(
   );
   const daysSince = Math.floor((dateMs - startMs) / 86400000);
   const avg = cycle.avgLengthDays;
-  // Within the first cycle, day counts from the start day as day 1.
-  // Once a full average-length cycle has elapsed, the day wraps:
-  // daysSince mod avg gives the day in the recomputed current cycle
-  // (e.g. 40 days, avg 28 -> 12).
-  const day = daysSince < avg ? daysSince + 1 : daysSince % avg || avg;
+  // A start in the future, or more than two average cycles ago, is too far
+  // from today to estimate from.
+  if (daysSince < 0 || daysSince > 2 * avg) return undefined;
+  // Day 1 is the start day; each cycle runs days 1..avg, then the next begins.
+  const day = (daysSince % avg) + 1;
   return { day, phase: cyclePhaseForDay(day, avg) };
 }
 
