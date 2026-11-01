@@ -18,6 +18,12 @@ import Observation
     self.store = store
     loadLifeAreas()
     refresh()
+    // Re-project when the vault changes from outside this room, like the shared editor.
+    store.observeNotes { [weak self] in
+      guard let self else { return false }
+      self.refresh()
+      return true
+    }
   }
 
   private func loadLifeAreas() {
@@ -29,7 +35,9 @@ import Observation
     } else {
       prefs = LifeAreaConfig.defaults()
     }
-    lifeAreas = prefs.map { ReflectionLifeAreaTarget(id: $0.id, title: $0.title, hidden: $0.hidden) }
+    lifeAreas = prefs.map {
+      ReflectionLifeAreaTarget(id: $0.id, title: $0.title, hidden: $0.hidden)
+    }
   }
 
   func refresh() {

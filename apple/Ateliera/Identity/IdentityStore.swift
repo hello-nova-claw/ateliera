@@ -16,6 +16,12 @@ import Observation
   init(store: VaultStore) {
     self.store = store
     refresh()
+    // Re-project when the vault changes from outside this room, like the shared editor.
+    store.observeNotes { [weak self] in
+      guard let self else { return false }
+      self.refresh()
+      return true
+    }
   }
 
   func refresh() {
@@ -62,7 +68,9 @@ import Observation
 
   private func loadAreaTitles() -> [String: String] {
     let prefs: [LifeAreaPreference]
-    if let raw = store.readRawFile(path: LifeAreaConfig.path), case .ok(let areas) = LifeAreaConfig.parse(raw.text) {
+    if let raw = store.readRawFile(path: LifeAreaConfig.path),
+      case .ok(let areas) = LifeAreaConfig.parse(raw.text)
+    {
       prefs = areas
     } else {
       prefs = LifeAreaConfig.defaults()
@@ -89,7 +97,9 @@ import Observation
   /// Promote a practicing-now card to "currently becoming".
   @discardableResult
   func promote(noteId: String) -> Bool {
-    guard writeViewState(key: "identity:currently-becoming", noteIds: [noteId]) else { return false }
+    guard writeViewState(key: "identity:currently-becoming", noteIds: [noteId]) else {
+      return false
+    }
     refresh()
     return true
   }
@@ -97,7 +107,9 @@ import Observation
   /// Persist a manual card order for one section.
   @discardableResult
   func reorder(section: IdentitySection, noteIds: [String]) -> Bool {
-    guard writeViewState(key: "identity:\(section.rawValue)", noteIds: noteIds) else { return false }
+    guard writeViewState(key: "identity:\(section.rawValue)", noteIds: noteIds) else {
+      return false
+    }
     refresh()
     return true
   }
