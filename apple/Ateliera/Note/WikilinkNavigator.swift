@@ -14,11 +14,13 @@ enum WikilinkNavigator {
     return notes.filter { $0.title.lowercased() == lowered }.map(\.id).sorted().first
   }
 
+  private static let studioNoteLink = try? NSRegularExpression(
+    pattern: #"^studio://note/([^/?#]+)$"#, options: [.caseInsensitive])
+
   static func studioNoteId(from target: String) -> String? {
     let trimmed = target.trimmingCharacters(in: .whitespaces)
     guard
-      let regex = try? NSRegularExpression(
-        pattern: #"^studio://note/([^/?#]+)$"#, options: [.caseInsensitive]),
+      let regex = studioNoteLink,
       let match = regex.firstMatch(
         in: trimmed, range: NSRange(location: 0, length: (trimmed as NSString).length))
     else { return nil }

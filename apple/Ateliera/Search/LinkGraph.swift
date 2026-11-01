@@ -112,7 +112,9 @@ enum LinkExtractor {
 
   // Strip `#fragment` then percent-decode + trim, matching links.ts `cleanTarget`.
   private static func cleanTarget(_ target: String) -> String {
-    let withoutFragment = target.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? target
+    let withoutFragment =
+      target.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false).first.map(
+        String.init) ?? target
     let decoded = withoutFragment.removingPercentEncoding ?? withoutFragment
     return decoded.trimmingCharacters(in: .whitespaces)
   }
@@ -136,12 +138,12 @@ enum LinkExtractor {
     let masked = maskCode(body)
     let definitions = referenceDefinitions(in: masked)
     let scalars = Array(masked)
-    // Prefix sum of UTF-16 lengths so a character index maps to a UTF-16 offset.
-    var u16 = [Int](repeating: 0, count: scalars.count + 1)
-    for (index, ch) in scalars.enumerated() { u16[index + 1] = u16[index] + ch.utf16.count }
+    let u16 = utf16Offsets(scalars)
 
     var out: [LocatedLink] = []
-    func emit(_ kind: LinkKind, _ target: String, _ label: String, from openChar: Int, toChar closeChar: Int) {
+    func emit(
+      _ kind: LinkKind, _ target: String, _ label: String, from openChar: Int, toChar closeChar: Int
+    ) {
       out.append(
         LocatedLink(
           link: ParsedLink(kind: kind, target: target, label: normalizeLabel(label)),
@@ -150,10 +152,10 @@ enum LinkExtractor {
 
     var i = 0
     while i < scalars.count {
-      guard scalars[i] == "[" else { i += 1; continue }
-      // Not a wiki `[[`.
-      if i + 1 < scalars.count && scalars[i + 1] == "[" { i += 2; continue }
-      guard let close = matchBracket(scalars, open: i) else { i += 1; continue }
+      guard let close = linkClose(scalars, at: i) else {
+        i += skipWidth(scalars, at: i)
+        continue
+      }
       let label = String(scalars[(i + 1)..<close])
       let next = close + 1
       if next < scalars.count && scalars[next] == "(" {
@@ -185,6 +187,31 @@ enum LinkExtractor {
     return out
   }
 
+  // The `]` that closes a markdown link's `[` at `index`, or nil when there's no link
+  // there: another character, an unclosed bracket, or a wiki `[[`.
+  private static func linkClose(_ scalars: [Character], at index: Int) -> Int? {
+    guard scalars[index] == "[", !isWikiOpening(scalars, at: index) else { return nil }
+    return matchBracket(scalars, open: index)
+  }
+
+  // Prefix sum of UTF-16 lengths, so a character index maps to a UTF-16 offset.
+  private static func utf16Offsets(_ scalars: [Character]) -> [Int] {
+    var offsets = [Int](repeating: 0, count: scalars.count + 1)
+    for (index, character) in scalars.enumerated() {
+      offsets[index + 1] = offsets[index] + character.utf16.count
+    }
+    return offsets
+  }
+
+  // How far to step past a `[` that isn't a link: both brackets of a wiki `[[`.
+  private static func skipWidth(_ scalars: [Character], at index: Int) -> Int {
+    isWikiOpening(scalars, at: index) ? 2 : 1
+  }
+
+  private static func isWikiOpening(_ scalars: [Character], at index: Int) -> Bool {
+    scalars[index] == "[" && index + 1 < scalars.count && scalars[index + 1] == "["
+  }
+
   // `[id]: url` definitions (line-leading), first normalised key wins.
   private static func referenceDefinitions(in masked: String) -> [String: String] {
     var defs: [String: String] = [:]
@@ -200,7 +227,8 @@ enum LinkExtractor {
       let idStart = trimmed.index(after: trimmed.startIndex)
       let identifier = String(trimmed[idStart..<closeIdx])
       guard !identifier.isEmpty else { continue }
-      var url = String(trimmed[trimmed.index(after: afterClose)...]).trimmingCharacters(in: .whitespaces)
+      var url = String(trimmed[trimmed.index(after: afterClose)...]).trimmingCharacters(
+        in: .whitespaces)
       if url.hasPrefix("<") && url.hasSuffix(">") && url.count >= 2 {
         url = String(url.dropFirst().dropLast())
       } else {
@@ -216,7 +244,9 @@ enum LinkExtractor {
 
   private static func stripLeadingMarkers(_ line: String) -> String {
     var s = Substring(line)
-    while let first = s.first, first == ">" || first == " " || first == "\t" || first == "-" || first == "*" || first == "+" {
+    while let first = s.first,
+      first == ">" || first == " " || first == "\t" || first == "-" || first == "*" || first == "+"
+    {
       s = s.dropFirst()
     }
     return String(s)
@@ -249,8 +279,9 @@ enum LinkExtractor {
     var k = j
     while k < scalars.count {
       let ch = scalars[k]
-      if ch == "(" { depth += 1 }
-      else if ch == ")" {
+      if ch == "(" {
+        depth += 1
+      } else if ch == ")" {
         depth -= 1
         if depth == 0 { break }
       } else if ch == " " || ch == "\t" || ch == "\n" {
@@ -274,8 +305,9 @@ enum LinkExtractor {
     while i < scalars.count {
       let ch = scalars[i]
       if ch == "\n" { return nil }
-      if ch == "[" { depth += 1 }
-      else if ch == "]" {
+      if ch == "[" {
+        depth += 1
+      } else if ch == "]" {
         depth -= 1
         if depth == 0 { return i }
       }
@@ -292,17 +324,18 @@ enum LinkExtractor {
     identifier.precomposedStringWithCanonicalMapping.lowercased()
   }
 
-  // Blank fenced code blocks and inline code spans with equal-length spaces so
-  // links inside them don't match (mirrors links.ts skipping code nodes) while
-  // keeping every character index aligned with the original body.
-  // Blank fenced + inline code with equal-length spaces (UTF-16 length preserved,
-  // so offsets are stable) so links inside code are ignored. Internal so the link
-  // editor can share the same code-skipping.
+  // Fenced code blocks, then inline code spans.
+  private static let codeRegexes: [NSRegularExpression] = [#"```[\s\S]*?```"#, "`[^`\\n]*`"]
+    .compactMap { try? NSRegularExpression(pattern: $0) }
+
+  // Blank fenced code blocks and inline code spans with equal-length spaces (UTF-16
+  // length preserved, so offsets are stable), so links inside code don't match
+  // (mirrors links.ts skipping code nodes). Shared by the link graph, the link editor
+  // and the wikilink parser.
   static func maskCode(_ body: String) -> String {
     let masked = NSMutableString(string: body)
     let length = (body as NSString).length
-    for pattern in [#"```[\s\S]*?```"#, "`[^`\\n]*`"] {
-      guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+    for regex in codeRegexes {
       for match in regex.matches(in: body, range: NSRange(location: 0, length: length)) {
         masked.replaceCharacters(
           in: match.range, with: String(repeating: " ", count: match.range.length))
@@ -378,7 +411,9 @@ struct LinkGraph {
         return false
       }
       if resolvesToTarget {
-        result.append(Backlink(id: note.id, path: note.path, title: note.title.isEmpty ? "Untitled" : note.title))
+        result.append(
+          Backlink(
+            id: note.id, path: note.path, title: note.title.isEmpty ? "Untitled" : note.title))
       }
     }
     return result.sorted { left, right in

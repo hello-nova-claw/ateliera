@@ -12,11 +12,13 @@ struct ParsedWikilink: Equatable {
 // (first occurrence wins), preserving source order.
 enum WikilinkParser {
   // Same as WIKI_LINK in links.ts.
-  private static let pattern = #"\[\[([^\]|\n]+?)(?:\|([^\]\n]+?))?\]\]"#
+  private static let regex = try? NSRegularExpression(
+    pattern: #"\[\[([^\]|\n]+?)(?:\|([^\]\n]+?))?\]\]"#)
 
   static func parse(_ body: String) -> [ParsedWikilink] {
-    let masked = maskCode(body)  // same length/layout as body; code regions blanked
-    guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+    // Same length and layout as body, with code regions blanked.
+    let masked = LinkExtractor.maskCode(body)
+    guard let regex else { return [] }
     let ns = masked as NSString
     var results: [ParsedWikilink] = []
     var seen = Set<String>()
@@ -35,21 +37,5 @@ enum WikilinkParser {
         ParsedWikilink(target: target, label: alias.isEmpty ? target : alias, range: range))
     }
     return results
-  }
-
-  // Blank fenced code blocks and inline code spans with equal-length spaces, so
-  // wikilinks inside them don't match (mirrors links.ts skipping code nodes) while
-  // keeping every other character index aligned with the original body.
-  private static func maskCode(_ body: String) -> String {
-    let masked = NSMutableString(string: body)
-    let length = (body as NSString).length
-    for pattern in [#"```[\s\S]*?```"#, "`[^`\\n]*`"] {
-      guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
-      for match in regex.matches(in: body, range: NSRange(location: 0, length: length)) {
-        masked.replaceCharacters(
-          in: match.range, with: String(repeating: " ", count: match.range.length))
-      }
-    }
-    return masked as String
   }
 }
