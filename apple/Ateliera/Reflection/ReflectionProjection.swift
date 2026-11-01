@@ -75,10 +75,12 @@ enum ReflectionProjection {
 
     // Chronological, newest first (created desc, id asc), visible + de-duped.
     var seen = Set<String>()
-    let ordered = candidates
+    let ordered =
+      candidates
       .filter { Projection.visible($0.note, viewKey: "room:reflection-garden") }
       .sorted { a, b in
-        if a.note.created != b.note.created { return a.note.created > b.note.created }
+        let created = NoteTime.compare(a.note.created, b.note.created)
+        if created != .orderedSame { return created == .orderedDescending }
         return a.note.id < b.note.id
       }
       .filter { seen.insert($0.note.id).inserted }
@@ -107,7 +109,8 @@ enum ReflectionProjection {
     }
     let themes = counts.map { ReflectionThemeCount(name: $0.key, count: $0.value) }
       .sorted { a, b in
-        a.count != b.count ? a.count > b.count : a.name.localizedCompare(b.name) == .orderedAscending
+        a.count != b.count
+          ? a.count > b.count : a.name.localizedCompare(b.name) == .orderedAscending
       }
     return ReflectionGarden(cards: cards, themes: themes)
   }

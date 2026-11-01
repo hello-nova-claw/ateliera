@@ -108,7 +108,10 @@ describe('SearchRoom', () => {
     render(<SearchRoom service={service({ inspect })} />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'The quiet hill' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Show links' }));
+    // "Show links" is drawn while the note is still loading, and the Inspector closes the
+    // panel again when the note arrives, so open it only once the note is there.
+    await screen.findByRole('dialog', { name: 'Inspect The quiet hill' });
+    fireEvent.click(screen.getByRole('button', { name: 'Show links' }));
     const openLinked = await screen.findByRole('button', { name: 'Open Linked note' });
     await act(async () => {
       fireEvent.click(openLinked);
@@ -166,7 +169,10 @@ describe('SearchRoom', () => {
     render(<SearchRoom service={service({ repairQueue: vi.fn().mockResolvedValue([repair]) })} />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'The quiet hill' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Show links' }));
+    // "Show links" is drawn while the note is still loading, and the Inspector closes the
+    // panel again when the note arrives, so open it only once the note is there.
+    await screen.findByRole('dialog', { name: 'Inspect The quiet hill' });
+    fireEvent.click(screen.getByRole('button', { name: 'Show links' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Repair Missing garden' }));
 
     expect(await screen.findByRole('dialog', { name: 'Repair Studio notes' })).toBeVisible();

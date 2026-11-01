@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import './ReflectionPage.css';
 import { reflectionFieldGuidance } from './field-guidance';
 import type { TourExample } from '../onboarding/tour-examples';
+import { formatWrittenDay } from '../../app/written-day';
 import { TourExampleCard, TourGlimpseLabel } from '../onboarding/TourPreview';
 
 type ReflectionView = 'garden' | 'reflection' | 'celebration' | 'themes';
@@ -577,11 +578,11 @@ export function ReflectionPage({
               filtered.map((card) => (
                 <div className="reflection-stream__row" key={card.noteId}>
                   <time dateTime={card.created}>
-                    {new Intl.DateTimeFormat('en-AU', {
+                    {formatWrittenDay(card.created, 'en-AU', {
                       day: 'numeric',
                       month: 'long',
                       year: 'numeric',
-                    }).format(new Date(card.created))}
+                    })}
                   </time>
                   <EntryCard
                     card={card}

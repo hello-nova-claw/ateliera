@@ -11,9 +11,12 @@ struct ExportView: View {
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
-        Text("A portable backup is a single ZIP of your Markdown and settings — readable by the web Studio too. Disposable caches are left out.")
-          .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkMuted)
-          .fixedSize(horizontal: false, vertical: true)
+        Text(
+          // swiftlint:disable:next line_length
+          "A portable backup is a single ZIP of your Markdown and settings — readable by the web Studio too. Disposable caches are left out."
+        )
+        .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkMuted)
+        .fixedSize(horizontal: false, vertical: true)
 
         Button("Prepare a backup") { prepare() }
           .font(StudioFont.control).foregroundStyle(theme.link)
@@ -41,7 +44,7 @@ struct ExportView: View {
 
   private func prepare() {
     do {
-      let data = try VaultExporter.export(store: store, generatedAt: NoteFactory.isoTimestamp())
+      let data = try VaultExporter.export(store: store, generatedAt: NoteFactory.utcTimestamp())
       let url = FileManager.default.temporaryDirectory
         .appendingPathComponent("Ateliera-backup.zip")
       try data.write(to: url)

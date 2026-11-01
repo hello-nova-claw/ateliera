@@ -11,6 +11,7 @@ import { GuidedField, RoomHeading, SemanticMark } from '@studio/ui';
 import { useId, useRef, useState } from 'react';
 
 import './IdentityPage.css';
+import { formatWrittenDay } from '../../app/written-day';
 import { identityFieldGuidance, identityTitleGuidance } from './field-guidance';
 
 type IdentityDraft = { body: string; title?: string };
@@ -37,13 +38,11 @@ const addLabels: Record<IdentitySection, { noun: string; field: string }> = {
 };
 
 function humanDate(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.valueOf())) return value;
-  return new Intl.DateTimeFormat(undefined, {
+  return formatWrittenDay(value, undefined, {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
-  }).format(parsed);
+  });
 }
 
 function IdentityEvidence({

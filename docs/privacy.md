@@ -21,6 +21,7 @@ Last checked against the code: 27 October 2026.
 ## What is personal here
 
 - Journal entries, reflections, dreams, gratitude, intentions and possibilities, with their titles, tags and attachments.
+- When each entry was written and last changed, with the UTC offset of the zone it was written in (`created`, `updated`). The offset keeps an entry on the day it was written, but across many entries it can hint at where the writer was, for example on a trip.
 - Birth date, time, place, coordinates and time zone (for the natal chart).
 - Home place and its coordinates.
 - Menstrual flow from Health, and the cycle day and phase derived from it.

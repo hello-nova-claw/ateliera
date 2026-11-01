@@ -400,3 +400,20 @@ it('shows a quiet image repair state without rendering a raw vault reference', (
   expect(screen.queryByRole('img')).not.toBeInTheDocument();
   expect(document.body).not.toHaveTextContent('../../Attachments/private.png');
 });
+
+it('dates each entry by the day it was written in its own zone', () => {
+  // Written at 08:00 in Melbourne, which is still 1 November wherever the test runs
+  // west of it.
+  const card = {
+    ...model.cards[0]!,
+    noteId: 'melbourne-morning',
+    created: '2026-11-02T08:00:00.000+11:00',
+    updated: '2026-11-02T08:00:00.000+11:00',
+  };
+  const { container } = render(
+    <ReflectionPage model={{ ...model, cards: [card] }} />,
+  );
+
+  const time = container.querySelector('time[datetime="2026-11-02T08:00:00.000+11:00"]');
+  expect(time?.textContent).toBe('2 November 2026');
+});
