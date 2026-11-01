@@ -430,4 +430,57 @@ final class RevisionStoreTests: XCTestCase {
     XCTAssertTrue(RevisionStore(store: store).restore(snapshot))
     XCTAssertEqual(try XCTUnwrap(store.beginEdit(path: path)).note.body, "original")
   }
+
+  func testRestorePlanListsOnlyTheFilesThatDiffer() throws {
+    let (dir, store) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.capture(title: "A", body: "a", room: "inbox"))
+    XCTAssertTrue(store.capture(title: "B", body: "b", room: "inbox"))
+    let paths = store.parsedNotesByPath.map { $0.path }.sorted()
+    let revisions = RevisionStore(store: store)
+    let snapshot = try XCTUnwrap(
+      revisions.snapshot(
+        reason: "migration", paths: paths, now: "2026-08-29T10:00:00.000Z", id: "TWO"))
+    let editable = try XCTUnwrap(store.beginEdit(path: paths[0]))
+    XCTAssertTrue(store.saveEdit(editable, title: "A", body: "changed"))
+    XCTAssertEqual(try XCTUnwrap(revisions.planRestore(snapshot)).paths, [paths[0]])
+  }
+
+  func testRestoreRefusesACopyChangedAfterThePlan() throws {
+    let fixture = try noteWithSnapshot()
+    defer { try? FileManager.default.removeItem(at: fixture.dir) }
+    let revisions = RevisionStore(store: fixture.store)
+    let plan = try XCTUnwrap(revisions.planRestore(fixture.snapshot))
+    let copy = try XCTUnwrap(fixture.snapshot.manifest.files.first?.snapshotPath)
+    try write(Data("planted".utf8), at: copy, in: fixture.dir)
+    XCTAssertFalse(revisions.restore(plan))
+    XCTAssertEqual(
+      try XCTUnwrap(fixture.store.beginEdit(path: fixture.path)).note.body, "changed")
+  }
+
+  func testRestoreRefusesAManifestChangedAfterThePlan() throws {
+    let fixture = try noteWithSnapshot()
+    defer { try? FileManager.default.removeItem(at: fixture.dir) }
+    let revisions = RevisionStore(store: fixture.store)
+    let plan = try XCTUnwrap(revisions.planRestore(fixture.snapshot))
+    var planted = fixture.snapshot.manifest
+    planted.reason = "anything"
+    try write(
+      JSONEncoder.revision.encode(planted), at: fixture.snapshot.manifestPath, in: fixture.dir)
+    XCTAssertFalse(revisions.restore(plan))
+    XCTAssertEqual(
+      try XCTUnwrap(fixture.store.beginEdit(path: fixture.path)).note.body, "changed")
+  }
+
+  func testRestorePlanRefusesAFileThatIsThereButUnreadable() throws {
+    let fixture = try noteWithSnapshot()
+    let url = fixture.dir.appendingPathComponent(fixture.path)
+    defer {
+      try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: url.path)
+      try? FileManager.default.removeItem(at: fixture.dir)
+    }
+    try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: url.path)
+    // Unreadable is not missing: a plan would otherwise expect no file and fail later.
+    XCTAssertNil(RevisionStore(store: fixture.store).planRestore(fixture.snapshot))
+  }
 }
