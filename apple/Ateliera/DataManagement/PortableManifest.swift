@@ -39,7 +39,12 @@ enum PortableManifest {
     ".studio/import-backup/", ".studio/tmp/", ".studio/revisions/",
   ]
 
+  /// Case-insensitive about `.studio/`, as `exportDisposition` is, so `.Studio/x` is
+  /// never mistaken for a person's file on a volume that ignores case.
   static func disposition(_ path: String) -> ExportDisposition {
+    // Checked first, so export never ships what import refuses, in `.studio/` too.
+    if isActiveContent(path) { return .blocked }
+    let path = path.lowercased()
     if path.hasPrefix(".studio/") {
       if includeExact.contains(path) || includePrefixes.contains(where: { path.hasPrefix($0) }) {
         return .include
@@ -47,7 +52,6 @@ enum PortableManifest {
       if cachePrefixes.contains(where: { path.hasPrefix($0) }) { return .cache }
       return .internalOnly
     }
-    if let ext = fileExtension(path), activeExtensions.contains(ext) { return .blocked }
     return .include
   }
 
@@ -55,6 +59,100 @@ enum PortableManifest {
     let name = (path as NSString).lastPathComponent
     guard let dot = name.range(of: ".", options: .backwards) else { return nil }
     return String(name[name.index(after: dot.lowerBound)...]).lowercased()
+  }
+
+  /// Folders that are programs on a Mac, whatever the files inside them are called.
+  static let bundleExtensions: Set<String> = ["app"]
+
+  /// Whether `path` is active content: its file name has an active extension, as
+  /// `assertNoActiveContent` checks, or a folder on the way is a bundle, so
+  /// `Evil.app/Contents/MacOS/Evil` counts. Other folders with an active-looking name,
+  /// such as `Ideas.js/`, are only folders. Export blocks and import refuses the same paths.
+  static func isActiveContent(_ path: String) -> Bool {
+    let segments = path.split(separator: "/").map(String.init)
+    guard let name = segments.last else { return false }
+    if let ext = fileExtension(name), activeExtensions.contains(ext) { return true }
+    return segments.dropLast().contains { segment in
+      fileExtension(segment).map { bundleExtensions.contains($0) } ?? false
+    }
+  }
+
+  private static let windowsReserved = try? NSRegularExpression(
+    pattern: #"^(?:con|prn|aux|nul|clock\$|com[1-9]|lpt[1-9])(?:\.|$)"#, options: .caseInsensitive)
+
+  /// A path every platform can hold, as `validatePortablePath` checks it: NFC, at most
+  /// 1,024 characters, relative, no backslash, drive letter or control character, and
+  /// no segment that is empty, `.` or `..`, over 255 characters, ends in a dot or a
+  /// space, is a Windows device name, or starts with `.studio-`.
+  static func isPortablePath(_ path: String) -> Bool {
+    let normalized = path.precomposedStringWithCanonicalMapping
+    // Swift's == ignores normalisation, so compare the scalars.
+    guard Array(normalized.unicodeScalars) == Array(path.unicodeScalars),
+      !path.isEmpty, path.utf16.count <= 1_024, !path.contains("\\"), !path.hasPrefix("/"),
+      !path.hasSuffix("/"), path.range(of: "^[A-Za-z]:", options: .regularExpression) == nil,
+      !path.unicodeScalars.contains(where: { $0.value <= 0x1F || $0.value == 0x7F })
+    else { return false }
+    return path.split(separator: "/", omittingEmptySubsequences: false).allSatisfy { part in
+      let segment = String(part)
+      let range = NSRange(segment.startIndex..., in: segment)
+      return !segment.isEmpty && segment.utf16.count <= 255 && segment != "." && segment != ".."
+        && !segment.hasSuffix(".") && !segment.hasSuffix(" ")
+        && windowsReserved?.firstMatch(in: segment, range: range) == nil
+        && !segment.lowercased().hasPrefix(".studio-")
+    }
+  }
+
+  /// The export manifest's file list and excluded caches, or nil unless it is exactly
+  /// the shape `validPortableManifest` accepts: the six keys and no others, this format
+  /// and version, schema versions 1, a `toISOString` timestamp, and for each file a
+  /// path, a lower-case SHA-256 and a size of at most 64 MiB.
+  static func parse(_ data: Data) -> (files: [ManifestFile], excludedCaches: [String])? {
+    guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      Set(object.keys)
+        == ["excludedCaches", "exportVersion", "files", "format", "generatedAt", "schemaVersions"],
+      object["format"] as? String == format, isInteger(object["exportVersion"], exportVersion),
+      let generatedAt = object["generatedAt"] as? String, isCanonicalTimestamp(generatedAt),
+      let schemas = object["schemaVersions"] as? [String: Any],
+      Set(schemas.keys) == ["note", "settings"], isInteger(schemas["note"], 1),
+      isInteger(schemas["settings"], 1),
+      let caches = object["excludedCaches"] as? [String], caches.count <= 9_999,
+      let rawFiles = object["files"] as? [[String: Any]], rawFiles.count <= 9_999
+    else { return nil }
+    var files: [ManifestFile] = []
+    for raw in rawFiles {
+      guard Set(raw.keys) == ["path", "sha256", "size"], let path = raw["path"] as? String,
+        let hash = raw["sha256"] as? String, isSHA256(hash),
+        let number = raw["size"] as? NSNumber, isInteger(number, nil),
+        number.intValue >= 0, number.intValue <= 64 * 1_024 * 1_024
+      else { return nil }
+      files.append(ManifestFile(path: path, sha256: hash, size: number.intValue))
+    }
+    return (files, caches)
+  }
+
+  /// A JSON number that is a whole number (and, given `value`, that one), not a bool.
+  private static func isInteger(_ any: Any?, _ value: Int?) -> Bool {
+    guard let number = any as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+      number.doubleValue.rounded() == number.doubleValue,
+      abs(number.doubleValue) <= 9_007_199_254_740_991
+    else { return false }
+    return value.map { number.intValue == $0 } ?? true
+  }
+
+  private static func isSHA256(_ value: String) -> Bool {
+    value.utf8.count == 64
+      && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
+  }
+
+  /// Written exactly as JavaScript's `toISOString` writes it.
+  private static func isCanonicalTimestamp(_ value: String) -> Bool {
+    guard
+      value.range(
+        of: #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$"#, options: .regularExpression) != nil
+    else { return false }
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return formatter.date(from: value).map { formatter.string(from: $0) == value } ?? false
   }
 
   // NFC + lowercase, for case/normalisation-insensitive path comparison on import.

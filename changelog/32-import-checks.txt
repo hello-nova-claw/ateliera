@@ -1,0 +1,1 @@
+Importing a backup now refuses files that could run as programs, files its list doesn't mention and names that differ only in case, and says why in plain words.

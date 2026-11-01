@@ -15,9 +15,11 @@ struct ImportView: View {
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
-        Text("Bring in a portable backup ZIP — new notes are added, and matching paths are replaced.")
-          .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkMuted)
-          .fixedSize(horizontal: false, vertical: true)
+        Text(
+          "Bring in a portable backup ZIP — new notes are added, and matching paths are replaced."
+        )
+        .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkMuted)
+        .fixedSize(horizontal: false, vertical: true)
 
         Button("Choose a backup…") { picking = true }
           .font(StudioFont.control).foregroundStyle(theme.link)
@@ -99,14 +101,20 @@ struct ImportView: View {
       status = nil
       error = nil
     } catch {
-      self.error = "Couldn't read that backup: \(error)"
+      plan = nil
+      self.error =
+        (error as? ImportError)?.message
+        ?? String(
+          localized: "Couldn't read that backup. Nothing was imported.",
+          comment: "Import refused for a reason with no message of its own")
     }
   }
 
   private func apply(_ plan: ImportPlan) {
     let tally = plan.counts(resolutions: resolutions)
     if VaultImporter.apply(plan: plan, resolutions: resolutions, store: store) {
-      status = "Imported: \(tally.created) new, \(tally.replaced) replaced, \(tally.skipped) skipped."
+      status =
+        "Imported: \(tally.created) new, \(tally.replaced) replaced, \(tally.skipped) skipped."
       self.plan = nil
       resolutions = [:]
     } else {
