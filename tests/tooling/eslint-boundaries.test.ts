@@ -59,4 +59,29 @@ describe('workspace import boundaries', () => {
 
     expect(result?.messages).toEqual([]);
   });
+
+  it('rejects a template-literal dynamic import outside the layer', async () => {
+    const [result] = await eslint.lintText('void import(`@studio/storage`);', {
+      filePath: 'packages/ui/src/forbidden-fixture.ts',
+    });
+
+    expect(result?.messages).toEqual([
+      expect.objectContaining({ ruleId: 'no-restricted-syntax', severity: 2 }),
+    ]);
+  });
+
+  it.each(['packages/ui/src/forbidden-fixture.ts', 'apps/studio/src/forbidden-fixture.ts'])(
+    'rejects a dynamic import whose source is computed in %s',
+    async (filePath) => {
+      const [result] = await eslint.lintText(
+        "const name = 'storage';\nvoid import(`@studio/${name}`);\nvoid import(name);",
+        { filePath },
+      );
+
+      expect(result?.messages.map((message) => message.ruleId)).toEqual([
+        'no-restricted-syntax',
+        'no-restricted-syntax',
+      ]);
+    },
+  );
 });
