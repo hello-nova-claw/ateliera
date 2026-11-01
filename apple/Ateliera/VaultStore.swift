@@ -1209,28 +1209,11 @@ final class VaultStore {
     let effective = Projection.effectiveTitle(note)
     return IndexedNote(
       id: note.id, path: path, title: effective.isEmpty ? fallbackTitle : effective,
-      body: searchText(note.body), cardType: note.cardType, semanticType: note.semanticType,
+      body: Projection.plainText(note.body), cardType: note.cardType,
+      semanticType: note.semanticType,
       status: note.status, updated: note.updated.isEmpty ? note.created : note.updated,
       rooms: note.rooms, lifeAreas: note.lifeAreas, seasons: note.seasons, tags: note.tags,
       sourceText: sourceText, rawBody: note.body)
-  }
-
-  // A light Markdown-to-plain reduction for the search body/snippet (display-only,
-  // not an interop contract). Wikilink targets are kept as words so `[[a note]]`
-  // stays findable; markers and fences are dropped.
-  static func searchText(_ body: String) -> String {
-    let withoutFences = body.components(separatedBy: "\n")
-      .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("```") }
-      .joined(separator: " ")
-    var stripped = withoutFences
-    for token in ["[[", "]]", "**", "__", "`", "#", ">", "*", "_"] {
-      stripped = stripped.replacingOccurrences(of: token, with: " ")
-    }
-    return
-      stripped
-      .split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "\t" })
-      .joined(separator: " ")
-      .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   // Rich summary projection from a fully-parsed note.

@@ -53,8 +53,8 @@ enum KeepState: Equatable {
     }
     let note = editable.note
     gift = .card(
-      title: note.title ?? Self.fallbackTitle(note.body),
-      excerpt: Self.excerpt(note.body),
+      title: Projection.title(note),
+      excerpt: Projection.excerpt(note),
       body: note.body,
       sourcePath: card.sourcePath,
       kind: card.kind,
@@ -66,7 +66,9 @@ enum KeepState: Equatable {
   /// either grade advances the source's `resurface_due`/`interval_days` by the SM-2
   /// step. No streaks, no counts — just the note returning on a wiser schedule.
   func grade(_ quality: Int, today: String) {
-    guard case let .card(_, _, body, sourcePath, kind, intervalDays) = gift else { return }
+    guard case .card(_, _, let body, let sourcePath, let kind, let intervalDays) = gift else {
+      return
+    }
     keepState = .busy
     // Re-read the source fresh so the schedule write uses a current hash.
     guard let editable = store.beginEdit(path: sourcePath) else {
@@ -99,31 +101,5 @@ enum KeepState: Equatable {
     case 5: return "Kept — it landed deeply."
     default: return "Kept."
     }
-  }
-
-  static func excerpt(_ body: String) -> String {
-    String(plainText(body).prefix(240))
-  }
-
-  static func fallbackTitle(_ body: String) -> String {
-    let head = String(plainText(body).prefix(80))
-    return head.isEmpty ? "Untitled" : head
-  }
-
-  /// A minimal Markdown-to-plain reduction for display: drop code fences, strip a
-  /// few inline markers, and collapse whitespace. Deliberately simple — the Gift's
-  /// text is shown, never compared byte-for-byte.
-  static func plainText(_ md: String) -> String {
-    let withoutFences = md.components(separatedBy: "\n")
-      .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("```") }
-      .joined(separator: " ")
-    var stripped = withoutFences
-    for token in ["**", "__", "`", "#", ">", "*", "_"] {
-      stripped = stripped.replacingOccurrences(of: token, with: " ")
-    }
-    return stripped
-      .split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "\t" })
-      .joined(separator: " ")
-      .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 }
