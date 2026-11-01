@@ -1,0 +1,1 @@
+Restoring a saved version now shows which files it will replace and asks first, and it stops instead of overwriting a file that changed in the meantime.
