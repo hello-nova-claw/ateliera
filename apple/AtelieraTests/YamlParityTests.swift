@@ -120,9 +120,12 @@ final class YamlParityTests: XCTestCase {
       XCTAssertNil(NoteParser.parse(noteText(["x: \"a\(escape)b\""])), escape)
       XCTAssertNil(NoteParser.parse(noteText(["list:", "  - \"\(escape)\""])), escape)
     }
-    // A lone surrogate is valid YAML but cannot live in a Swift string.
-    let lone = NoteParser.parse(noteText(["x: \"a\\uD800b\""]))
-    XCTAssertEqual(lone?.frontmatterScalar("x"), "a\u{FFFD}b")
+    // A backslash that escapes the closing quote leaves the scalar unclosed.
+    XCTAssertNil(NoteParser.parse(noteText(["x: \"a\\\""])))
+    // A lone surrogate is valid YAML, but a Swift string cannot hold it, so a save
+    // would change the value.
+    XCTAssertNil(NoteParser.parse(noteText(["x: \"a\\uD800b\""])))
+    XCTAssertNil(NoteParser.parse(noteText(["x: \"a\\uDC00b\""])))
   }
 
   func testAListItemIsAMapOnlyWhenItsColonIsFollowedBySpaceOrEnd() throws {
