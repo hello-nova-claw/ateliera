@@ -16,19 +16,40 @@ const workspacePackages = [
   '@studio/ui',
 ];
 
-const forbidWorkspaceImportsExcept = (allowed) => ({
-  'no-restricted-imports': [
-    'error',
-    {
-      patterns: workspacePackages
-        .filter((packageName) => !allowed.includes(packageName))
-        .map((packageName) => ({
+// no-restricted-imports doesn't see import(), so dynamic imports of a package outside the
+// layer are caught by their source text instead.
+const forbidWorkspaceImportsExcept = (allowed) => {
+  const forbidden = workspacePackages.filter((packageName) => !allowed.includes(packageName));
+  const message = (packageName) =>
+    `${packageName} is outside this package's allowed dependency layer.`;
+  return {
+    'no-restricted-imports': [
+      'error',
+      {
+        patterns: forbidden.map((packageName) => ({
           group: [packageName, `${packageName}/*`],
-          message: `${packageName} is outside this package's allowed dependency layer.`,
+          message: message(packageName),
         })),
-    },
-  ],
-});
+      },
+    ],
+    'no-restricted-syntax': [
+      'error',
+      ...forbidden.flatMap((packageName) => {
+        const pattern = `/^${packageName.replace('/', '\\/')}(\\/|$)/`;
+        return [
+          `ImportExpression[source.value=${pattern}]`,
+          `ImportExpression[source.type='TemplateLiteral'][source.expressions.length=0][source.quasis.0.value.cooked=${pattern}]`,
+        ].map((selector) => ({ selector, message: message(packageName) }));
+      }),
+      // A computed source can't be checked against the layer, so it isn't allowed.
+      {
+        selector:
+          "ImportExpression:not([source.type='Literal']):not([source.type='TemplateLiteral'][source.expressions.length=0])",
+        message: 'Import a fixed module path so the dependency layer can be checked.',
+      },
+    ],
+  };
+};
 
 export default tseslint.config(
   {
@@ -69,7 +90,17 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       ...reactRefresh.configs.vite.rules,
-      ...forbidWorkspaceImportsExcept(['@studio/application', '@studio/ui']).rules,
+      // TODO(#229): the app also reaches the packages below directly. Which layers it may
+      // use is open; until then it may use those it already does, and no others.
+      ...forbidWorkspaceImportsExcept([
+        '@studio/application',
+        '@studio/ui',
+        '@studio/content',
+        '@studio/domain',
+        '@studio/index',
+        '@studio/rhythm',
+        '@studio/storage',
+      ]),
     },
   },
   {
@@ -97,7 +128,7 @@ export default tseslint.config(
   {
     files: ['packages/ui/**/*.{ts,tsx}'],
     rules: {
-      ...forbidWorkspaceImportsExcept(['@studio/domain']).rules,
+      ...forbidWorkspaceImportsExcept(['@studio/domain']),
       'no-restricted-globals': [
         'error',
         { name: 'fetch', message: 'UI must receive data through props and callbacks.' },

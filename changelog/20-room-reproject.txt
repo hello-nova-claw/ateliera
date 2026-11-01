@@ -1,0 +1,1 @@
+When you delete, archive or re-file a card from its editor, the Identity Studio, Life Landscape and Reflection Garden now update straight away, without you having to leave the room and come back.

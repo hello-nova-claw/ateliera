@@ -212,8 +212,10 @@ impl Vault {
     }
 
     /// Remove a file (e.g. pruning an old revision snapshot), refusing symlinks and
-    /// traversal. A missing path is a no-op, not an error. Bumps the revision.
-    pub fn remove(&self, path: String) -> Result<(), VaultError> {
+    /// traversal. With no `expected_hash` a missing path is a no-op, not an error.
+    /// With one, the file must be there with exactly that content, or the remove is
+    /// refused with `Conflict`, as a write with an expected hash is. Bumps the revision.
+    pub fn remove(&self, path: String, expected_hash: Option<String>) -> Result<(), VaultError> {
         let _write_guard = self.lock_writes()?;
         let parent = open_parent(&self.root, &path, false)?;
         match parent.directory.symlink_metadata(&parent.basename) {
@@ -221,9 +223,20 @@ impl Vault {
                 return Err(VaultError::PathEscape)
             }
             Ok(_) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return match expected_hash {
+                    Some(_) => Err(VaultError::Conflict),
+                    None => Ok(()),
+                };
+            }
             Err(error) => return Err(map_path_error(error)),
         }
+        Self::require_write_condition(
+            &parent.directory,
+            &parent.basename,
+            expected_hash.as_deref(),
+            false,
+        )?;
         parent
             .directory
             .remove_file(&parent.basename)
@@ -969,18 +982,56 @@ mod tests {
             .write_text("a.md".into(), "one\n".into(), None, true)
             .unwrap();
         let before = tv.vault.get_revision().unwrap();
-        tv.vault.remove("a.md".into()).unwrap();
+        tv.vault.remove("a.md".into(), None).unwrap();
         assert!(!tv.vault.exists("a.md".into()).unwrap());
         assert_ne!(tv.vault.get_revision().unwrap(), before);
         // Removing a missing file is a no-op.
-        tv.vault.remove("a.md".into()).unwrap();
+        tv.vault.remove("a.md".into(), None).unwrap();
+    }
+
+    #[test]
+    fn remove_honours_the_expected_hash() {
+        let tv = TempVault::new();
+        let first = tv
+            .vault
+            .write_text("a.md".into(), "one\n".into(), None, true)
+            .unwrap();
+        tv.vault
+            .write_text(
+                "a.md".into(),
+                "two\n".into(),
+                Some(first.hash.clone()),
+                false,
+            )
+            .unwrap();
+        let before = tv.vault.get_revision().unwrap();
+        // A file that no longer has the expected bytes is left alone.
+        assert!(matches!(
+            tv.vault
+                .remove("a.md".into(), Some(first.hash.clone()))
+                .unwrap_err(),
+            VaultError::Conflict
+        ));
+        assert_eq!(tv.vault.read_text("a.md".into()).unwrap().text, "two\n");
+        assert_eq!(tv.vault.get_revision().unwrap(), before);
+        // The current hash removes it.
+        let current = tv.vault.read_text("a.md".into()).unwrap().hash;
+        tv.vault
+            .remove("a.md".into(), Some(current.clone()))
+            .unwrap();
+        assert!(!tv.vault.exists("a.md".into()).unwrap());
+        // An expected hash means the file must be there.
+        assert!(matches!(
+            tv.vault.remove("a.md".into(), Some(current)).unwrap_err(),
+            VaultError::Conflict
+        ));
     }
 
     #[test]
     fn remove_refuses_traversal() {
         let tv = TempVault::new();
         assert!(matches!(
-            tv.vault.remove("../x".into()).unwrap_err(),
+            tv.vault.remove("../x".into(), None).unwrap_err(),
             VaultError::PathEscape
         ));
     }

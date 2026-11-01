@@ -252,6 +252,27 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertFalse(app.buttons["A calm morning"].waitForExistence(timeout: 3))
   }
 
+  func testLandscapeDropsACardTrashedFromTheEditor() {
+    let app = launchWith(["ATELIERA_UITEST_P5": "1"])
+    let room = roomButton("landscape", in: app)
+    XCTAssertTrue(room.waitForExistence(timeout: 8))
+    room.tap()
+    // Open the seeded card in the shared editor and move it to the Trash there.
+    let card = app.buttons["A calm morning"]
+    XCTAssertTrue(card.waitForExistence(timeout: 5))
+    card.tap()
+    let del = app.buttons["note-delete-button"]
+    XCTAssertTrue(del.waitForExistence(timeout: 5))
+    if !del.isHittable { app.swipeUp() }
+    del.tap()
+    let confirm = app.buttons["Move to Trash"]
+    XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+    confirm.tap()
+    // Still in the room, and the card has gone from the board.
+    XCTAssertTrue(app.navigationBars["Life Landscape"].waitForExistence(timeout: 5))
+    XCTAssertFalse(app.buttons["A calm morning"].waitForExistence(timeout: 3))
+  }
+
   func testIdentityRoomSectionsAndPromote() {
     let app = launchWith(["ATELIERA_UITEST_P5": "1"])
     let room = roomButton("identity-studio", in: app)

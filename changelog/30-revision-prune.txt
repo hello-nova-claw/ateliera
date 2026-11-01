@@ -1,0 +1,1 @@
+Version history no longer trusts a saved version's list of files on sight: one that was planted or damaged is ignored, and tidying old versions can only remove the copies the Studio made.
