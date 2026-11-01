@@ -69,7 +69,17 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       ...reactRefresh.configs.vite.rules,
-      ...forbidWorkspaceImportsExcept(['@studio/application', '@studio/ui']).rules,
+      // TODO(#229): the app also reaches the packages below directly. Which layers it may
+      // use is open; until then it may use those it already does, and no others.
+      ...forbidWorkspaceImportsExcept([
+        '@studio/application',
+        '@studio/ui',
+        '@studio/content',
+        '@studio/domain',
+        '@studio/index',
+        '@studio/rhythm',
+        '@studio/storage',
+      ]),
     },
   },
   {
@@ -97,7 +107,7 @@ export default tseslint.config(
   {
     files: ['packages/ui/**/*.{ts,tsx}'],
     rules: {
-      ...forbidWorkspaceImportsExcept(['@studio/domain']).rules,
+      ...forbidWorkspaceImportsExcept(['@studio/domain']),
       'no-restricted-globals': [
         'error',
         { name: 'fetch', message: 'UI must receive data through props and callbacks.' },
