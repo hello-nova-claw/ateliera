@@ -54,11 +54,14 @@ final class GiftStoreTests: XCTestCase {
   }
 
   func testRefreshWithDueCardShowsThatSourcesBody() throws {
-    let (dir, store) = try makeStore([("Reflection Garden/wish.md", wishNote(id: "WISH00000000000000000000AA"))])
+    let (dir, store) = try makeStore([
+      ("Reflection Garden/wish.md", wishNote(id: "WISH00000000000000000000AA"))
+    ])
     defer { try? FileManager.default.removeItem(at: dir) }
     let gift = GiftStore(store: store)
     gift.refresh(ctx: ctx(), today: today)
-    guard case let .card(title, _, body, sourcePath, kind, interval) = gift.gift else {
+    guard case .card(let title, _, let body, let sourcePath, let kind, let interval) = gift.gift
+    else {
       return XCTFail("expected a card, got \(gift.gift)")
     }
     XCTAssertEqual(title, "A wish worth keeping")
@@ -68,9 +71,29 @@ final class GiftStoreTests: XCTestCase {
     XCTAssertEqual(interval, 6)
   }
 
+  func testTheGiftExcerptReadsLikeTheRestOfTheApp() throws {
+    // The Gift used its own Markdown reducer, which left wikilink brackets in the excerpt.
+    var note = wishNote(id: "WISH00000000000000000000AB")
+    note.title = nil
+    note.body = "\nA **test** wish that links [[Invented fixture note]].\n"
+    let (dir, store) = try makeStore([("Reflection Garden/wish.md", note)])
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let gift = GiftStore(store: store)
+    gift.refresh(ctx: ctx(), today: today)
+    guard case .card(let title, let excerpt, _, _, _, _) = gift.gift else {
+      return XCTFail("expected a card, got \(gift.gift)")
+    }
+    XCTAssertEqual(excerpt, "A test wish that links Invented fixture note.")
+    XCTAssertEqual(excerpt, Projection.excerpt(note))
+    XCTAssertEqual(title, Projection.title(note))
+  }
+
   func testGradeKeepFilesCopyAndAdvancesSchedule() throws {
     let (dir, store) = try makeStore([
-      ("Reflection Garden/wish.md", wishNote(id: "WISH00000000000000000000AA", extra: [("keepsake", .scalar("treasured"))]))
+      (
+        "Reflection Garden/wish.md",
+        wishNote(id: "WISH00000000000000000000AA", extra: [("keepsake", .scalar("treasured"))])
+      )
     ])
     defer { try? FileManager.default.removeItem(at: dir) }
     XCTAssertEqual(store.notes.count, 1)
@@ -84,7 +107,10 @@ final class GiftStoreTests: XCTestCase {
     }
     // A keepsake copy was filed → notes grew by one.
     XCTAssertEqual(store.notes.count, 2)
-    XCTAssertTrue(store.notes.contains { $0.title == "A wish worth keeping" && $0.rooms.contains("reflection-garden") })
+    XCTAssertTrue(
+      store.notes.contains {
+        $0.title == "A wish worth keeping" && $0.rooms.contains("reflection-garden")
+      })
 
     // The SOURCE advanced by sm2Interval(6, 4) = 15 days from today, kept its kind,
     // and preserved the unknown frontmatter key across the re-serialize.
@@ -97,7 +123,9 @@ final class GiftStoreTests: XCTestCase {
   }
 
   func testGradeNotNowReschedulesWithoutFilingCopy() throws {
-    let (dir, store) = try makeStore([("Reflection Garden/wish.md", wishNote(id: "WISH00000000000000000000AA"))])
+    let (dir, store) = try makeStore([
+      ("Reflection Garden/wish.md", wishNote(id: "WISH00000000000000000000AA"))
+    ])
     defer { try? FileManager.default.removeItem(at: dir) }
     let gift = GiftStore(store: store)
     gift.refresh(ctx: ctx(), today: today)
@@ -115,7 +143,9 @@ final class GiftStoreTests: XCTestCase {
   }
 
   func testSaveResurfaceScheduleSurfacesStaleHashConflict() throws {
-    let (dir, store) = try makeStore([("Reflection Garden/wish.md", wishNote(id: "WISH00000000000000000000AA"))])
+    let (dir, store) = try makeStore([
+      ("Reflection Garden/wish.md", wishNote(id: "WISH00000000000000000000AA"))
+    ])
     defer { try? FileManager.default.removeItem(at: dir) }
     let first = try XCTUnwrap(store.beginEdit(path: "Reflection Garden/wish.md"))
     let stale = try XCTUnwrap(store.beginEdit(path: "Reflection Garden/wish.md"))
