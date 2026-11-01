@@ -1,0 +1,1 @@
+Notes whose details were written by other apps, with comments, folded text or other YAML styles, now open in the app and keep those details exactly as written when the app saves them.
