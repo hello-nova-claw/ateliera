@@ -357,6 +357,7 @@ enum NoteParser {
     // after it was escaped.
     var lines: [[(Unicode.Scalar, Bool)]] = [[]]
     var escapedBreaks: [Bool] = []
+    var closed = false
     var pos = 0
     while pos < raw.count {
       let scalar = raw[pos]
@@ -365,7 +366,10 @@ enum NoteParser {
         escapedBreaks.append(false)
         pos += 1
       } else if scalar == quote {
-        guard quote == "'" && pos + 1 < raw.count && raw[pos + 1] == "'" else { break }
+        guard quote == "'" && pos + 1 < raw.count && raw[pos + 1] == "'" else {
+          closed = true
+          break
+        }
         lines[lines.count - 1].append(("'", true))
         pos += 2
       } else if quote == "\"" && scalar == "\\" && pos + 1 < raw.count && raw[pos + 1] == "\n" {
@@ -381,6 +385,8 @@ enum NoteParser {
         pos += 1
       }
     }
+    // A backslash before the last quote escaped it, so the scalar never closed.
+    guard closed else { throw MalformedScalar() }
     return joinFolded(lines, escapedBreaks: escapedBreaks)
   }
 
@@ -425,10 +431,10 @@ enum NoteParser {
   private struct MalformedScalar: Error {}
 
   // One escape of YAML's double-quoted set, starting at the backslash at `pos`: the
-  // scalar it stands for and how many scalars it took. A UTF-16 surrogate pair
-  // written as two `\u` escapes is joined. A lone surrogate, which a Swift string
-  // cannot hold, reads as U+FFFD; any other escape the web's `yaml` parser rejects
-  // is rejected here too.
+  // scalar it stands for and how many scalars it took. A high and a low surrogate are
+  // joined however wide their escapes are, as the web does. An escape the web's
+  // `yaml` parser rejects is rejected, and so is a lone surrogate: the web keeps it,
+  // but a Swift string cannot hold it, so a native save would change the value.
   private static func decodeEscape(_ scalars: [Unicode.Scalar], at pos: Int)
     throws -> (Unicode.Scalar, Int)
   {
@@ -440,18 +446,20 @@ enum NoteParser {
     }
     let escape = scalars[pos + 1]
     if let decoded = simpleEscapes[escape] { return (decoded, 2) }
-    guard let width = hexEscapeWidths[escape], let code = hex(at: pos + 2, width: width) else {
+    guard let width = hexEscapeWidths[escape], let first = hex(at: pos + 2, width: width) else {
       throw MalformedScalar()
     }
-    let next = pos + 2 + width
-    if (0xD800...0xDBFF).contains(code), next + 6 <= scalars.count, scalars[next] == "\\",
-      scalars[next + 1] == "u", let low = hex(at: next + 2, width: 4),
-      (0xDC00...0xDFFF).contains(low)
+    var code = first
+    var consumed = 2 + width
+    if (0xD800...0xDBFF).contains(code), pos + consumed + 1 < scalars.count,
+      scalars[pos + consumed] == "\\",
+      let lowWidth = ["u": 4, "U": 8][scalars[pos + consumed + 1]],
+      let low = hex(at: pos + consumed + 2, width: lowWidth), (0xDC00...0xDFFF).contains(low)
     {
-      let joined = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00)
-      return (Unicode.Scalar(joined) ?? "\u{FFFD}", 2 + width + 6)
+      code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00)
+      consumed += 2 + lowWidth
     }
-    if code > 0x10FFFF { throw MalformedScalar() }
-    return (Unicode.Scalar(code) ?? "\u{FFFD}", 2 + width)
+    guard let decoded = Unicode.Scalar(code) else { throw MalformedScalar() }
+    return (decoded, consumed)
   }
 }
