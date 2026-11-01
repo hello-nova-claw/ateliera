@@ -1,0 +1,1 @@
+In a note's Details, the Tags and Seasons fields now take more than one value as you type. "calm, practice" stays as you wrote it and saves two tags.
