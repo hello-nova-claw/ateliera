@@ -378,6 +378,53 @@ final class YamlParityTests: XCTestCase {
     XCTAssertEqual(parsed.privacy, NotePrivacy(sensitivity: "sensitive", aiAccess: "never"))
   }
 
+  // Values from `yaml`'s `parse` of the same lines (yaml 2.9.0).
+  func testFlowCollectionsWithQuotesCommentsAndApostrophesReadAsTheWebReadsThem() throws {
+    let text = noteText([
+      "quoted_hash: [\"a # b\", c]",
+      "apostrophe: [it's, calm]",
+      "commented: [a, b] # c",
+      "map_hash: { title: \"a # b\", creator: Ada }",
+      "map_comma: { title: \"a, b\", creator: Ada }",
+    ]).replacingOccurrences(of: "tags: []", with: "tags: [\"a # b\", it's]")
+    let parsed = try XCTUnwrap(NoteParser.parse(text))
+    XCTAssertEqual(parsed.tags, ["a # b", "it's"])
+    XCTAssertEqual(parsed.frontmatterList("quoted_hash"), ["a # b", "c"])
+    XCTAssertEqual(parsed.frontmatterList("apostrophe"), ["it's", "calm"])
+    XCTAssertEqual(parsed.frontmatterList("commented"), ["a", "b"])
+    XCTAssertEqual(parsed.nestedScalar("map_hash", "title"), "a # b")
+    XCTAssertEqual(parsed.nestedScalar("map_comma", "title"), "a, b")
+    XCTAssertEqual(parsed.nestedScalar("map_comma", "creator"), "Ada")
+    XCTAssertEqual(parsed.serialize(), text)
+  }
+
+  func testACommentBetweenAKeyAndItsListKeepsTheList() throws {
+    let text = noteText(["custom:", "# about these", "  - one", "  - two", "after: x"])
+      .replacingOccurrences(
+        of: "tags: []", with: "tags:\n# a comment\n  - calm\n  - practice")
+    let parsed = try XCTUnwrap(NoteParser.parse(text))
+    XCTAssertEqual(parsed.tags, ["calm", "practice"])
+    XCTAssertEqual(parsed.frontmatterList("custom"), ["one", "two"])
+    XCTAssertEqual(parsed.frontmatterScalar("after"), "x")
+    // The unknown key keeps its comment, in place.
+    XCTAssertTrue(
+      parsed.serialize().hasPrefix("---\ncustom:\n# about these\n  - one\n  - two\nafter: x\n"))
+  }
+
+  func testRecognisedValuesTheReaderCannotModelSendTheNoteToRepair() {
+    for (from, to) in [
+      ("tags: []", "tags:\n  - [nested]"),
+      ("tags: []", "tags:\n  - &anchor calm"),
+      ("tags: []", "tags:\n  - {a: b}"),
+      (
+        "privacy:\n  sensitivity: private\n  ai_access: ask",
+        "privacy: { sensitivity: , ai_access: ask }"
+      ),
+    ] {
+      XCTAssertNil(NoteParser.parse(noteText([]).replacingOccurrences(of: from, with: to)), to)
+    }
+  }
+
   func testARecognisedKeyWithAnUnreadableValueSendsTheNoteToRepair() {
     let text = noteText([]).replacingOccurrences(
       of: "display:\n  featured: false", with: "display: {featured: [false]}")
