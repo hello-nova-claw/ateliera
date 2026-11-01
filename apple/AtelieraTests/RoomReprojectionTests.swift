@@ -10,7 +10,7 @@ final class RoomReprojectionTests: XCTestCase {
     let dir = FileManager.default.temporaryDirectory
       .appendingPathComponent("rooms-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    let store = VaultStore()
+    let store = VaultStore(discovering: false)
     try store.openForTesting(at: dir)
     return (dir, store)
   }
@@ -28,7 +28,8 @@ final class RoomReprojectionTests: XCTestCase {
     let (dir, store) = try makeStore()
     defer { try? FileManager.default.removeItem(at: dir) }
     let reflection = ReflectionStore(store: store)
-    XCTAssertTrue(reflection.keep(kind: "reflection", body: "a change I noticed"))
+    XCTAssertTrue(
+      reflection.keep(kind: "reflection", body: "Invented reflection: test fixture one."))
     let card = try XCTUnwrap(reflection.garden.cards.first)
 
     XCTAssertTrue(store.setNoteStatus(path: card.path, status: "trashed"))
@@ -40,7 +41,8 @@ final class RoomReprojectionTests: XCTestCase {
     let (dir, store) = try makeStore()
     defer { try? FileManager.default.removeItem(at: dir) }
     let identity = IdentityStore(store: store)
-    XCTAssertTrue(identity.add(section: .alreadyTrue, title: "Steady", body: "I keep my word."))
+    XCTAssertTrue(
+      identity.add(section: .alreadyTrue, title: "Invented card", body: "Test fixture two."))
     let card = try XCTUnwrap(identity.model.sections[.alreadyTrue]?.first)
 
     XCTAssertTrue(store.setNoteStatus(path: card.path, status: "archived"))
@@ -57,8 +59,8 @@ final class RoomReprojectionTests: XCTestCase {
     let area = try XCTUnwrap(landscape.areas.first?.id)
     XCTAssertTrue(
       landscape.addCard(
-        lifeArea: area, anchor: .vision, horizon: nil, title: "A slower morning",
-        body: "Coffee before screens."))
+        lifeArea: area, anchor: .vision, horizon: nil, title: "Invented vision card",
+        body: "Test fixture three."))
     let card = try XCTUnwrap(landscape.board.cell(area: area, anchor: .vision)?.cards.first)
 
     XCTAssertTrue(store.setNoteStatus(path: card.path, status: "trashed"))
@@ -76,7 +78,7 @@ final class RoomReprojectionTests: XCTestCase {
       let reflection = ReflectionStore(store: store)
       gone = reflection
     }
-    XCTAssertTrue(store.capture(title: "Note", body: "x", room: "inbox"))
+    XCTAssertTrue(store.capture(title: "Invented note", body: "Test fixture four.", room: "inbox"))
     RunLoop.main.run(until: Date().addingTimeInterval(0.05))
     XCTAssertNil(gone, "the vault kept a room store alive")
   }
