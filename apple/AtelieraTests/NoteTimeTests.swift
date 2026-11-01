@@ -89,6 +89,17 @@ final class NoteTimeTests: XCTestCase {
     }
   }
 
+  func testTimestampsWithTheSameOffsetCompareByTheirText() {
+    XCTAssertEqual(
+      NoteTime.compare("2026-11-02T08:00:00.000+11:00", "2026-11-02T09:00:00.000+11:00"),
+      .orderedAscending)
+    XCTAssertEqual(
+      NoteTime.compare("2026-11-02T08:00:00.000Z", "2026-11-02T08:00:00.000Z"), .orderedSame)
+    XCTAssertEqual(
+      NoteTime.compare("2026-11-03T00:00:00.000-08:00", "2026-11-02T23:00:00.000-08:00"),
+      .orderedDescending)
+  }
+
   func testNotesSortByWhenTheyWereWrittenNotByTheirText() throws {
     // 08:00 in Melbourne is 21:00 UTC, two hours before the UTC note, though its text
     // sorts later.

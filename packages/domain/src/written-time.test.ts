@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { localTimestamp, writtenDay } from './written-time';
+import { localTimestamp, writerTimestamp, writtenDay } from './written-time';
 
 // 08:00 on 2 November 2026 in Melbourne (daylight time, UTC+11) is still
 // 1 November in UTC and in Los Angeles.
@@ -61,5 +61,14 @@ describe('writtenDay', () => {
   it('has no day for text that is not a timestamp', () => {
     expect(writtenDay('yesterday')).toBeUndefined();
     expect(writtenDay('2026-02-30T08:00:00+11:00')).toBeUndefined();
+  });
+});
+
+describe('writerTimestamp', () => {
+  it('uses the writer’s zone when there is one, and UTC when there isn’t', () => {
+    expect(writerTimestamp(melbourneMorning, 'Australia/Melbourne')).toBe(
+      '2026-11-02T08:00:00.000+11:00',
+    );
+    expect(writerTimestamp(melbourneMorning, undefined)).toBe('2026-11-01T21:00:00.000Z');
   });
 });
