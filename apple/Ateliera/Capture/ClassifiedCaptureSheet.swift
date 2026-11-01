@@ -38,10 +38,6 @@ struct ClassifiedCaptureSheet: View {
     var confirmLabel: String { self == .lifePlanning ? "Begin" : "Keep" }
   }
 
-  // A fixed opening for the becoming capture: shown as a lead-in and prepended on save, so
-  // the person only completes the sentence (the field itself stays an ordinary editor).
-  private let becomingLeadIn = "I am becoming someone who"
-
   @State private var intention: Intention = .lifePlanning
   @State private var draft = ""
 
@@ -66,7 +62,7 @@ struct ClassifiedCaptureSheet: View {
 
           // The becoming's fixed opening: you complete the sentence in the field below.
           if intention == .lifePlanning {
-            Text("\(becomingLeadIn)…")
+            Text("\(BecomingStatement.leadIn)…")
               .font(StudioFont.pageSubtitle).foregroundStyle(theme.inkStrong)
               .accessibilityIdentifier("becoming-lead-in")
           }
@@ -84,9 +80,11 @@ struct ClassifiedCaptureSheet: View {
           }
 
           if intention == .lifePlanning {
-            Text("You'll be guided from here — an ordinary day, the version of you living it, and what supports it.")
-              .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
-              .fixedSize(horizontal: false, vertical: true)
+            Text(
+              "You'll be guided from here — an ordinary day, the version of you living it, and what supports it."
+            )
+            .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
+            .fixedSize(horizontal: false, vertical: true)
           }
         }
         .padding(24)
@@ -112,9 +110,10 @@ struct ClassifiedCaptureSheet: View {
     let body = draft.trimmingCharacters(in: .whitespacesAndNewlines)
     switch intention {
     case .lifePlanning:
-      // The becoming statement is the fixed lead-in completed by what was typed; capture
-      // it (it surfaces as "Currently becoming"), then open the thread on that statement.
-      let statement = "\(becomingLeadIn) \(body)"
+      // The becoming statement is the fixed lead-in completed by what was typed (once, even
+      // if the whole sentence was typed); capture it (it surfaces as "Currently becoming"),
+      // then open the thread on that statement.
+      let statement = BecomingStatement.compose(body)
       guard store.capture(title: nil, body: statement, destination: .foyer(.becoming)),
         let path = store.lastCapturedPath
       else { return }
