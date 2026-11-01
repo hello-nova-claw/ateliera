@@ -223,7 +223,8 @@ enum NoteParser {
       }
       return .map(try parseBlock(lines, &index, indent: indent + 2))
     }
-    if let first = value.unicodeScalars.first, "{&*!".unicodeScalars.contains(first) {
+    if value.hasPrefix("{") { return try flowMap(value) }
+    if let first = value.unicodeScalars.first, "&*!".unicodeScalars.contains(first) {
       throw UnmodelledShape()
     }
     if let first = value.unicodeScalars.first, "%@`".unicodeScalars.contains(first) {
@@ -257,8 +258,27 @@ enum NoteParser {
 
   // A one-line flow sequence of scalars, split at the commas outside quotes.
   private static func flowSequence(_ value: String) throws -> [String] {
+    try flowItems(value, closing: "]").map { try unquote($0) }
+  }
+
+  // A one-line flow map of scalars (`{ featured: false }`), as other writers use for
+  // small maps. A nested collection is not modelled.
+  private static func flowMap(_ value: String) throws -> YamlNode {
+    let pairs: [(String, YamlNode)] = try flowItems(value, closing: "}").map { item in
+      guard let (key, rest) = keyAndValue(item) else { throw UnmodelledShape() }
+      let text = trimmingYamlSpace(rest)
+      if text == "true" || text == "false" { return (key, .bool(text == "true")) }
+      if StudioNote.resolvesAsNonString(text) { return (key, .raw(text)) }
+      return (key, .scalar(try unquote(text)))
+    }
+    return .map(pairs)
+  }
+
+  // The items of a one-line flow collection, split at the commas outside quotes and
+  // trimmed. `value` runs from the opening bracket to `closing`.
+  private static func flowItems(_ value: String, closing: Unicode.Scalar) throws -> [String] {
     let scalars = Array(value.unicodeScalars)
-    guard scalars.last == "]" else { throw MalformedScalar() }
+    guard scalars.last == closing else { throw MalformedScalar() }
     var items: [String] = []
     var current = String.UnicodeScalarView()
     var quote: Unicode.Scalar?
@@ -276,7 +296,7 @@ enum NoteParser {
         }
       } else if scalar == "\"" || scalar == "'" {
         quote = scalar
-      } else if scalar == "[" || scalar == "{" {
+      } else if "[]{}".unicodeScalars.contains(scalar) {
         throw UnmodelledShape()
       } else if scalar == "," {
         current.removeLast()
@@ -287,7 +307,7 @@ enum NoteParser {
     guard quote == nil else { throw MalformedScalar() }
     items.append(String(current))
     if items.count == 1 && trimmingYamlSpace(items[0]).isEmpty { return [] }
-    return try items.map { try unquote(withoutComment(trimmingYamlSpace($0))) }
+    return items.map { withoutComment(trimmingYamlSpace($0)) }
   }
 
   // The column of a block sequence under a key at `indent`: indented by two, or, as
@@ -597,7 +617,8 @@ enum NoteParser {
   // or one naming no code point: YAML the web's parser rejects too.
   private struct MalformedScalar: Error {}
 
-  // Valid YAML the reader does not model (a flow map, an anchor, an alias, a tag).
+  // Valid YAML the reader does not model (an anchor, an alias, a tag, a nested flow
+  // collection).
   private struct UnmodelledShape: Error {}
 
   // One escape of YAML's double-quoted set, starting at the backslash at `pos`: the
