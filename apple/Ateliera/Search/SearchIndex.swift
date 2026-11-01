@@ -167,7 +167,8 @@ final class SearchIndex {
       let ls = score(left, queryTokens)
       let rs = score(right, queryTokens)
       if ls != rs { return ls > rs }
-      if left.updated != right.updated { return left.updated > right.updated }
+      let updated = NoteTime.compare(left.updated, right.updated)
+      if updated != .orderedSame { return updated == .orderedDescending }
       return left.id < right.id
     }
 
@@ -198,9 +199,15 @@ final class SearchIndex {
 
   private func matchesFilters(_ note: IndexedNote, _ filters: SearchFilters) -> Bool {
     if !filters.rooms.isEmpty && Set(note.rooms).isDisjoint(with: filters.rooms) { return false }
-    if !filters.semanticTypes.isEmpty && !filters.semanticTypes.contains(note.semanticType) { return false }
-    if !filters.lifeAreas.isEmpty && Set(note.lifeAreas).isDisjoint(with: filters.lifeAreas) { return false }
-    if !filters.seasons.isEmpty && Set(note.seasons).isDisjoint(with: filters.seasons) { return false }
+    if !filters.semanticTypes.isEmpty && !filters.semanticTypes.contains(note.semanticType) {
+      return false
+    }
+    if !filters.lifeAreas.isEmpty && Set(note.lifeAreas).isDisjoint(with: filters.lifeAreas) {
+      return false
+    }
+    if !filters.seasons.isEmpty && Set(note.seasons).isDisjoint(with: filters.seasons) {
+      return false
+    }
     if !filters.cardTypes.isEmpty && !filters.cardTypes.contains(note.cardType) { return false }
     if filters.tags.isEmpty {
       // no tag filter
@@ -219,11 +226,14 @@ final class SearchIndex {
   // MARK: - Hit / snippet / match reason
 
   private func hit(_ note: IndexedNote, _ queryTokens: [String]) -> SearchHit {
-    let (snippet, highlightRanges) = Self.makeSnippet(title: note.title, body: note.body, queryTokens: queryTokens)
+    let (snippet, highlightRanges) = Self.makeSnippet(
+      title: note.title, body: note.body, queryTokens: queryTokens)
 
     let context: MatchContext?
     if highlightRanges.isEmpty {
-      if note.tags.contains(where: { tag in queryTokens.contains { Self.foldForMatch(tag).contains($0) } }) {
+      if note.tags.contains(where: { tag in
+        queryTokens.contains { Self.foldForMatch(tag).contains($0) }
+      }) {
         context = MatchContext(field: .tags, text: note.tags.joined(separator: ", "))
       } else if queryTokens.contains(where: { Self.foldForMatch(note.sourceText).contains($0) }) {
         context = MatchContext(field: .source, text: note.sourceText)
@@ -248,7 +258,8 @@ final class SearchIndex {
       snippet: snippet, highlightRanges: highlightRanges,
       semanticType: note.semanticType, cardType: note.cardType,
       status: note.status, updated: note.updated,
-      matchReason: MatchReason(field: field, strategy: .keyword, text: queryTokens.joined(separator: " "), distance: nil),
+      matchReason: MatchReason(
+        field: field, strategy: .keyword, text: queryTokens.joined(separator: " "), distance: nil),
       matchContext: context)
   }
 
@@ -267,7 +278,10 @@ final class SearchIndex {
         cardTypes: Self.withSelected([:], filters.cardTypes))
     }
 
-    func facet(_ selected: [String], _ removing: (inout SearchFilters) -> Void, _ values: (IndexedNote) -> [String]) -> [FacetValue] {
+    func facet(
+      _ selected: [String], _ removing: (inout SearchFilters) -> Void,
+      _ values: (IndexedNote) -> [String]
+    ) -> [FacetValue] {
       var scoped = filters
       removing(&scoped)
       let matching = docs.filter { matchesFilters($0, scoped) && matches($0, queryTokens) }
@@ -293,7 +307,8 @@ final class SearchIndex {
   private static func withSelected(_ counts: [String: Int], _ selected: [String]) -> [FacetValue] {
     var merged = counts
     for value in selected where merged[value] == nil { merged[value] = 0 }
-    return merged
+    return
+      merged
       .map { FacetValue(value: $0.key, count: $0.value) }
       .sorted { left, right in
         if left.count != right.count { return left.count > right.count }
@@ -353,7 +368,8 @@ final class SearchIndex {
   static func foldForMatch(_ value: String) -> String {
     let decomposed = value.decomposedStringWithCanonicalMapping.lowercased()
     var out = String.UnicodeScalarView()
-    for scalar in decomposed.unicodeScalars where !scalar.properties.isDiacritic && !isCombiningMark(scalar) {
+    for scalar in decomposed.unicodeScalars
+    where !scalar.properties.isDiacritic && !isCombiningMark(scalar) {
       out.append(scalar)
     }
     return String(out)
@@ -370,7 +386,9 @@ final class SearchIndex {
 
   // MARK: - Snippet + highlight ranges (ports makeSnippet / rangesFor / mappedFold)
 
-  static func makeSnippet(title: String, body: String, queryTokens: [String]) -> (String, [HighlightRange]) {
+  static func makeSnippet(title: String, body: String, queryTokens: [String]) -> (
+    String, [HighlightRange]
+  ) {
     let source = collapseWhitespace("\(title). \(body)")
     let first = rangesFor(source, queryTokens).first?.start ?? 0
     let sourceUTF16 = Array(source.utf16)
@@ -417,7 +435,9 @@ final class SearchIndex {
         }
         // Advance by max(token.count, 1) folded characters.
         let advance = max(tokenLen, 1)
-        cursor = folded.index(match.lowerBound, offsetBy: advance, limitedBy: folded.endIndex) ?? folded.endIndex
+        cursor =
+          folded.index(match.lowerBound, offsetBy: advance, limitedBy: folded.endIndex)
+          ?? folded.endIndex
       }
     }
     return ranges.sorted { left, right in

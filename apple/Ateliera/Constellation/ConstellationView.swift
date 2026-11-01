@@ -30,7 +30,10 @@ struct ConstellationView: View {
   let store: VaultStore
   let onOpen: (String) -> Void  // note path
 
-  private enum Mode: String, CaseIterable { case map = "Map", list = "List" }
+  private enum Mode: String, CaseIterable {
+    case map = "Map"
+    case list = "List"
+  }
   @State private var mode: Mode = .map
   @State private var selected: ConstellationNode?
 
@@ -45,10 +48,11 @@ struct ConstellationView: View {
       RoomHeading(
         eyebrow: "small moments, bigger patterns",
         title: "Constellation",
-        intro: "Your moments as dots, and the meaning between them as lines — your life, over time.")
-        .padding(.horizontal, 24)
-        .padding(.top, 24)
-        .padding(.bottom, 12)
+        intro: "Your moments as dots, and the meaning between them as lines — your life, over time."
+      )
+      .padding(.horizontal, 24)
+      .padding(.top, 24)
+      .padding(.bottom, 12)
 
       Picker("View", selection: $mode) {
         ForEach(Mode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
@@ -75,7 +79,10 @@ struct ConstellationView: View {
     .sheet(item: $selected) { node in
       ConstellationMomentSheet(
         node: node, graph: graph,
-        onOpen: { path in selected = nil; onOpen(path) },
+        onOpen: { path in
+          selected = nil
+          onOpen(path)
+        },
         onSelect: { selected = $0 })
     }
   }
@@ -135,11 +142,12 @@ private struct ConstellationCanvas: View {
         // mode and the per-moment sheet.
         Canvas { ctx, _ in
           for edge in graph.edges {
-            guard let p1 = layout.position(edge.endpoints.a),
-              let p2 = layout.position(edge.endpoints.b) else { continue }
+            guard let start = layout.position(edge.endpoints.a),
+              let end = layout.position(edge.endpoints.b)
+            else { continue }
             var path = Path()
-            path.move(to: p1)
-            path.addLine(to: p2)
+            path.move(to: start)
+            path.addLine(to: end)
             ctx.stroke(
               path, with: .color(theme.line.opacity(Self.lineOpacity(edge.kind))),
               lineWidth: edge.kind == .link ? 1.2 : 0.8)
@@ -153,7 +161,9 @@ private struct ConstellationCanvas: View {
         // Full-Keyboard Access reliably resolve it).
         ForEach(graph.nodes) { node in
           if let p = layout.position(node.id) {
-            Button { selected = node } label: {
+            Button {
+              selected = node
+            } label: {
               Circle()
                 .fill(meaningColour(node.meaning, theme: theme))
                 .frame(width: 13, height: 13)
@@ -193,7 +203,7 @@ struct ConstellationLayout {
   init(nodes: [ConstellationNode], size: CGSize) {
     let centre = CGPoint(x: size.width / 2, y: size.height / 2)
     // Sort oldest→newest; blank timestamps sort first (treated as oldest).
-    let ordered = nodes.sorted { $0.timestamp < $1.timestamp }
+    let ordered = nodes.sorted { NoteTime.compare($0.timestamp, $1.timestamp) == .orderedAscending }
     let count = max(ordered.count, 1)
     // Clamp to >= 0: a transient zero/tiny size (e.g. first layout pass) must never
     // yield a negative radius, which would place dots at invalid, off-screen points.
@@ -228,7 +238,9 @@ private struct ConstellationList: View {
     List {
       ForEach(graph.nodes) { node in
         Section {
-          Button { onOpen(node.path) } label: {
+          Button {
+            onOpen(node.path)
+          } label: {
             VStack(alignment: .leading, spacing: 4) {
               Text(node.title.isEmpty ? "Untitled" : node.title)
                 .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)
@@ -238,8 +250,10 @@ private struct ConstellationList: View {
                   .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
               } else {
                 ForEach(Array(neighbours.enumerated()), id: \.offset) { _, n in
-                  Text("\(n.relationshipDescription): \(n.node.title.isEmpty ? "Untitled" : n.node.title)")
-                    .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
+                  Text(
+                    "\(n.relationshipDescription): \(n.node.title.isEmpty ? "Untitled" : n.node.title)"
+                  )
+                  .font(StudioFont.meta).foregroundStyle(theme.inkMuted)
                 }
               }
             }
@@ -273,7 +287,9 @@ private struct ConstellationMomentSheet: View {
             Text(JournalEntryRow.dateLabel(node.timestamp))
               .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
           }
-          Button { onOpen(node.path) } label: {
+          Button {
+            onOpen(node.path)
+          } label: {
             Label("Open this moment", systemImage: "arrow.up.forward.square")
               .font(StudioFont.control).foregroundStyle(theme.link)
           }
@@ -285,7 +301,9 @@ private struct ConstellationMomentSheet: View {
         if !neighbours.isEmpty {
           Section("Connected moments") {
             ForEach(Array(neighbours.enumerated()), id: \.offset) { _, n in
-              Button { onSelect(n.node) } label: {
+              Button {
+                onSelect(n.node)
+              } label: {
                 VStack(alignment: .leading, spacing: 2) {
                   Text(n.node.title.isEmpty ? "Untitled" : n.node.title)
                     .font(StudioFont.cardTitle).foregroundStyle(theme.inkStrong)

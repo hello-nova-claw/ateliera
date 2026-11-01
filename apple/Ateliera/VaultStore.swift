@@ -761,7 +761,7 @@ final class VaultStore {
   private var profilePair: (path: String, note: StudioNote)? {
     parsedNotesByPath
       .filter { $0.note.cardType == "profile" }
-      .max { $0.note.created < $1.note.created }  // newest wins if ever duplicated
+      .max { NoteTime.isNewer($1.note.created, than: $0.note.created) }  // newest wins
   }
 
   var profileName: String? {
@@ -912,7 +912,7 @@ final class VaultStore {
     // Snapshot the version we're about to overwrite so it stays recoverable.
     _ = RevisionStore(store: self).snapshot(
       reason: RevisionReason.conflictResolution, paths: [conflict.path],
-      now: NoteFactory.isoTimestamp(), id: NoteFactory.createNoteId())
+      now: NoteFactory.utcTimestamp(), id: NoteFactory.createNoteId())
     let draft = conflict.draft
     if saveEdit(fresh, updatedNote: draft) {
       self.conflict = nil
@@ -1168,10 +1168,11 @@ final class VaultStore {
     self.parsedNotesByPath = parsedPairs
     self.unparsedPaths = unparsed
     index.rebuild(indexed)
-    // Newest first: by `updated`/`created` (ISO strings sort chronologically),
-    // then title as a stable tiebreaker for notes without a timestamp.
+    // Newest first: by `updated`/`created` as instants (each keeps its writer's
+    // offset), then title as a stable tiebreaker for notes without a timestamp.
     self.notes = summaries.sorted {
-      $0.timestamp != $1.timestamp ? $0.timestamp > $1.timestamp : $0.title < $1.title
+      let order = NoteTime.compare($0.timestamp, $1.timestamp)
+      return order != .orderedSame ? order == .orderedDescending : $0.title < $1.title
     }
     self.summariesByPath = byPath
   }

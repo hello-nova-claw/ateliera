@@ -27,11 +27,11 @@ enum IdentityProjector {
     let activeLoaded: [Projection.Loaded] =
       becomings
       .filter { $0.note.status != "archived" && $0.note.status != "trashed" }
-      .sorted { $0.note.created > $1.note.created }
+      .sorted { NoteTime.isNewer($0.note.created, than: $1.note.created) }
     let retiredLoaded: [Projection.Loaded] =
       becomings
       .filter { $0.note.status == "archived" }
-      .sorted { $0.note.created > $1.note.created }
+      .sorted { NoteTime.isNewer($0.note.created, than: $1.note.created) }
     let activeBecomings: [BecomingModel] = activeLoaded.map { loaded in
       BecomingModel(
         id: loaded.note.id, path: loaded.path, title: Projection.title(loaded.note),
