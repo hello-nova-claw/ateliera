@@ -17,13 +17,18 @@ enum BecomingStatement {
     let lowered = rest.lowercased()
     if let opening = openings.first(where: { lowered.hasPrefix($0) }) {
       let after = rest.dropFirst(opening.count)
-      // Only a whole opening counts: "someone whole" is not "someone who".
-      if after.isEmpty || after.first == " " || after.first == "…" || after.hasPrefix("...") {
-        rest = String(after)
-        while let first = rest.first, first == "…" || first == "." || first == " " {
-          rest.removeFirst()
-        }
+      // Only a whole opening counts: "someone whole" and "someone who's" carry on the word.
+      if let next = after.first, next.isLetter || next.isNumber || next == "'" || next == "’" {
+        return "\(leadIn) \(rest)"
       }
+      rest = String(after)
+      // The separator someone typed after "who": an ellipsis, a comma, then spaces or a
+      // line break. A full stop that starts the completion is kept.
+      for separator in ["...", "…", ","] where rest.hasPrefix(separator) {
+        rest.removeFirst(separator.count)
+        break
+      }
+      rest = rest.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     return "\(leadIn) \(rest)"
   }
