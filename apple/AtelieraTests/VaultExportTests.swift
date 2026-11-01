@@ -67,6 +67,9 @@ final class VaultExportTests: XCTestCase {
     XCTAssertEqual(PortableManifest.disposition(".studio/index/fts.db"), .cache)
     XCTAssertEqual(PortableManifest.disposition(".studio/mystery"), .internalOnly)
     XCTAssertEqual(PortableManifest.disposition("evil.js"), .blocked)
+    XCTAssertEqual(PortableManifest.disposition("Evil.app/Contents/MacOS/Evil"), .blocked)
+    XCTAssertEqual(PortableManifest.disposition(".studio/backups/x/files/Evil.app/data"), .blocked)
+    XCTAssertEqual(PortableManifest.disposition("Ideas.js/plan.md"), .include)
   }
 
   func testExporterOverVault() throws {

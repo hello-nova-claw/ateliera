@@ -249,7 +249,10 @@ final class VaultImportTests: XCTestCase {
   }
 
   func testImportRefusesActiveContent() throws {
-    for path in ["Inbox/run.command", "Evil.app/Contents/MacOS/Evil", "Inbox/page.HTML"] {
+    for path in [
+      "Inbox/run.command", "Evil.app/Contents/MacOS/Evil", "Inbox/page.HTML",
+      ".studio/backups/x/files/Evil.app/data",
+    ] {
       try assertRefused(
         portable([(path: path, bytes: Data("x".utf8))]), as: .activeContent(path: path))
     }
@@ -339,5 +342,30 @@ final class VaultImportTests: XCTestCase {
     try assertRefused(
       portable([(path: "Inbox/a.md", bytes: Data("a\n".utf8))], excludedCaches: ["Inbox/b.md"]),
       as: .invalidManifest)
+  }
+
+  func testWhatExportIncludesImportAccepts() throws {
+    // A folder with an active extension, a bundle, and the same inside the backups folder.
+    let (sourceDir, source) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: sourceDir) }
+    XCTAssertTrue(source.capture(title: "Note", body: "body", room: "inbox"))
+    for path in [
+      "Ideas.js/plan.md", "Evil.app/Contents/MacOS/Evil",
+      ".studio/backups/2026-08-29/x--y/files/Evil.app/data",
+    ] {
+      let url = sourceDir.appendingPathComponent(path)
+      try FileManager.default.createDirectory(
+        at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try Data("x\n".utf8).write(to: url)
+    }
+    let archive = try VaultExporter.export(store: source, generatedAt: "2026-08-28T09:00:00.000Z")
+    let exported = try Zip32Reader.parse(archive).map { $0.path }
+    XCTAssertTrue(exported.contains("Ideas.js/plan.md"))
+    XCTAssertFalse(exported.contains { $0.contains(".app/") })
+
+    let (destDir, dest) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: destDir) }
+    let plan = try VaultImporter.prepare(archive: archive, store: dest)
+    XCTAssertTrue(plan.items.map { $0.path }.contains("Ideas.js/plan.md"))
   }
 }
