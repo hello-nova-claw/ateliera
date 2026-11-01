@@ -260,8 +260,9 @@ enum NoteParser {
   private struct MalformedEscape: Error {}
 
   // The YAML double-quoted escape set. A UTF-16 surrogate pair written as two `\u`
-  // escapes is joined. A lone surrogate, which a Swift string cannot hold, reads as
-  // U+FFFD; any other escape the web's `yaml` parser rejects is rejected here too.
+  // escapes is joined. An escape the web's `yaml` parser rejects is rejected, and so
+  // is a lone surrogate: the web keeps it, but a Swift string cannot hold it, so a
+  // native save would change the value.
   private static func decodeDoubleQuoted(_ scalars: ArraySlice<Unicode.Scalar>) throws -> String {
     var out = String.UnicodeScalarView()
     var pos = scalars.startIndex
@@ -273,11 +274,13 @@ enum NoteParser {
     }
     while pos < scalars.endIndex {
       let scalar = scalars[pos]
-      guard scalar == "\\", pos + 1 < scalars.endIndex else {
+      guard scalar == "\\" else {
         out.append(scalar)
         pos += 1
         continue
       }
+      // A backslash before the closing quote escaped it, so the scalar never closed.
+      guard pos + 1 < scalars.endIndex else { throw MalformedEscape() }
       let escape = scalars[pos + 1]
       if let decoded = simpleEscapes[escape] {
         out.append(decoded)
@@ -291,8 +294,8 @@ enum NoteParser {
           code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00)
           pos += 6
         }
-        if code > 0x10FFFF { throw MalformedEscape() }
-        out.append(Unicode.Scalar(code) ?? "\u{FFFD}")
+        guard let decoded = Unicode.Scalar(code) else { throw MalformedEscape() }
+        out.append(decoded)
       } else {
         throw MalformedEscape()
       }
