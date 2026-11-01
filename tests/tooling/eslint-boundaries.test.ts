@@ -40,4 +40,23 @@ describe('workspace import boundaries', () => {
       expect.objectContaining({ ruleId: 'no-restricted-imports', severity: 2 }),
     ]);
   });
+
+  it.each([
+    ['packages/ui/src/forbidden-fixture.ts', '@studio/storage'],
+    ['apps/studio/src/forbidden-fixture.ts', '@studio/test-utils/fixtures'],
+  ])('rejects a dynamic import outside the layer of %s', async (filePath, imported) => {
+    const [result] = await eslint.lintText(`void import('${imported}');`, { filePath });
+
+    expect(result?.messages).toEqual([
+      expect.objectContaining({ ruleId: 'no-restricted-syntax', severity: 2 }),
+    ]);
+  });
+
+  it('allows a dynamic import inside the layer', async () => {
+    const [result] = await eslint.lintText("void import('@studio/storage/browser');", {
+      filePath: 'apps/studio/src/legal-fixture.ts',
+    });
+
+    expect(result?.messages).toEqual([]);
+  });
 });
