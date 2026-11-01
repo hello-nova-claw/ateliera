@@ -27,30 +27,30 @@ final class NoteTimeTests: XCTestCase {
   }
 
   func testTimestampKeepsTheWritersWallClockAndOffset() throws {
-    let goldens: [(String, Date, String)] = [
-      ("Australia/Melbourne", melbourneMorning, "2026-11-02T08:00:00.000+11:00"),
-      (
-        "Australia/Melbourne", Date(timeIntervalSince1970: 1_782_943_200),
-        "2026-07-02T08:00:00.000+10:00"
-      ),
-      (
-        "America/Los_Angeles", Date(timeIntervalSince1970: 1_793_547_005.25),
-        "2026-11-01T07:30:05.250-08:00"
-      ),
-      (
-        "America/Los_Angeles", Date(timeIntervalSince1970: 1_793_460_600),
-        "2026-10-31T08:30:00.000-07:00"
-      ),
-      ("UTC", melbourneMorning, "2026-11-01T21:00:00.000+00:00"),
-      ("Asia/Kolkata", melbourneMorning, "2026-11-02T02:30:00.000+05:30"),
-      ("Pacific/Kiritimati", melbourneMorning, "2026-11-02T11:00:00.000+14:00"),
-      ("Pacific/Pago_Pago", melbourneMorning, "2026-11-01T10:00:00.000-11:00"),
+    let morning = melbourneMorning.timeIntervalSince1970
+    let goldens = [
+      TimestampGolden("Australia/Melbourne", morning, "2026-11-02T08:00:00.000+11:00"),
+      TimestampGolden("Australia/Melbourne", 1_782_943_200, "2026-07-02T08:00:00.000+10:00"),
+      TimestampGolden("America/Los_Angeles", 1_793_547_005.25, "2026-11-01T07:30:05.250-08:00"),
+      TimestampGolden("America/Los_Angeles", 1_793_460_600, "2026-10-31T08:30:00.000-07:00"),
+      TimestampGolden("UTC", morning, "2026-11-01T21:00:00.000+00:00"),
+      TimestampGolden("Asia/Kolkata", morning, "2026-11-02T02:30:00.000+05:30"),
+      TimestampGolden("Pacific/Kiritimati", morning, "2026-11-02T11:00:00.000+14:00"),
+      TimestampGolden("Pacific/Pago_Pago", morning, "2026-11-01T10:00:00.000-11:00"),
     ]
-    for (identifier, instant, expected) in goldens {
+    for golden in goldens {
+      let instant = Date(timeIntervalSince1970: golden.seconds)
       XCTAssertEqual(
-        NoteFactory.isoTimestamp(instant, timeZone: try zone(identifier)), expected, identifier)
-      XCTAssertEqual(NoteTime.instant(expected), instant, identifier)
+        NoteFactory.isoTimestamp(instant, timeZone: try zone(golden.zone)), golden.expected,
+        golden.zone)
+      XCTAssertEqual(NoteTime.instant(golden.expected), instant, golden.zone)
     }
+  }
+
+  func testExportsAndDiagnosticsKeepTheCanonicalUTCForm() {
+    // The portable manifest and the diagnostics log are not notes: the web app reads
+    // their times only in `toISOString()` form.
+    XCTAssertEqual(NoteFactory.utcTimestamp(melbourneMorning), "2026-11-01T21:00:00.000Z")
   }
 
   func testWrittenDayIsTheWritersDate() {
@@ -104,5 +104,17 @@ final class NoteTimeTests: XCTestCase {
         NoteTime.isNewer("2026-11-01T23:00:00.000Z", than: "2026-11-02T08:00:00.000+11:00"),
         reader)
     }
+  }
+}
+
+private struct TimestampGolden {
+  let zone: String
+  let seconds: TimeInterval
+  let expected: String
+
+  init(_ zone: String, _ seconds: TimeInterval, _ expected: String) {
+    self.zone = zone
+    self.seconds = seconds
+    self.expected = expected
   }
 }
