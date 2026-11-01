@@ -116,7 +116,7 @@ struct RootView: View {
   private var almanacContext: RhythmContext {
     let formatter = DateFormatter()
     formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.timeZone = .current
+    formatter.timeZone = AppClock.timeZone()
     formatter.dateFormat = "yyyy-MM-dd"
     let today = formatter.string(from: AppClock.now())
     return Rhythm.computeContext(
@@ -368,7 +368,7 @@ struct RootView: View {
           NavigationStack {
             SkyAheadView(
               nowMs: Int64(AppClock.now().timeIntervalSince1970 * 1000),
-              today: almanacContext.date, hemisphere: hemisphere,
+              today: almanacContext.date, timeZone: AppClock.timeZone(), hemisphere: hemisphere,
               birthDate: profileStore.birth?.date, layers: store.skyLayers,
               onLayersChange: { store.setSkyLayers($0) }
             )

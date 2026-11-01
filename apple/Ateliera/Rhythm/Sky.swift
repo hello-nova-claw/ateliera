@@ -177,16 +177,20 @@ enum Sky {
     return isoDate(ms: instant + Int64(offset) * 1000)
   }
 
-  /// The instant of `hour`:00 on the local calendar day `date` in `timeZone`.
+  /// The instant of `hour`:00 on the local calendar day `date` in `timeZone`. Hour 0 is
+  /// the day's first instant, even where the clocks skip midnight.
   static func instant(localDate date: String, hour: Int, timeZone: TimeZone) -> Int64 {
-    let wall = Rhythm.dayMillis(date: date) + Int64(hour) * 3_600_000
-    // Two passes settle the offset, even across a daylight-saving change.
-    var guess = wall
-    for _ in 0..<2 {
-      let offset = timeZone.secondsFromGMT(for: Date(timeIntervalSince1970: Double(guess) / 1000))
-      guess = wall - Int64(offset) * 1000
-    }
-    return guess
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = timeZone
+    let civil = civil(fromMs: Rhythm.dayMillis(date: date))
+    let noon = DateComponents(year: civil.year, month: civil.month, day: civil.day, hour: 12)
+    guard let midday = calendar.date(from: noon) else { return Rhythm.dayMillis(date: date) }
+    let start = calendar.startOfDay(for: midday)
+    let target =
+      hour == 0
+      ? start
+      : calendar.date(bySettingHour: hour, minute: 0, second: 0, of: midday) ?? start
+    return Int64((target.timeIntervalSince1970 * 1000).rounded())
   }
 
   /// Whole calendar days from the local day `date` to the local day `ms` falls on.
