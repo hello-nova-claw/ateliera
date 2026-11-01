@@ -341,19 +341,32 @@ final class VaultStore {
 
   private func openFromPersistedBookmark() -> Bool {
     guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else { return false }
+    return reopen(bookmark: data)
+  }
+
+  /// True when a folder was chosen before but can't be opened now (moved, deleted,
+  /// or offline). RootView then explains, rather than showing the picker as if no
+  /// folder had ever been chosen.
+  private(set) var vaultUnavailable = false
+
+  /// Open the folder a saved bookmark points at. On failure, says so calmly in
+  /// `error` and sets `vaultUnavailable`.
+  func reopen(bookmark data: Data) -> Bool {
     var stale = false
-    guard
-      let url = try? URL(
-        resolvingBookmarkData: data, options: Self.bookmarkResolveOptions, relativeTo: nil,
-        bookmarkDataIsStale: &stale)
-    else { return false }
-    _ = url.startAccessingSecurityScopedResource()  // held for the session
-    do {
-      try openVault(at: url)
-      return true
-    } catch {
-      return false
+    if let url = try? URL(
+      resolvingBookmarkData: data, options: Self.bookmarkResolveOptions, relativeTo: nil,
+      bookmarkDataIsStale: &stale)
+    {
+      _ = url.startAccessingSecurityScopedResource()  // held for the session
+      if (try? openVault(at: url)) != nil { return true }
     }
+    vault = nil  // openVault may have got as far as the handle before failing
+    vaultUnavailable = true
+    error = String(
+      localized:
+        "Ateliera couldn’t open your vault folder. It may have moved or be offline. Choose it again to carry on.",
+      comment: "Shown at launch when the vault folder chosen before can no longer be opened")
+    return false
   }
 
   private func openVault(at url: URL) throws {
@@ -362,6 +375,10 @@ final class VaultStore {
     self.vaultName = url.lastPathComponent
     self.studioId = url.path  // stable per-vault id, for draft-recovery keys
     try reload()
+    if vaultUnavailable {
+      vaultUnavailable = false
+      error = nil
+    }
     loadPreferences()
     migrateInboxDraftsToJournalIfNeeded()
   }
@@ -1161,7 +1178,9 @@ final class VaultStore {
 
   func reload() throws {
     guard let vault else { return }
-    let entries = try vault.list(prefix: nil)
+    // Listing fails if a file changes size while it is hashed (iCloud syncing it,
+    // say), so try once more before giving up.
+    let entries = try (try? vault.list(prefix: nil)) ?? vault.list(prefix: nil)
     var summaries: [NoteSummary] = []
     var byPath: [String: NoteSummary] = [:]
     var parsed: [StudioNote] = []
@@ -1169,7 +1188,12 @@ final class VaultStore {
     var indexed: [IndexedNote] = []
     var unparsed: [String] = []
     for entry in entries where !entry.isDirectory && entry.path.hasSuffix(".md") {
-      let read = try vault.readText(path: entry.path)
+      // A file the core can't read (not UTF-8, say) goes to Repair; it must not stop
+      // every other note from opening.
+      guard let read = try? vault.readText(path: entry.path) else {
+        unparsed.append(entry.path)
+        continue
+      }
       // Prefer the full model (all metadata fields); fall back to the lenient
       // line reader for notes the schema rejects (e.g. seeded demo notes).
       let summary: NoteSummary
