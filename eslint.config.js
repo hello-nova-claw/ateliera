@@ -34,10 +34,19 @@ const forbidWorkspaceImportsExcept = (allowed) => {
     ],
     'no-restricted-syntax': [
       'error',
-      ...forbidden.map((packageName) => ({
-        selector: `ImportExpression[source.value=/^${packageName.replace('/', '\\/')}(\\/|$)/]`,
-        message: message(packageName),
-      })),
+      ...forbidden.flatMap((packageName) => {
+        const pattern = `/^${packageName.replace('/', '\\/')}(\\/|$)/`;
+        return [
+          `ImportExpression[source.value=${pattern}]`,
+          `ImportExpression[source.type='TemplateLiteral'][source.expressions.length=0][source.quasis.0.value.cooked=${pattern}]`,
+        ].map((selector) => ({ selector, message: message(packageName) }));
+      }),
+      // A computed source can't be checked against the layer, so it isn't allowed.
+      {
+        selector:
+          "ImportExpression:not([source.type='Literal']):not([source.type='TemplateLiteral'][source.expressions.length=0])",
+        message: 'Import a fixed module path so the dependency layer can be checked.',
+      },
     ],
   };
 };
