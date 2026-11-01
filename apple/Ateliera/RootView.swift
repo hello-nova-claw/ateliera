@@ -367,7 +367,8 @@ struct RootView: View {
         case .skyAhead:
           NavigationStack {
             SkyAheadView(
-              nowMs: Rhythm.dayMillis(date: almanacContext.date), hemisphere: hemisphere,
+              nowMs: Int64(AppClock.now().timeIntervalSince1970 * 1000),
+              today: almanacContext.date, hemisphere: hemisphere,
               birthDate: profileStore.birth?.date, layers: store.skyLayers,
               onLayersChange: { store.setSkyLayers($0) }
             )

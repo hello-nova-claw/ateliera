@@ -33,6 +33,9 @@ struct InvitationContext {
   let cycle: CycleProfile?
   let birthDate: String?  // YYYY-MM-DD
   let dismissed: Set<String>
+  // The person's zone: `date` is a calendar day there, and a moon or a turning point is
+  // "today" on the local day it falls on.
+  var timeZone: TimeZone = AppClock.timeZone()
 }
 
 enum InvitationEngine {
@@ -125,9 +128,9 @@ enum InvitationEngine {
   }
 
   private static func newMoon(_ ctx: InvitationContext) -> Invitation? {
-    let ms = Rhythm.dayMillis(date: ctx.date)
-    let moon = Sky.nearestMoonPhase(toMs: ms, phase: .new)
-    let days = Int(moon / day - ms / day)
+    let noon = Sky.instant(localDate: ctx.date, hour: 12, timeZone: ctx.timeZone)
+    let moon = Sky.nearestMoonPhase(toMs: noon, phase: .new)
+    let days = Sky.localDays(from: ctx.date, to: moon, timeZone: ctx.timeZone)
     guard (-2...1).contains(days) else { return nil }
     let lunation = Sky.isoDate(ms: moon)
     let already = ctx.notes.contains {
@@ -142,9 +145,9 @@ enum InvitationEngine {
   }
 
   private static func fullMoon(_ ctx: InvitationContext) -> Invitation? {
-    let ms = Rhythm.dayMillis(date: ctx.date)
-    let moon = Sky.nearestMoonPhase(toMs: ms, phase: .full)
-    let days = Int(moon / day - ms / day)
+    let noon = Sky.instant(localDate: ctx.date, hour: 12, timeZone: ctx.timeZone)
+    let moon = Sky.nearestMoonPhase(toMs: noon, phase: .full)
+    let days = Sky.localDays(from: ctx.date, to: moon, timeZone: ctx.timeZone)
     guard (-1...1).contains(days) else { return nil }
     let lunation = Sky.isoDate(ms: moon)
     let c = copy.fullMoon
@@ -155,15 +158,16 @@ enum InvitationEngine {
   }
 
   private static func seasonBegin(_ ctx: InvitationContext) -> Invitation? {
-    let ms = Rhythm.dayMillis(date: ctx.date)
-    let next = Sky.nextTurningPoint(afterMs: ms)
-    let days = Int(next.ms / day - ms / day)
+    let midnight = Sky.instant(localDate: ctx.date, hour: 0, timeZone: ctx.timeZone)
+    let next = Sky.nextTurningPoint(afterMs: midnight)
+    let days = Sky.localDays(from: ctx.date, to: next.ms, timeZone: ctx.timeZone)
     guard (0...7).contains(days) else { return nil }
     let underway = ctx.notes.contains {
       $0.cardType == "season" && ($0.status == "active" || $0.status == "draft")
     }
     guard !underway else { return nil }
-    let local = ctx.hemisphere == .south ? next.point.beginsSeason.opposite : next.point.beginsSeason
+    let local =
+      ctx.hemisphere == .south ? next.point.beginsSeason.opposite : next.point.beginsSeason
     let c = copy.seasonTurning
     let when =
       (c.when?[days == 0 ? "today" : (days == 1 ? "tomorrow" : "inDays")] ?? "")
