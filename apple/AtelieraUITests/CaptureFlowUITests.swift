@@ -194,6 +194,19 @@ final class CaptureFlowUITests: XCTestCase {
     XCTAssertTrue(app.navigationBars["Details"].waitForExistence(timeout: 5))
   }
 
+  func testTagsFieldTakesASecondTag() {
+    let app = launchEmptyApp()
+    captureAndOpen(app, title: "A note", body: "body text")
+    let details = app.buttons["note-details-button"]
+    XCTAssertTrue(details.waitForExistence(timeout: 5))
+    details.tap()
+    let tags = app.textFields["metadata-tags"]
+    XCTAssertTrue(tags.waitForExistence(timeout: 5))
+    tags.tap()
+    tags.typeText("calm, practice")
+    XCTAssertEqual(tags.value as? String, "calm, practice")
+  }
+
   private func launchWith(_ extra: [String: String]) -> XCUIApplication {
     let app = XCUIApplication()
     app.launchEnvironment["ATELIERA_UITEST"] = "1"
