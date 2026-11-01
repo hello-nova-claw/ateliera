@@ -16,19 +16,31 @@ const workspacePackages = [
   '@studio/ui',
 ];
 
-const forbidWorkspaceImportsExcept = (allowed) => ({
-  'no-restricted-imports': [
-    'error',
-    {
-      patterns: workspacePackages
-        .filter((packageName) => !allowed.includes(packageName))
-        .map((packageName) => ({
+// no-restricted-imports doesn't see import(), so dynamic imports of a package outside the
+// layer are caught by their source text instead.
+const forbidWorkspaceImportsExcept = (allowed) => {
+  const forbidden = workspacePackages.filter((packageName) => !allowed.includes(packageName));
+  const message = (packageName) =>
+    `${packageName} is outside this package's allowed dependency layer.`;
+  return {
+    'no-restricted-imports': [
+      'error',
+      {
+        patterns: forbidden.map((packageName) => ({
           group: [packageName, `${packageName}/*`],
-          message: `${packageName} is outside this package's allowed dependency layer.`,
+          message: message(packageName),
         })),
-    },
-  ],
-});
+      },
+    ],
+    'no-restricted-syntax': [
+      'error',
+      ...forbidden.map((packageName) => ({
+        selector: `ImportExpression[source.value=/^${packageName.replace('/', '\\/')}(\\/|$)/]`,
+        message: message(packageName),
+      })),
+    ],
+  };
+};
 
 export default tseslint.config(
   {
