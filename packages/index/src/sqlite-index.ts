@@ -284,7 +284,7 @@ export class SqliteIndex implements IndexPort {
     const selection = searchSelection(queryTokens, filters);
     const rank = queryTokens.length ? 'bm25(note_fts)' : '0';
     const found = rows<NoteRow>(this.database.prepare(
-      `SELECT n.*, ${rank} AS rank FROM ${selectionSql(selection)} ORDER BY rank ASC, n.updated DESC, n.id ASC LIMIT 200`,
+      `SELECT n.*, ${rank} AS rank FROM ${selectionSql(selection)} ORDER BY rank ASC, julianday(n.updated) DESC, n.id ASC LIMIT 200`,
     ).all(...selection.values));
     const exact: SearchHit[] = found.map((item) => {
       const snippet = makeSnippet(item, queryTokens);
@@ -414,7 +414,7 @@ export class SqliteIndex implements IndexPort {
     const clauses: string[] = [];
     addSearchFilters(clauses, values, filters);
     const candidates = rows<NoteRow>(this.database.prepare(
-      `SELECT n.*, 0 AS rank FROM notes n${clauses.length ? ` WHERE ${clauses.join(' AND ')}` : ''} ORDER BY n.updated DESC, n.id ASC`,
+      `SELECT n.*, 0 AS rank FROM notes n${clauses.length ? ` WHERE ${clauses.join(' AND ')}` : ''} ORDER BY julianday(n.updated) DESC, n.id ASC`,
     ).all(...values));
     const matches = candidates.flatMap((item) => {
       const indexedNote = JSON.parse(item.note_json) as StudioNote;
@@ -462,7 +462,7 @@ export class SqliteIndex implements IndexPort {
       if (distance !== 0) return distance;
       const field = left.matchReason.field.localeCompare(right.matchReason.field, 'en');
       if (field !== 0) return field;
-      const updated = right.updated.localeCompare(left.updated, 'en');
+      const updated = Date.parse(right.updated) - Date.parse(left.updated);
       return updated || left.id.localeCompare(right.id, 'en');
     }).slice(0, limit);
   }
