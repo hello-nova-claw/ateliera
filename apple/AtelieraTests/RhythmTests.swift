@@ -224,36 +224,38 @@ final class RhythmTests: XCTestCase {
   // apps count the same day. nil is no estimate: a start in the future, or more than
   // two average cycles ago.
   func testCycleDayGoldens() {
-    let cases: [(String, Int, String, Int?, CyclePhase?)] = [
-      ("2026-01-01", 28, "2026-01-01", 1, .menstrual),
-      ("2026-01-01", 28, "2026-01-28", 28, .luteal),
-      ("2026-01-01", 28, "2026-01-29", 1, .menstrual),
-      ("2026-01-01", 28, "2026-02-10", 13, .follicular),
-      ("2026-01-01", 28, "2026-02-25", 28, .luteal),
-      ("2026-01-01", 28, "2026-02-26", 1, .menstrual),
-      ("2026-01-01", 28, "2026-02-27", nil, nil),
-      ("2026-01-01", 28, "2025-12-31", nil, nil),
-      ("2026-03-01", 21, "2026-03-21", 21, .luteal),
-      ("2026-03-01", 21, "2026-03-22", 1, .menstrual),
-      ("2026-03-01", 21, "2026-04-02", 12, .luteal),
-      ("2026-03-01", 21, "2026-04-12", 1, .menstrual),
-      ("2026-03-01", 21, "2026-04-13", nil, nil),
-      ("2026-05-01", 35, "2026-06-04", 35, .luteal),
-      ("2026-05-01", 35, "2026-06-05", 1, .menstrual),
-      ("2026-05-01", 35, "2026-06-20", 16, .follicular),
-      ("2026-05-01", 35, "2026-07-10", 1, .menstrual),
-      ("2026-05-01", 35, "2026-07-11", nil, nil),
-      ("2026-07-01", 31, "2026-07-31", 31, .luteal),
-      ("2026-07-01", 31, "2026-08-01", 1, .menstrual),
-      ("2026-07-01", 31, "2026-08-15", 15, .follicular),
-      ("2025-01-01", 28, "2026-06-21", nil, nil),
-      ("2025-12-20", 28, "2026-01-20", 4, .menstrual),
+    let cases = [
+      CycleGolden(start: "2026-01-01", avg: 28, date: "2026-01-01", day: 1, phase: .menstrual),
+      CycleGolden(start: "2026-01-01", avg: 28, date: "2026-01-28", day: 28, phase: .luteal),
+      CycleGolden(start: "2026-01-01", avg: 28, date: "2026-01-29", day: 1, phase: .menstrual),
+      CycleGolden(start: "2026-01-01", avg: 28, date: "2026-02-10", day: 13, phase: .follicular),
+      CycleGolden(start: "2026-01-01", avg: 28, date: "2026-02-25", day: 28, phase: .luteal),
+      CycleGolden(start: "2026-01-01", avg: 28, date: "2026-02-26", day: 1, phase: .menstrual),
+      CycleGolden(start: "2026-01-01", avg: 28, date: "2026-02-27", day: nil, phase: nil),
+      CycleGolden(start: "2026-01-01", avg: 28, date: "2025-12-31", day: nil, phase: nil),
+      CycleGolden(start: "2026-03-01", avg: 21, date: "2026-03-21", day: 21, phase: .luteal),
+      CycleGolden(start: "2026-03-01", avg: 21, date: "2026-03-22", day: 1, phase: .menstrual),
+      CycleGolden(start: "2026-03-01", avg: 21, date: "2026-04-02", day: 12, phase: .luteal),
+      CycleGolden(start: "2026-03-01", avg: 21, date: "2026-04-12", day: 1, phase: .menstrual),
+      CycleGolden(start: "2026-03-01", avg: 21, date: "2026-04-13", day: nil, phase: nil),
+      CycleGolden(start: "2026-05-01", avg: 35, date: "2026-06-04", day: 35, phase: .luteal),
+      CycleGolden(start: "2026-05-01", avg: 35, date: "2026-06-05", day: 1, phase: .menstrual),
+      CycleGolden(start: "2026-05-01", avg: 35, date: "2026-06-20", day: 16, phase: .follicular),
+      CycleGolden(start: "2026-05-01", avg: 35, date: "2026-07-10", day: 1, phase: .menstrual),
+      CycleGolden(start: "2026-05-01", avg: 35, date: "2026-07-11", day: nil, phase: nil),
+      CycleGolden(start: "2026-07-01", avg: 31, date: "2026-07-31", day: 31, phase: .luteal),
+      CycleGolden(start: "2026-07-01", avg: 31, date: "2026-08-01", day: 1, phase: .menstrual),
+      CycleGolden(start: "2026-07-01", avg: 31, date: "2026-08-15", day: 15, phase: .follicular),
+      CycleGolden(start: "2025-01-01", avg: 28, date: "2026-06-21", day: nil, phase: nil),
+      CycleGolden(start: "2025-12-20", avg: 28, date: "2026-01-20", day: 4, phase: .menstrual),
     ]
-    for (start, avg, date, day, phase) in cases {
+    for golden in cases {
       let state = Rhythm.computeCycle(
-        CycleProfile(lastPeriodStart: start, avgLengthDays: avg), dateMs: ms(date))
-      XCTAssertEqual(state?.day, day, "\(start) avg \(avg) on \(date)")
-      XCTAssertEqual(state?.phase, phase, "\(start) avg \(avg) on \(date)")
+        CycleProfile(lastPeriodStart: golden.start, avgLengthDays: golden.avg),
+        dateMs: ms(golden.date))
+      let label = "\(golden.start) avg \(golden.avg) on \(golden.date)"
+      XCTAssertEqual(state?.day, golden.day, label)
+      XCTAssertEqual(state?.phase, golden.phase, label)
     }
   }
 
@@ -303,4 +305,12 @@ final class RhythmTests: XCTestCase {
       XCTAssertEqual(lunar.progress, progress, accuracy: 1e-12, date)
     }
   }
+}
+
+private struct CycleGolden {
+  let start: String
+  let avg: Int
+  let date: String
+  let day: Int?
+  let phase: CyclePhase?
 }
