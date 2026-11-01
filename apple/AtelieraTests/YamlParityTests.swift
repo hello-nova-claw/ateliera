@@ -109,6 +109,9 @@ final class YamlParityTests: XCTestCase {
       "escapes: \"\\0\\a\\b\\t\\\t\\n\\v\\f\\r\\e\\ \\\"\\/\\\\\\N\\_\\L\\P\"",
       "hex: \"\\x41\\u00e9\\U0001F319\\ud83c\\udf19\"",
       "single: 'it''s'",
+      "spaced:",
+      "  - \"a\"  ",
+      "  - 'b'\t",
       "schema_version: 1",
       "id: 01JPARITY",
       "card_type: fragment",
@@ -135,6 +138,7 @@ final class YamlParityTests: XCTestCase {
       "\u{0}\u{7}\u{8}\t\t\n\u{B}\u{C}\r\u{1B} \"/\\\u{85}\u{A0}\u{2028}\u{2029}")
     XCTAssertEqual(parsed.frontmatterScalar("hex"), "Aé\u{1F319}\u{1F319}")
     XCTAssertEqual(parsed.frontmatterScalar("single"), "it's")
+    XCTAssertEqual(parsed.frontmatterList("spaced"), ["a", "b"])
   }
 }
 
