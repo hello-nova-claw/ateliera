@@ -909,10 +909,18 @@ final class VaultStore {
   @discardableResult
   func resolveConflictOverwrite() -> Bool {
     guard let conflict, let fresh = beginEdit(path: conflict.path) else { return false }
-    // Snapshot the version we're about to overwrite so it stays recoverable.
-    _ = RevisionStore(store: self).snapshot(
-      reason: RevisionReason.conflictResolution, paths: [conflict.path],
-      now: NoteFactory.isoTimestamp(), id: NoteFactory.createNoteId())
+    // Snapshot the version we're about to overwrite so it stays recoverable, and leave
+    // it in place if that can't be done.
+    guard
+      RevisionStore(store: self).snapshot(
+        reason: RevisionReason.conflictResolution, paths: [conflict.path],
+        now: NoteFactory.isoTimestamp(), id: NoteFactory.createNoteId()) != nil
+    else {
+      error = String(
+        localized: "Couldn't keep a copy of the stored version, so it wasn't replaced.",
+        comment: "Shown when overwriting a conflicting note is stopped because no backup was made")
+      return false
+    }
     let draft = conflict.draft
     if saveEdit(fresh, updatedNote: draft) {
       self.conflict = nil
@@ -1049,12 +1057,13 @@ final class VaultStore {
     }
   }
 
-  /// Remove a vault file (e.g. pruning an old revision snapshot). Missing is a no-op.
+  /// Remove a vault file (e.g. pruning an old revision snapshot). Missing is a no-op,
+  /// unless `expectedHash` is given: then the file goes only if it has exactly those bytes.
   @discardableResult
-  func removeFile(path: String) -> Bool {
+  func removeFile(path: String, expectedHash: String? = nil) -> Bool {
     guard let vault else { return false }
     do {
-      try vault.remove(path: path)
+      try vault.remove(path: path, expectedHash: expectedHash)
       return true
     } catch {
       self.error = "\(error)"
@@ -1066,6 +1075,12 @@ final class VaultStore {
   func listAllPaths() -> [String] {
     guard let vault, let entries = try? vault.list(prefix: nil) else { return [] }
     return entries.filter { !$0.isDirectory }.map { $0.path }
+  }
+
+  /// Every file under `prefix` with its size, or nil if that folder can't be listed.
+  func listFiles(under prefix: String) -> [(path: String, size: UInt64?)]? {
+    guard let vault, let entries = try? vault.list(prefix: prefix) else { return nil }
+    return entries.filter { !$0.isDirectory }.map { ($0.path, $0.size) }
   }
 
   /// Raw bytes for any vault file (for export), or nil if unreadable.
