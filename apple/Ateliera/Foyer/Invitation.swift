@@ -89,14 +89,16 @@ enum InvitationEngine {
     return candidates.compactMap { $0 }.first { !ctx.dismissed.contains($0.id) }
   }
 
-  // Back-compat convenience (used by older callers/tests).
+  // Back-compat convenience (used by older callers/tests). It keeps the engine's original
+  // UTC reading unless a zone is given, so its answers don't depend on the machine's zone.
   static func current(
-    date: String, hemisphere: Hemisphere, notes: [StudioNote], dismissed: Set<String>
+    date: String, hemisphere: Hemisphere, notes: [StudioNote], dismissed: Set<String>,
+    timeZone: TimeZone = .gmt
   ) -> Invitation? {
     current(
       InvitationContext(
         date: date, hemisphere: hemisphere, notes: notes, cycle: nil, birthDate: nil,
-        dismissed: dismissed))
+        dismissed: dismissed, timeZone: timeZone))
   }
 
   // MARK: - Generators (each returns an invitation only when its signal is real)
