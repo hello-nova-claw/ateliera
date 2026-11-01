@@ -348,6 +348,7 @@ final class YamlParityTests: XCTestCase {
     XCTAssertEqual(parsed.serialize(), text)
     XCTAssertEqual(parsed.frontmatterScalar("mood"), "calm")
     XCTAssertEqual(parsed.frontmatterList("pair"), ["a, b", "c"])
+    XCTAssertEqual(parsed.nestedScalar("position", "x"), "1")
     XCTAssertEqual(parsed.nestedScalar("nested", "key"), "value")
     XCTAssertEqual(parsed.frontmatterList("zero_indent"), ["one", "two"])
     XCTAssertEqual(parsed.frontmatterScalar("last"), "kept")
@@ -362,14 +363,22 @@ final class YamlParityTests: XCTestCase {
     let text = noteText([])
       .replacingOccurrences(of: "tags: []", with: "tags:\n- calm\n- practice # two")
       .replacingOccurrences(of: "status: active", with: "status: active # for now")
+      .replacingOccurrences(of: "rooms: []", with: "rooms: [life-landscape, inbox]")
+      .replacingOccurrences(of: "display:\n  featured: false", with: "display: { featured: true }")
+      .replacingOccurrences(
+        of: "privacy:\n  sensitivity: private\n  ai_access: ask",
+        with: "privacy: { sensitivity: sensitive, ai_access: never }")
     let parsed = try XCTUnwrap(NoteParser.parse(text))
     XCTAssertEqual(parsed.tags, ["calm", "practice"])
     XCTAssertEqual(parsed.status, "active")
+    XCTAssertEqual(parsed.rooms, ["life-landscape", "inbox"])
+    XCTAssertTrue(parsed.display.featured)
+    XCTAssertEqual(parsed.privacy, NotePrivacy(sensitivity: "sensitive", aiAccess: "never"))
   }
 
   func testARecognisedKeyWithAnUnreadableValueSendsTheNoteToRepair() {
     let text = noteText([]).replacingOccurrences(
-      of: "display:\n  featured: false", with: "display: {featured: false}")
+      of: "display:\n  featured: false", with: "display: {featured: [false]}")
     XCTAssertNil(NoteParser.parse(text))
   }
 
