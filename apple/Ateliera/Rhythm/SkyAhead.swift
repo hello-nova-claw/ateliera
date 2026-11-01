@@ -13,7 +13,6 @@ import Foundation
 // is a later slice; for now it surfaces only the solar return.
 struct SkyLayers: OptionSet, Equatable {
   let rawValue: Int
-  init(rawValue: Int) { self.rawValue = rawValue }
 
   static let turningPoints = SkyLayers(rawValue: 1 << 0)
   static let moonPhases = SkyLayers(rawValue: 1 << 1)
@@ -30,6 +29,9 @@ struct SkyLayers: OptionSet, Equatable {
 
 // One event on the timeline. `family` drives filtering and the view's tint/glyph;
 // `isNextLunation` flags the single nearest new/full moon so the view can lead with it.
+// A moon or a turning point is an instant, dated in the person's zone; a micro-season
+// shift or a solar return is a calendar day (`isCalendarDay`), held at 00:00 UTC of
+// that day so it reads the same date anywhere.
 struct SkyEvent: Identifiable, Equatable {
   enum Family: String, CaseIterable, Equatable {
     case turningPoints, moonPhases, microSeasons, cycle, astrology
@@ -41,27 +43,51 @@ struct SkyEvent: Identifiable, Equatable {
   let title: String
   let detail: String
   var isNextLunation = false
+  var isCalendarDay = false
 }
 
 enum SkyAhead {
   private static let day: Int64 = 86_400_000
 
-  /// The upcoming sky events strictly after `nowMs`, within `horizonDays`, nearest-first.
-  /// Only families in `layers` are included; the astrology layer additionally requires a
-  /// `birthDate` (gating the natal surface).
-  static func events(
-    nowMs: Int64, hemisphere: Hemisphere, layers: SkyLayers, birthDate: String?,
-    horizonDays: Int = 120
+  /// The upcoming sky events, within `horizonDays`, nearest-first. `nowMs` is the real
+  /// instant; `today` is the person's local calendar day (`YYYY-MM-DD`) in `timeZone`. An
+  /// instant event is listed while it's still ahead of now; a calendar-day event from the
+  /// day after today. Only families in `layers` are included; the astrology layer
+  /// additionally requires a `birthDate` (gating the natal surface).
+  static func events(  // swiftlint:disable:this function_parameter_count
+    nowMs: Int64, today: String, timeZone: TimeZone, hemisphere: Hemisphere,
+    layers: SkyLayers, birthDate: String?, horizonDays: Int = 120
   ) -> [SkyEvent] {
     let cutoff = nowMs + Int64(horizonDays) * day
+    let todayMs = Rhythm.dayMillis(date: today)
+    let lastDayMs = todayMs + Int64(horizonDays) * day
     var out: [SkyEvent] = []
-
     if layers.contains(.turningPoints) { out += turningPoints(nowMs, cutoff, hemisphere) }
     if layers.contains(.moonPhases) { out += moonPhases(nowMs, cutoff) }
-    if layers.contains(.microSeasons) { out += microSeasonShifts(nowMs, cutoff, hemisphere) }
-    if layers.contains(.astrology) { out += solarReturn(nowMs, cutoff, birthDate) }
+    if layers.contains(.microSeasons) { out += microSeasonShifts(todayMs, lastDayMs, hemisphere) }
+    if layers.contains(.astrology) { out += solarReturn(todayMs, lastDayMs, birthDate) }
+    let ahead = out.filter {
+      $0.isCalendarDay ? $0.ms > todayMs && $0.ms <= lastDayMs : $0.ms > nowMs && $0.ms <= cutoff
+    }
+    // Calendar days sort at the start of that local day.
+    func key(_ event: SkyEvent) -> Int64 {
+      event.isCalendarDay
+        ? Sky.instant(localDate: Sky.isoDate(ms: event.ms), hour: 0, timeZone: timeZone)
+        : event.ms
+    }
+    return ahead.sorted { key($0) < key($1) }
+  }
 
-    return out.filter { $0.ms > nowMs && $0.ms <= cutoff }.sorted { $0.ms < $1.ms }
+  /// The person's local calendar day for an event.
+  static func localDay(of event: SkyEvent, timeZone: TimeZone) -> String {
+    event.isCalendarDay
+      ? Sky.isoDate(ms: event.ms) : Sky.localDate(ms: event.ms, timeZone: timeZone)
+  }
+
+  /// Whole days from `today` to the event's local day: 0 is today, 1 tomorrow.
+  static func daysAway(_ event: SkyEvent, today: String, timeZone: TimeZone) -> Int {
+    let target = Rhythm.dayMillis(date: localDay(of: event, timeZone: timeZone))
+    return max(0, Int((target - Rhythm.dayMillis(date: today)) / day))
   }
 
   // MARK: - Families
@@ -151,7 +177,7 @@ enum SkyAhead {
         events.append(
           SkyEvent(
             id: "micro:\(here.term):\(Sky.isoDate(ms: cursor))", family: .microSeasons, ms: cursor,
-            title: here.term, detail: here.gloss))
+            title: here.term, detail: here.gloss, isCalendarDay: true))
         prev = here
       }
       cursor += day
@@ -179,7 +205,7 @@ enum SkyAhead {
         return [
           SkyEvent(
             id: "solar:\(year)", family: .astrology, ms: ms, title: copy.solarReturn.title,
-            detail: copy.solarReturn.detail)
+            detail: copy.solarReturn.detail, isCalendarDay: true)
         ]
       }
     }

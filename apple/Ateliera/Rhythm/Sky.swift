@@ -37,7 +37,10 @@ enum Sky {
   // MARK: - Moon phases (Meeus ch. 49)
 
   enum MoonPhase: Double, CaseIterable {
-    case new = 0, firstQuarter = 0.25, full = 0.5, lastQuarter = 0.75
+    case new = 0
+    case firstQuarter = 0.25
+    case full = 0.5
+    case lastQuarter = 0.75
 
     var title: String {
       switch self {
@@ -103,7 +106,8 @@ enum Sky {
         - 0.00028 * e * e * sinDeg(mp + 2 * m) + 0.00027 * e * sinDeg(2 * mp + m)
         - 0.00017 * sinDeg(om) - 0.00005 * sinDeg(mp - m - 2 * f) + 0.00004 * sinDeg(2 * mp + 2 * f)
         - 0.00004 * sinDeg(mp + m + 2 * f) + 0.00004 * sinDeg(mp - 2 * m)
-        + 0.00003 * sinDeg(mp + m - 2 * f) + 0.00003 * sinDeg(3 * m) + 0.00002 * sinDeg(2 * mp - 2 * f)
+        + 0.00003 * sinDeg(mp + m - 2 * f) + 0.00003 * sinDeg(3 * m) + 0.00002
+        * sinDeg(2 * mp - 2 * f)
         + 0.00002 * sinDeg(mp - m + 2 * f) - 0.00002 * sinDeg(3 * mp + m)
       let w =
         0.00306 - 0.00038 * e * cosDeg(m) + 0.00026 * cosDeg(mp) - 0.00002 * cosDeg(mp - m)
@@ -167,6 +171,34 @@ enum Sky {
     return String(format: "%04d-%02d-%02d", c.year, c.month, c.day)
   }
 
+  /// The calendar day an instant falls on in `timeZone`: `YYYY-MM-DD`.
+  static func localDate(ms instant: Int64, timeZone: TimeZone) -> String {
+    let offset = timeZone.secondsFromGMT(for: Date(timeIntervalSince1970: Double(instant) / 1000))
+    return isoDate(ms: instant + Int64(offset) * 1000)
+  }
+
+  /// The instant of `hour`:00 on the local calendar day `date` in `timeZone`. Hour 0 is
+  /// the day's first instant, even where the clocks skip midnight.
+  static func instant(localDate date: String, hour: Int, timeZone: TimeZone) -> Int64 {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = timeZone
+    let civil = civil(fromMs: Rhythm.dayMillis(date: date))
+    let noon = DateComponents(year: civil.year, month: civil.month, day: civil.day, hour: 12)
+    guard let midday = calendar.date(from: noon) else { return Rhythm.dayMillis(date: date) }
+    let start = calendar.startOfDay(for: midday)
+    let target =
+      hour == 0
+      ? start
+      : calendar.date(bySettingHour: hour, minute: 0, second: 0, of: midday) ?? start
+    return Int64((target.timeIntervalSince1970 * 1000).rounded())
+  }
+
+  /// Whole calendar days from the local day `date` to the local day `ms` falls on.
+  static func localDays(from date: String, to instant: Int64, timeZone: TimeZone) -> Int {
+    let target = Rhythm.dayMillis(date: localDate(ms: instant, timeZone: timeZone))
+    return Int((target - Rhythm.dayMillis(date: date)) / 86_400_000)
+  }
+
   private static func decimalYear(_ ms: Int64) -> Double {
     let year = yearOf(ms)
     let start = Rhythm.utcMillis(year: year, month: 1, day: 1)
@@ -218,7 +250,9 @@ enum Sky {
     let year = yearOf(ms)
     var candidates: [(TurningPoint, Int64)] = []
     for y in year...(year + 1) {
-      for point in TurningPoint.allCases { candidates.append((point, turningPointMs(year: y, point: point))) }
+      for point in TurningPoint.allCases {
+        candidates.append((point, turningPointMs(year: y, point: point)))
+      }
     }
     candidates.sort { $0.1 < $1.1 }
     let next = candidates.first { $0.1 > ms } ?? candidates[0]
@@ -240,7 +274,8 @@ enum Sky {
     }
     points.sort { $0.ms < $1.ms }
     // The span [start, end) containing dateMs; the season is the one that began at start.
-    for index in 0..<(points.count - 1) where points[index].ms <= dateMs && dateMs < points[index + 1].ms {
+    for index in 0..<(points.count - 1)
+    where points[index].ms <= dateMs && dateMs < points[index + 1].ms {
       return (points[index].point.beginsSeason, points[index].ms, points[index + 1].ms)
     }
     // Fallback (shouldn't happen within the candidate window).
