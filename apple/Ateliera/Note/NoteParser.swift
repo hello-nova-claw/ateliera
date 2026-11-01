@@ -13,6 +13,12 @@ enum NoteParser {
     "resurface_interval_days", "attachments", "display", "privacy",
   ]
 
+  // Limits that keep one crafted file from overflowing the stack or stalling a
+  // reload (#37). Notes this app or the web write nest a few levels and run to a few
+  // KiB of frontmatter.
+  static let maxNesting = 32
+  static let maxFrontmatterBytes = 1 << 20
+
   static func parse(_ text: String) -> StudioNote? {
     guard let document = splitDocument(text) else { return nil }
     // Frontmatter the web's strict `yaml` parse would reject (an undefined escape,
@@ -87,12 +93,16 @@ enum NoteParser {
     guard lines.first == "---",
       let close = lines.dropFirst().firstIndex(of: "---")
     else { return nil }
+    let frontLines = Array(lines[1..<close])
+    guard frontLines.reduce(0, { $0 + $1.utf8.count + 1 }) <= maxFrontmatterBytes else {
+      return nil
+    }
     let normalizedBody = lines[(close + 1)...].joined(separator: "\n")
     let body =
       lineEnding == "\r\n"
       ? normalizedBody.replacingOccurrences(of: "\n", with: "\r\n")
       : normalizedBody
-    return Document(frontLines: Array(lines[1..<close]), body: body, lineEnding: lineEnding)
+    return Document(frontLines: frontLines, body: body, lineEnding: lineEnding)
   }
 
   // Typed reads of the recognised keys.
@@ -224,6 +234,8 @@ enum NoteParser {
   private static func parseValue(
     _ rest: String, _ lines: [String], _ index: inout Int, indent: Int
   ) throws -> YamlNode {
+    // Each level of nesting indents its keys further, so the column bounds the depth.
+    guard indent < maxNesting * 2 else { throw MalformedScalar() }
     index += 1
     let trimmed = trimmingYamlSpace(rest)
     if trimmed.hasPrefix("{") { return try flowMap(trimmed) }
