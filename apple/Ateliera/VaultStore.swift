@@ -513,8 +513,8 @@ final class VaultStore {
         _ = try vault.writeText(
           path: path, text: note.serialize(), expectedHash: outcome.hash, createNew: false)
       }
-      try reload()
       error = nil
+      refreshAfterWrite()
       lastCapturedPath = path
       return true
     } catch {
@@ -571,8 +571,8 @@ final class VaultStore {
       do {
         _ = try vault.writeText(
           path: path, text: note.serialize(), expectedHash: nil, createNew: true)
-        try reload()
         error = nil
+        refreshAfterWrite()
         lastCapturedPath = path
         return true
       } catch {
@@ -651,8 +651,8 @@ final class VaultStore {
       _ = try vault.writeText(
         path: editable.path, text: updated.serialize(), expectedHash: editable.baseHash,
         createNew: false)
-      try reload()
       error = nil
+      refreshAfterWrite()
       diagnostics.record(operation: "save", outcome: "success", fileId: updated.id)
       return true
     } catch let error as VaultError {
@@ -901,8 +901,8 @@ final class VaultStore {
     do {
       _ = try vault.writeText(
         path: path, text: note.serialize(), expectedHash: nil, createNew: true)
-      try reload()
       error = nil
+      refreshAfterWrite()
       return path
     } catch {
       self.error = "\(error)"
@@ -1026,8 +1026,8 @@ final class VaultStore {
     }
     do {
       _ = try vault.writeBinary(path: fullPath, bytes: data, createNew: false)
-      try reload()
       error = nil
+      refreshAfterWrite()
       return reference
     } catch {
       self.error = "\(error)"
@@ -1065,8 +1065,8 @@ final class VaultStore {
     }
     do {
       _ = try vault.writeBatchAtomic(expectedRevision: expectedRevision, writes: writes)
-      try reload()
       error = nil
+      refreshAfterWrite()
       return true
     } catch {
       self.error = "\(error)"
@@ -1174,6 +1174,34 @@ final class VaultStore {
     }
     try? reload()
     return true
+  }
+
+  /// Set when re-reading the vault after a successful write failed. The write
+  /// stands; only the lists may be a moment behind until the next read.
+  private(set) var refreshError: String?
+
+  #if DEBUG
+    /// Test hook: make the re-read after a write fail, as an unreadable listing would.
+    var failRefreshesForTesting = false
+  #endif
+
+  private struct RefreshFailure: Error {}
+
+  // Re-read the vault after a write that reached the disk. A failed re-read is not a
+  // failed write: reporting it as one made people write the same note twice, or hit
+  // a conflict against their own save.
+  private func refreshAfterWrite() {
+    do {
+      #if DEBUG
+        if failRefreshesForTesting { throw RefreshFailure() }
+      #endif
+      try reload()
+      refreshError = nil
+    } catch {
+      refreshError = String(
+        localized: "Saved. The list will catch up the next time the vault is read.",
+        comment: "Shown when a note was saved but the vault could not be re-read straight away")
+    }
   }
 
   func reload() throws {
