@@ -141,6 +141,24 @@ describe('SQLite IndexPort', () => {
       .toEqual(['same-day']);
   });
 
+  it('orders results by when they were written, whatever offset they carry', async () => {
+    // 08:00 in Melbourne (21:00 UTC on 1 November) is older than 23:00 UTC,
+    // though its text sorts later.
+    await upsert(index, note({
+      id: 'melbourne',
+      body: 'A quiet morning.',
+      updated: '2026-11-02T08:00:00.000+11:00',
+    }), 'Reflection/melbourne.md', 'melbourne');
+    await upsert(index, note({
+      id: 'utc',
+      body: 'A quiet morning.',
+      updated: '2026-11-01T23:00:00.000Z',
+    }), 'Reflection/utc.md', 'utc');
+
+    expect((await index.search('')).map(({ id }) => id)).toEqual(['utc', 'melbourne']);
+    expect((await index.search('quiet')).map(({ id }) => id)).toEqual(['utc', 'melbourne']);
+  });
+
   it('re-resolves an existing broken link when its target is indexed later', async () => {
     const source = note({ id: 'source', title: 'Source' });
     await upsert(index, source, 'Reflection/source.md', 'source', [{ kind: 'wiki', target: 'Later', label: 'Later' }]);
