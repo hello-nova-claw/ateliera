@@ -1,0 +1,1 @@
+Numbers and null values that other apps write into a note's details, such as a rating of 5, now stay numbers when the app saves the note, instead of turning into text.
