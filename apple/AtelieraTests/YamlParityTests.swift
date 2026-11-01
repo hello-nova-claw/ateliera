@@ -103,6 +103,37 @@ final class YamlParityTests: XCTestCase {
     }
   }
 
+  private func noteText(_ frontmatter: [String]) -> String {
+    (["---"] + frontmatter + [
+      "schema_version: 1", "id: 01JPARITY", "card_type: fragment", "semantic_type: reflection",
+      "status: active", "rooms: []", "life_areas: []", "seasons: []", "tags: []",
+      "created: 2026-07-14T09:00:00+10:00", "updated: 2026-07-14T09:00:00+10:00",
+      "attachments: []", "display:", "  featured: false", "privacy:", "  sensitivity: private",
+      "  ai_access: ask", "---", "",
+    ]).joined(separator: "\n")
+  }
+
+  // The web's strict parse rejects these (BAD_DQ_ESCAPE), so the native reader does too
+  // and the note goes to Repair unchanged rather than being saved with an altered value.
+  func testMalformedEscapesRejectTheNote() {
+    for escape in ["\\q", "\\xZZ", "\\u12", "\\U00110000"] {
+      XCTAssertNil(NoteParser.parse(noteText(["x: \"a\(escape)b\""])), escape)
+      XCTAssertNil(NoteParser.parse(noteText(["list:", "  - \"\(escape)\""])), escape)
+    }
+    // A lone surrogate is valid YAML but cannot live in a Swift string.
+    let lone = NoteParser.parse(noteText(["x: \"a\\uD800b\""]))
+    XCTAssertEqual(lone?.frontmatterScalar("x"), "a\u{FFFD}b")
+  }
+
+  func testAListItemIsAMapOnlyWhenItsColonIsFollowedBySpaceOrEnd() throws {
+    let parsed = try XCTUnwrap(
+      NoteParser.parse(
+        noteText(["plain:", "  - a:b", "  - c", "maps:", "  - first:", "    second: x"])))
+    XCTAssertEqual(parsed.frontmatterList("plain"), ["a:b", "c"])
+    XCTAssertEqual(
+      parsed.extraFrontmatter.last?.1, .mapSeq([[("first", .map([])), ("second", .scalar("x"))]]))
+  }
+
   func testDoubleQuotedEscapesFromOtherWritersAreDecoded() throws {
     let text = [
       "---",
