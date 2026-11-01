@@ -205,22 +205,22 @@ final class VaultStore {
   private(set) var lastCapturedPath: String?
 
   private static func uitestVaultURL() -> URL? {
-    guard ProcessInfo.processInfo.environment["ATELIERA_UITEST"] == "1" else { return nil }
+    guard UITestLaunch.isOn(.active) else { return nil }
     let url = URL(fileURLWithPath: NSTemporaryDirectory())
       .appendingPathComponent("uitest-\(UUID().uuidString)", isDirectory: true)
     try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     // For the Gift flow test, seed one due wish card so the Foyer shows a real
     // resurfaced card to grade rather than the calm fallback line.
-    if ProcessInfo.processInfo.environment["ATELIERA_UITEST_GIFT"] == "1" {
+    if UITestLaunch.isOn(.gift) {
       seedGiftFixture(at: url)
     }
-    if ProcessInfo.processInfo.environment["ATELIERA_UITEST_P5"] == "1" {
+    if UITestLaunch.isOn(.roomFixtures) {
       seedP5Fixture(at: url)
     }
-    if ProcessInfo.processInfo.environment["ATELIERA_UITEST_FOYER"] == "1" {
+    if UITestLaunch.isOn(.foyer) {
       seedFoyerFixture(at: url)
     }
-    if ProcessInfo.processInfo.environment["ATELIERA_UITEST_CONSTELLATION"] == "1" {
+    if UITestLaunch.isOn(.constellation) {
       seedConstellationFixture(at: url)
     }
     return url
@@ -388,7 +388,7 @@ final class VaultStore {
   // Load this vault's preferences; a fresh (empty) vault is seeded to start small,
   // while an existing vault with no stored prefs shows everything.
   private func loadPreferences() {
-    let isUITest = ProcessInfo.processInfo.environment["ATELIERA_UITEST"] == "1"
+    let isUITest = UITestLaunch.isOn(.active)
     if let stored = preferencesStore.load(studioId: studioId) {
       preferences = stored
     } else if parsedNotesByPath.isEmpty && !isUITest {

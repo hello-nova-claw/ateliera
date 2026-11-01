@@ -23,7 +23,7 @@ final class LocationHemisphere: NSObject, CLLocationManagerDelegate {
   /// One-shot device coordinate, or nil when Location is unavailable/declined.
   func resolveCoordinate() async -> CLLocationCoordinate2D? {
     // UI tests must not trip the Location permission sheet.
-    if ProcessInfo.processInfo.environment["ATELIERA_UITEST"] == "1" { return nil }
+    if UITestLaunch.isOn(.active) { return nil }
     let status = manager.authorizationStatus
     guard status != .denied && status != .restricted else { return nil }
     return await withCheckedContinuation { continuation in

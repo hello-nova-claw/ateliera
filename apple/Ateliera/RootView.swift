@@ -27,7 +27,7 @@ struct RootView: View {
   // The production personalizer is the on-device model; UI tests inject a deterministic fake
   // so the personalised path is exercisable without the real model.
   private static func makePersonalizer() -> MicroSeasonPersonalizer {
-    if ProcessInfo.processInfo.environment["ATELIERA_UITEST_AI"] == "1" {
+    if UITestLaunch.isOn(.fakeModel) {
       return FakeMicroSeasonPersonalizer()
     }
     return FoundationModelsPersonalizer()
@@ -211,7 +211,7 @@ struct RootView: View {
       cycle = await health.loadCycle()
       giftStore.refresh(ctx: almanacContext, today: almanacContext.date)
       // UI tests can't reach Location, so seed a home place to exercise the personalised path.
-      if ProcessInfo.processInfo.environment["ATELIERA_UITEST_AI"] == "1", homePlace.place == nil {
+      if UITestLaunch.isOn(.fakeModel), homePlace.place == nil {
         homePlace.set(
           ResolvedPlace(name: "Testville", latitude: -37.8, longitude: 144.9, timeZoneId: nil))
       }
