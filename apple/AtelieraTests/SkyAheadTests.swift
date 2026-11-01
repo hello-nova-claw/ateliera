@@ -50,6 +50,20 @@ final class SkyAheadTests: XCTestCase {
     XCTAssertNil(list.first { $0.ms == full })
   }
 
+  func testLocalMidnightIsTheDaysFirstInstantWhereClocksSkipIt() throws {
+    // Santiago moved its clocks from 00:00 to 01:00 on 7 September 2025, so that day
+    // starts at 01:00 local (04:00 UTC).
+    let santiago = try XCTUnwrap(TimeZone(identifier: "America/Santiago"))
+    let start = Sky.instant(localDate: "2025-09-07", hour: 0, timeZone: santiago)
+    XCTAssertEqual(Sky.localDate(ms: start, timeZone: santiago), "2025-09-07")
+    XCTAssertEqual(Sky.localDate(ms: start - 1, timeZone: santiago), "2025-09-06")
+    XCTAssertEqual(
+      Sky.instant(
+        localDate: "2026-11-02", hour: 12,
+        timeZone: try XCTUnwrap(TimeZone(identifier: "Australia/Melbourne"))),
+      Rhythm.utcMillis(year: 2026, month: 11, day: 2) + 3_600_000)
+  }
+
   func testDateEventsKeepTheirCalendarDayInAnyZone() throws {
     // A solar return is a calendar day, so it reads the same date east and west of UTC.
     for hours in [11, -8] {
@@ -68,7 +82,9 @@ final class SkyAheadTests: XCTestCase {
   func testEventsAreSortedNearestFirstAndInTheFuture() {
     let list = events()
     XCTAssertFalse(list.isEmpty)
-    for event in list { XCTAssertGreaterThan(event.ms, nowMs, "\(event.title) is not in the future") }
+    for event in list {
+      XCTAssertGreaterThan(event.ms, nowMs, "\(event.title) is not in the future")
+    }
     XCTAssertEqual(list, list.sorted { $0.ms < $1.ms }, "events are not nearest-first")
   }
 

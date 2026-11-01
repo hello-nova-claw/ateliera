@@ -39,7 +39,8 @@ final class InvitationTests: XCTestCase {
   }
 
   func testAFullMoonAtOneInTheMorningIsTonightOnItsLocalDate() throws {
-    let full = Sky.nextMoonPhase(afterMs: Rhythm.utcMillis(year: 2026, month: 10, day: 1), phase: .full)
+    let full = Sky.nextMoonPhase(
+      afterMs: Rhythm.utcMillis(year: 2026, month: 10, day: 1), phase: .full)
     let (zone, localDay) = try zoneWhereItIsOneAM(at: full)
     let lunation = Sky.isoDate(ms: full)
 
@@ -55,7 +56,8 @@ final class InvitationTests: XCTestCase {
 
   func testMoonInvitationsCountDaysInTheWritersZoneEastAndWest() throws {
     // The same new moon is "today" on its local date in UTC+11 and in UTC−8.
-    let new = Sky.nextMoonPhase(afterMs: Rhythm.utcMillis(year: 2026, month: 10, day: 1), phase: .new)
+    let new = Sky.nextMoonPhase(
+      afterMs: Rhythm.utcMillis(year: 2026, month: 10, day: 1), phase: .new)
     for hours in [11, -8] {
       let zone = try XCTUnwrap(TimeZone(secondsFromGMT: hours * 3600))
       let localDay = Sky.isoDate(ms: new + Int64(hours) * 3_600_000)
@@ -122,7 +124,8 @@ final class InvitationTests: XCTestCase {
 
   func testSynthesizeWhenAThemeHasEnoughIdeas() {
     let ideas = (1...3).map {
-      note(id: "w\($0)", cardType: "quote", status: "active", rooms: ["wisdom-garden"], tags: ["rest"])
+      note(
+        id: "w\($0)", cardType: "quote", status: "active", rooms: ["wisdom-garden"], tags: ["rest"])
     }
     let inv = InvitationEngine.current(ctx("2026-08-05", notes: ideas))
     XCTAssertEqual(inv?.kind, .synthesizeWisdom(theme: "rest"))

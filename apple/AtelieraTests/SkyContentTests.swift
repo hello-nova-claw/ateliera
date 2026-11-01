@@ -27,6 +27,7 @@ final class SkyContentTests: XCTestCase {
     XCTAssertEqual(
       orientation["inward"], "A gathering day — a good time to notice how far you have come.")
     XCTAssertEqual(
-      orientation["outward"], "An opening day — a good time to name what you want to make room for.")
+      orientation["outward"], "An opening day — a good time to name what you want to make room for."
+    )
   }
 }
