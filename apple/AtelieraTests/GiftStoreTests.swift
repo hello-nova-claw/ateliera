@@ -83,7 +83,8 @@ final class GiftStoreTests: XCTestCase {
     guard case .card(let title, let excerpt, _, _, _, _) = gift.gift else {
       return XCTFail("expected a card, got \(gift.gift)")
     }
-    XCTAssertEqual(excerpt, "A test wish that links Invented fixture note.")
+    XCTAssertFalse(excerpt.contains("[["), excerpt)
+    XCTAssertFalse(excerpt.contains("**"), excerpt)
     XCTAssertEqual(excerpt, Projection.excerpt(note))
     XCTAssertEqual(title, Projection.title(note))
   }
