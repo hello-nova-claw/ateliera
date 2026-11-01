@@ -1,0 +1,1 @@
+On iPad, Ateliera now turns with the device in every orientation, so it can sit beside other apps in Split View and Slide Over.
