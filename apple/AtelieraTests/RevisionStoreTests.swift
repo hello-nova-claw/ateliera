@@ -227,6 +227,37 @@ final class RevisionStoreTests: XCTestCase {
     XCTAssertFalse(store.listAllPaths().contains { $0.hasPrefix(RevisionStore.backupsRoot) })
   }
 
+  func testAManifestIsTrustedOnlyUpToTheSizeLimit() throws {
+    let bytes = Data("copy".utf8)
+    let (root, manifest) = validManifest(original: "Inbox/note.md", bytes: bytes)
+    let data = try manifestJSON(manifest)
+    let text = try XCTUnwrap(String(data: data, encoding: .utf8))
+    let path = "\(root)/manifest.json"
+    XCTAssertNotNil(RevisionStore.trustedManifest(text, at: path, maxBytes: data.count))
+    XCTAssertNil(RevisionStore.trustedManifest(text, at: path, maxBytes: data.count - 1))
+  }
+
+  func testConflictOverwriteKeepsTheStoredVersionWhenItCannotSnapshotIt() throws {
+    let (dir, store) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.capture(title: "N", body: "stored", room: "inbox"))
+    let path = try XCTUnwrap(store.parsedNotesByPath.first?.path)
+    let stale = try XCTUnwrap(store.beginEdit(path: path))
+    let fresh = try XCTUnwrap(store.beginEdit(path: path))
+    var concurrent = fresh.note
+    concurrent.body = "changed elsewhere"
+    XCTAssertTrue(store.saveEdit(fresh, updatedNote: concurrent))
+    var draft = stale.note
+    draft.body = "my draft"
+    XCTAssertFalse(store.saveEdit(stale, updatedNote: draft))
+    // A file where the backups folder should be, so no snapshot can be written.
+    try write(Data("x".utf8), at: RevisionStore.backupsRoot, in: dir)
+
+    XCTAssertFalse(store.resolveConflictOverwrite())
+    XCTAssertEqual(try XCTUnwrap(store.beginEdit(path: path)).note.body, "changed elsewhere")
+    XCTAssertNotNil(store.conflict)
+  }
+
   func testPruneLeavesTheNoteAPlantedManifestNames() throws {
     let (dir, store) = try makeVault()
     defer { try? FileManager.default.removeItem(at: dir) }
