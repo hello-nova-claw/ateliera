@@ -26,3 +26,19 @@ runs:
         brew install xcodegen
         ./AtelieraVaultCore/build.sh
         xcodegen generate
+    # Some runners start with no simulators listed, and xcodebuild then finds no
+    # destination. Restarting CoreSimulator usually brings them back.
+    - name: Check the simulators are there
+      shell: bash
+      run: |
+        for attempt in 1 2 3 4; do
+          if xcrun simctl list devices available | sed -n '/-- iOS 26.5 --/,/^--/p' | grep -q 'iPhone 17 Pro ('; then
+            exit 0
+          fi
+          [ "$attempt" = 4 ] && break
+          echo "No iPhone 17 Pro on iOS 26.5 listed (attempt $attempt). Restarting CoreSimulator."
+          sudo killall -9 com.apple.CoreSimulator.CoreSimulatorService 2>/dev/null || true
+          sleep 20
+        done
+        echo "::error::This runner lists no iPhone 17 Pro on iOS 26.5. Rerun the job."
+        exit 1

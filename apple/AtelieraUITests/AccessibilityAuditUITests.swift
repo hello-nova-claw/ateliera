@@ -86,7 +86,7 @@ final class AccessibilityAuditUITests: XCTestCase {
   /// whether its element could still be found once the pass had finished.
   private func newFindings(
     _ app: XCUIApplication, on screen: String, for types: XCUIAccessibilityAuditType = .all,
-    retry: Bool = true
+    attempt: Int = 1
   ) -> [AuditFinding] {
     var issues: [(issue: XCUIAccessibilityAuditIssue, finding: KnownAccessibilityIssues.Finding)] =
       []
@@ -97,13 +97,15 @@ final class AccessibilityAuditUITests: XCTestCase {
         return true
       }
     } catch let error as NSError where error.code == -56 {
-      // -56 is the audit timing out on a busy simulator: try once more before failing,
-      // since an unaudited position could hide a finding.
-      if retry {
-        return newFindings(app, on: screen, for: types, retry: false)
+      // -56 is the audit timing out on a busy simulator. An unaudited position could hide a
+      // finding, so try up to three times, two seconds apart, before failing.
+      if attempt < 3 {
+        _ = XCTWaiter.wait(for: [XCTestExpectation(description: "a pause")], timeout: 2)
+        return newFindings(app, on: screen, for: types, attempt: attempt + 1)
       }
       XCTFail(
-        "\(screen): the accessibility audit timed out twice, so this position went unaudited.")
+        "\(screen): the accessibility audit timed out three times, so this position went unaudited."
+      )
     } catch {
       XCTFail("\(screen): \(error)")
     }
