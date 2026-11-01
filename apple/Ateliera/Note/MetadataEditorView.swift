@@ -12,7 +12,8 @@ struct MetadataEditorView: View {
     Form {
       Section("Type & Status") {
         cardTypePicker
-        rawPicker("Meaning", selection: $note.semanticType, options: SemanticType.allCases.map(\.rawValue))
+        rawPicker(
+          "Meaning", selection: $note.semanticType, options: SemanticType.allCases.map(\.rawValue))
         rawPicker("Status", selection: $note.status, options: NoteStatus.allCases.map(\.rawValue))
       }
 
@@ -20,15 +21,15 @@ struct MetadataEditorView: View {
         multiSelect(
           "Rooms", options: Room.all.map { ($0.id, $0.title) }, selection: $note.rooms)
         LabeledContent("Tags") {
-          TextField("comma, separated", text: listBinding($note.tags))
-            .multilineTextAlignment(.trailing)
+          CommaListField(placeholder: "comma, separated", items: $note.tags)
+            .accessibilityIdentifier("metadata-tags")
         }
         multiSelect(
           "Life areas", options: NoteMetadata.defaultLifeAreas.map { ($0.id, $0.label) },
           selection: $note.lifeAreas)
         LabeledContent("Seasons") {
-          TextField("2026-winter, …", text: listBinding($note.seasons))
-            .multilineTextAlignment(.trailing)
+          CommaListField(placeholder: "2026-winter, …", items: $note.seasons)
+            .accessibilityIdentifier("metadata-seasons")
         }
       }
 
@@ -48,15 +49,21 @@ struct MetadataEditorView: View {
       }
 
       Section("Privacy") {
-        rawPicker("Sensitivity", selection: $note.privacy.sensitivity, options: Sensitivity.allCases.map(\.rawValue))
-        rawPicker("AI access", selection: $note.privacy.aiAccess, options: AiAccess.allCases.map(\.rawValue))
+        rawPicker(
+          "Sensitivity", selection: $note.privacy.sensitivity,
+          options: Sensitivity.allCases.map(\.rawValue))
+        rawPicker(
+          "AI access", selection: $note.privacy.aiAccess, options: AiAccess.allCases.map(\.rawValue)
+        )
       }
 
       Section("Display") {
         Toggle("Featured", isOn: $note.display.featured)
         LabeledContent("Cover") {
           TextField(
-            "media/…", text: Binding(get: { note.display.cover ?? "" },
+            "media/…",
+            text: Binding(
+              get: { note.display.cover ?? "" },
               set: { note.display.cover = $0.isEmpty ? nil : $0 })
           ).multilineTextAlignment(.trailing)
         }
@@ -69,19 +76,23 @@ struct MetadataEditorView: View {
 
   private var cardTypePicker: some View {
     // Known kinds + the current value if it's custom.
-    let options = NoteMetadata.knownCardTypes.contains(note.cardType)
+    let options =
+      NoteMetadata.knownCardTypes.contains(note.cardType)
       ? NoteMetadata.knownCardTypes : NoteMetadata.knownCardTypes + [note.cardType]
     return rawPicker("Card type", selection: $note.cardType, options: options)
   }
 
-  private func rawPicker(_ label: String, selection: Binding<String>, options: [String]) -> some View {
+  private func rawPicker(_ label: String, selection: Binding<String>, options: [String])
+    -> some View
+  {
     Picker(label, selection: selection) {
       ForEach(options, id: \.self) { Text(Self.humanize($0)).tag($0) }
     }
   }
 
   private var anchorBinding: Binding<String> {
-    Binding(get: { note.landscapeAnchor ?? "" }, set: { note.landscapeAnchor = $0.isEmpty ? nil : $0 })
+    Binding(
+      get: { note.landscapeAnchor ?? "" }, set: { note.landscapeAnchor = $0.isEmpty ? nil : $0 })
   }
 
   // Rooms/life-areas: toggle membership; options not in the list are preserved.
@@ -111,7 +122,9 @@ struct MetadataEditorView: View {
     }
   }
 
-  private func sourceField(_ label: String, _ keyPath: WritableKeyPath<NoteSource, String?>) -> some View {
+  private func sourceField(_ label: String, _ keyPath: WritableKeyPath<NoteSource, String?>)
+    -> some View
+  {
     LabeledContent(label) {
       TextField(
         "optional",
@@ -127,20 +140,64 @@ struct MetadataEditorView: View {
     }
   }
 
-  // Comma-separated editing for a string array.
-  private func listBinding(_ array: Binding<[String]>) -> Binding<String> {
-    Binding(
-      get: { array.wrappedValue.joined(separator: ", ") },
-      set: { text in
-        array.wrappedValue =
-          text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-          .filter { !$0.isEmpty }
-      })
-  }
-
   static func humanize(_ raw: String) -> String {
     let spaced = raw.replacingOccurrences(of: "-", with: " ")
     guard let first = spaced.first else { return spaced }
     return first.uppercased() + spaced.dropFirst()
+  }
+}
+
+// The text of a comma-separated list field. The typed text is kept as it is, so "calm,"
+// stays on screen while the list already reads ["calm"]; the text is only replaced when
+// the list changes from somewhere else.
+struct CommaListText: Equatable {
+  private(set) var text: String
+
+  init(items: [String]) {
+    text = items.joined(separator: ", ")
+  }
+
+  static func parse(_ text: String) -> [String] {
+    text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+      .filter { !$0.isEmpty }
+  }
+
+  /// Takes what was typed and returns the list it now spells.
+  mutating func edit(_ typed: String) -> [String] {
+    text = typed
+    return Self.parse(typed)
+  }
+
+  /// Follows the list when it changes elsewhere, ignoring the echo of its own edit.
+  mutating func sync(_ items: [String]) {
+    guard Self.parse(text) != items else { return }
+    text = items.joined(separator: ", ")
+  }
+}
+
+// A text field for a list of short values, typed comma-separated.
+private struct CommaListField: View {
+  let placeholder: String
+  @Binding var items: [String]
+  @State private var field: CommaListText
+
+  init(placeholder: String, items: Binding<[String]>) {
+    self.placeholder = placeholder
+    _items = items
+    _field = State(initialValue: CommaListText(items: items.wrappedValue))
+  }
+
+  var body: some View {
+    TextField(
+      placeholder,
+      text: Binding(
+        get: { field.text },
+        set: { typed in
+          let parsed = field.edit(typed)
+          if parsed != items { items = parsed }
+        })
+    )
+    .multilineTextAlignment(.trailing)
+    .onChange(of: items) { _, newItems in field.sync(newItems) }
   }
 }
