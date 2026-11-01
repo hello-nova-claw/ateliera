@@ -179,7 +179,7 @@ enum NoteParser {
     guard firstItem.contains(": "), !firstItem.hasPrefix("\""), !firstItem.hasPrefix("'") else {
       var items: [String] = []
       while isSequenceItem(lines, index, indent: indent) {
-        let text = String(lines[index].dropFirst(indent + 4))
+        let text = trimmingYamlSpace(String(lines[index].dropFirst(indent + 4)))
         index += 1
         items.append(readScalar(text, lines, &index, parentIndent: indent + 2))
       }
