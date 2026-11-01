@@ -287,12 +287,13 @@ enum NoteParser {
         pos += 2
       } else if let width = hexEscapeWidths[escape], var code = hex(at: pos + 2, width: width) {
         pos += 2 + width
-        if (0xD800...0xDBFF).contains(code), pos + 6 <= scalars.endIndex, scalars[pos] == "\\",
-          scalars[pos + 1] == "u", let low = hex(at: pos + 2, width: 4),
-          (0xDC00...0xDFFF).contains(low)
+        // The web joins a high and a low surrogate however wide their escapes are.
+        if (0xD800...0xDBFF).contains(code), pos + 1 < scalars.endIndex, scalars[pos] == "\\",
+          let lowWidth = ["u": 4, "U": 8][scalars[pos + 1]],
+          let low = hex(at: pos + 2, width: lowWidth), (0xDC00...0xDFFF).contains(low)
         {
           code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00)
-          pos += 6
+          pos += 2 + lowWidth
         }
         guard let decoded = Unicode.Scalar(code) else { throw MalformedEscape() }
         out.append(decoded)
