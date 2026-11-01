@@ -436,6 +436,25 @@ final class YamlParityTests: XCTestCase {
     XCTAssertNil(NoteParser.parse(text))
   }
 
+  // Deep nesting could overflow the stack (#37). The reader rejects anything nested
+  // deeper than it ever needs, so the note goes to Repair instead.
+  func testDeeplyNestedFrontmatterIsRejectedWithoutCrashing() {
+    func nested(_ levels: Int) -> [String] {
+      (0..<levels).map { level in String(repeating: " ", count: level * 2) + "k:" }
+    }
+    // 5,000 levels is the case from the issue; it is also over the size limit, so
+    // 100 levels (about 10 KiB) checks the depth limit on its own.
+    XCTAssertNil(NoteParser.parse(noteText(nested(5000))))
+    XCTAssertNil(NoteParser.parse(noteText(nested(100))))
+    XCTAssertNotNil(NoteParser.parse(noteText(nested(NoteParser.maxNesting))))
+  }
+
+  func testOversizedFrontmatterIsRejected() {
+    let big = String(repeating: "x", count: NoteParser.maxFrontmatterBytes)
+    XCTAssertNil(NoteParser.parse(noteText(["huge: \(big)"])))
+    XCTAssertNotNil(NoteParser.parse(noteText(["fine: \(big.prefix(1000))"])))
+  }
+
   func testDoubleQuotedEscapesFromOtherWritersAreDecoded() throws {
     let text = [
       "---",
