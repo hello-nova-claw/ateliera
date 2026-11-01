@@ -327,15 +327,15 @@ enum Rhythm {
   static func computeCycle(_ cycle: CycleProfile?, dateMs: Int64) -> CycleState? {
     guard let cycle else { return nil }
     let start = parse(cycle.lastPeriodStart)
-    let daysSince = Int((dateMs - start.ms) / 86_400_000)
+    // Floor, like the web engine's Math.floor, so a moment before the start day is day -1.
+    let elapsed = dateMs - start.ms
+    let daysSince = Int(elapsed / 86_400_000) - (elapsed % 86_400_000 < 0 ? 1 : 0)
     let avg = cycle.avgLengthDays
-    let day: Int
-    if daysSince < avg {
-      day = daysSince + 1
-    } else {
-      let mod = daysSince % avg
-      day = mod == 0 ? avg : mod
-    }
+    // A start in the future, or more than two average cycles ago, is too far from
+    // today to estimate from.
+    guard daysSince >= 0, daysSince <= 2 * avg else { return nil }
+    // Day 1 is the start day; each cycle runs days 1...avg, then the next begins.
+    let day = daysSince % avg + 1
     return CycleState(day: day, phase: cyclePhaseForDay(day, avgLengthDays: avg))
   }
 
