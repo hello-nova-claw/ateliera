@@ -4,7 +4,7 @@ description: Restores or creates the Rust toolchain, builds the vault core and g
 runs:
   using: composite
   steps:
-    - uses: actions/cache@v5.0.1
+    - uses: actions/cache@v6.1.0
       with:
         path: |
           .toolchains
