@@ -204,8 +204,12 @@ final class YamlParityTests: XCTestCase {
       NoteParser.parse(
         noteText(["plain:", "  - a:b", "  - c", "maps:", "  - first:", "    second: x"])))
     XCTAssertEqual(parsed.frontmatterList("plain"), ["a:b", "c"])
+    // The empty first value is not written back, so the entry is kept as written.
     XCTAssertEqual(
-      parsed.extraFrontmatter.last?.1, .mapSeq([[("first", .map([])), ("second", .scalar("x"))]]))
+      parsed.extraFrontmatter.last?.1,
+      .verbatim(
+        ["maps:", "  - first:", "    second: x"],
+        .mapSeq([[("first", .map([])), ("second", .scalar("x"))]])))
   }
 
   private struct PlainType: Decodable {
@@ -279,8 +283,42 @@ final class YamlParityTests: XCTestCase {
 
   // Captured from `@studio/content`'s serializeNote.
   func testAWebSeasonNoteWithAMultiLineStatementRoundTrips() throws {
-    let golden =
-      "---\nseason_id: 2026-winter\nseason_workflow:\n  statement: |-\n    Rest first.\n    Then build.\n  skipped_prior_reflection: false\n  feelings:\n    - calm\n  decisions:\n    - id: d1\n      text: Walk daily\nschema_version: 1\nid: 01JSEASON\ntitle: Winter\ncard_type: season\nsemantic_type: reflection\nstatus: active\nrooms: []\nlife_areas: []\nseasons:\n  - 2026-winter\ntags: []\ncreated: 2026-07-14T09:00:00+10:00\nupdated: 2026-07-14T09:00:00+10:00\nattachments: []\ndisplay:\n  featured: false\nprivacy:\n  sensitivity: private\n  ai_access: ask\n---\nNotes.\n"
+    let golden = [
+      "---",
+      "season_id: 2026-winter",
+      "season_workflow:",
+      "  statement: |-",
+      "    Rest first.",
+      "    Then build.",
+      "  skipped_prior_reflection: false",
+      "  feelings:",
+      "    - calm",
+      "  decisions:",
+      "    - id: d1",
+      "      text: Walk daily",
+      "schema_version: 1",
+      "id: 01JSEASON",
+      "title: Winter",
+      "card_type: season",
+      "semantic_type: reflection",
+      "status: active",
+      "rooms: []",
+      "life_areas: []",
+      "seasons:",
+      "  - 2026-winter",
+      "tags: []",
+      "created: 2026-07-14T09:00:00+10:00",
+      "updated: 2026-07-14T09:00:00+10:00",
+      "attachments: []",
+      "display:",
+      "  featured: false",
+      "privacy:",
+      "  sensitivity: private",
+      "  ai_access: ask",
+      "---",
+      "Notes.",
+      "",
+    ].joined(separator: "\n")
     let parsed = try XCTUnwrap(NoteParser.parse(golden))
     XCTAssertEqual(parsed.nestedScalar("season_workflow", "statement"), "Rest first.\nThen build.")
     XCTAssertEqual(parsed.nestedList("season_workflow", "feelings"), ["calm"])
