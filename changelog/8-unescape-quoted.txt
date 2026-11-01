@@ -1,0 +1,1 @@
+A title or other note detail containing quotation marks or a backslash no longer gains extra backslashes each time the app saves the note, and reads the same as in the web app.

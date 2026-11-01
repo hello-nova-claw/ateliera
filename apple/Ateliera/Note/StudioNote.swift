@@ -51,11 +51,26 @@ indirect enum YamlNode: Equatable {
     }
   }
 
-  var scalarValue: String? { if case .scalar(let s) = self { return s }; return nil }
-  var boolValue: Bool? { if case .bool(let b) = self { return b }; return nil }
-  var listValue: [String]? { if case .list(let l) = self { return l }; return nil }
-  var mapValue: [(String, YamlNode)]? { if case .map(let m) = self { return m }; return nil }
-  var mapSeqValue: [[(String, YamlNode)]]? { if case .mapSeq(let s) = self { return s }; return nil }
+  var scalarValue: String? {
+    if case .scalar(let value) = self { return value }
+    return nil
+  }
+  var boolValue: Bool? {
+    if case .bool(let value) = self { return value }
+    return nil
+  }
+  var listValue: [String]? {
+    if case .list(let value) = self { return value }
+    return nil
+  }
+  var mapValue: [(String, YamlNode)]? {
+    if case .map(let value) = self { return value }
+    return nil
+  }
+  var mapSeqValue: [[(String, YamlNode)]]? {
+    if case .mapSeq(let value) = self { return value }
+    return nil
+  }
 }
 
 // Typed reads of unknown (`extraFrontmatter`) keys. These live in the same file as
@@ -106,7 +121,9 @@ extension StudioNote {
     decisions: [[(String, String)]], practices: [String], supports: [String], constraints: [String],
     enough: String, notNow: [String], midSeasonNotes: [String], completedSteps: [String]
   ) {
-    let managed: Set<String> = ["season_id", "date_start", "date_end", "priorities", "season_workflow"]
+    let managed: Set<String> = [
+      "season_id", "date_start", "date_end", "priorities", "season_workflow",
+    ]
     var extra = extraFrontmatter.filter { !managed.contains($0.0) }
     extra.append(("season_id", .scalar(seasonId)))
     if let dateStart { extra.append(("date_start", .scalar(dateStart))) }
@@ -131,7 +148,8 @@ extension StudioNote {
           ("not_now", .list(notNow)),
           ("mid_season_notes", .list(midSeasonNotes)),
           ("completed_steps", .list(completedSteps)),
-        ])))
+        ])
+      ))
     extraFrontmatter = extra
   }
 
@@ -214,13 +232,14 @@ struct StudioNote {
     if let cover = display.cover { displayPairs.append(("cover", .scalar(cover))) }
     displayPairs.append(("featured", .bool(display.featured)))
     pairs.append(("display", .map(displayPairs)))
-    pairs.append((
-      "privacy",
-      .map([
-        ("sensitivity", .scalar(privacy.sensitivity)),
-        ("ai_access", .scalar(privacy.aiAccess)),
-      ])
-    ))
+    pairs.append(
+      (
+        "privacy",
+        .map([
+          ("sensitivity", .scalar(privacy.sensitivity)),
+          ("ai_access", .scalar(privacy.aiAccess)),
+        ])
+      ))
 
     let yaml = Self.emit(pairs, indent: 0)
       .trimmingTrailingNewlines()
@@ -236,7 +255,7 @@ struct StudioNote {
     for (key, node) in pairs {
       switch node {
       case .scalar(let value):
-        out += "\(pad)\(key): \(scalar(value))\n"
+        out += "\(pad)\(key): \(scalar(value, indent: indent + 2))\n"
       case .int(let value):
         out += "\(pad)\(key): \(value)\n"
       case .bool(let value):
@@ -246,7 +265,7 @@ struct StudioNote {
           out += "\(pad)\(key): []\n"
         } else {
           out += "\(pad)\(key):\n"
-          for item in items { out += "\(pad)  - \(scalar(item))\n" }
+          for item in items { out += "\(pad)  - \(scalar(item, indent: indent + 4))\n" }
         }
       case .map(let sub):
         out += "\(pad)\(key):\n"
@@ -265,7 +284,7 @@ struct StudioNote {
               } else if case .bool(let value) = pair.1 {
                 out += "\(prefix)\(pair.0): \(value ? "true" : "false")\n"
               } else if case .scalar(let value) = pair.1 {
-                out += "\(prefix)\(pair.0): \(scalar(value))\n"
+                out += "\(prefix)\(pair.0): \(scalar(value, indent: indent + 6))\n"
               }
             }
           }
@@ -275,72 +294,161 @@ struct StudioNote {
     return out
   }
 
-  // Emit a scalar the way the `yaml` library's `stringify` does: plain (unquoted)
-  // when safe, otherwise double-quoted. The rules below are derived empirically
-  // from `yaml`'s output (see NoteFixturesTests) so a value that needs quoting is
-  // byte-identical to the web serializer.
-  private static func scalar(_ value: String) -> String {
-    needsQuoting(value) ? doubleQuote(value) : value
-  }
-
-  private static func needsQuoting(_ value: String) -> Bool {
-    if value.isEmpty { return true }
-    if value.hasPrefix(" ") || value.hasSuffix(" ") { return true }
-    if value.contains(": ") || value.hasSuffix(":") { return true }
-    if value.contains(" #") { return true }
-    if resolvesAsNonString(value) { return true }
-    if let first = value.first, leadingIndicators.contains(first) {
-      // `-`, `?`, `:` only force quoting when alone or followed by a space; the
-      // rest (`,#&*!|>%@` backtick brackets braces quotes) always do.
-      if first == "-" || first == "?" || first == ":" {
-        return value.count == 1 || value.dropFirst().hasPrefix(" ")
-      }
-      return true
+  // Emit a scalar the way the `yaml` library's `stringify` does: plain when safe,
+  // otherwise quoted, choosing single or double quotes as it does. Ported from
+  // `yaml`'s stringifyString.js and checked against its output (YamlParityTests).
+  // `indent` is the column a continuation line of the value would start at.
+  private static func scalar(_ value: String, indent: Int) -> String {
+    if value.unicodeScalars.contains(where: isForcedDoubleQuote) {
+      return doubleQuoted(value, indent: indent)
     }
-    return false
+    if matches(value, plainForbidden) || resolvesAsNonString(value) {
+      return quoted(value, indent: indent)
+    }
+    return value
   }
 
-  private static let leadingIndicators: Set<Character> = [
-    "-", "?", ":", ",", "#", "&", "*", "!", "|", ">", "%", "@", "`", "\"", "'", "[",
-    "]", "{", "}",
-  ]
+  // Control characters other than tab and line feed can only be written escaped.
+  private static func isForcedDoubleQuote(_ scalar: Unicode.Scalar) -> Bool {
+    switch scalar.value {
+    case 0x00...0x08, 0x0B...0x1F, 0x7F...0x9F: return true
+    default: return false
+    }
+  }
 
-  // Would the plain scalar be resolved by YAML's core schema as a bool, null, or
-  // number rather than a string? Matches the `yaml` library: case-insensitive
-  // true/false/null and `~`, and decimal/hex/octal/float/inf/nan literals.
+  // `yaml`'s test for a string that cannot be written plain: a leading indicator,
+  // a lone or space-led `-`/`?`, `: ` or ` #` inside, or a trailing space or colon.
+  private static let plainForbidden =
+    #"\A[\n\t ,\[\]{}#\&*!|>'"%@`]|\A[?\-]\z|\A[?\-][ \t]|[\n:][ \t]|[ \t]\n|[\n\t ]#|[\n\t :]\z"#
+
+  // Would the plain scalar be read by YAML 1.2's core schema as a null, bool or
+  // number rather than a string? These are the `yaml` library's own tag tests.
   private static func resolvesAsNonString(_ value: String) -> Bool {
-    let lower = value.lowercased()
-    if lower == "true" || lower == "false" || lower == "null" || value == "~" {
-      return true
-    }
-    for pattern in numberPatterns where matches(value, pattern) { return true }
-    return false
+    nonStringPatterns.contains { matches(value, $0) }
   }
 
-  private static let numberPatterns = [
-    "^[-+]?[0-9]+$",  // decimal int
-    "^0x[0-9a-fA-F]+$",  // hex
-    "^0o[0-7]+$",  // octal
-    "^[-+]?(?:\\.[0-9]+|[0-9]+(?:\\.[0-9]*)?)(?:[eE][-+]?[0-9]+)?$",  // float / exp
-    "^[-+]?\\.(?:inf|Inf|INF)$",  // infinity
-    "^\\.(?:nan|NaN|NAN)$",  // not-a-number
+  private static let nonStringPatterns = [
+    #"\A(?:~|[Nn]ull|NULL)?\z"#,  // null, including the empty string
+    #"\A(?:[Tt]rue|TRUE|[Ff]alse|FALSE)\z"#,  // bool
+    #"\A0o[0-7]+\z"#,  // octal
+    #"\A[-+]?[0-9]+\z"#,  // decimal int
+    #"\A0x[0-9a-fA-F]+\z"#,  // hex
+    #"\A(?:[-+]?\.(?:inf|Inf|INF)|\.nan|\.NaN|\.NAN)\z"#,  // infinity, not-a-number
+    #"\A[-+]?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)[eE][-+]?[0-9]+\z"#,  // exponent
+    #"\A[-+]?(?:\.[0-9]+|[0-9]+\.[0-9]*)\z"#,  // float
   ]
 
   private static func matches(_ value: String, _ pattern: String) -> Bool {
     value.range(of: pattern, options: .regularExpression) != nil
   }
 
-  private static func doubleQuote(_ value: String) -> String {
-    var out = "\""
-    for ch in value {
-      switch ch {
-      case "\\": out += "\\\\"
-      case "\"": out += "\\\""
-      default: out.append(ch)
+  // Single quotes when the string holds a double quote and no single quote, as the
+  // web does; double quotes otherwise.
+  private static func quoted(_ value: String, indent: Int) -> String {
+    let scalars = value.unicodeScalars
+    if scalars.contains("\""), !scalars.contains("'") {
+      return singleQuoted(value, indent: indent)
+    }
+    return doubleQuoted(value, indent: indent)
+  }
+
+  private static func singleQuoted(_ value: String, indent: Int) -> String {
+    // A single-quoted scalar cannot keep spaces around a line break.
+    if matches(value, #"[ \t]\n|\n[ \t]"#) { return doubleQuoted(value, indent: indent) }
+    var out = String.UnicodeScalarView(["'"])
+    for scalar in value.unicodeScalars {
+      out.append(scalar)
+      if scalar == "'" { out.append("'") }
+    }
+    out.append("'")
+    return String(out)
+  }
+
+  // `yaml`'s doubleQuotedString: JSON.stringify's escapes, then YAML's shorter
+  // `\0 \a \v \e \xNN` forms, and, in a string of 40 or more JSON characters, line
+  // feeds written as folded line breaks. The loop is a direct port, working on the
+  // UTF-16 code units of the JSON text just as the JavaScript does.
+  private static func doubleQuoted(_ value: String, indent: Int) -> String {
+    let (backslash, quote, space, newline) = (Unit.backslash, Unit.quote, Unit.space, Unit.newline)
+    let (letterN, letterU) = (Unit.letterN, Unit.letterU)
+    let json = jsonString(value)
+    func at(_ index: Int) -> UInt16? { index < json.count ? json[index] : nil }
+    var out: [UInt16] = []
+    var start = 0
+    var pos = 0
+    while pos < json.count {
+      var unit = json[pos]
+      if unit == space && at(pos + 1) == backslash && at(pos + 2) == letterN {
+        // A space before a line feed is escaped so folding cannot eat it.
+        out += json[start..<pos]
+        out += [backslash, space]
+        pos += 1
+        start = pos
+        unit = backslash
+      }
+      if unit == backslash {
+        switch at(pos + 1) {
+        case letterU:
+          out += json[start..<pos]
+          let code = String(decoding: json[(pos + 2)..<(pos + 6)], as: UTF16.self)
+          out += (shortEscapes[code] ?? "\\x\(code.dropFirst(2))").utf16
+          pos += 5
+          start = pos + 1
+        case letterN:
+          if at(pos + 2) == quote || json.count < 40 {
+            pos += 1
+          } else {
+            out += json[start..<pos]
+            out += [newline, newline]
+            while at(pos + 2) == backslash && at(pos + 3) == letterN && at(pos + 4) != quote {
+              out.append(newline)
+              pos += 2
+            }
+            out += Array(repeating: space, count: indent)
+            if at(pos + 2) == space { out.append(backslash) }
+            pos += 1
+            start = pos + 1
+          }
+        default:
+          pos += 1
+        }
+      }
+      pos += 1
+    }
+    out += json[start...]
+    return String(decoding: out, as: UTF16.self)
+  }
+
+  private enum Unit {
+    static let backslash: UInt16 = 0x5C
+    static let quote: UInt16 = 0x22
+    static let space: UInt16 = 0x20
+    static let newline: UInt16 = 0x0A
+    static let letterN: UInt16 = 0x6E
+    static let letterU: UInt16 = 0x75
+  }
+
+  private static let shortEscapes = ["0000": "\\0", "0007": "\\a", "000b": "\\v", "001b": "\\e"]
+
+  // JSON.stringify of a string: quotes, backslashes and C0 controls escaped, with
+  // lowercase hex, everything else (DEL, C1 controls, U+2028) left as it is.
+  private static func jsonString(_ value: String) -> [UInt16] {
+    var json: [UInt16] = [0x22]
+    for unit in value.utf16 {
+      switch unit {
+      case 0x22: json += "\\\"".utf16
+      case 0x5C: json += "\\\\".utf16
+      case 0x08: json += "\\b".utf16
+      case 0x09: json += "\\t".utf16
+      case 0x0A: json += "\\n".utf16
+      case 0x0C: json += "\\f".utf16
+      case 0x0D: json += "\\r".utf16
+      case 0x00..<0x20: json += String(format: "\\u%04x", unit).utf16
+      default: json.append(unit)
       }
     }
-    out += "\""
-    return out
+    json.append(0x22)
+    return json
   }
 }
 
