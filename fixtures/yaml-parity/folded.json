@@ -1,0 +1,50 @@
+[
+  {
+    "yaml": "x: >\n  one\n  two",
+    "value": "one two\n"
+  },
+  {
+    "yaml": "x: >-\n  one\n  two",
+    "value": "one two"
+  },
+  {
+    "yaml": "x: >+\n  one\n  two\n\n",
+    "value": "one two\n\n\n"
+  },
+  {
+    "yaml": "x: >\n  one\n\n  two",
+    "value": "one\ntwo\n"
+  },
+  {
+    "yaml": "x: >\n  one\n\n\n  two\n  three",
+    "value": "one\n\ntwo three\n"
+  },
+  {
+    "yaml": "x: >\n  one\n    indented\n  two",
+    "value": "one\n  indented\ntwo\n"
+  },
+  {
+    "yaml": "x: >\n  one\n\n    indented\n\n  two",
+    "value": "one\n\n  indented\n\ntwo\n"
+  },
+  {
+    "yaml": "x: >2\n   leading space\n  next",
+    "value": " leading space\nnext\n"
+  },
+  {
+    "yaml": "x: >-\n  one\n  \n  two  ",
+    "value": "one\ntwo  "
+  },
+  {
+    "yaml": "x: >\n\n  after a blank\n  line",
+    "value": "\nafter a blank line\n"
+  },
+  {
+    "yaml": "x: >\n  \ttab first\n  plain",
+    "value": "\ttab first\nplain\n"
+  },
+  {
+    "yaml": "x: > # a comment\n  one\n  two",
+    "value": "one two\n"
+  }
+]
