@@ -23,7 +23,7 @@ final class InvitationsContentTests: XCTestCase {
     let solar = InvitationEngine.current(
       InvitationContext(
         date: "2026-08-05", hemisphere: .north, notes: [], cycle: nil, birthDate: "1990-08-05",
-        dismissed: []))
+        dismissed: [], timeZone: .gmt))
     XCTAssertEqual(solar?.title, "Your solar return")
     XCTAssertEqual(
       solar?.body, "A year around the sun today — begin a new personal year in step with it?")

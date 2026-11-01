@@ -1083,6 +1083,12 @@ final class VaultStore {
     return entries.filter { !$0.isDirectory }.map { ($0.path, $0.size) }
   }
 
+  /// Whether a vault path exists: nil if that can't be told.
+  func fileExists(path: String) -> Bool? {
+    guard let vault else { return nil }
+    return try? vault.exists(path: path)
+  }
+
   /// Raw bytes for any vault file (for export), or nil if unreadable.
   func readFileBytes(path: String) -> Data? {
     guard let vault else { return nil }

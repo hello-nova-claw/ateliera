@@ -258,6 +258,16 @@ impl Vault {
         if writes.len() > 9_999 {
             return Err(VaultError::Unavailable);
         }
+        // Two writes to one file would both pass their preconditions, and the second
+        // rename would fail after the first had landed. Compared without case, as APFS
+        // and HFS+ usually are.
+        let mut seen = std::collections::HashSet::new();
+        if !writes
+            .iter()
+            .all(|write| seen.insert(write.path.to_lowercase()))
+        {
+            return Err(VaultError::Conflict);
+        }
         struct Staged {
             parent: ParentHandle,
             temp: String,
@@ -342,23 +352,30 @@ impl Vault {
             }
         }
 
-        self.reserve_revision_locked()?;
-        for entry in &staged {
-            if entry.expected_missing {
+        if let Err(error) = self.reserve_revision_locked() {
+            cleanup(&staged);
+            return Err(error);
+        }
+        for (index, entry) in staged.iter().enumerate() {
+            let renamed = if entry.expected_missing {
                 rename_exclusive(
                     &entry.parent.directory,
                     &entry.temp,
                     &entry.parent.directory,
                     &entry.parent.basename,
-                )?;
+                )
             } else {
                 entry
                     .parent
                     .directory
                     .rename(&entry.temp, &entry.parent.directory, &entry.parent.basename)
-                    .map_err(map_path_error)?;
+                    .map_err(map_path_error)
+            };
+            if let Err(error) = renamed.and_then(|()| sync_directory(&entry.parent.directory)) {
+                // The renames already made can't be undone; leave no temporaries behind.
+                cleanup(&staged[index..]);
+                return Err(error);
             }
-            sync_directory(&entry.parent.directory)?;
         }
 
         Ok(AtomicBatchOutcome {
@@ -949,6 +966,33 @@ mod tests {
             tv.vault.get_revision().unwrap(),
             (start.parse::<u64>().unwrap() + 1).to_string()
         );
+    }
+
+    #[test]
+    fn write_batch_atomic_rejects_duplicate_paths_before_writing() {
+        let tv = TempVault::new();
+        let start = tv.vault.get_revision().unwrap();
+        let write = |bytes: &[u8]| BatchWrite {
+            path: "a.md".into(),
+            bytes: bytes.to_vec(),
+            expected_hash: None,
+            expected_missing: true,
+        };
+        let err = tv
+            .vault
+            .write_batch_atomic(start.clone(), vec![write(b"one\n"), write(b"two\n")])
+            .unwrap_err();
+        assert!(matches!(err, VaultError::Conflict));
+        // Nothing was committed, the revision is unchanged and no temporary is left.
+        assert!(!tv.vault.exists("a.md".into()).unwrap());
+        assert_eq!(tv.vault.get_revision().unwrap(), start);
+        let leftovers: Vec<_> = std::fs::read_dir(&tv.path)
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.file_name().into_string().unwrap())
+            .filter(|name| name.ends_with(".tmp"))
+            .collect();
+        assert!(leftovers.is_empty(), "left behind: {leftovers:?}");
     }
 
     #[test]

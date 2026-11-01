@@ -302,10 +302,77 @@ struct StudioNote {
     if value.unicodeScalars.contains(where: isForcedDoubleQuote) {
       return doubleQuoted(value, indent: indent)
     }
+    if value.unicodeScalars.contains("\n") {
+      // A multi-line string is a block scalar, unless it ends in a line feed and
+      // then spaces or tabs, which a block cannot hold.
+      return matches(value, #"\n[\t ]+\z"#)
+        ? quoted(value, indent: indent) : literalBlock(value, indent: indent)
+    }
     if matches(value, plainForbidden) || resolvesAsNonString(value) {
       return quoted(value, indent: indent)
     }
     return value
+  }
+
+  // `yaml`'s blockString with `lineWidth: 0`, which always picks the literal style:
+  // the chomping indicator comes from the trailing line feeds (`-` none, clip one,
+  // `+` more), and an indentation indicator from a leading space.
+  private static func literalBlock(_ value: String, indent: Int) -> String {
+    let pad = Array(repeating: UInt16(0x20), count: indent)
+    let newline: UInt16 = 0x0A
+    var body = Array(value.utf16)
+    func isBlank(_ unit: UInt16) -> Bool { unit == 0x0A || unit == 0x09 || unit == 0x20 }
+    var endStart = body.count
+    while endStart > 0 && isBlank(body[endStart - 1]) { endStart -= 1 }
+    var end = Array(body[endStart...])
+    let chomp: String
+    if let firstNewline = end.firstIndex(of: newline) {
+      chomp = endStart == 0 || firstNewline != end.count - 1 ? "+" : ""
+    } else {
+      chomp = "-"
+    }
+    if !end.isEmpty {
+      body = Array(body[..<endStart])
+      if end.last == newline { end.removeLast() }
+      end = indentingRuns(end, pad: pad, onlyBeforeText: true)
+    }
+    var startWithSpace = false
+    var startEnd = 0
+    var lastLeadingNewline = -1
+    while startEnd < body.count {
+      if body[startEnd] == 0x20 {
+        startWithSpace = true
+      } else if body[startEnd] == newline {
+        lastLeadingNewline = startEnd
+      } else {
+        break
+      }
+      startEnd += 1
+    }
+    var start = Array(body[..<(lastLeadingNewline + 1)])
+    if !start.isEmpty {
+      body = Array(body[start.count...])
+      start = indentingRuns(start, pad: pad, onlyBeforeText: false)
+    }
+    let header = (startWithSpace ? "2" : "") + chomp
+    let text = pad + start + indentingRuns(body, pad: pad, onlyBeforeText: false) + end
+    return "|\(header)\n" + String(decoding: text, as: UTF16.self)
+  }
+
+  // Put `pad` after every run of line feeds (`/\n+/g` → `$&pad`). With
+  // `onlyBeforeText`, only after a run that more text follows, as `yaml` does for
+  // the trailing whitespace of a block.
+  private static func indentingRuns(_ units: [UInt16], pad: [UInt16], onlyBeforeText: Bool)
+    -> [UInt16]
+  {
+    var out: [UInt16] = []
+    for (pos, unit) in units.enumerated() {
+      out.append(unit)
+      let endsRun =
+        unit == Unit.newline && (pos + 1 == units.count || units[pos + 1] != Unit.newline)
+      if endsRun && (!onlyBeforeText || pos + 1 < units.count) { out += pad }
+    }
+    return out
   }
 
   // Control characters other than tab and line feed can only be written escaped.

@@ -1,0 +1,1 @@
+Text with line breaks in a note's details, such as a pasted title, is now saved safely and the same way the web app saves it, instead of spilling into other fields or hiding the note.

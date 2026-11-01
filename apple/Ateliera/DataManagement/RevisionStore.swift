@@ -30,6 +30,23 @@ struct RevisionSnapshot: Identifiable, Equatable {
   var id: String { manifest.id }
 }
 
+/// A restore worked out ahead of writing it, so the person can see which files it
+/// replaces before saying yes.
+struct RestorePlan: Equatable {
+  struct File: Equatable {
+    let originalPath: String
+    let snapshotPath: String
+    let copyHash: String
+    let currentHash: String?
+  }
+
+  let snapshot: RevisionSnapshot
+  let files: [File]
+  /// The files a restore will write: those that differ from their copy.
+  var changes: [File] { files.filter { $0.currentHash != $0.copyHash } }
+  var paths: [String] { changes.map { $0.originalPath } }
+}
+
 enum RevisionReason {
   static let conflictResolution = "conflict-resolution"
   static let seasonClose = "season-close"
@@ -246,18 +263,67 @@ struct RevisionStore {
     return store.removeFile(path: verified.snapshot.manifestPath, expectedHash: manifestHash)
   }
 
-  /// Restore a snapshot: write each snapshotted file back to its original path.
+  /// What restoring `snapshot` would write, read from the vault now rather than from
+  /// the listed copy: nil unless its manifest and copies still pass the checks. Each
+  /// file carries the hash it has now (nil if it's gone), so a restore that finds it
+  /// changed since refuses rather than overwriting.
+  func planRestore(_ snapshot: RevisionSnapshot) -> RestorePlan? {
+    guard
+      let candidate = candidates().first(where: {
+        $0.snapshot.manifestPath == snapshot.manifestPath
+          && $0.snapshot.manifest.state == "complete"
+      }),
+      let verified = verify(candidate, allowMissing: false)
+    else { return nil }
+    var files: [RestorePlan.File] = []
+    for file in verified.snapshot.manifest.files {
+      let current: String?
+      if let bytes = store.readFileBytes(path: file.originalPath) {
+        current = VaultExporter.sha256Hex(bytes)
+      } else if store.fileExists(path: file.originalPath) == false {
+        current = nil
+      } else {
+        // There but unreadable: planning it as missing would only fail at the write.
+        return nil
+      }
+      files.append(
+        RestorePlan.File(
+          originalPath: file.originalPath, snapshotPath: file.snapshotPath, copyHash: file.hash,
+          currentHash: current))
+    }
+    return RestorePlan(snapshot: verified.snapshot, files: files)
+  }
+
+  /// Write a plan's changed copies back to their original paths in one atomic batch.
+  /// The snapshot is checked again first, manifest and every copy, and must still say
+  /// what the plan said; each write expects the file as the plan found it, so nothing
+  /// is written if any of them changed.
+  @discardableResult
+  func restore(_ plan: RestorePlan) -> Bool {
+    func copies(_ files: [RestorePlan.File]) -> [String] {
+      files.map { "\($0.originalPath)\u{0}\($0.snapshotPath)\u{0}\($0.copyHash)" }
+    }
+    guard let fresh = planRestore(plan.snapshot), copies(fresh.files) == copies(plan.files)
+    else { return false }
+    var writes: [BatchWrite] = []
+    for file in plan.changes {
+      guard let bytes = store.readFileBytes(path: file.snapshotPath),
+        VaultExporter.sha256Hex(bytes) == file.copyHash
+      else { return false }
+      writes.append(
+        BatchWrite(
+          path: file.originalPath, bytes: bytes, expectedHash: file.currentHash,
+          expectedMissing: file.currentHash == nil))
+    }
+    guard !writes.isEmpty else { return true }
+    return store.writeBatch(expectedRevision: store.currentRevision(), writes: writes)
+  }
+
+  /// Plan and restore in one go.
   @discardableResult
   func restore(_ snapshot: RevisionSnapshot) -> Bool {
-    var writes: [BatchWrite] = []
-    for file in snapshot.manifest.files {
-      guard let bytes = store.readFileBytes(path: file.snapshotPath) else { continue }
-      writes.append(
-        BatchWrite(path: file.originalPath, bytes: bytes, expectedHash: nil, expectedMissing: false)
-      )
-    }
-    guard !writes.isEmpty else { return false }
-    return store.writeBatch(expectedRevision: store.currentRevision(), writes: writes)
+    guard let plan = planRestore(snapshot) else { return false }
+    return restore(plan)
   }
 }
 

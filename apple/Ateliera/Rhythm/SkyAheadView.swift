@@ -8,6 +8,9 @@ import SwiftUI
 // behind a birth date. All computed locally from the Sky engine — offline, no AI.
 struct SkyAheadView: View {
   let nowMs: Int64
+  // The person's local calendar day and zone, so events are dated where they live.
+  let today: String
+  let timeZone: TimeZone
   let hemisphere: Hemisphere
   let birthDate: String?
   // The persisted layer set and a way to save a change; the host owns persistence
@@ -19,10 +22,13 @@ struct SkyAheadView: View {
   @State private var working: SkyLayers
 
   init(
-    nowMs: Int64, hemisphere: Hemisphere, birthDate: String?, layers: SkyLayers,
+    nowMs: Int64, today: String, timeZone: TimeZone = AppClock.timeZone(),
+    hemisphere: Hemisphere, birthDate: String?, layers: SkyLayers,
     onLayersChange: @escaping (SkyLayers) -> Void
   ) {
     self.nowMs = nowMs
+    self.today = today
+    self.timeZone = timeZone
     self.hemisphere = hemisphere
     self.birthDate = birthDate
     self.layers = layers
@@ -30,11 +36,10 @@ struct SkyAheadView: View {
     _working = State(initialValue: layers)
   }
 
-  private static let day: Int64 = 86_400_000
-
   private var events: [SkyEvent] {
     SkyAhead.events(
-      nowMs: nowMs, hemisphere: hemisphere, layers: working, birthDate: birthDate)
+      nowMs: nowMs, today: today, timeZone: timeZone, hemisphere: hemisphere, layers: working,
+      birthDate: birthDate)
   }
 
   var body: some View {
@@ -43,7 +48,9 @@ struct SkyAheadView: View {
         RoomHeading(
           eyebrow: "what's coming",
           title: "Sky ahead",
-          intro: "The turning points, moons, and seasons on their way — computed from the sky, nearest first.")
+          intro:
+            "The turning points, moons, and seasons on their way — computed from the sky, nearest first."
+        )
 
         layerToggles
 
@@ -51,11 +58,12 @@ struct SkyAheadView: View {
           Text(
             working.isEmpty
               ? "Every layer is quiet. Turn one on above to see what's ahead."
-              : "Nothing on the horizon in the layers you've chosen.")
-            .font(StudioFont.quote)
-            .foregroundStyle(theme.inkMuted)
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityIdentifier("sky-ahead-empty")
+              : "Nothing on the horizon in the layers you've chosen."
+          )
+          .font(StudioFont.quote)
+          .foregroundStyle(theme.inkMuted)
+          .fixedSize(horizontal: false, vertical: true)
+          .accessibilityIdentifier("sky-ahead-empty")
         } else {
           VStack(alignment: .leading, spacing: 0) {
             ForEach(events) { event in
@@ -96,7 +104,11 @@ struct SkyAheadView: View {
       RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(theme.line, lineWidth: 1))
   }
 
-  private struct ToggleItem { let layer: SkyLayers; let label: String; let gatedOff: Bool }
+  private struct ToggleItem {
+    let layer: SkyLayers
+    let label: String
+    let gatedOff: Bool
+  }
 
   private var toggleableLayers: [ToggleItem] {
     [
@@ -151,14 +163,15 @@ struct SkyAheadView: View {
         }
         Text(event.detail).font(StudioFont.quote).foregroundStyle(theme.inkMuted)
           .fixedSize(horizontal: false, vertical: true)
-        Text("\(prettyDate(event.ms)) · \(whenText(event.ms))")
+        Text("\(prettyDate(event)) · \(whenText(event))")
           .font(StudioFont.meta).foregroundStyle(theme.inkFaint)
       }
       Spacer(minLength: 0)
     }
     .padding(.vertical, 16)
     .accessibilityElement(children: .combine)
-    .accessibilityLabel("\(event.title). \(event.detail). \(prettyDate(event.ms)), \(whenText(event.ms)).")
+    .accessibilityLabel(
+      "\(event.title). \(event.detail). \(prettyDate(event)), \(whenText(event)).")
   }
 
   private func glyph(_ family: SkyEvent.Family) -> String {
@@ -172,8 +185,8 @@ struct SkyAheadView: View {
   }
 
   // "in N days" — only forward (the list is always ahead of now). Today/tomorrow read warmly.
-  private func whenText(_ ms: Int64) -> String {
-    let days = max(0, Int((ms / Self.day) - (nowMs / Self.day)))
+  private func whenText(_ event: SkyEvent) -> String {
+    let days = SkyAhead.daysAway(event, today: today, timeZone: timeZone)
     switch days {
     case 0: return "today"
     case 1: return "tomorrow"
@@ -181,13 +194,15 @@ struct SkyAheadView: View {
     }
   }
 
-  private func prettyDate(_ ms: Int64) -> String {
-    let c = Sky.civil(fromMs: ms)
+  // The event's day where the person lives.
+  private func prettyDate(_ event: SkyEvent) -> String {
+    let day = SkyAhead.localDay(of: event, timeZone: timeZone)
+    let civil = Sky.civil(fromMs: Rhythm.dayMillis(date: day))
     let months = [
       "January", "February", "March", "April", "May", "June", "July", "August", "September",
       "October", "November", "December",
     ]
-    return "\(months[c.month - 1]) \(c.day)"
+    return "\(months[civil.month - 1]) \(civil.day)"
   }
 }
 

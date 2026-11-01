@@ -15,8 +15,66 @@ final class SkyAheadTests: XCTestCase {
     horizonDays: Int = 120
   ) -> [SkyEvent] {
     SkyAhead.events(
-      nowMs: nowMs, hemisphere: hemisphere, layers: layers, birthDate: birthDate,
-      horizonDays: horizonDays)
+      nowMs: nowMs, today: "2026-10-02", timeZone: .gmt, hemisphere: hemisphere, layers: layers,
+      birthDate: birthDate, horizonDays: horizonDays)
+  }
+
+  // MARK: - The writer's own day
+
+  func testTodaysEventIsListedAndDatedInTheLocalZone() throws {
+    // An hour before a full moon, in UTC+11 and UTC−8: the moon is still ahead, and it's
+    // dated on the local day it rises, not the UTC one.
+    let full = Sky.nextMoonPhase(afterMs: nowMs, phase: .full)
+    for hours in [11, -8] {
+      let zone = try XCTUnwrap(TimeZone(secondsFromGMT: hours * 3600))
+      let now = full - 3_600_000
+      let today = Sky.isoDate(ms: now + Int64(hours) * 3_600_000)
+      let list = SkyAhead.events(
+        nowMs: now, today: today, timeZone: zone, hemisphere: .north, layers: .moonPhases,
+        birthDate: nil)
+      let moon = try XCTUnwrap(list.first { $0.ms == full }, "UTC\(hours): full moon missing")
+      XCTAssertEqual(
+        SkyAhead.localDay(of: moon, timeZone: zone),
+        Sky.isoDate(ms: full + Int64(hours) * 3_600_000), "UTC\(hours)")
+      XCTAssertEqual(SkyAhead.daysAway(moon, today: today, timeZone: zone), 0, "UTC\(hours)")
+    }
+  }
+
+  func testAPassedEventTodayIsNotListed() throws {
+    let full = Sky.nextMoonPhase(afterMs: nowMs, phase: .full)
+    let zone = try XCTUnwrap(TimeZone(secondsFromGMT: -8 * 3600))
+    let now = full + 3_600_000
+    let list = SkyAhead.events(
+      nowMs: now, today: Sky.isoDate(ms: now - 8 * 3_600_000), timeZone: zone,
+      hemisphere: .north, layers: .moonPhases, birthDate: nil)
+    XCTAssertNil(list.first { $0.ms == full })
+  }
+
+  func testLocalMidnightIsTheDaysFirstInstantWhereClocksSkipIt() throws {
+    // Santiago moved its clocks from 00:00 to 01:00 on 7 September 2025, so that day
+    // starts at 01:00 local (04:00 UTC).
+    let santiago = try XCTUnwrap(TimeZone(identifier: "America/Santiago"))
+    let start = Sky.instant(localDate: "2025-09-07", hour: 0, timeZone: santiago)
+    XCTAssertEqual(Sky.localDate(ms: start, timeZone: santiago), "2025-09-07")
+    XCTAssertEqual(Sky.localDate(ms: start - 1, timeZone: santiago), "2025-09-06")
+    XCTAssertEqual(
+      Sky.instant(
+        localDate: "2026-11-02", hour: 12,
+        timeZone: try XCTUnwrap(TimeZone(identifier: "Australia/Melbourne"))),
+      Rhythm.utcMillis(year: 2026, month: 11, day: 2) + 3_600_000)
+  }
+
+  func testDateEventsKeepTheirCalendarDayInAnyZone() throws {
+    // A solar return is a calendar day, so it reads the same date east and west of UTC.
+    for hours in [11, -8] {
+      let zone = try XCTUnwrap(TimeZone(secondsFromGMT: hours * 3600))
+      let list = SkyAhead.events(
+        nowMs: nowMs, today: "2026-10-02", timeZone: zone, hemisphere: .north,
+        layers: .astrology, birthDate: "1990-10-20")
+      let solar = try XCTUnwrap(list.first, "UTC\(hours)")
+      XCTAssertEqual(SkyAhead.localDay(of: solar, timeZone: zone), "2026-10-20", "UTC\(hours)")
+      XCTAssertEqual(SkyAhead.daysAway(solar, today: "2026-10-02", timeZone: zone), 18)
+    }
   }
 
   // MARK: - Ordering & horizon
@@ -24,7 +82,9 @@ final class SkyAheadTests: XCTestCase {
   func testEventsAreSortedNearestFirstAndInTheFuture() {
     let list = events()
     XCTAssertFalse(list.isEmpty)
-    for event in list { XCTAssertGreaterThan(event.ms, nowMs, "\(event.title) is not in the future") }
+    for event in list {
+      XCTAssertGreaterThan(event.ms, nowMs, "\(event.title) is not in the future")
+    }
     XCTAssertEqual(list, list.sorted { $0.ms < $1.ms }, "events are not nearest-first")
   }
 
