@@ -30,7 +30,7 @@ uuid = { version = "1", features = ["v4"] }
 # The native file/save dialogs are desktop-only. iOS/Android reach files through
 # the platform document picker (ADR-011); rfd would not compile for those targets.
 [target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
-rfd = "0.15"
+rfd = "0.17"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
