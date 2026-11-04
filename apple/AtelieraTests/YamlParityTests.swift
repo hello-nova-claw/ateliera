@@ -361,6 +361,64 @@ final class YamlParityTests: XCTestCase {
     XCTAssertTrue(edited.serialize().contains("last: kept\nrelated_notes:\n  - 01JOTHER\n"))
   }
 
+  private struct QuotedKeys: Decodable {
+    struct Privacy: Decodable {
+      let yaml: String
+      let sensitivity: String
+      let aiAccess: String
+    }
+    struct Unknown: Decodable {
+      let yaml: String
+      let key: String
+      let value: String
+    }
+    let privacy: [Privacy]
+    let unknown: [Unknown]
+  }
+
+  private func quotedKeys() throws -> QuotedKeys {
+    let url = repo.appendingPathComponent("fixtures/yaml-parity/quoted-keys.json")
+    return try JSONDecoder().decode(QuotedKeys.self, from: Data(contentsOf: url))
+  }
+
+  func testAQuotedPrivacyKeyKeepsThePersonsSettingThroughASave() throws {
+    let goldens = try quotedKeys().privacy
+    XCTAssertGreaterThan(goldens.count, 5)
+    for golden in goldens {
+      let text = noteText([]).replacingOccurrences(
+        of: "privacy:\n  sensitivity: private\n  ai_access: ask", with: golden.yaml)
+      let parsed = try XCTUnwrap(NoteParser.parse(text), golden.yaml)
+      let expected = NotePrivacy(sensitivity: golden.sensitivity, aiAccess: golden.aiAccess)
+      XCTAssertEqual(parsed.privacy, expected, golden.yaml)
+      let saved = parsed.serialize()
+      XCTAssertEqual(try XCTUnwrap(NoteParser.parse(saved)).privacy, expected, golden.yaml)
+      XCTAssertEqual(saved.components(separatedBy: "privacy").count, 2, golden.yaml)
+    }
+  }
+
+  func testAQuotedUnknownKeyReadsAsTheKeyAndSurvivesAsWritten() throws {
+    let goldens = try quotedKeys().unknown
+    XCTAssertGreaterThan(goldens.count, 3)
+    for golden in goldens {
+      let text = noteText([golden.yaml])
+      let parsed = try XCTUnwrap(NoteParser.parse(text), golden.yaml)
+      XCTAssertEqual(parsed.frontmatterScalar(golden.key), golden.value, golden.yaml)
+      XCTAssertEqual(parsed.serialize(), text, golden.yaml)
+    }
+  }
+
+  func testAQuotedKeyTheReaderCannotModelNeverFallsBackToTheDefault() {
+    let plain = "privacy:\n  sensitivity: private\n  ai_access: ask"
+    for replacement in [
+      "privacy: { \"ai_access\":\"never\", sensitivity: private }",
+      "privacy: { \"ai\\qaccess\": never, sensitivity: private }",
+    ] {
+      XCTAssertNil(
+        NoteParser.parse(noteText([]).replacingOccurrences(of: plain, with: replacement)),
+        replacement)
+    }
+  }
+
   func testRecognisedKeysWrittenInOtherStylesAreRead() throws {
     let text = noteText([])
       .replacingOccurrences(of: "tags: []", with: "tags:\n- calm\n- practice # two")

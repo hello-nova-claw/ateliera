@@ -1,0 +1,61 @@
+{
+  "privacy": [
+    {
+      "yaml": "privacy: { \"sensitivity\": sensitive, \"ai_access\": never }",
+      "sensitivity": "sensitive",
+      "aiAccess": "never"
+    },
+    {
+      "yaml": "privacy: { 'sensitivity': sensitive, 'ai_access': never }",
+      "sensitivity": "sensitive",
+      "aiAccess": "never"
+    },
+    {
+      "yaml": "privacy: { \"ai\\u005faccess\": never, sensitivity: sensitive }",
+      "sensitivity": "sensitive",
+      "aiAccess": "never"
+    },
+    {
+      "yaml": "privacy:\n  \"sensitivity\": sensitive\n  \"ai_access\": never",
+      "sensitivity": "sensitive",
+      "aiAccess": "never"
+    },
+    {
+      "yaml": "\"privacy\":\n  sensitivity: sensitive\n  ai_access: never",
+      "sensitivity": "sensitive",
+      "aiAccess": "never"
+    },
+    {
+      "yaml": "'privacy': { sensitivity: sensitive, ai_access: never }",
+      "sensitivity": "sensitive",
+      "aiAccess": "never"
+    }
+  ],
+  "unknown": [
+    {
+      "yaml": "\"x\": kept",
+      "key": "x",
+      "value": "kept"
+    },
+    {
+      "yaml": "'x': kept",
+      "key": "x",
+      "value": "kept"
+    },
+    {
+      "yaml": "\"x\" : kept",
+      "key": "x",
+      "value": "kept"
+    },
+    {
+      "yaml": "\"x\": kept # a note",
+      "key": "x",
+      "value": "kept"
+    },
+    {
+      "yaml": "\"my key: here\": kept",
+      "key": "my key: here",
+      "value": "kept"
+    }
+  ]
+}
