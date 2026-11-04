@@ -95,7 +95,7 @@ struct ImportView: View {
     let accessing = url.startAccessingSecurityScopedResource()
     defer { if accessing { url.stopAccessingSecurityScopedResource() } }
     do {
-      let data = try Data(contentsOf: url)
+      let data = try VaultImporter.readArchive(at: url)
       plan = try VaultImporter.prepare(archive: data, store: store)
       resolutions = [:]
       status = nil

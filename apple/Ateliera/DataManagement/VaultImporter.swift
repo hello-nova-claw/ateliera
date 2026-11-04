@@ -74,6 +74,7 @@ enum ImportError: Error, Equatable {
     case .invalid: self = .invalidArchive
     case .unsupported: self = .unsupportedArchive
     case .checksumFailed: self = .checksumFailed
+    case .tooLarge: self = .tooLarge
     }
   }
 
@@ -133,6 +134,19 @@ enum VaultImporter {
   static let maxEntryBytes = 64 * 1_024 * 1_024
   static let maxTotalBytes = 512 * 1_024 * 1_024
   static let maxUserFiles = 9_999
+
+  /// The archive at `url`, refused before a byte is read if it's over the limit, and
+  /// mapped rather than copied into memory where the system allows.
+  static func readArchive(at url: URL, maxBytes: Int = Zip32.maxArchiveBytes) throws -> Data {
+    guard let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize else {
+      throw ImportError.invalidArchive
+    }
+    guard size <= maxBytes else { throw ImportError.tooLarge }
+    let data = try Data(contentsOf: url, options: .mappedIfSafe)
+    // The file could have grown between the check and the read.
+    guard data.count <= maxBytes else { throw ImportError.tooLarge }
+    return data
+  }
 
   static func prepare(archive: Data, store: VaultStore) throws -> ImportPlan {
     let entries: [(path: String, bytes: Data)]
