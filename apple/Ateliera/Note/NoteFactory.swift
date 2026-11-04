@@ -30,10 +30,20 @@ enum NoteFactory {
     return createNoteId(millis: millis, randomBytes: bytes)
   }
 
-  /// An ISO-8601 timestamp with fractional seconds and a `Z` offset, matching
-  /// JavaScript's `new Date().toISOString()` shape (the frontmatter schema wants
-  /// an offset datetime).
-  static func isoTimestamp(_ now: Date = AppClock.now()) -> String {
+  /// An ISO-8601 timestamp with fractional seconds in the writer's wall clock and
+  /// offset, for example `2026-11-02T08:00:00.000+11:00`, matching the web app's
+  /// `localTimestamp`. The filename and the journal date both come from it, so an entry
+  /// stays on the day it was written.
+  static func isoTimestamp(
+    _ now: Date = AppClock.now(), timeZone: TimeZone = AppClock.timeZone()
+  ) -> String {
+    NoteTime.timestamp(now, timeZone: timeZone)
+  }
+
+  /// The canonical UTC form, `2026-11-01T21:00:00.000Z`, matching `toISOString()`. For
+  /// times that aren't a note's (an export manifest, a diagnostics entry), which the web
+  /// app accepts only in this form.
+  static func utcTimestamp(_ now: Date = AppClock.now()) -> String {
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     return formatter.string(from: now)

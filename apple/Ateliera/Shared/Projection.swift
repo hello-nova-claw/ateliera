@@ -24,12 +24,18 @@ enum Projection {
   }
 
   // Deterministic order: updated desc, created desc, title asc, id asc — mirroring
-  // `fallbackCompare` (ISO strings compare chronologically for equal formats).
+  // `fallbackCompare`. Timestamps compare as instants, since each keeps its writer's
+  // offset.
   static func before(_ a: StudioNote, _ b: StudioNote) -> Bool {
-    if a.updated != b.updated { return a.updated > b.updated }
-    if a.created != b.created { return a.created > b.created }
-    let at = a.title ?? "", bt = b.title ?? ""
-    if at != bt { return at.localizedCompare(bt) == .orderedAscending }
+    let updated = NoteTime.compare(a.updated, b.updated)
+    if updated != .orderedSame { return updated == .orderedDescending }
+    let created = NoteTime.compare(a.created, b.created)
+    if created != .orderedSame { return created == .orderedDescending }
+    let leftTitle = a.title ?? ""
+    let rightTitle = b.title ?? ""
+    if leftTitle != rightTitle {
+      return leftTitle.localizedCompare(rightTitle) == .orderedAscending
+    }
     return a.id < b.id
   }
 
@@ -37,7 +43,8 @@ enum Projection {
   // overlay the manual order (manually-placed ids first, in that order).
   static func ordered(_ notes: [Loaded], viewKey: String, manual: [String]) -> [Loaded] {
     var seen = Set<String>()
-    let sorted = notes
+    let sorted =
+      notes
       .filter { visible($0.note, viewKey: viewKey) }
       .sorted { before($0.note, $1.note) }
       .filter { seen.insert($0.note.id).inserted }
@@ -68,7 +75,10 @@ enum Projection {
     let chars = Array(line)
     var i = 0
     var hashes = 0
-    while i < chars.count, chars[i] == "#", hashes < 6 { i += 1; hashes += 1 }
+    while i < chars.count, chars[i] == "#", hashes < 6 {
+      i += 1
+      hashes += 1
+    }
     if hashes > 0, i < chars.count, chars[i] == " " || chars[i] == "\t" {
       while i < chars.count, chars[i] == " " || chars[i] == "\t" { i += 1 }
     } else {
@@ -117,7 +127,8 @@ enum Projection {
     for token in ["[[", "]]", "**", "__", "`", "#", ">", "*", "_"] {
       stripped = stripped.replacingOccurrences(of: token, with: " ")
     }
-    return stripped
+    return
+      stripped
       .split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "\t" })
       .joined(separator: " ")
       .trimmingCharacters(in: .whitespacesAndNewlines)
