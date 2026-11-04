@@ -305,3 +305,44 @@ describe('YAML plain-type goldens', () => {
     );
   });
 });
+
+// Folded (`>`) block scalars other writers use. For each, the string the web's
+// `yaml` parser reads, so the Swift reader can be checked against it.
+const foldedBlocks = [
+  ['>', '  one', '  two'],
+  ['>-', '  one', '  two'],
+  ['>+', '  one', '  two', '', ''],
+  ['>', '  one', '', '  two'],
+  ['>', '  one', '', '', '  two', '  three'],
+  ['>', '  one', '    indented', '  two'],
+  ['>', '  one', '', '    indented', '', '  two'],
+  ['>2', '   leading space', '  next'],
+  ['>-', '  one', '  ', '  two  '],
+  ['>', '', '  after a blank', '  line'],
+  ['>', '  \ttab first', '  plain'],
+  ['> # a comment', '  one', '  two'],
+];
+
+describe('YAML folded block goldens', () => {
+  const cases = foldedBlocks.map((lines) => {
+    const yaml = [`x: ${lines[0]}`, ...lines.slice(1)].join('\n');
+    const parsed = parseNote(
+      serializeNote(noteWith('x')).replace(
+        '---\n',
+        `---\n${yaml}\nafter: kept\n`,
+      ),
+    );
+    if (!parsed.ok) throw new Error(`did not parse: ${yaml}`);
+    return { yaml, value: parsed.note.extraFrontmatter['x'] };
+  });
+
+  it('reads every folded block as a string', () => {
+    for (const { value } of cases) expect(typeof value).toBe('string');
+  });
+
+  it('matches the committed golden file', async () => {
+    await expect(`${JSON.stringify(cases, null, 2)}\n`).toMatchFileSnapshot(
+      '../../../fixtures/yaml-parity/folded.json',
+    );
+  });
+});

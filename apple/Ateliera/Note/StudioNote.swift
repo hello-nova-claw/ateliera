@@ -31,6 +31,10 @@ indirect enum YamlNode: Equatable {
   // canonicalises these (`~` to `null`, `1e3` to `1000`); both read the same value
   // from either, and keeping the literal never rewrites another tool's file.
   case raw(String)
+  // A top-level entry kept exactly as another writer wrote it (comments, flow
+  // collections, anchors, other indentation styles), with the model the reader made
+  // of it, if any, for typed reads. Writing a key anew replaces the whole entry.
+  case verbatim([String], YamlNode?)
   case int(Int)
   case bool(Bool)
   case list([String])
@@ -42,6 +46,8 @@ indirect enum YamlNode: Equatable {
     switch (lhs, rhs) {
     case (.scalar(let a), .scalar(let b)): return a == b
     case (.raw(let left), .raw(let right)): return left == right
+    case (.verbatim(let left, let leftModel), .verbatim(let right, let rightModel)):
+      return left == right && leftModel == rightModel
     case (.int(let a), .int(let b)): return a == b
     case (.bool(let a), .bool(let b)): return a == b
     case (.list(let a), .list(let b)): return a == b
@@ -57,27 +63,33 @@ indirect enum YamlNode: Equatable {
     }
   }
 
+  // What typed reads see: a verbatim entry reads as the model made of it.
+  private var model: YamlNode? {
+    if case .verbatim(_, let model) = self { return model }
+    return self
+  }
+
   var scalarValue: String? {
     // A raw literal reads as its text, as it did before it had its own case.
-    switch self {
-    case .scalar(let value), .raw(let value): return value
+    switch model {
+    case .scalar(let value)?, .raw(let value)?: return value
     default: return nil
     }
   }
   var boolValue: Bool? {
-    if case .bool(let value) = self { return value }
+    if case .bool(let value)? = model { return value }
     return nil
   }
   var listValue: [String]? {
-    if case .list(let value) = self { return value }
+    if case .list(let value)? = model { return value }
     return nil
   }
   var mapValue: [(String, YamlNode)]? {
-    if case .map(let value) = self { return value }
+    if case .map(let value)? = model { return value }
     return nil
   }
   var mapSeqValue: [[(String, YamlNode)]]? {
-    if case .mapSeq(let value) = self { return value }
+    if case .mapSeq(let value)? = model { return value }
     return nil
   }
 }
@@ -262,6 +274,10 @@ struct StudioNote {
     let pad = String(repeating: " ", count: indent)
     var out = ""
     for (key, node) in pairs {
+      if case .verbatim(let lines, _) = node {
+        out += lines.map { $0 + "\n" }.joined()
+        continue
+      }
       if let text = inline(node, indent: indent + 2) {
         out += "\(pad)\(key): \(text)\n"
         continue
@@ -281,6 +297,12 @@ struct StudioNote {
       }
     }
     return out
+  }
+
+  // One top-level entry as the serializer writes it, for the reader's check that a
+  // model reproduces another writer's lines.
+  static func emitted(_ key: String, _ node: YamlNode) -> String {
+    emit([(key, node)], indent: 0)
   }
 
   // The text after `key: ` for a value written on the key's own line, or nil for a

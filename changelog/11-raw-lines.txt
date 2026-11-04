@@ -1,0 +1,1 @@
+Notes written by other apps now open in the app. Entries the app doesn't recognise, including ones with comments, folded text or other YAML styles, are kept exactly as written when the app saves the note; the app's own fields are saved in its usual format.

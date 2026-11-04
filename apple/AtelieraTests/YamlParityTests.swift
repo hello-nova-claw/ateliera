@@ -204,8 +204,12 @@ final class YamlParityTests: XCTestCase {
       NoteParser.parse(
         noteText(["plain:", "  - a:b", "  - c", "maps:", "  - first:", "    second: x"])))
     XCTAssertEqual(parsed.frontmatterList("plain"), ["a:b", "c"])
+    // The empty first value is not written back, so the entry is kept as written.
     XCTAssertEqual(
-      parsed.extraFrontmatter.last?.1, .mapSeq([[("first", .map([])), ("second", .scalar("x"))]]))
+      parsed.extraFrontmatter.last?.1,
+      .verbatim(
+        ["maps:", "  - first:", "    second: x"],
+        .mapSeq([[("first", .map([])), ("second", .scalar("x"))]])))
   }
 
   private struct PlainType: Decodable {
@@ -256,6 +260,180 @@ final class YamlParityTests: XCTestCase {
     XCTAssertEqual(parsed.schemaVersion, 1)
     XCTAssertEqual(parsed.resurfaceIntervalDays, 30)
     XCTAssertEqual(parsed.serialize(), text)
+  }
+
+  private struct Folded: Decodable {
+    let yaml: String
+    let value: String
+  }
+
+  func testFoldedBlocksReadAsTheWebReadsThem() throws {
+    let url = repo.appendingPathComponent("fixtures/yaml-parity/folded.json")
+    let goldens = try JSONDecoder().decode([Folded].self, from: Data(contentsOf: url))
+    XCTAssertGreaterThan(goldens.count, 10)
+    for golden in goldens {
+      let text = noteText(golden.yaml.components(separatedBy: "\n") + ["after: kept"])
+      let parsed = try XCTUnwrap(NoteParser.parse(text), golden.yaml)
+      XCTAssertEqual(parsed.frontmatterScalar("x"), golden.value, golden.yaml)
+      XCTAssertEqual(parsed.frontmatterScalar("after"), "kept", golden.yaml)
+      // Another writer's folded block is kept as it was written.
+      XCTAssertEqual(parsed.serialize(), text, golden.yaml)
+    }
+  }
+
+  // Captured from `@studio/content`'s serializeNote.
+  func testAWebSeasonNoteWithAMultiLineStatementRoundTrips() throws {
+    let golden = [
+      "---",
+      "season_id: 2026-winter",
+      "season_workflow:",
+      "  statement: |-",
+      "    Rest first.",
+      "    Then build.",
+      "  skipped_prior_reflection: false",
+      "  feelings:",
+      "    - calm",
+      "  decisions:",
+      "    - id: d1",
+      "      text: Walk daily",
+      "schema_version: 1",
+      "id: 01JSEASON",
+      "title: Winter",
+      "card_type: season",
+      "semantic_type: reflection",
+      "status: active",
+      "rooms: []",
+      "life_areas: []",
+      "seasons:",
+      "  - 2026-winter",
+      "tags: []",
+      "created: 2026-07-14T09:00:00+10:00",
+      "updated: 2026-07-14T09:00:00+10:00",
+      "attachments: []",
+      "display:",
+      "  featured: false",
+      "privacy:",
+      "  sensitivity: private",
+      "  ai_access: ask",
+      "---",
+      "Notes.",
+      "",
+    ].joined(separator: "\n")
+    let parsed = try XCTUnwrap(NoteParser.parse(golden))
+    XCTAssertEqual(parsed.nestedScalar("season_workflow", "statement"), "Rest first.\nThen build.")
+    XCTAssertEqual(parsed.nestedList("season_workflow", "feelings"), ["calm"])
+    XCTAssertEqual(parsed.title, "Winter")
+    XCTAssertEqual(parsed.serialize(), golden)
+  }
+
+  func testCommentsAndShapesTheReaderDoesNotModelSurviveInPlace() throws {
+    let text = noteText([
+      "# Written by another app",
+      "mood: calm # inline comment",
+      "quoted: \"calm\" # a comment after a quote",
+      "position: {x: 1, y: 2}",
+      "pair: [\"a, b\", c]",
+      "nested:",
+      "  # a nested comment",
+      "  key: value",
+      "anchored: &anchor value",
+      "\"quoted key\": 1",
+      "zero_indent:",
+      "- one",
+      "- two",
+      "spaced: value",
+      "",
+      "last: kept",
+    ])
+    let parsed = try XCTUnwrap(NoteParser.parse(text))
+    XCTAssertEqual(parsed.serialize(), text)
+    XCTAssertEqual(parsed.frontmatterScalar("mood"), "calm")
+    XCTAssertEqual(parsed.frontmatterScalar("quoted"), "calm")
+    XCTAssertEqual(parsed.frontmatterList("pair"), ["a, b", "c"])
+    XCTAssertEqual(parsed.nestedScalar("position", "x"), "1")
+    XCTAssertEqual(parsed.nestedScalar("nested", "key"), "value")
+    XCTAssertEqual(parsed.frontmatterList("zero_indent"), ["one", "two"])
+    XCTAssertEqual(parsed.frontmatterScalar("last"), "kept")
+    XCTAssertEqual(parsed.id, "01JPARITY")
+    // A rewritten key replaces its verbatim lines.
+    var edited = parsed
+    edited.setRelatedNotes(["01JOTHER"])
+    XCTAssertTrue(edited.serialize().contains("last: kept\nrelated_notes:\n  - 01JOTHER\n"))
+  }
+
+  func testRecognisedKeysWrittenInOtherStylesAreRead() throws {
+    let text = noteText([])
+      .replacingOccurrences(of: "tags: []", with: "tags:\n- calm\n- practice # two")
+      .replacingOccurrences(of: "status: active", with: "status: active # for now")
+      .replacingOccurrences(of: "rooms: []", with: "rooms: [life-landscape, inbox]")
+      .replacingOccurrences(of: "display:\n  featured: false", with: "display: { featured: true }")
+      .replacingOccurrences(
+        of: "privacy:\n  sensitivity: private\n  ai_access: ask",
+        with: "privacy: { sensitivity: sensitive, ai_access: never }")
+    let parsed = try XCTUnwrap(NoteParser.parse(text))
+    XCTAssertEqual(parsed.tags, ["calm", "practice"])
+    XCTAssertEqual(parsed.status, "active")
+    XCTAssertEqual(parsed.rooms, ["life-landscape", "inbox"])
+    XCTAssertTrue(parsed.display.featured)
+    XCTAssertEqual(parsed.privacy, NotePrivacy(sensitivity: "sensitive", aiAccess: "never"))
+  }
+
+  // Values from `yaml`'s `parse` of the same lines (yaml 2.9.0).
+  func testFlowCollectionsWithQuotesCommentsAndApostrophesReadAsTheWebReadsThem() throws {
+    let text = noteText([
+      "quoted_hash: [\"a # b\", c]",
+      "apostrophe: [it's, calm]",
+      "commented: [a, b] # c",
+      "map_hash: { title: \"a # b\", creator: Ada }",
+      "map_comma: { title: \"a, b\", creator: Ada }",
+    ]).replacingOccurrences(of: "tags: []", with: "tags: [\"a # b\", it's]")
+    let parsed = try XCTUnwrap(NoteParser.parse(text))
+    XCTAssertEqual(parsed.tags, ["a # b", "it's"])
+    XCTAssertEqual(parsed.frontmatterList("quoted_hash"), ["a # b", "c"])
+    XCTAssertEqual(parsed.frontmatterList("apostrophe"), ["it's", "calm"])
+    XCTAssertEqual(parsed.frontmatterList("commented"), ["a", "b"])
+    XCTAssertEqual(parsed.nestedScalar("map_hash", "title"), "a # b")
+    XCTAssertEqual(parsed.nestedScalar("map_comma", "title"), "a, b")
+    XCTAssertEqual(parsed.nestedScalar("map_comma", "creator"), "Ada")
+    // Unknown keys keep their lines; the recognised `tags` is written the app's way.
+    let unknown = text.components(separatedBy: "\n").prefix(6).joined(separator: "\n")
+    XCTAssertTrue(parsed.serialize().hasPrefix(unknown + "\n"))
+    XCTAssertTrue(parsed.serialize().contains("tags:\n  - \"a # b\"\n  - it's\n"))
+  }
+
+  func testACommentBetweenAKeyAndItsListKeepsTheList() throws {
+    let text = noteText(["custom:", "# about these", "  - one", "  - two", "after: x"])
+      .replacingOccurrences(
+        of: "tags: []", with: "tags:\n# a comment\n  - calm\n  - practice")
+    let parsed = try XCTUnwrap(NoteParser.parse(text))
+    XCTAssertEqual(parsed.tags, ["calm", "practice"])
+    XCTAssertEqual(parsed.frontmatterList("custom"), ["one", "two"])
+    XCTAssertEqual(parsed.frontmatterScalar("after"), "x")
+    // The unknown key keeps its comment, in place.
+    XCTAssertTrue(
+      parsed.serialize().hasPrefix("---\ncustom:\n# about these\n  - one\n  - two\nafter: x\n"))
+  }
+
+  func testRecognisedValuesTheReaderCannotModelSendTheNoteToRepair() {
+    for (original, replacement) in [
+      ("tags: []", "tags:\n  - [nested]"),
+      ("tags: []", "tags:\n  - &anchor calm"),
+      ("tags: []", "tags:\n  - {a: b}"),
+      (
+        "privacy:\n  sensitivity: private\n  ai_access: ask",
+        "privacy: { sensitivity: , ai_access: ask }"
+      ),
+    ] {
+      XCTAssertNil(
+        NoteParser.parse(noteText([]).replacingOccurrences(of: original, with: replacement)),
+        replacement)
+    }
+  }
+
+  func testARecognisedKeyWithAnUnreadableValueSendsTheNoteToRepair() {
+    let text = noteText([]).replacingOccurrences(
+      of: "display:\n  featured: false", with: "display: {featured: [false]}")
+    XCTAssertNil(NoteParser.parse(text))
   }
 
   func testDoubleQuotedEscapesFromOtherWritersAreDecoded() throws {
