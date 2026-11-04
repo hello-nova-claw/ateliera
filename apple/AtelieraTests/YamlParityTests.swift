@@ -361,19 +361,21 @@ final class YamlParityTests: XCTestCase {
     XCTAssertTrue(edited.serialize().contains("last: kept\nrelated_notes:\n  - 01JOTHER\n"))
   }
 
+  private struct QuotedPrivacy: Decodable {
+    let yaml: String
+    let sensitivity: String
+    let aiAccess: String
+  }
+
+  private struct QuotedUnknown: Decodable {
+    let yaml: String
+    let key: String
+    let value: String
+  }
+
   private struct QuotedKeys: Decodable {
-    struct Privacy: Decodable {
-      let yaml: String
-      let sensitivity: String
-      let aiAccess: String
-    }
-    struct Unknown: Decodable {
-      let yaml: String
-      let key: String
-      let value: String
-    }
-    let privacy: [Privacy]
-    let unknown: [Unknown]
+    let privacy: [QuotedPrivacy]
+    let unknown: [QuotedUnknown]
   }
 
   private func quotedKeys() throws -> QuotedKeys {

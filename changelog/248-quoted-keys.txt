@@ -1,0 +1,1 @@
+A note with quoted frontmatter keys now keeps its privacy and display settings when it is saved in the app.

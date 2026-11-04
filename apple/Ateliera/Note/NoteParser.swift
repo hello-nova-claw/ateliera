@@ -150,7 +150,9 @@ enum NoteParser {
   // recognised key the reader cannot model rejects the note.
   private static func readEntry(_ entry: [String]) throws -> (String, YamlNode)? {
     if entry.allSatisfy({ trimmingYamlSpace($0).isEmpty }) { return nil }
-    guard isPlainKey(entry[0]), let (key, rest) = keyAndValue(entry[0]) else {
+    guard isPlainKey(entry[0]) || opensQuotedKey(entry[0]),
+      let (key, rest) = keyAndValue(entry[0])
+    else {
       return ("", .verbatim(entry, nil))
     }
     var index = 0
@@ -174,6 +176,10 @@ enum NoteParser {
   private static func isPlainKey(_ line: String) -> Bool {
     guard let first = line.unicodeScalars.first else { return false }
     return !"\"'?{[#&*!|>%@`-".unicodeScalars.contains(first)
+  }
+
+  private static func opensQuotedKey(_ line: String) -> Bool {
+    line.hasPrefix("\"") || line.hasPrefix("'")
   }
 
   private static func isBlankOrComment(_ line: String) -> Bool {
@@ -204,6 +210,7 @@ enum NoteParser {
   // for `readScalar`: on a quoted scalar folded across lines, an escaped space can end
   // the first line.
   private static func keyAndValue(_ content: String) -> (String, String)? {
+    if opensQuotedKey(content) { return quotedKeyAndValue(content) }
     guard
       let colon = content.indices.first(where: { position in
         let next = content.index(after: position)
@@ -216,6 +223,27 @@ enum NoteParser {
       $0 == " " || $0 == "\t"
     }
     return (key, String(value))
+  }
+
+  // A key in quotes is the same key as a plain one, and may hold a `: ` of its own.
+  // Nil unless a colon and a space, or the end of the line, follow the closing quote.
+  private static func quotedKeyAndValue(_ content: String) -> (String, String)? {
+    let scalars = Array(content.unicodeScalars)
+    let quote = scalars[0]
+    var quoted = String.UnicodeScalarView([quote])
+    var position = 1
+    var closed = false
+    while position < scalars.count && !closed {
+      let scalar = scalars[position]
+      position += 1
+      closed = !continueQuoted(scalar, open: quote, scalars, &position, &quoted)
+    }
+    let afterKey = scalars[position...].drop { $0 == " " || $0 == "\t" }
+    guard closed, afterKey.first == ":", let key = try? unquote(String(quoted)) else { return nil }
+    let rest = afterKey.dropFirst()
+    guard rest.isEmpty || rest.first == " " || rest.first == "\t" else { return nil }
+    let value = rest.drop { $0 == " " || $0 == "\t" }
+    return (key, String(String.UnicodeScalarView(value)))
   }
 
   // The value after `key:` on line `index`, whose key starts at column `indent`.
