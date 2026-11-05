@@ -154,7 +154,7 @@ enum NoteParser {
       let (key, rest) = keyAndValue(entry[0])
     else {
       // Kept as text, a recognised key would read as its default and be written twice.
-      if let key = quotedKey(entry[0])?.key, recognizedKeys.contains(key) {
+      if let key = quotedKeyName(entry[0])?.key, recognizedKeys.contains(key) {
         throw MalformedScalar()
       }
       return ("", .verbatim(entry, nil))
@@ -243,6 +243,15 @@ enum NoteParser {
   private static func quotedKey(_ content: String)
     -> (key: String, rest: ArraySlice<Unicode.Scalar>)?
   {
+    guard let (key, afterKey) = quotedKeyName(content), afterKey.first == ":" else { return nil }
+    return (key, afterKey.dropFirst())
+  }
+
+  // The decoded name of a key that opens with a quote, and what follows its closing
+  // quote and any space, whether or not that is the colon a key needs.
+  private static func quotedKeyName(_ content: String)
+    -> (key: String, afterKey: ArraySlice<Unicode.Scalar>)?
+  {
     let scalars = Array(content.unicodeScalars)
     guard let quote = scalars.first, quote == "\"" || quote == "'" else { return nil }
     var quoted = String.UnicodeScalarView([quote])
@@ -253,9 +262,8 @@ enum NoteParser {
       position += 1
       closed = !continueQuoted(scalar, open: quote, scalars, &position, &quoted)
     }
-    let afterKey = scalars[position...].drop { $0 == " " || $0 == "\t" }
-    guard closed, afterKey.first == ":", let key = try? unquote(String(quoted)) else { return nil }
-    return (key, afterKey.dropFirst())
+    guard closed, let key = try? unquote(String(quoted)) else { return nil }
+    return (key, scalars[position...].drop { $0 == " " || $0 == "\t" })
   }
 
   // The value after `key:` on line `index`, whose key starts at column `indent`.
