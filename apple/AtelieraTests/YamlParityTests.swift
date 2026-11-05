@@ -417,10 +417,22 @@ final class YamlParityTests: XCTestCase {
       "\"privacy\":{ sensitivity: private, ai_access: never }",
       "'privacy':{ sensitivity: private, ai_access: never }",
       "\"priva\\u0063y\":{ sensitivity: private, ai_access: never }",
+      "\"privacy\"x: { sensitivity: private, ai_access: never }",
+      "\"privacy\" x: { sensitivity: private, ai_access: never }",
+      "'privacy'x: { sensitivity: private, ai_access: never }",
     ] {
       XCTAssertNil(
         NoteParser.parse(noteText([]).replacingOccurrences(of: plain, with: replacement)),
         replacement)
+    }
+  }
+
+  // The web rejects these lines too, but an unknown key is another tool's to keep.
+  func testAMalformedQuotedUnknownKeySurvivesAsWritten() throws {
+    for line in ["\"x\"y: kept", "'x' y: kept"] {
+      let text = noteText([line])
+      let parsed = try XCTUnwrap(NoteParser.parse(text), line)
+      XCTAssertEqual(parsed.serialize(), text, line)
     }
   }
 

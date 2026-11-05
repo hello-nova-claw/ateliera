@@ -361,6 +361,11 @@ const quotedKeyPrivacy = [
 ];
 const quotedUnknownKeys = ['"x": kept', "'x': kept", '"x" : kept', '"x": kept # a note'];
 const quotedKeyWithColon = '"my key: here": kept';
+const malformedQuotedPrivacy = [
+  '"privacy"x: { sensitivity: private, ai_access: never }',
+  '"privacy" x: { sensitivity: private, ai_access: never }',
+  "'privacy'x: { sensitivity: private, ai_access: never }",
+];
 
 describe('YAML quoted key goldens', () => {
   const plainPrivacy = 'privacy:\n  sensitivity: private\n  ai_access: ask';
@@ -381,6 +386,13 @@ describe('YAML quoted key goldens', () => {
   it('reads every quoted key as the plain key', () => {
     for (const { aiAccess } of privacy) expect(aiAccess).toBe('never');
     for (const { value } of unknown) expect(value).toBe('kept');
+  });
+
+  it('rejects a quoted privacy key with text after its closing quote', () => {
+    for (const yaml of malformedQuotedPrivacy) {
+      const parsed = parseNote(serializeNote(noteWith('x')).replace(plainPrivacy, yaml));
+      expect(parsed.ok, yaml).toBe(false);
+    }
   });
 
   it('matches the committed golden file', async () => {
