@@ -357,6 +357,7 @@ const quotedKeyPrivacy = [
   'privacy:\n  "sensitivity": sensitive\n  "ai_access": never',
   '"privacy":\n  sensitivity: sensitive\n  ai_access: never',
   "'privacy': { sensitivity: sensitive, ai_access: never }",
+  '"priva\\u0063y":\n  sensitivity: sensitive\n  ai_access: never',
 ];
 const quotedUnknownKeys = ['"x": kept', "'x': kept", '"x" : kept', '"x": kept # a note'];
 const quotedKeyWithColon = '"my key: here": kept';

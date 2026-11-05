@@ -29,6 +29,11 @@
       "yaml": "'privacy': { sensitivity: sensitive, ai_access: never }",
       "sensitivity": "sensitive",
       "aiAccess": "never"
+    },
+    {
+      "yaml": "\"priva\\u0063y\":\n  sensitivity: sensitive\n  ai_access: never",
+      "sensitivity": "sensitive",
+      "aiAccess": "never"
     }
   ],
   "unknown": [

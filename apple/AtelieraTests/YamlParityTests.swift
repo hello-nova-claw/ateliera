@@ -414,6 +414,9 @@ final class YamlParityTests: XCTestCase {
     for replacement in [
       "privacy: { \"ai_access\":\"never\", sensitivity: private }",
       "privacy: { \"ai\\qaccess\": never, sensitivity: private }",
+      "\"privacy\":{ sensitivity: private, ai_access: never }",
+      "'privacy':{ sensitivity: private, ai_access: never }",
+      "\"priva\\u0063y\":{ sensitivity: private, ai_access: never }",
     ] {
       XCTAssertNil(
         NoteParser.parse(noteText([]).replacingOccurrences(of: plain, with: replacement)),
