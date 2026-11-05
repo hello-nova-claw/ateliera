@@ -346,3 +346,58 @@ describe('YAML folded block goldens', () => {
     );
   });
 });
+
+// Quoted keys other writers use, and what the web's `yaml` parser reads from them.
+// A quoted key is the same key as a plain one, so these must not fall back to the
+// default privacy setting.
+const quotedKeyPrivacy = [
+  'privacy: { "sensitivity": sensitive, "ai_access": never }',
+  "privacy: { 'sensitivity': sensitive, 'ai_access': never }",
+  'privacy: { "ai\\u005faccess": never, sensitivity: sensitive }',
+  'privacy:\n  "sensitivity": sensitive\n  "ai_access": never',
+  '"privacy":\n  sensitivity: sensitive\n  ai_access: never',
+  "'privacy': { sensitivity: sensitive, ai_access: never }",
+  '"priva\\u0063y":\n  sensitivity: sensitive\n  ai_access: never',
+];
+const quotedUnknownKeys = ['"x": kept', "'x': kept", '"x" : kept', '"x": kept # a note'];
+const quotedKeyWithColon = '"my key: here": kept';
+const malformedQuotedPrivacy = [
+  '"privacy"x: { sensitivity: private, ai_access: never }',
+  '"privacy" x: { sensitivity: private, ai_access: never }',
+  "'privacy'x: { sensitivity: private, ai_access: never }",
+];
+
+describe('YAML quoted key goldens', () => {
+  const plainPrivacy = 'privacy:\n  sensitivity: private\n  ai_access: ask';
+  const privacy = quotedKeyPrivacy.map((yaml) => {
+    const text = serializeNote(noteWith('x'));
+    expect(text).toContain(plainPrivacy);
+    const parsed = parseNote(text.replace(plainPrivacy, yaml));
+    if (!parsed.ok) throw new Error(`did not parse: ${yaml}`);
+    return { yaml, ...parsed.note.privacy };
+  });
+  const unknown = [...quotedUnknownKeys, quotedKeyWithColon].map((yaml) => {
+    const parsed = parseNote(serializeNote(noteWith('x')).replace('---\n', `---\n${yaml}\n`));
+    if (!parsed.ok) throw new Error(`did not parse: ${yaml}`);
+    const extra = parsed.note.extraFrontmatter;
+    return { yaml, key: Object.keys(extra)[0], value: Object.values(extra)[0] };
+  });
+
+  it('reads every quoted key as the plain key', () => {
+    for (const { aiAccess } of privacy) expect(aiAccess).toBe('never');
+    for (const { value } of unknown) expect(value).toBe('kept');
+  });
+
+  it('rejects a quoted privacy key with text after its closing quote', () => {
+    for (const yaml of malformedQuotedPrivacy) {
+      const parsed = parseNote(serializeNote(noteWith('x')).replace(plainPrivacy, yaml));
+      expect(parsed.ok, yaml).toBe(false);
+    }
+  });
+
+  it('matches the committed golden file', async () => {
+    await expect(`${JSON.stringify({ privacy, unknown }, null, 2)}\n`).toMatchFileSnapshot(
+      '../../../fixtures/yaml-parity/quoted-keys.json',
+    );
+  });
+});
