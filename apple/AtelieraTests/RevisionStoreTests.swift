@@ -130,7 +130,7 @@ final class RevisionStoreTests: XCTestCase {
   /// A manifest that follows every rule, for one copy of `original` at `bytes`.
   private func validManifest(
     original: String, bytes: Data, createdAt: String = "2026-08-29T10:00:00.000Z",
-    id: String = "PLANTED"
+    id: String = "PLANTED", reason: String = "conflict-resolution"
   ) -> (root: String, manifest: [String: Any]) {
     let root = RevisionStore.snapshotRoot(createdAt: createdAt, id: id)
     let file: [String: Any] = [
@@ -140,7 +140,7 @@ final class RevisionStoreTests: XCTestCase {
     return (
       root,
       [
-        "version": 1, "id": id, "reason": "conflict-resolution", "createdAt": createdAt,
+        "version": 1, "id": id, "reason": reason, "createdAt": createdAt,
         "state": "complete", "files": [file],
       ]
     )
@@ -482,5 +482,82 @@ final class RevisionStoreTests: XCTestCase {
     try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: url.path)
     // Unreadable is not missing: a plan would otherwise expect no file and fail later.
     XCTAssertNil(RevisionStore(store: fixture.store).planRestore(fixture.snapshot))
+  }
+
+  // MARK: - A restore keeps a copy of what it replaces (#249)
+
+  func testListAcceptsEveryReasonTheWebAccepts() throws {
+    let (dir, store) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let bytes = Data("copy".utf8)
+    let reasons = [
+      "migration", "multi-file-rename", "conflict-resolution", "season-close", "restore", "import",
+    ]
+    for (day, reason) in reasons.enumerated() {
+      let (root, manifest) = validManifest(
+        original: "Inbox/note.md", bytes: bytes, createdAt: "2026-08-2\(day)T10:00:00.000Z",
+        id: reason, reason: reason)
+      try write(bytes, at: "\(root)/files/Inbox/note.md", in: dir)
+      try write(manifestJSON(manifest), at: "\(root)/manifest.json", in: dir)
+    }
+    XCTAssertEqual(Set(RevisionStore(store: store).list().map { $0.id }), Set(reasons))
+  }
+
+  func testARestoreKeepsACopyOfWhatItReplaces() throws {
+    let fixture = try noteWithSnapshot()
+    defer { try? FileManager.default.removeItem(at: fixture.dir) }
+    let store = fixture.store
+    let revisions = RevisionStore(store: store)
+
+    XCTAssertTrue(
+      revisions.restore(fixture.snapshot, now: "2026-09-01T10:00:00.000Z", id: "BEFORE"))
+    XCTAssertEqual(try XCTUnwrap(store.beginEdit(path: fixture.path)).note.body, "original")
+
+    let kept = try XCTUnwrap(revisions.list().first { $0.id == "BEFORE" })
+    XCTAssertEqual(kept.manifest.reason, RevisionReason.restore)
+    XCTAssertEqual(kept.manifest.files.map { $0.originalPath }, [fixture.path])
+    XCTAssertTrue(revisions.restore(kept, now: "2026-09-01T11:00:00.000Z", id: "UNDO"))
+    XCTAssertEqual(try XCTUnwrap(store.beginEdit(path: fixture.path)).note.body, "changed")
+  }
+
+  // The copy prunes older snapshots from the same day, so it must not be taken, and
+  // pruned around, before the snapshot being restored has been written back.
+  func testARestoreOfASnapshotFromTheSameDayCanBeUndone() throws {
+    let fixture = try noteWithSnapshot()
+    defer { try? FileManager.default.removeItem(at: fixture.dir) }
+    let store = fixture.store
+    let revisions = RevisionStore(store: store)
+
+    XCTAssertTrue(
+      revisions.restore(fixture.snapshot, now: "2026-08-29T12:00:00.000Z", id: "BEFORE"))
+    XCTAssertEqual(try XCTUnwrap(store.beginEdit(path: fixture.path)).note.body, "original")
+
+    let kept = try XCTUnwrap(revisions.list().first { $0.id == "BEFORE" })
+    XCTAssertTrue(revisions.restore(kept, now: "2026-08-29T13:00:00.000Z", id: "UNDO"))
+    XCTAssertEqual(try XCTUnwrap(store.beginEdit(path: fixture.path)).note.body, "changed")
+  }
+
+  func testARestoreThatCannotKeepACopyWritesNothing() throws {
+    let fixture = try noteWithSnapshot()
+    defer { try? FileManager.default.removeItem(at: fixture.dir) }
+    // A file where the copy's day folder should be, so no copy can be written.
+    try write(Data("x".utf8), at: "\(RevisionStore.backupsRoot)/2026-09-01", in: fixture.dir)
+
+    XCTAssertFalse(
+      RevisionStore(store: fixture.store).restore(
+        fixture.snapshot, now: "2026-09-01T10:00:00.000Z", id: "BEFORE"))
+    XCTAssertEqual(
+      try XCTUnwrap(fixture.store.beginEdit(path: fixture.path)).note.body, "changed")
+  }
+
+  func testARestoreOfADeletedFileHasNothingToKeep() throws {
+    let fixture = try noteWithSnapshot()
+    defer { try? FileManager.default.removeItem(at: fixture.dir) }
+    try FileManager.default.removeItem(at: fixture.dir.appendingPathComponent(fixture.path))
+    let revisions = RevisionStore(store: fixture.store)
+
+    XCTAssertTrue(
+      revisions.restore(fixture.snapshot, now: "2026-09-01T10:00:00.000Z", id: "BEFORE"))
+    XCTAssertEqual(revisions.list().map { $0.id }, ["SNAP1"])
   }
 }

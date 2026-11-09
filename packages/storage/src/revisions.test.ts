@@ -41,6 +41,24 @@ describe('local revision snapshots', () => {
     );
   });
 
+  it('accepts restore and import as reasons for a snapshot', async () => {
+    const vault = createInMemoryVault();
+    await vault.writeTextAtomic('Notes/a.md', 'before');
+    for (const [index, reason] of (['restore', 'import'] as const).entries()) {
+      const store = createRevisionStore(vault, {
+        clock: () => new Date(`2026-07-13T0${index + 2}:00:00.000Z`),
+        generateId: () => reason,
+      });
+      const snapshot = await store.create(reason, ['Notes/a.md']);
+      expect(snapshot.manifest.reason).toBe(reason);
+    }
+    // Both are trusted, so the daily rule keeps the newer and prunes the older.
+    await createRevisionStore(vault, { clock: () => new Date('2026-07-13T04:00:00.000Z') }).prune();
+    const backups = '.studio/backups/2026-07-13';
+    await expect(vault.exists(`${backups}/2026-07-13T02-00-00-000Z--restore/manifest.json`)).resolves.toBe(false);
+    await expect(vault.exists(`${backups}/2026-07-13T03-00-00-000Z--import/manifest.json`)).resolves.toBe(true);
+  });
+
   it('converges concurrent transaction-owned creates and reopens the same complete snapshot', async () => {
     const vault = createInMemoryVault();
     await vault.writeTextAtomic('Notes/a.md', 'one');

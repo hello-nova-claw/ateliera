@@ -64,13 +64,22 @@ struct RevisionHistoryView: View {
         : String(
           localized: "Restored \(count) files.",
           comment: "Shown after a restore. The placeholder is the number of files written.")
-    } else if revisions.planRestore(plan.snapshot) == nil {
-      status = Self.failedChecks
+    } else if let fresh = revisions.planRestore(plan.snapshot) {
+      // Nothing changed since the plan, so it was the copy of what it replaces that failed.
+      status =
+        fresh == plan
+        ? String(
+          localized:
+            "Nothing was restored, because a copy of the version it would replace couldn't be kept.",
+          comment:
+            "Shown when a restore is stopped because no backup of the replaced files was made"
+        )
+        : String(
+          localized:
+            "Nothing was restored. A file changed after you chose this version, so try again.",
+          comment: "Shown when a restore finds a file changed since it was confirmed")
     } else {
-      status = String(
-        localized:
-          "Nothing was restored. A file changed after you chose this version, so try again.",
-        comment: "Shown when a restore finds a file changed since it was confirmed")
+      status = Self.failedChecks
     }
   }
 

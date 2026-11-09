@@ -232,9 +232,12 @@ enum VaultImporter {
     }
   }
 
+  /// Write the plan in one atomic batch, with a snapshot of every file it replaces so
+  /// the replaced version can be restored. Nothing is written if that copy can't be.
   @discardableResult
   static func apply(
-    plan: ImportPlan, resolutions: [String: ImportAction] = [:], store: VaultStore
+    plan: ImportPlan, resolutions: [String: ImportAction] = [:], store: VaultStore,
+    now: String = NoteFactory.isoTimestamp(), id: String = NoteFactory.createNoteId()
   ) -> Bool {
     let writes = plan.items.compactMap { item -> BatchWrite? in
       switch plan.resolvedAction(for: item, resolutions: resolutions) {
@@ -248,6 +251,25 @@ enum VaultImporter {
       }
     }
     guard !writes.isEmpty else { return true }
-    return store.writeBatch(expectedRevision: plan.targetRevision, writes: writes)
+    let replaced = plan.items.filter {
+      plan.resolvedAction(for: $0, resolutions: resolutions) == .overwrite
+    }
+    .map { $0.path }
+    let revisions = RevisionStore(store: store)
+    guard
+      let copies = revisions.copyWrites(
+        replacing: replaced, reason: RevisionReason.importBackup, now: now, id: id)
+    else {
+      store.error = String(
+        localized:
+          "Couldn't keep a copy of the files this import would replace, so nothing was imported.",
+        comment: "Shown when an import is stopped because no backup of the replaced files was made")
+      return false
+    }
+    guard store.writeBatch(expectedRevision: plan.targetRevision, writes: copies + writes) else {
+      return false
+    }
+    if !copies.isEmpty { revisions.prune(now: now) }
+    return true
   }
 }
