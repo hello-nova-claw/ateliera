@@ -416,4 +416,67 @@ final class VaultImportTests: XCTestCase {
     }
     XCTAssertEqual(try VaultImporter.readArchive(at: url, maxBytes: 64).count, 64)
   }
+
+  // MARK: - An import keeps a copy of what it replaces (#249)
+
+  func testAnImportThatReplacesANoteKeepsACopyOfIt() throws {
+    let (dir, store) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.capture(title: "Mine", body: "my words", room: "inbox"))
+    let path = try XCTUnwrap(store.parsedNotesByPath.first?.path)
+    let mine = try XCTUnwrap(store.readFileBytes(path: path))
+    let plan = try VaultImporter.prepare(
+      archive: portable([
+        (path: path, bytes: Data("replacement\n".utf8)),
+        (path: "Inbox/brand-new.md", bytes: Data("fresh\n".utf8)),
+      ]), store: store)
+
+    XCTAssertTrue(
+      VaultImporter.apply(plan: plan, store: store, now: "2026-09-01T10:00:00.000Z", id: "IMPORT"))
+    XCTAssertEqual(store.readFileBytes(path: path), Data("replacement\n".utf8))
+
+    let revisions = RevisionStore(store: store)
+    let kept = try XCTUnwrap(revisions.list().first { $0.id == "IMPORT" })
+    XCTAssertEqual(kept.manifest.reason, RevisionReason.importBackup)
+    // Only the replaced note: a created file had nothing to keep.
+    XCTAssertEqual(kept.manifest.files.map { $0.originalPath }, [path])
+    XCTAssertTrue(revisions.restore(kept, now: "2026-09-01T11:00:00.000Z", id: "UNDO"))
+    XCTAssertEqual(store.readFileBytes(path: path), mine)
+  }
+
+  func testAnImportThatReplacesNothingKeepsNoCopy() throws {
+    let (dir, store) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let plan = try VaultImporter.prepare(
+      archive: portable([(path: "Inbox/brand-new.md", bytes: Data("fresh\n".utf8))]),
+      store: store)
+
+    XCTAssertTrue(
+      VaultImporter.apply(plan: plan, store: store, now: "2026-09-01T10:00:00.000Z", id: "IMPORT"))
+    XCTAssertTrue(RevisionStore(store: store).list().isEmpty)
+  }
+
+  func testAnImportThatCannotKeepACopyWritesNothing() throws {
+    let (dir, store) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.capture(title: "Mine", body: "my words", room: "inbox"))
+    let path = try XCTUnwrap(store.parsedNotesByPath.first?.path)
+    let mine = try XCTUnwrap(store.readFileBytes(path: path))
+    let plan = try VaultImporter.prepare(
+      archive: portable([
+        (path: path, bytes: Data("replacement\n".utf8)),
+        (path: "Inbox/brand-new.md", bytes: Data("fresh\n".utf8)),
+      ]), store: store)
+    // A file where the copy's day folder should be, so no copy can be written.
+    let blocker = dir.appendingPathComponent("\(RevisionStore.backupsRoot)/2026-09-01")
+    try FileManager.default.createDirectory(
+      at: blocker.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("x".utf8).write(to: blocker)
+
+    XCTAssertFalse(
+      VaultImporter.apply(plan: plan, store: store, now: "2026-09-01T10:00:00.000Z", id: "IMPORT"))
+    XCTAssertEqual(store.readFileBytes(path: path), mine)
+    XCTAssertFalse(store.listAllPaths().contains("Inbox/brand-new.md"))
+    XCTAssertNotNil(store.error)
+  }
 }
