@@ -7,7 +7,9 @@ export type RevisionReason =
   | 'migration'
   | 'multi-file-rename'
   | 'conflict-resolution'
-  | 'season-close';
+  | 'season-close'
+  | 'restore'
+  | 'import';
 
 export interface RevisionFile {
   originalPath: string;
@@ -78,6 +80,8 @@ const REASONS = new Set<RevisionReason>([
   'multi-file-rename',
   'conflict-resolution',
   'season-close',
+  'restore',
+  'import',
 ]);
 const STATES = new Set<RevisionManifest['state']>([
   'writing',

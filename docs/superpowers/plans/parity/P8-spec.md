@@ -201,7 +201,7 @@ Manifest path: `.studio/backups/YYYY-MM-DD/YYYY-MM-DDTHH-MM-SS-mmmZ--ID/manifest
 }
 ```
 
-Valid `reason` values: `migration`, `multi-file-rename`, `conflict-resolution`, `season-close`.
+Valid `reason` values: `migration`, `multi-file-rename`, `conflict-resolution`, `season-close`, `restore`, `import`.
 Valid `state` values: `writing`, `complete`, `incomplete`, `pruning`.
 
 ### Draft recovery key format

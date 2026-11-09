@@ -1,0 +1,1 @@
+Restoring an earlier version or importing a backup now keeps a copy of each note it replaces, so you can restore that note if you change your mind. If the copy can't be made, nothing is replaced.

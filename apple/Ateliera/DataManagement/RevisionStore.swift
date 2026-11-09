@@ -52,6 +52,8 @@ enum RevisionReason {
   static let seasonClose = "season-close"
   static let migration = "migration"
   static let multiFileRename = "multi-file-rename"
+  static let restore = "restore"
+  static let importBackup = "import"
 }
 
 struct RevisionStore {
@@ -60,10 +62,36 @@ struct RevisionStore {
   let store: VaultStore
 
   /// Snapshot the current bytes of `paths` into a dated backup folder + manifest.
-  /// Returns nil if nothing could be read, the manifest would break the rules `list`
+  /// Returns nil if nothing could be read, the snapshot would break the rules `list`
   /// checks (so it would never be listed or pruned), or the atomic write failed.
   @discardableResult
   func snapshot(reason: String, paths: [String], now: String, id: String) -> RevisionSnapshot? {
+    guard let (snapshot, writes) = snapshotWrites(reason: reason, paths: paths, now: now, id: id),
+      store.writeBatch(expectedRevision: store.currentRevision(), writes: writes)
+    else { return nil }
+    prune(now: now)
+    return snapshot
+  }
+
+  /// The writes that keep a copy of `paths` in the same batch as the writes that
+  /// replace them: none when there is nothing to replace, nil when any of them can't be
+  /// copied. The caller prunes once its batch is written, so a same-day snapshot it is
+  /// restoring from isn't pruned before it is read.
+  func copyWrites(replacing paths: [String], reason: String, now: String, id: String)
+    -> [BatchWrite]?
+  {
+    guard !paths.isEmpty else { return [] }
+    guard let (snapshot, writes) = snapshotWrites(reason: reason, paths: paths, now: now, id: id),
+      snapshot.manifest.files.count == paths.count
+    else { return nil }
+    return writes
+  }
+
+  /// A snapshot of whichever of `paths` can be read, and the writes that make it. Nil
+  /// if none can, or if the copies or manifest break the rules `list` checks.
+  private func snapshotWrites(reason: String, paths: [String], now: String, id: String)
+    -> (snapshot: RevisionSnapshot, writes: [BatchWrite])?
+  {
     let folder = Self.snapshotRoot(createdAt: now, id: id)
 
     var files: [RevisionFile] = []
@@ -77,7 +105,9 @@ struct RevisionStore {
       writes.append(
         BatchWrite(path: snapshotPath, bytes: bytes, expectedHash: nil, expectedMissing: true))
     }
-    guard !files.isEmpty else { return nil }
+    guard !files.isEmpty, Self.withinLimits(writes.map { UInt64($0.bytes.count) }) else {
+      return nil
+    }
 
     let manifest = RevisionManifest(
       version: 1, id: id, reason: reason, createdAt: now, state: "complete", files: files)
@@ -88,12 +118,7 @@ struct RevisionStore {
     else { return nil }
     writes.append(
       BatchWrite(path: manifestPath, bytes: manifestData, expectedHash: nil, expectedMissing: true))
-
-    guard store.writeBatch(expectedRevision: store.currentRevision(), writes: writes) else {
-      return nil
-    }
-    prune(now: now)
-    return RevisionSnapshot(manifestPath: manifestPath, manifest: manifest)
+    return (RevisionSnapshot(manifestPath: manifestPath, manifest: manifest), writes)
   }
 
   /// Keep at most one snapshot per day and drop anything 30 days old or more, removing
@@ -294,12 +319,16 @@ struct RevisionStore {
     return RestorePlan(snapshot: verified.snapshot, files: files)
   }
 
-  /// Write a plan's changed copies back to their original paths in one atomic batch.
-  /// The snapshot is checked again first, manifest and every copy, and must still say
-  /// what the plan said; each write expects the file as the plan found it, so nothing
-  /// is written if any of them changed.
+  /// Write a plan's changed copies back to their original paths in one atomic batch,
+  /// with a snapshot of each file they replace, so the replaced version can itself be
+  /// restored. The snapshot is checked again first, manifest and every copy, and must
+  /// still say what the plan said; each write expects the file as the plan found it,
+  /// so nothing is written if any of them changed or the copy can't be kept.
   @discardableResult
-  func restore(_ plan: RestorePlan) -> Bool {
+  func restore(
+    _ plan: RestorePlan, now: String = NoteFactory.isoTimestamp(),
+    id: String = NoteFactory.createNoteId()
+  ) -> Bool {
     func copies(_ files: [RestorePlan.File]) -> [String] {
       files.map { "\($0.originalPath)\u{0}\($0.snapshotPath)\u{0}\($0.copyHash)" }
     }
@@ -316,14 +345,24 @@ struct RevisionStore {
           expectedMissing: file.currentHash == nil))
     }
     guard !writes.isEmpty else { return true }
-    return store.writeBatch(expectedRevision: store.currentRevision(), writes: writes)
+    let replaced = plan.changes.filter { $0.currentHash != nil }.map { $0.originalPath }
+    guard
+      let copies = copyWrites(
+        replacing: replaced, reason: RevisionReason.restore, now: now, id: id),
+      store.writeBatch(expectedRevision: store.currentRevision(), writes: copies + writes)
+    else { return false }
+    if !copies.isEmpty { prune(now: now) }
+    return true
   }
 
   /// Plan and restore in one go.
   @discardableResult
-  func restore(_ snapshot: RevisionSnapshot) -> Bool {
+  func restore(
+    _ snapshot: RevisionSnapshot, now: String = NoteFactory.isoTimestamp(),
+    id: String = NoteFactory.createNoteId()
+  ) -> Bool {
     guard let plan = planRestore(snapshot) else { return false }
-    return restore(plan)
+    return restore(plan, now: now, id: id)
   }
 }
 
@@ -335,7 +374,8 @@ extension RevisionStore {
   static let maxManifestBytes = 2 * 1_024 * 1_024
   static let reasons: Set<String> = [
     RevisionReason.migration, RevisionReason.multiFileRename,
-    RevisionReason.conflictResolution, RevisionReason.seasonClose,
+    RevisionReason.conflictResolution, RevisionReason.seasonClose, RevisionReason.restore,
+    RevisionReason.importBackup,
   ]
   static let states: Set<String> = ["writing", "complete", "incomplete", "pruning"]
 
