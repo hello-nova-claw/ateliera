@@ -232,8 +232,11 @@ enum VaultImporter {
     }
   }
 
-  /// Write the plan in one atomic batch, with a snapshot of every file it replaces so
-  /// the replaced version can be restored. Nothing is written if that copy can't be.
+  /// Write the plan in one atomic batch, with a snapshot of every note and media file it
+  /// replaces so the replaced version can be restored. Nothing is written if that copy
+  /// can't be. A snapshot holds only a person's files, so the app's own `.studio/` files
+  /// are replaced uncopied. Old snapshots aren't pruned here, so any the backup brings
+  /// back stay until the next snapshot prunes.
   @discardableResult
   static func apply(
     plan: ImportPlan, resolutions: [String: ImportAction] = [:], store: VaultStore,
@@ -253,11 +256,11 @@ enum VaultImporter {
     guard !writes.isEmpty else { return true }
     let replaced = plan.items.filter {
       plan.resolvedAction(for: $0, resolutions: resolutions) == .overwrite
+        && RevisionStore.isSafeUserPath($0.path)
     }
     .map { $0.path }
-    let revisions = RevisionStore(store: store)
     guard
-      let copies = revisions.copyWrites(
+      let copies = RevisionStore(store: store).copyWrites(
         replacing: replaced, reason: RevisionReason.importBackup, now: now, id: id)
     else {
       store.error = String(
@@ -266,10 +269,6 @@ enum VaultImporter {
         comment: "Shown when an import is stopped because no backup of the replaced files was made")
       return false
     }
-    guard store.writeBatch(expectedRevision: plan.targetRevision, writes: copies + writes) else {
-      return false
-    }
-    if !copies.isEmpty { revisions.prune(now: now) }
-    return true
+    return store.writeBatch(expectedRevision: plan.targetRevision, writes: copies + writes)
   }
 }
