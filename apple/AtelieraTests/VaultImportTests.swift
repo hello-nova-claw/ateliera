@@ -488,6 +488,8 @@ final class VaultImportTests: XCTestCase {
     let path: String
     let mine: Data
     let archive: Data
+    /// A `.studio/` file as it was exported.
+    static let view = (path: ".studio/views/home.json", text: "{\"layout\":\"exported\"}\n")
   }
 
   /// A vault with one note and a revision snapshot of it, exported, with the note then
@@ -501,6 +503,9 @@ final class VaultImportTests: XCTestCase {
       RevisionStore(store: store).snapshot(
         reason: RevisionReason.conflictResolution, paths: [path],
         now: "2026-08-29T10:00:00.000Z", id: "SNAP1"))
+    let view = ExportedVault.view
+    XCTAssertNotNil(
+      store.writeRawFile(path: view.path, text: view.text, expectedHash: nil, createNew: true))
     let archive = try VaultExporter.export(store: store, generatedAt: "2026-08-30T09:00:00.000Z")
     let editable = try XCTUnwrap(store.beginEdit(path: path))
     XCTAssertTrue(store.saveEdit(editable, title: "Mine", body: "changed"))
@@ -510,14 +515,21 @@ final class VaultImportTests: XCTestCase {
   func testAnImportThatReplacesStudioFilesWritesAndKeepsACopyOfTheNotes() throws {
     let vault = try vaultWithItsOwnExport()
     defer { try? FileManager.default.removeItem(at: vault.dir) }
+    let view = ExportedVault.view
+    let current = try XCTUnwrap(vault.store.readRawFile(path: view.path))
+    XCTAssertNotNil(
+      vault.store.writeRawFile(
+        path: view.path, text: "{\"layout\":\"changed\"}\n", expectedHash: current.hash,
+        createNew: false))
     let plan = try VaultImporter.prepare(archive: vault.archive, store: vault.store)
-    XCTAssertTrue(plan.items.contains { $0.action == .overwrite && $0.path.hasPrefix(".studio/") })
+    XCTAssertTrue(plan.items.contains { $0.action == .overwrite && $0.path == view.path })
 
     XCTAssertTrue(
       VaultImporter.apply(
         plan: plan, store: vault.store, now: "2026-09-01T10:00:00.000Z", id: "IMPORT"),
       vault.store.error ?? "")
     XCTAssertEqual(vault.store.readFileBytes(path: vault.path), vault.mine)
+    XCTAssertEqual(vault.store.readRawFile(path: view.path)?.text, view.text)
     let kept = try XCTUnwrap(RevisionStore(store: vault.store).list().first { $0.id == "IMPORT" })
     // A snapshot holds only a person's files, so the `.studio/` ones are replaced uncopied.
     XCTAssertEqual(kept.manifest.files.map { $0.originalPath }, [vault.path])
