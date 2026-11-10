@@ -19,7 +19,7 @@ Ateliera holds some of the most private things a person writes. Before you build
 2. **Board.** Issues move across the project board: Backlog, Ready, In progress, In review, Done. Move the issue, not the pull request. Whoever files an issue adds it to the board and sets its milestone, Priority and Status together.
 3. **One branch and one pull request per issue.** Name the branch `<issue number>-<short-slug>`, for example `132-delete-everything`.
 4. **Pull request.** Use the template (added in #144: `Fixes #N`, What, Why, How to test, a VoiceOver note for UI, and a checklist). Link the issue with `Fixes #132`. Add your changelog line as a fragment, `changelog/<issue>-<slug>.txt`. Don't edit `CHANGELOG.md`: parallel pull requests would conflict over it. At release time `bin/changelog` (added in #145) folds every fragment in. If the change has no user-facing effect, say so and a maintainer adds the `no-changelog` label.
-5. **Review.** CodeRabbit reviews every pull request, and its approval is the required review. Anna reviews anything that touches the design principles, `docs/privacy.md`, the privacy manifests, entitlements, usage strings or the licence files. `main` is protected: no direct pushes, all checks green.
+5. **Review.** CodeRabbit reviews every pull request, and its approval is the required review. Anna reviews anything that touches the design principles, `docs/privacy.md`, the privacy manifests, entitlements, usage strings or the licence files. Nothing reaches `main` except through a pull request, merged only when every check is green and those reviews are done. GitHub doesn't enforce this yet, because `main` has no branch protection (#263), so it's on whoever merges.
 
 ## Licensing of contributions
 

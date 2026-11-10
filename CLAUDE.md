@@ -118,16 +118,16 @@ Run date-sensitive tests under other zones too: prefix with `TZ=Pacific/Auckland
 - Every pull request needs an issue with all five template fields, a branch named `<issue>-<slug>`, and a changelog fragment `changelog/<issue>-<slug>.txt` (`pnpm changelog` folds them into `CHANGELOG.md` at release). A pull request with no user-facing change, such as docs or tooling only, gets the `no-changelog` label instead.
 - Commits use the repo-local Novaclaw git identity, in WordPress core style. Don't add `Co-Authored-By` or any AI attribution lines.
 - The `gh` CLI has two accounts. Use Novaclaw for this repository: `GH_TOKEN=$(gh auth token --user hello-nova-claw) gh …`.
-- CodeRabbit's approval is the review a pull request needs before it merges. Nothing enforces that: `main` has no branch protection (#263).
+- A pull request merges only when CodeRabbit has approved it, every check is green, and Anna has reviewed it if it touches anything CONTRIBUTING.md reserves for her: the design principles, `docs/privacy.md`, the privacy manifests, entitlements, usage strings or the licence files. Nobody pushes to `main` directly. GitHub enforces none of this, because `main` has no branch protection (#263).
 - CodeRabbit doesn't review on its own here, so comment `@coderabbitai review` after you open a pull request and after each push. Batch fixes into one push.
   - It often answers "Review rate limited". Wait about an hour and ask again.
   - It doesn't review a closed or merged pull request, or a commit it has already reviewed.
   - When it says "Review paused", comment `@coderabbitai resume`, then `@coderabbitai review`.
-- **Never use `gh pr merge --auto`.** With no branch protection it merges at once, before review or CI, which is how #256 merged unreviewed. Once CodeRabbit approves and every check is green, merge by hand with `gh pr merge <n> --merge --match-head-commit <sha>`. Run `gh pr view <n> --json state` and confirm it is `OPEN` before every push to its branch.
+- **Never use `gh pr merge --auto`.** With no branch protection it merges at once, before review or CI, which is how #256 merged unreviewed. Once those conditions hold, merge by hand with `gh pr merge <n> --merge --match-head-commit <sha>`. Run `gh pr view <n> --json state` and confirm it is `OPEN` before every push to its branch.
 - Merge `main` into a branch only when it is DIRTY (conflicting). Being behind is not a reason: every push dismisses the approval and restarts CI.
 - Every push queues every CI job. GitHub Free runs 5 macOS jobs at once. A push touching `apple/` queues one, or four when it changes the app or its UI tests (the accessibility audit runs as three parallel jobs), so keep **no more than one pull request that changes the app or its UI tests** being pushed at a time, or two that touch only other `apple/` files. Web-only pull requests run on Linux and are limited only by the 20-job total. Recompute this when the CI's macOS jobs change.
 - When several sessions work in parallel, give each one a lane: an ordered list of issues in one area, one pull request at a time, so they don't edit the same files.
-- Never merge a pull request from outside, or one labelled `privacy`, without Anna's go-ahead.
+- Never merge a pull request from outside, or one labelled `privacy`, without Anna's go-ahead, even when it's approved and green.
 - Dependabot pull requests can merge once green. If a major upgrade fails, close it and open an issue for the upgrade instead (#261).
 
 ## Picking up work
