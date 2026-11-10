@@ -33,7 +33,7 @@ Last checked against the code: 27 October 2026.
 | Data | Where | Protection | Source |
 |---|---|---|---|
 | Notes, media, and the vault's `.studio/` settings, views and config | The vault folder the user picks. The app keeps a bookmark to it. | The iOS default class, `completeUntilFirstUserAuthentication`. No class is set. Gap: #130. | `Ateliera/VaultStore.swift`, `AtelieraVaultCore/src/lib.rs` |
-| Revisions (30 days) and trash | Vault `.studio/backups/`, `.studio/trash/` | Default. Gap: #130. | `Ateliera/DataManagement/RevisionStore.swift` |
+| Revisions and trash. A revision is a copy of notes or media made before a conflict overwrite, a restore or an import replaces them. When a new one is made, the app keeps only the newest revision from each day and removes any 30 days old or more. Revisions an import brings back from a backup stay until then, however old. | Vault `.studio/backups/`, `.studio/trash/` | Default. Gap: #130. | `Ateliera/DataManagement/RevisionStore.swift`, `Ateliera/DataManagement/VaultImporter.swift` |
 | On-device AI wording cache | Vault `.studio/cache/micro-seasons.json`. Its key includes the home place name. Gap: #134. | Default | `Ateliera/Rhythm/MicroSeasonStore.swift` |
 | Vault bookmark | `UserDefaults` `ateliera.vault.bookmark` | Default | `Ateliera/VaultStore.swift` |
 | **Unsaved draft text and title** | `UserDefaults` `studio:draft-recovery:<vault>:<note>`, written on every keystroke. Cancel doesn't clear it. Gap: #40. | Default | `Ateliera/DataManagement/DraftRecovery.swift` |
