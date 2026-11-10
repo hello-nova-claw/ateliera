@@ -37,17 +37,27 @@ struct JournalView: View {
           .studioRoomRow(EdgeInsets(top: 6, leading: 28, bottom: 6, trailing: 28))
       } else {
         ForEach(entries) { note in
-          Button { onOpen(note.id) } label: { JournalEntryRow(note: note, store: store) }
-            .buttonStyle(.plain)
-            .studioRoomRow(EdgeInsets(top: 2, leading: 28, bottom: 2, trailing: 28))
-            .accessibilityIdentifier("note-row-\(note.id)")
-            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-              Button(role: .destructive) {
-                _ = store.setNoteStatus(path: note.id, status: "trashed")
-              } label: { Label("Delete", systemImage: "trash") }
-              Button { filing = note } label: { Label("File…", systemImage: "tray.and.arrow.down") }
-                .tint(theme.link)
+          Button {
+            onOpen(note.id)
+          } label: {
+            JournalEntryRow(note: note, store: store)
+          }
+          .buttonStyle(.plain)
+          .studioRoomRow(EdgeInsets(top: 2, leading: 28, bottom: 2, trailing: 28))
+          .accessibilityIdentifier("note-row-\(note.id)")
+          .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+              _ = store.setNoteStatus(path: note.id, status: "trashed")
+            } label: {
+              Label("Delete", systemImage: "trash")
             }
+            Button {
+              filing = note
+            } label: {
+              Label("File…", systemImage: "tray.and.arrow.down")
+            }
+            .tint(theme.link)
+          }
         }
       }
     }
@@ -120,22 +130,20 @@ struct JournalEntryRow: View {
     cover = UIImage(data: media.data)
   }
 
-  // ISO timestamp → "12 September 2026". Falls back to the date portion if unparseable.
+  // ISO timestamp → "12 September 2026", on the day it was written in the writer's own
+  // zone, wherever it is read. Falls back to the date portion if unparseable.
   static func dateLabel(_ iso: String) -> String {
-    guard let date = parse(iso) else { return String(iso.prefix(10)) }
+    guard let day = NoteTime.writtenDay(iso) else { return String(iso.prefix(10)) }
+    let civil = DateFormatter()
+    civil.locale = Locale(identifier: "en_US_POSIX")
+    civil.timeZone = .gmt
+    civil.dateFormat = "yyyy-MM-dd"
+    guard let date = civil.date(from: day) else { return day }
     let out = DateFormatter()
     out.locale = Locale(identifier: "en_US_POSIX")
+    out.timeZone = .gmt
     out.dateFormat = "d MMMM yyyy"
     return out.string(from: date)
-  }
-
-  private static func parse(_ iso: String) -> Date? {
-    let withFraction = ISO8601DateFormatter()
-    withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    if let d = withFraction.date(from: iso) { return d }
-    let plain = ISO8601DateFormatter()
-    plain.formatOptions = [.withInternetDateTime]
-    return plain.date(from: iso)
   }
 }
 

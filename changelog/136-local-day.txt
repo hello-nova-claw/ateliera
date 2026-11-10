@@ -1,0 +1,1 @@
+Entries are now dated by the day you wrote them, in your own time zone. A morning entry in Australia no longer gets yesterday's date, and travelling or a daylight-saving change no longer moves an entry to another day.
