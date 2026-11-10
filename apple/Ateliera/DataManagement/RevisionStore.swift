@@ -326,7 +326,7 @@ struct RevisionStore {
   /// so nothing is written if any of them changed or the copy can't be kept.
   @discardableResult
   func restore(
-    _ plan: RestorePlan, now: String = NoteFactory.isoTimestamp(),
+    _ plan: RestorePlan, now: String = NoteFactory.utcTimestamp(),
     id: String = NoteFactory.createNoteId()
   ) -> Bool {
     func copies(_ files: [RestorePlan.File]) -> [String] {
@@ -358,7 +358,7 @@ struct RevisionStore {
   /// Plan and restore in one go.
   @discardableResult
   func restore(
-    _ snapshot: RevisionSnapshot, now: String = NoteFactory.isoTimestamp(),
+    _ snapshot: RevisionSnapshot, now: String = NoteFactory.utcTimestamp(),
     id: String = NoteFactory.createNoteId()
   ) -> Bool {
     guard let plan = planRestore(snapshot) else { return false }

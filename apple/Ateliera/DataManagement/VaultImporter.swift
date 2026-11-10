@@ -241,7 +241,7 @@ enum VaultImporter {
   @discardableResult
   static func apply(
     plan: ImportPlan, resolutions: [String: ImportAction] = [:], store: VaultStore,
-    now: String = NoteFactory.isoTimestamp(), id: String = NoteFactory.createNoteId()
+    now: String = NoteFactory.utcTimestamp(), id: String = NoteFactory.createNoteId()
   ) -> Bool {
     let writes = plan.items.compactMap { item -> BatchWrite? in
       switch plan.resolvedAction(for: item, resolutions: resolutions) {
