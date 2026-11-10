@@ -1,5 +1,7 @@
 # Development log
 
+This log stops at August 2026. Since the engineering system was set up in October 2026, each change is an issue and a pull request, and its user-facing line is a `changelog/` fragment until `pnpm changelog` folds it into `CHANGELOG.md`. Read the merged pull requests for the history after this.
+
 ## 2026-08-28 — Native parity Phase P1: note depth (metadata editing + wikilinks)
 
 - First parity phase, per `docs/superpowers/plans/parity/`. **The spine everything
