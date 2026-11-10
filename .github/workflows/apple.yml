@@ -211,6 +211,68 @@ jobs:
           # Skipped is fine only when nothing the audit covers changed, or on the weekly run.
           [ "$RESULT" = success ] || { [ "$RESULT" = skipped ] && { [ "$UI" = false ] || [ "$EVENT" = schedule ]; }; }
 
+  screenshots:
+    # Not a required check: it only feeds the Screenshots comment, which
+    # apple-screenshots.yml posts from the uploaded shots.
+    name: Apple screenshots
+    needs: changes
+    if: needs.changes.outputs.ui == 'true' && github.event_name != 'schedule'
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 22
+      - uses: ./.github/actions/apple-setup
+      - name: Pin the simulators' status bars
+        run: |
+          for device in "iPhone 17e" "iPhone 17 Pro Max"; do
+            xcrun simctl boot "$device" || true
+            xcrun simctl bootstatus "$device" -b > /dev/null
+            xcrun simctl status_bar "$device" override --time 9:41 --dataNetwork wifi \
+              --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 \
+              --batteryState charged --batteryLevel 100
+          done
+      - name: Take the screenshots
+        working-directory: apple
+        # Both devices run at once.
+        run: |
+          xcodebuild test -project Ateliera.xcodeproj -scheme Ateliera \
+            -destination 'platform=iOS Simulator,name=iPhone 17e,OS=26.5' \
+            -destination 'platform=iOS Simulator,name=iPhone 17 Pro Max,OS=26.5' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO \
+            -only-testing:AtelieraUITests/ScreenshotCatalogueUITests \
+            -resultBundlePath ../results/screenshots.xcresult \
+            | grep -E 'error:|Test Case .*(passed|failed)|Executed|TEST (SUCCEEDED|FAILED)'
+      - name: Collect the shots
+        if: ${{ !cancelled() }}
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          node bin/screenshots.mjs collect results/screenshots.xcresult shots/images
+          # Shots that only differ by noise from main's become main's file, so they compare equal.
+          mkdir -p main-shots
+          if git fetch -q --depth 1 "https://github.com/$REPO.git" screenshots; then
+            git archive FETCH_HEAD main | tar -x -C main-shots
+            swift bin/match-shots.swift main-shots/main shots/images
+          else
+            echo "No screenshots branch yet, so nothing to match against."
+          fi
+          if [ "$EVENT" = pull_request ]; then target="$PR_NUMBER"; else target=main; fi
+          printf '%s\n%s\n' "$target" "$HEAD_SHA" > shots/target.txt
+      - uses: actions/upload-artifact@v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: ateliera-screenshots
+          path: shots/
+          retention-days: 14
+
   minimum-ios:
     name: Apple tests on iOS 17
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'

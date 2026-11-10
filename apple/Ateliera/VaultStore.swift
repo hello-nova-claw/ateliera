@@ -176,7 +176,7 @@ final class VaultStore {
   init() {
     // UI tests drive the real capture/edit flow against a fresh, empty vault in
     // the app's own sandbox, so the room starts known-empty and deterministic.
-    if let url = Self.uitestVaultURL() {
+    if let url = UITestVault.url() {
       try? openVault(at: url)
       return
     }
@@ -198,116 +198,6 @@ final class VaultStore {
   /// The vault path of the most recent successful quick capture — lets the capture
   /// flow open the workshop on the note it just wrote.
   private(set) var lastCapturedPath: String?
-
-  private static func uitestVaultURL() -> URL? {
-    guard ProcessInfo.processInfo.environment["ATELIERA_UITEST"] == "1" else { return nil }
-    let url = URL(fileURLWithPath: NSTemporaryDirectory())
-      .appendingPathComponent("uitest-\(UUID().uuidString)", isDirectory: true)
-    try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-    // For the Gift flow test, seed one due wish card so the Foyer shows a real
-    // resurfaced card to grade rather than the calm fallback line.
-    if ProcessInfo.processInfo.environment["ATELIERA_UITEST_GIFT"] == "1" {
-      seedGiftFixture(at: url)
-    }
-    if ProcessInfo.processInfo.environment["ATELIERA_UITEST_P5"] == "1" {
-      seedP5Fixture(at: url)
-    }
-    if ProcessInfo.processInfo.environment["ATELIERA_UITEST_FOYER"] == "1" {
-      seedFoyerFixture(at: url)
-    }
-    if ProcessInfo.processInfo.environment["ATELIERA_UITEST_CONSTELLATION"] == "1" {
-      seedConstellationFixture(at: url)
-    }
-    return url
-  }
-
-  // Two kept Journal entries where the second wiki-links the first, so the
-  // Constellation spike has at least two dots and one real line to render.
-  private static func seedConstellationFixture(at root: URL) {
-    var first = StudioNote.capture(
-      title: "A quiet morning", body: "\nThe one that started it.\n",
-      id: NoteFactory.createNoteId(), created: NoteFactory.isoTimestamp(), room: "inbox")
-    first.status = "active"
-    first.tags = ["calm"]
-
-    var second = StudioNote.capture(
-      title: "A later thought", body: "\nBack to [[A quiet morning]].\n",
-      id: NoteFactory.createNoteId(), created: NoteFactory.isoTimestamp(), room: "inbox")
-    second.status = "active"
-    second.tags = ["calm"]
-
-    write(first, to: root, folder: "Journal", file: "a-quiet-morning.md")
-    write(second, to: root, folder: "Journal", file: "a-later-thought.md")
-  }
-
-  // A promoted "becoming" + a desired feeling + a guiding principle, so the rich
-  // Foyer sections have content to render.
-  private static func seedFoyerFixture(at root: URL) {
-    func identity(_ id: String, _ title: String, _ cardType: String, _ file: String) {
-      var note = StudioNote.capture(
-        title: title, body: "\(title).", id: id, created: NoteFactory.isoTimestamp(),
-        room: "identity-studio")
-      note.status = "active"
-      note.cardType = cardType
-      note.semanticType = "growth"
-      write(note, to: root, folder: "Identity Studio", file: file)
-    }
-    identity("BECOMING0000000000000000AA", "Someone who rests", "identity-emerging", "becoming.md")
-    identity("FEELING00000000000000000BB", "Unhurried", "feeling", "feeling.md")
-    identity("PRINCIPLE0000000000000000CC", "Depth over breadth", "principle", "principle.md")
-    // Promote the becoming via the identity:currently-becoming view state.
-    let viewsDir = root.appendingPathComponent(".studio/views", isDirectory: true)
-    try? FileManager.default.createDirectory(at: viewsDir, withIntermediateDirectories: true)
-    if let path = ViewState.path("identity:currently-becoming") {
-      let file = root.appendingPathComponent(path)
-      try? ViewState.serialize(["BECOMING0000000000000000AA"]).data(using: .utf8)?.write(to: file)
-    }
-  }
-
-  // One Life Landscape card (family / vision) + one Identity Studio practicing-now
-  // card, so the two projected rooms have real content to drive in UI tests.
-  private static func seedP5Fixture(at root: URL) {
-    var landscape = StudioNote.capture(
-      title: "A calm morning", body: "\nAn ordinary Tuesday that already feels true.\n",
-      id: NoteFactory.createNoteId(), created: NoteFactory.isoTimestamp(), room: "landscape")
-    landscape.status = "active"
-    landscape.lifeAreas = ["family"]
-    landscape.landscapeAnchor = "vision"
-    landscape.cardType = "vision"
-    landscape.semanticType = "vision"
-
-    var identity = StudioNote.capture(
-      title: "Practicing patience", body: "\nThe quality I'm growing this season.\n",
-      id: NoteFactory.createNoteId(), created: NoteFactory.isoTimestamp(), room: "identity-studio")
-    identity.status = "active"
-    identity.cardType = "identity-emerging"
-    identity.semanticType = "growth"
-
-    write(landscape, to: root, folder: "Life Landscape", file: "a-calm-morning.md")
-    write(identity, to: root, folder: "Identity Studio", file: "practicing-patience.md")
-  }
-
-  private static func write(_ note: StudioNote, to root: URL, folder: String, file: String) {
-    let dir = root.appendingPathComponent(folder, isDirectory: true)
-    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    try? note.serialize().data(using: .utf8)?.write(to: dir.appendingPathComponent(file))
-  }
-
-  // A single due Reflection Garden wish note (due date far in the past → always
-  // due), written through the real byte-identical serializer.
-  private static func seedGiftFixture(at root: URL) {
-    var note = StudioNote.capture(
-      title: "A wish worth keeping", body: "\nRemember the shape of this wish.\n",
-      id: NoteFactory.createNoteId(), created: NoteFactory.isoTimestamp(),
-      room: "reflection-garden")
-    note.resurfaceKind = "wish"
-    note.resurfaceDue = "2020-01-01"
-    note.resurfaceIntervalDays = 6
-    let dir = root.appendingPathComponent("Reflection Garden", isDirectory: true)
-    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    try? note.serialize().data(using: .utf8)?
-      .write(to: dir.appendingPathComponent("a-wish.md"))
-  }
 
   // A sandboxed macOS app must create and resolve the bookmark with security scope
   // for the picked folder to stay reachable across launches; on iOS the fileImporter
@@ -372,7 +262,8 @@ final class VaultStore {
     let key = "ateliera.inbox-journal-migrated:\(encoded)"
     let defaults = UserDefaults.standard
     guard !defaults.bool(forKey: key) else { return }
-    let draftPaths = parsedNotesByPath
+    let draftPaths =
+      parsedNotesByPath
       .filter { $0.note.rooms.contains("inbox") && $0.note.status == "draft" }
       .map(\.path)
     for path in draftPaths { _ = setNoteStatus(path: path, status: "active") }
@@ -529,7 +420,8 @@ final class VaultStore {
       let id = NoteFactory.createNoteId()
       let created = NoteFactory.isoTimestamp()
       var note = StudioNote.capture(
-        title: title, body: trimmedBody, id: id, created: created, room: meta.rooms.first ?? "inbox")
+        title: title, body: trimmedBody, id: id, created: created, room: meta.rooms.first ?? "inbox"
+      )
       note.cardType = meta.cardType
       note.semanticType = meta.semanticType
       note.status = meta.status
@@ -545,7 +437,8 @@ final class VaultStore {
         created: created, title: note.title, cardType: note.cardType, id: id)
       let path = "\(meta.folder)/\(filename)"
       do {
-        _ = try vault.writeText(path: path, text: note.serialize(), expectedHash: nil, createNew: true)
+        _ = try vault.writeText(
+          path: path, text: note.serialize(), expectedHash: nil, createNew: true)
         try reload()
         error = nil
         lastCapturedPath = path
@@ -721,7 +614,9 @@ final class VaultStore {
   /// The active becomings tagged to a life area (optionally excluding one note id) —
   /// used to offer retiring the area's current becoming when a new one is started, so
   /// each area keeps one becoming in play at a time.
-  func activeBecomings(inArea area: String, excludingId: String? = nil) -> [(path: String, title: String)] {
+  func activeBecomings(inArea area: String, excludingId: String? = nil) -> [(
+    path: String, title: String
+  )] {
     parsedNotesByPath
       .filter {
         Becoming.matches($0.note) && $0.note.status != "archived" && $0.note.status != "trashed"
@@ -814,7 +709,8 @@ final class VaultStore {
       created: created, title: nil, cardType: "profile", id: id)
     let path = "Profile/\(filename)"
     do {
-      _ = try vault.writeText(path: path, text: note.serialize(), expectedHash: nil, createNew: true)
+      _ = try vault.writeText(
+        path: path, text: note.serialize(), expectedHash: nil, createNew: true)
       try reload()
       error = nil
       return path
@@ -948,7 +844,8 @@ final class VaultStore {
       let declared = VaultMedia.mimeForExtension(fullPath),
       let data = try? vault.readBinary(path: fullPath)
     else { return nil }
-    guard data.count <= VaultMedia.maxBytes, let sniffed = VaultMedia.sniff(data), sniffed == declared
+    guard data.count <= VaultMedia.maxBytes, let sniffed = VaultMedia.sniff(data),
+      sniffed == declared
     else { return nil }
     return (data, sniffed)
   }
@@ -1052,7 +949,8 @@ final class VaultStore {
     }
     let id = NoteFactory.createNoteId()
     let created = NoteFactory.isoTimestamp()
-    var note = StudioNote.capture(title: title, body: trimmedBody, id: id, created: created, room: room)
+    var note = StudioNote.capture(
+      title: title, body: trimmedBody, id: id, created: created, room: room)
     note.cardType = cardType
     note.semanticType = semanticType
     note.status = status
@@ -1134,7 +1032,8 @@ final class VaultStore {
     for token in ["[[", "]]", "**", "__", "`", "#", ">", "*", "_"] {
       stripped = stripped.replacingOccurrences(of: token, with: " ")
     }
-    return stripped
+    return
+      stripped
       .split(whereSeparator: { $0 == " " || $0 == "\n" || $0 == "\t" })
       .joined(separator: " ")
       .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1230,32 +1129,32 @@ final class VaultStore {
   }
 
   #if targetEnvironment(simulator)
-  // Seed a small Reflection Garden so the room has content in the simulator.
-  private func openFixture() {
-    let fm = FileManager.default
-    let notes: [(String, String, String)] = [
-      ("a-quiet-morning", "A quiet morning that worked", "celebration"),
-      ("returned-without-failure", "I returned without making it a failure", "reflection"),
-      ("the-slower-answer", "I chose the slower answer", "reflection"),
-    ]
-    do {
-      let docs = try fm.url(
-        for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-      let vault = docs.appendingPathComponent("DemoStudio", isDirectory: true)
-      let room = vault.appendingPathComponent("Reflection Garden", isDirectory: true)
-      try fm.createDirectory(at: room, withIntermediateDirectories: true)
-      for (slug, title, meaning) in notes {
-        let body = "\n\(title). Fifteen minutes still counted.\n"
-        let md =
-          "---\ntitle: \(title)\ncard_type: \(meaning)\nrooms:\n  - reflection-garden\n---\n\(body)"
-        try md.data(using: .utf8)!.write(to: room.appendingPathComponent("\(slug).md"))
+    // Seed a small Reflection Garden so the room has content in the simulator.
+    private func openFixture() {
+      let fm = FileManager.default
+      let notes: [(String, String, String)] = [
+        ("a-quiet-morning", "A quiet morning that worked", "celebration"),
+        ("returned-without-failure", "I returned without making it a failure", "reflection"),
+        ("the-slower-answer", "I chose the slower answer", "reflection"),
+      ]
+      do {
+        let docs = try fm.url(
+          for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        let vault = docs.appendingPathComponent("DemoStudio", isDirectory: true)
+        let room = vault.appendingPathComponent("Reflection Garden", isDirectory: true)
+        try fm.createDirectory(at: room, withIntermediateDirectories: true)
+        for (slug, title, meaning) in notes {
+          let body = "\n\(title). Fifteen minutes still counted.\n"
+          let md =
+            "---\ntitle: \(title)\ncard_type: \(meaning)\nrooms:\n  - reflection-garden\n---\n\(body)"
+          try md.data(using: .utf8)!.write(to: room.appendingPathComponent("\(slug).md"))
+        }
+        try "1".data(using: .utf8)!
+          .write(to: vault.appendingPathComponent(".studio-revision"))
+        try openVault(at: vault)
+      } catch {
+        self.error = "\(error)"
       }
-      try "1".data(using: .utf8)!
-        .write(to: vault.appendingPathComponent(".studio-revision"))
-      try openVault(at: vault)
-    } catch {
-      self.error = "\(error)"
     }
-  }
   #endif
 }

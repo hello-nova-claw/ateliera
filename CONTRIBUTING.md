@@ -131,9 +131,10 @@ How to run everything is in [CLAUDE.md](CLAUDE.md#running-checks).
 
 ## Screenshots
 
-- Every pull request from this repository that touches UI gets a **Screenshots** comment. It shows before and after images of every screen and state that changed, plus a collapsed list of the ones that didn't. Reviewers look at it before approving. A visual change never fails the check, so nothing else catches one.
-- Screenshots are taken from fixture vaults with a fixed clock and time zone, in every state the catalogue lists. They are named `<screen>--<state>--<locale>--<device>.png`. All data in them is invented.
-- When you add a screen or a state, add it to the screenshot catalogue. The catalogue and the comment arrive with #148.
+- Every pull request from this repository that changes the app or its UI tests gets a **Screenshots** comment. It shows each changed screen beside `main`'s, and each new one, and counts the ones that stayed the same. Reviewers look at it before approving. The Apple screenshots check isn't required, and a visual change never fails it, so nothing else catches one. Pull requests from forks and from Dependabot get no comment.
+- `apple/AtelieraUITests/ScreenshotCatalogueUITests.swift` takes them on an iPhone 17e and an iPhone 17 Pro Max with the clock, time zone and status bar pinned. It photographs every screen in `AppScreens.swift` in an empty and a furnished fixture vault, in en-GB, Arabic (right to left) and de-DE, plus Today in each moon phase. The app has one light palette, so there's no dark pass yet. Shots are JPEGs named `<screen>--<state>--<locale>--<device>.jpg`. All data in them is invented.
+- The images live on the `screenshots` branch: `main/` holds `main`'s full set, and `pr-<n>/` only the shots a pull request changed. A shot counts as changed when some pixel moves by more than 24 levels out of 255 from `main`'s, since blur and JPEG encoding shift a few levels between identical runs (`bin/match-shots.swift`). `bin/screenshots.mjs` does the rest of the comparison.
+- When you add a screen, add it to `AppScreens.swift`, and the catalogue and the audit both pick it up. When you add a state, add it to the catalogue.
 
 ## Security and privacy bugs
 
