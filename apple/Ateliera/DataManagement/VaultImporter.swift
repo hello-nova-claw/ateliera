@@ -234,8 +234,9 @@ enum VaultImporter {
 
   /// Write the plan in one atomic batch, with a snapshot of every note and media file it
   /// replaces so the replaced version can be restored. Nothing is written if that copy
-  /// can't be. A snapshot holds only a person's files, so the app's own `.studio/` files
-  /// are replaced uncopied. Old snapshots aren't pruned here, so any the backup brings
+  /// can't be. The app's own files under the root `.studio/` are replaced uncopied. Any
+  /// other file a snapshot can't hold, such as one in a nested `.studio` folder, stops
+  /// the import. Old snapshots aren't pruned here, so any the backup brings
   /// back stay until the next snapshot prunes.
   @discardableResult
   static func apply(
@@ -256,7 +257,7 @@ enum VaultImporter {
     guard !writes.isEmpty else { return true }
     let replaced = plan.items.filter {
       plan.resolvedAction(for: $0, resolutions: resolutions) == .overwrite
-        && RevisionStore.isSafeUserPath($0.path)
+        && !$0.path.lowercased().hasPrefix(".studio/")
     }
     .map { $0.path }
     guard
