@@ -9,3 +9,4 @@ export * from './season';
 export * from './semantic-type';
 export * from './view-projection';
 export * from './wisdom';
+export * from './written-time';

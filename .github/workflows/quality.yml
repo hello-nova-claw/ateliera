@@ -38,6 +38,14 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      # Dates are where this app breaks, so the unit tests also run in zones
+      # east and west of UTC. The runner itself is on UTC.
+      - name: Unit tests in other time zones
+        run: |
+          for zone in Australia/Melbourne America/Los_Angeles; do
+            echo "Time zone: $zone"
+            TZ="$zone" pnpm test
+          done
       - run: pnpm build
       - run: pnpm test:e2e
       - name: Upload Playwright evidence

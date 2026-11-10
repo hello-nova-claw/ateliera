@@ -37,7 +37,7 @@ final class DiagnosticsRecorder {
 
   func record(
     operation: String, outcome: String, errorCode: String? = nil, fileId: String? = nil,
-    now: String = NoteFactory.isoTimestamp()
+    now: String = NoteFactory.utcTimestamp()
   ) {
     record(
       DiagnosticEntry(

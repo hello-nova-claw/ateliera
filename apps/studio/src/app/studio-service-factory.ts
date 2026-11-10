@@ -24,7 +24,12 @@ export function createAppStudioService(
   createIndex: () => ClosableIndex = createSearchIndexWorkerClient,
 ): AppStudioService {
   const index = createIndex();
-  const lifecycle = createStudioService({ vault, index });
+  const lifecycle = createStudioService({
+    vault,
+    index,
+    // The composition root is the one place that reads the host's zone.
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  });
   const search = createStudioSearchService({ vault, index });
   let initialRebuildComplete = false;
   let initialRebuildPromise: Promise<void> | undefined;
