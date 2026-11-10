@@ -185,7 +185,7 @@ jobs:
             -only-testing:AtelieraUITests/AccessibilityAuditUITests/${{ matrix.test }} \
             -resultBundlePath ../results/${{ matrix.test }}.xcresult \
             | grep -E 'error:|unaudited|Test Case .*(passed|failed)|Executed|TEST (SUCCEEDED|FAILED)'
-      - uses: actions/upload-artifact@v7.0.0
+      - uses: actions/upload-artifact@v7.0.2
         if: failure()
         with:
           name: apple-accessibility-audit-${{ matrix.test }}
