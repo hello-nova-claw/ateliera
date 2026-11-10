@@ -555,4 +555,22 @@ final class VaultImportTests: XCTestCase {
     XCTAssertEqual(
       Set(RevisionStore(store: vault.store).list().map { $0.id }), ["SNAP1", "IMPORT"])
   }
+
+  // Only the root `.studio/` folder is the app's. A person's own file in a folder of
+  // that name elsewhere can't go in a snapshot, so the import mustn't replace it uncopied.
+  func testAnImportRefusesToReplaceAPersonsFileItCannotCopy() throws {
+    let (dir, store) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let path = "Ideas/.studio/plan.md"
+    XCTAssertNotNil(
+      store.writeRawFile(path: path, text: "my plan\n", expectedHash: nil, createNew: true))
+    let plan = try VaultImporter.prepare(
+      archive: portable([(path: path, bytes: Data("their plan\n".utf8))]), store: store)
+    XCTAssertEqual(plan.overwriteCount, 1)
+
+    XCTAssertFalse(
+      VaultImporter.apply(plan: plan, store: store, now: "2026-09-01T10:00:00.000Z", id: "IMPORT"))
+    XCTAssertEqual(store.readRawFile(path: path)?.text, "my plan\n")
+    XCTAssertNotNil(store.error)
+  }
 }
