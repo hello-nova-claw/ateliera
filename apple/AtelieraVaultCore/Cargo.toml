@@ -13,7 +13,7 @@ name = "uniffi-bindgen"
 path = "src/bin/uniffi-bindgen.rs"
 
 [dependencies]
-uniffi = { version = "0.28", features = ["cli"] }
+uniffi = { version = "0.32", features = ["cli"] }
 cap-std = "4.0.2"
 cap-fs-ext = "4.0.2"
 sha2 = "0.11"
