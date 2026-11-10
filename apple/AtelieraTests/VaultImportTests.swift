@@ -573,4 +573,18 @@ final class VaultImportTests: XCTestCase {
     XCTAssertEqual(store.readRawFile(path: path)?.text, "my plan\n")
     XCTAssertNotNil(store.error)
   }
+
+  // A snapshot's time must be in UTC, whatever zone the app is in (#265).
+  func testAnImportWithTheDefaultClockKeepsACopy() throws {
+    let (dir, store) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.capture(title: "Mine", body: "my words", room: "inbox"))
+    let path = try XCTUnwrap(store.parsedNotesByPath.first?.path)
+    let plan = try VaultImporter.prepare(
+      archive: portable([(path: path, bytes: Data("replacement\n".utf8))]), store: store)
+
+    XCTAssertTrue(VaultImporter.apply(plan: plan, store: store), store.error ?? "")
+    XCTAssertEqual(
+      RevisionStore(store: store).list().map { $0.manifest.reason }, [RevisionReason.importBackup])
+  }
 }
