@@ -526,6 +526,12 @@ final class VaultImportTests: XCTestCase {
   func testAnImportKeepsTheSnapshotsItBringsBack() throws {
     let vault = try vaultWithItsOwnExport()
     defer { try? FileManager.default.removeItem(at: vault.dir) }
+    // Remove SNAP1's copy, so only the import can bring it back.
+    let snapshot = try XCTUnwrap(
+      RevisionStore(store: vault.store).list().first { $0.id == "SNAP1" })
+    let copyPath = try XCTUnwrap(snapshot.manifest.files.first?.snapshotPath)
+    let copy = try XCTUnwrap(vault.store.readFileBytes(path: copyPath))
+    try FileManager.default.removeItem(at: vault.dir.appendingPathComponent(copyPath))
     let plan = try VaultImporter.prepare(archive: vault.archive, store: vault.store)
 
     // More than 30 days after SNAP1, so a prune would remove it.
@@ -533,6 +539,7 @@ final class VaultImportTests: XCTestCase {
       VaultImporter.apply(
         plan: plan, store: vault.store, now: "2026-10-15T10:00:00.000Z", id: "IMPORT"),
       vault.store.error ?? "")
+    XCTAssertEqual(vault.store.readFileBytes(path: copyPath), copy)
     XCTAssertEqual(
       Set(RevisionStore(store: vault.store).list().map { $0.id }), ["SNAP1", "IMPORT"])
   }
