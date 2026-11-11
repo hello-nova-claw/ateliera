@@ -22,8 +22,8 @@ Ateliera is a private journal for designing a life from the inside out. It ships
   - ESLint enforces the layering.
 - `apps/studio/`: the React 19 PWA and Tauri desktop host. The Rust host is in `src-tauri/`.
 - `fixtures/vaults/`: invented vaults for tests.
-- `docs/`: the design record, privacy, the privacy policy draft, ADRs, the product PRD and roadmaps (`docs/product/`), and plans.
-- `development-log.md`: history of completed work.
+- `docs/`: the design record, privacy, the privacy policy draft, ADRs, the product PRD and roadmaps (`docs/product/`), reviews (`docs/reviews/`), and plans.
+- `development-log.md`: history of completed work up to August 2026. Later work is in merged pull requests and `changelog/` fragments.
 
 ## How it fits together
 
@@ -106,21 +106,34 @@ Run date-sensitive tests under other zones too: prefix with `TZ=Pacific/Auckland
 ## Traps
 
 - **A new worktree has no `.toolchains/` or `node_modules/`.** Both are ignored. Run `pnpm install --frozen-lockfile` in the worktree, and symlink `.toolchains` from the main checkout (`ln -s ../../../.toolchains .toolchains` from `.claude/worktrees/<name>/`). Never commit the symlink. Without it, `build.sh` and the Rust scripts fail.
+- **`build.sh` fails in a worktree since uniffi 0.32** (#266). Reached through the `.toolchains` symlink, `uniffi_bindgen`'s templates can't be read. Until #266 lands, copy `apple/AtelieraVaultCore/VaultCore.xcframework` and `apple/Ateliera/Generated/` from a checkout where the build worked, or run a local copy of `build.sh` that sets `CARGO_HOME` from `$(cd "$root/.toolchains" && pwd -P)`.
 - **Lint from the main checkout used to read every worktree.** ESLint and Stylelint lint dot-folders, so `pnpm lint` in the main checkout also linted `.claude/worktrees/*`, with other branches' errors. Both configs now ignore `.claude/**`. That pattern is relative to the directory the tool runs from, so inside a worktree its own files are still checked. Never make it an absolute path. A worktree's own path contains `.claude/worktrees/`, and a pattern matched against absolute paths would make lint inside a worktree check nothing. That happened with PHPCS on Undergrowth.
 - **The macOS app target doesn't build on `main`** (#126). Use an iOS simulator destination.
-- **`pnpm test:e2e` fails on `main`** (#129). Don't read its failure as yours until #129 is closed.
+- **The accessibility audit sometimes hangs on GitHub's macOS runners** (#232). The job fails with `<screen>: the accessibility audit timed out three times, so this position went unaudited` and `Failed to get system application: Timed out`, or is cancelled at 60 minutes. That isn't a finding. Rerun the failed jobs (`gh run rerun <run-id> --failed`), up to twice, rather than pushing.
+- **Audit findings can depend on the date.** The micro-season name and the invitations change with the day, so a finding can appear on one run and not the next (#254).
 - **The simulator seeds a demo vault**; a device opens the folder picker (`VaultStore.swift`, `#if targetEnvironment(simulator)`).
 - **Another session may share the main checkout.** Do branch work in a worktree under `.claude/worktrees/`, and never reset or switch the main checkout's branch.
 
 ## Pull requests
 
-- Every pull request needs an issue with all five template fields, a branch named `<issue>-<slug>`, and a changelog fragment `changelog/<issue>-<slug>.txt` (`bin/changelog` arrives with #145). A pull request with no user-facing change, such as docs or tooling only, gets the `no-changelog` label instead.
+- Every pull request needs an issue with all five template fields, a branch named `<issue>-<slug>`, and a changelog fragment `changelog/<issue>-<slug>.txt` (`pnpm changelog` folds them into `CHANGELOG.md` at release). A pull request with no user-facing change, such as docs or tooling only, gets the `no-changelog` label instead.
 - Commits use the repo-local Novaclaw git identity, in WordPress core style. Don't add `Co-Authored-By` or any AI attribution lines.
 - The `gh` CLI has two accounts. Use Novaclaw for this repository: `GH_TOKEN=$(gh auth token --user hello-nova-claw) gh …`.
-- CodeRabbit's approval is the required review. It allows about 10 reviews an hour per repository, so batch fixes into one push. When it says "Review paused", comment `@coderabbitai resume`, then `@coderabbitai review`.
-- Auto-merge (`gh pr merge <n> --auto --merge`) can land a pull request while you are still fixing it. Run `gh pr view <n> --json state` and confirm it is `OPEN` before every push to its branch.
+- A pull request merges only when every check is green, CodeRabbit has approved it (unless it changes only Markdown documentation or is a Dependabot update), and Anna has reviewed it if it touches anything CONTRIBUTING.md reserves for her: the design principles, `docs/privacy.md`, the privacy manifests, entitlements, usage strings or the licence files. Nobody pushes to `main` directly. GitHub enforces none of this, because `main` has no branch protection (#263).
+- CodeRabbit doesn't review on its own here, and its limit counts every review asked for by the one account that opens pull requests, dropping to about one an hour after a busy week. So ask once per round: push your fixes, wait for CI to go green, run a local `/code-review` of the diff and fix what it finds, then comment `@coderabbitai review`.
+  - It often answers "Review rate limited". Wait about an hour and ask again.
+  - It doesn't review a closed or merged pull request, or a commit it has already reviewed.
+  - When it says "Review paused", comment `@coderabbitai resume`, then `@coderabbitai review`.
+- **Never use `gh pr merge --auto`.** With no branch protection it merges at once, before review or CI, which is how #256 merged unreviewed. Once those conditions hold, merge by hand with `gh pr merge <n> --merge --match-head-commit <sha>`. Run `gh pr view <n> --json state` and confirm it is `OPEN` before every push to its branch.
 - Merge `main` into a branch only when it is DIRTY (conflicting). Being behind is not a reason: every push dismisses the approval and restarts CI.
 - Every push queues every CI job. GitHub Free runs 5 macOS jobs at once. A push touching `apple/` queues one, or four when it changes the app or its UI tests (the accessibility audit runs as three parallel jobs), so keep **no more than one pull request that changes the app or its UI tests** being pushed at a time, or two that touch only other `apple/` files. Web-only pull requests run on Linux and are limited only by the 20-job total. Recompute this when the CI's macOS jobs change.
 - When several sessions work in parallel, give each one a lane: an ordered list of issues in one area, one pull request at a time, so they don't edit the same files.
-- Only `main` is protected. Never enable auto-merge on a pull request whose base is another feature branch, because it merges into that base at once.
-- Never enable auto-merge on a pull request from outside, or on any pull request labelled `privacy`. Those wait for Anna.
+- Never merge a pull request from outside, or one labelled `privacy`, without Anna's go-ahead, even when it's approved and green.
+- Dependabot pull requests can merge once green. If a major upgrade fails, close it and open an issue for the upgrade instead (#261).
+
+## Picking up work
+
+- The board is the [Ateliera project](https://github.com/users/hello-nova-claw/projects/3). Status runs Backlog, Ready, In progress, In review and Done. Priority is P0 (1.0 launch), P1 (1.1) or P2 (Later), and the milestones match. Start with Ready P0 issues in the 1.0 launch milestone.
+- The pinned issue #263 lists the decisions and checks waiting for Anna. Don't start work that depends on one of them.
+- Some issues have a finished fix on a branch with no pull request yet: #12, #13 (built on #12's branch), #18, #37, #42, #43, #45, #51, #91 and #92. A comment on each names the branch and whether it still merges cleanly. Start from that branch rather than from scratch. #148 has unfinished work on `148-screenshot-catalogue-wip`.
+- #117 tracks the findings of the 2026-10-26 review of the Apple app. The review itself is [docs/reviews/2026-10-26-apple-app-review.md](docs/reviews/2026-10-26-apple-app-review.md).
