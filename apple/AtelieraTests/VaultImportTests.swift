@@ -479,4 +479,112 @@ final class VaultImportTests: XCTestCase {
     XCTAssertFalse(store.listAllPaths().contains("Inbox/brand-new.md"))
     XCTAssertNotNil(store.error)
   }
+
+  // MARK: - Importing over files under .studio/ (#257)
+
+  private struct ExportedVault {
+    let dir: URL
+    let store: VaultStore
+    let path: String
+    let mine: Data
+    let archive: Data
+    /// A `.studio/` file as it was exported.
+    static let view = (path: ".studio/views/home.json", text: "{\"layout\":\"exported\"}\n")
+  }
+
+  /// A vault with one note and a revision snapshot of it, exported, with the note then
+  /// changed, so importing the export replaces the note and the `.studio/` files.
+  private func vaultWithItsOwnExport() throws -> ExportedVault {
+    let (dir, store) = try makeVault()
+    XCTAssertTrue(store.capture(title: "Mine", body: "my words", room: "inbox"))
+    let path = try XCTUnwrap(store.parsedNotesByPath.first?.path)
+    let mine = try XCTUnwrap(store.readFileBytes(path: path))
+    XCTAssertNotNil(
+      RevisionStore(store: store).snapshot(
+        reason: RevisionReason.conflictResolution, paths: [path],
+        now: "2026-08-29T10:00:00.000Z", id: "SNAP1"))
+    let view = ExportedVault.view
+    XCTAssertNotNil(
+      store.writeRawFile(path: view.path, text: view.text, expectedHash: nil, createNew: true))
+    let archive = try VaultExporter.export(store: store, generatedAt: "2026-08-30T09:00:00.000Z")
+    let editable = try XCTUnwrap(store.beginEdit(path: path))
+    XCTAssertTrue(store.saveEdit(editable, title: "Mine", body: "changed"))
+    return ExportedVault(dir: dir, store: store, path: path, mine: mine, archive: archive)
+  }
+
+  func testAnImportThatReplacesStudioFilesWritesAndKeepsACopyOfTheNotes() throws {
+    let vault = try vaultWithItsOwnExport()
+    defer { try? FileManager.default.removeItem(at: vault.dir) }
+    let view = ExportedVault.view
+    let current = try XCTUnwrap(vault.store.readRawFile(path: view.path))
+    XCTAssertNotNil(
+      vault.store.writeRawFile(
+        path: view.path, text: "{\"layout\":\"changed\"}\n", expectedHash: current.hash,
+        createNew: false))
+    let plan = try VaultImporter.prepare(archive: vault.archive, store: vault.store)
+    XCTAssertTrue(plan.items.contains { $0.action == .overwrite && $0.path == view.path })
+
+    XCTAssertTrue(
+      VaultImporter.apply(
+        plan: plan, store: vault.store, now: "2026-09-01T10:00:00.000Z", id: "IMPORT"),
+      vault.store.error ?? "")
+    XCTAssertEqual(vault.store.readFileBytes(path: vault.path), vault.mine)
+    XCTAssertEqual(vault.store.readRawFile(path: view.path)?.text, view.text)
+    let kept = try XCTUnwrap(RevisionStore(store: vault.store).list().first { $0.id == "IMPORT" })
+    // A snapshot holds only a person's files, so the `.studio/` ones are replaced uncopied.
+    XCTAssertEqual(kept.manifest.files.map { $0.originalPath }, [vault.path])
+  }
+
+  func testAnImportKeepsTheSnapshotsItBringsBack() throws {
+    let vault = try vaultWithItsOwnExport()
+    defer { try? FileManager.default.removeItem(at: vault.dir) }
+    // Remove SNAP1's copy, so only the import can bring it back.
+    let snapshot = try XCTUnwrap(
+      RevisionStore(store: vault.store).list().first { $0.id == "SNAP1" })
+    let copyPath = try XCTUnwrap(snapshot.manifest.files.first?.snapshotPath)
+    let copy = try XCTUnwrap(vault.store.readFileBytes(path: copyPath))
+    try FileManager.default.removeItem(at: vault.dir.appendingPathComponent(copyPath))
+    let plan = try VaultImporter.prepare(archive: vault.archive, store: vault.store)
+
+    // More than 30 days after SNAP1, so a prune would remove it.
+    XCTAssertTrue(
+      VaultImporter.apply(
+        plan: plan, store: vault.store, now: "2026-10-15T10:00:00.000Z", id: "IMPORT"),
+      vault.store.error ?? "")
+    XCTAssertEqual(vault.store.readFileBytes(path: copyPath), copy)
+    XCTAssertEqual(
+      Set(RevisionStore(store: vault.store).list().map { $0.id }), ["SNAP1", "IMPORT"])
+  }
+
+  // Only the root `.studio/` folder is the app's. A person's own file in a folder of
+  // that name elsewhere can't go in a snapshot, so the import mustn't replace it uncopied.
+  func testAnImportRefusesToReplaceAPersonsFileItCannotCopy() throws {
+    let (dir, store) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let path = "Ideas/.studio/plan.md"
+    XCTAssertNotNil(
+      store.writeRawFile(path: path, text: "my plan\n", expectedHash: nil, createNew: true))
+    let plan = try VaultImporter.prepare(
+      archive: portable([(path: path, bytes: Data("their plan\n".utf8))]), store: store)
+    XCTAssertEqual(plan.overwriteCount, 1)
+
+    XCTAssertFalse(
+      VaultImporter.apply(plan: plan, store: store, now: "2026-09-01T10:00:00.000Z", id: "IMPORT"))
+    XCTAssertEqual(store.readRawFile(path: path)?.text, "my plan\n")
+    XCTAssertNotNil(store.error)
+  }
+
+  // A snapshot's time must be in UTC, whatever zone the app is in (#265).
+  func testAnImportWithTheDefaultClockKeepsACopy() throws {
+    let (dir, store) = try makeVault()
+    defer { try? FileManager.default.removeItem(at: dir) }
+    XCTAssertTrue(store.capture(title: "Mine", body: "my words", room: "inbox"))
+    let path = try XCTUnwrap(store.parsedNotesByPath.first?.path)
+    let plan = try VaultImporter.prepare(
+      archive: portable([(path: path, bytes: Data("replacement\n".utf8))]), store: store)
+
+    XCTAssertTrue(VaultImporter.apply(plan: plan, store: store), store.error ?? "")
+    XCTAssertEqual(
+      RevisionStore(store: store).list().map { $0.manifest.reason }, [RevisionReason.importBackup])
+  }
 }

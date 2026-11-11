@@ -232,12 +232,16 @@ enum VaultImporter {
     }
   }
 
-  /// Write the plan in one atomic batch, with a snapshot of every file it replaces so
-  /// the replaced version can be restored. Nothing is written if that copy can't be.
+  /// Write the plan in one atomic batch, with a snapshot of every note and media file it
+  /// replaces so the replaced version can be restored. Nothing is written if that copy
+  /// can't be. The app's own files under the root `.studio/` are replaced uncopied. Any
+  /// other file a snapshot can't hold, such as one in a nested `.studio` folder, stops
+  /// the import. Old snapshots aren't pruned here, so any the backup brings
+  /// back stay until the next snapshot prunes.
   @discardableResult
   static func apply(
     plan: ImportPlan, resolutions: [String: ImportAction] = [:], store: VaultStore,
-    now: String = NoteFactory.isoTimestamp(), id: String = NoteFactory.createNoteId()
+    now: String = NoteFactory.utcTimestamp(), id: String = NoteFactory.createNoteId()
   ) -> Bool {
     let writes = plan.items.compactMap { item -> BatchWrite? in
       switch plan.resolvedAction(for: item, resolutions: resolutions) {
@@ -253,11 +257,11 @@ enum VaultImporter {
     guard !writes.isEmpty else { return true }
     let replaced = plan.items.filter {
       plan.resolvedAction(for: $0, resolutions: resolutions) == .overwrite
+        && !$0.path.lowercased().hasPrefix(".studio/")
     }
     .map { $0.path }
-    let revisions = RevisionStore(store: store)
     guard
-      let copies = revisions.copyWrites(
+      let copies = RevisionStore(store: store).copyWrites(
         replacing: replaced, reason: RevisionReason.importBackup, now: now, id: id)
     else {
       store.error = String(
@@ -266,10 +270,6 @@ enum VaultImporter {
         comment: "Shown when an import is stopped because no backup of the replaced files was made")
       return false
     }
-    guard store.writeBatch(expectedRevision: plan.targetRevision, writes: copies + writes) else {
-      return false
-    }
-    if !copies.isEmpty { revisions.prune(now: now) }
-    return true
+    return store.writeBatch(expectedRevision: plan.targetRevision, writes: copies + writes)
   }
 }
