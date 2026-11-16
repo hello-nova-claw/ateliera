@@ -40,7 +40,7 @@
     "@storybook/addon-a11y": "^9.1.20",
     "@storybook/react-vite": "^9.1.20",
     "@tauri-apps/cli": "2.12.4",
-    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
