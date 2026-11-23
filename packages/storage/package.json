@@ -20,6 +20,6 @@
   },
   "dependencies": {
     "@studio/domain": "workspace:*",
-    "@tauri-apps/api": "^2.12.4"
+    "@tauri-apps/api": "^2.12.5"
   }
 }
